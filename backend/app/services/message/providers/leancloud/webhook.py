@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.contact import contact as contact_crud
-from app.enums import MessageType
+from app.enums import MessageTransportProvider, MessageType
 from app.services.message.schemas import EventMetadata, InboundMessageEvent
 from app.services.message.security.encryption import decrypt_from_transport
 from app.type_defs import JSONDict
@@ -41,7 +41,7 @@ async def parse_leancloud_webhook(
       "msg_id": "client_1710001111222_abc123",
       "from": "qiao_user001",
       "to": "qiao_xm001",
-      "conv_id": "conv_xyz789",
+      "conversation_id": "conv_xyz789",
       "content": "你好",
       "message_type": 1,
       "supports_typing": true,
@@ -62,7 +62,7 @@ async def parse_leancloud_webhook(
 
         from_qiao_id = intermediate.get("from_qiao_id")
         to_qiao_id = intermediate.get("to_qiao_id")
-        conv_id = intermediate.get("conv_id")
+        conversation_id = intermediate.get("conversation_id")
         content_value = intermediate.get("content")
         content = content_value if isinstance(content_value, str) else ""
         message_type_raw = intermediate.get("message_type")
@@ -87,12 +87,12 @@ async def parse_leancloud_webhook(
             encryption_version_raw if isinstance(encryption_version_raw, str) else None
         )
 
-        if not all([from_qiao_id, to_qiao_id, conv_id, message_type_raw is not None]):
+        if not all([from_qiao_id, to_qiao_id, conversation_id, message_type_raw is not None]):
             logger.error(
                 "missing_inner_message_fields",
                 has_from=bool(from_qiao_id),
                 has_to=bool(to_qiao_id),
-                has_conv_id=bool(conv_id),
+                has_conversation_id=bool(conversation_id),
                 has_message_type=message_type_raw is not None,
                 intermediate=intermediate,
             )
@@ -105,9 +105,9 @@ async def parse_leancloud_webhook(
         if not isinstance(to_qiao_id, str):
             logger.error("invalid_to_qiao_id_type", type=type(to_qiao_id).__name__)
             raise TypeError("invalid_to_qiao_id_type")
-        if not isinstance(conv_id, str):
-            logger.error("invalid_conv_id_type", type=type(conv_id).__name__)
-            raise TypeError("invalid_conv_id_type")
+        if not isinstance(conversation_id, str):
+            logger.error("invalid_conversation_id_type", type=type(conversation_id).__name__)
+            raise TypeError("invalid_conversation_id_type")
 
         # Type narrowing - validate message_type is int
         if not isinstance(message_type_raw, int):
@@ -119,9 +119,9 @@ async def parse_leancloud_webhook(
             raise TypeError("invalid_message_type")
 
         # Verify conversation exists in contacts table
-        contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
+        contact = await contact_crud.get_by_conversation_id(db, conversation_id=conversation_id)
         if not contact:
-            logger.warning("conversation_not_found", conv_id=conv_id)
+            logger.warning("conversation_not_found", conversation_id=conversation_id)
             raise TypeError("conversation_not_found")
 
         # Convert ISO timestamp to milliseconds
@@ -168,7 +168,7 @@ async def parse_leancloud_webhook(
         # 9. Return InboundMessageEvent (msg_id_server to be filled downstream)
         return InboundMessageEvent(
             message_type=MessageType(message_type_raw),
-            conversation_id=conv_id,
+            conversation_id=conversation_id,
             from_qiao_id=from_qiao_id,
             to_qiao_id=to_qiao_id,
             content=content or "",
@@ -176,7 +176,8 @@ async def parse_leancloud_webhook(
             msg_id_client=msg_id_client,
             msg_id_provider_inbound=msg_id_provider,
             supports_typing=supports_typing,
-            client_sent_time=sent_time,
+            client_sent_time_ms=sent_time,
+            inbound_provider=MessageTransportProvider.LEANCLOUD,
             metadata=event_metadata,
         )
 

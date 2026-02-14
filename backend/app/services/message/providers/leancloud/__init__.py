@@ -12,6 +12,7 @@ from app.services.message.providers.base import MessageProvider, MessageResult
 from app.services.message.schemas import InboundMessageEvent
 
 from . import service
+from .sender import LeanCloudTimelineSender
 
 
 class LeanCloudProvider:
@@ -130,5 +131,6 @@ def create_leancloud_provider(db: AsyncSession) -> MessageProvider:
 
 __all__ = [
     "LeanCloudProvider",
+    "LeanCloudTimelineSender",
     "create_leancloud_provider",
 ]

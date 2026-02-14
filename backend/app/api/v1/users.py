@@ -22,6 +22,7 @@ from app.schemas.user_profile import (
     UserProfileUpdateRequest,
 )
 from app.services.profile.avatar import get_avatar_url
+from app.services.security.username import UsernameValidationConfigError, validate_username_or_error
 from app.utils.email import mask_email
 from app.utils.logging import get_logger
 from app.utils.phone import mask_phone
@@ -77,7 +78,7 @@ async def get_user_profile(
         logger.error(
             "get_user_profile_failed", error=str(e), qiao_id=current_user.qiao_id, exc_info=True
         )
-        raise HTTPException(status_code=500, detail="获取用户资料失败，请稍后再试") from e
+        raise HTTPException(status_code=500, detail="系统错误") from e
 
 
 @router.get("/account", response_model=UserAccountResponse)
@@ -126,7 +127,7 @@ async def get_user_account(
         logger.error(
             "get_user_account_failed", error=str(e), qiao_id=current_user.qiao_id, exc_info=True
         )
-        raise HTTPException(status_code=500, detail="获取账户信息失败，请稍后再试") from e
+        raise HTTPException(status_code=500, detail="系统错误") from e
 
 
 @router.put("/profile", response_model=UserProfileResponse)
@@ -153,6 +154,13 @@ async def update_user_profile(
     try:
         # Update username if provided (user table field)
         if body.username is not None:
+            try:
+                username_error = await validate_username_or_error(db, body.username)
+            except UsernameValidationConfigError:
+                raise HTTPException(status_code=500, detail="系统错误")
+            if username_error is not None:
+                raise HTTPException(status_code=400, detail="用户名格式有误")
+
             # Check if username already exists
             existing_user = await user_crud.get_by_username(db, username=body.username)
             if existing_user and existing_user.id != current_user.id:
@@ -169,11 +177,11 @@ async def update_user_profile(
             # Get media file by file_id (file_xxx format)
             media_file = await media_file_crud.get_by_file_id(db, file_id=body.avatar_file_id)
             if not media_file:
-                raise HTTPException(status_code=404, detail="头像文件不存在")
+                raise HTTPException(status_code=404, detail="系统错误")
 
             # Verify ownership
             if media_file.upload_by_id != current_user.id:
-                raise HTTPException(status_code=403, detail="无权操作")
+                raise HTTPException(status_code=403, detail="系统错误")
 
             # Verify file status
             if media_file.status != int(FileStatus.ACTIVE):
@@ -205,7 +213,7 @@ async def update_user_profile(
                 db, owner_id=current_user.id, owner_type=ProfileOwnerType.USER, obj_in=update_data
             )
             if not updated_profile:
-                raise HTTPException(status_code=500, detail="更新用户资料失败，请稍后再试")
+                raise HTTPException(status_code=500, detail="系统错误")
         else:
             # Create new profile
             create_data = ProfileCreate(**profile_data)
@@ -248,4 +256,4 @@ async def update_user_profile(
         logger.error(
             "update_user_profile_failed", error=str(e), qiao_id=current_user.qiao_id, exc_info=True
         )
-        raise HTTPException(status_code=500, detail="更新用户资料失败，请稍后再试") from e
+        raise HTTPException(status_code=500, detail="系统错误") from e

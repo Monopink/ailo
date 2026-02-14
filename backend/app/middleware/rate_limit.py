@@ -3,17 +3,20 @@
 import time
 from collections import deque
 from collections.abc import Awaitable, Callable
+from uuid import uuid4
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
+from app.exceptions.error_codes import build_error_code
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 MAX_RATE_LIMIT_CACHE_SIZE = 1000
+REQUEST_ID_HEADER = "X-Request-ID"
 
 
 class APIRateLimitMiddleware(BaseHTTPMiddleware):
@@ -92,14 +95,18 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
                 retry_after=retry_after,
             )
 
+            request_id = self._get_or_create_request_id(request)
+            message = "请求过于频繁，请稍后再试"
+            error_code = build_error_code(path=request.url.path, status_code=429, detail=message)
+
             return JSONResponse(
                 status_code=429,
                 content={
-                    "error": "RATE_LIMIT_EXCEEDED",
-                    "message": "请求过于频繁，请稍后再试",
-                    "retry_after": retry_after,
+                    "error_code": error_code,
+                    "message": message,
+                    "request_id": request_id,
                 },
-                headers={"Retry-After": str(retry_after)},
+                headers={"Retry-After": str(retry_after), REQUEST_ID_HEADER: request_id},
             )
 
         # Record this request
@@ -140,3 +147,20 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
                 removed_ips_count=len(ips_to_remove),
                 remaining_ips_count=len(self._cache),
             )
+
+    @staticmethod
+    def _get_or_create_request_id(request: Request) -> str:
+        request_id = getattr(request.state, "request_id", None)
+        if isinstance(request_id, str) and request_id:
+            return request_id
+
+        header_value = request.headers.get(REQUEST_ID_HEADER) or request.headers.get(
+            REQUEST_ID_HEADER.lower()
+        )
+        if header_value:
+            request_id = header_value
+        else:
+            request_id = f"req_{uuid4().hex[:12]}"
+
+        request.state.request_id = request_id
+        return request_id

@@ -562,22 +562,23 @@ def _normalize_str_dict(payload: JSONDict | dict[str, object] | None) -> dict[st
     return normalized
 
 
-def _normalize_thinking_mode(value: str | None, *, config_name: str) -> str | None:
+def _normalize_thinking_mode(value: str | None, *, config_name: str) -> str:
     """
-    Responses API does not support legacy thinking flags; normalize or fail fast.
+    Normalize thinking mode into a strict 3-state value expected by adapters.
     """
-    if value in (None, "", "disabled"):
-        return None
-    if value == "auto":
-        return None
-    if value == "enabled":
+    if not isinstance(value, str):
         raise LLMConfigurationError(
-            f"Thinking mode 'enabled' is not supported for Responses API (config: {config_name}). "
-            "Please disable thinking or switch to a provider that supports it."
+            f"Missing thinking_mode for config '{config_name}'. "
+            "Allowed values: enabled/disabled/auto."
         )
+
+    normalized = value.strip().lower()
+    if normalized in {"enabled", "disabled", "auto"}:
+        return normalized
+
     raise LLMConfigurationError(
         f"Unknown thinking_mode '{value}' for config '{config_name}'. "
-        "Allowed values: auto/disabled."
+        "Allowed values: enabled/disabled/auto."
     )
 
 

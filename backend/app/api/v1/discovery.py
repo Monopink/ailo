@@ -99,6 +99,4 @@ async def get_stranger_profile(
         raise
     except Exception as e:
         logger.error("stranger_profile_error", qiao_id=qiao_id, error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="获取用户信息失败，请稍后再试"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误")

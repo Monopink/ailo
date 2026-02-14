@@ -124,11 +124,39 @@ class MessageParticipantType(IntEnum):
     SYSTEM = 4
 
 
-class ServiceProvider(IntEnum):
-    """Message service provider (message_history.service_provider)."""
+class MessageTransportProvider(IntEnum):
+    """Message transport provider enum.
 
-    INTERNAL = 1  # Internal system (Reserved for the future)
-    LEANCLOUD = 2  # LeanCloud im service
+    Applies to:
+    - message_history.inbound_provider
+    - message_endpoints.provider
+    - message_deliveries.provider
+    """
+
+    WEBSOCKET = 1
+    LEANCLOUD = 2
+
+
+class MessageEndpointScope(IntEnum):
+    """Endpoint delivery scope (message_endpoints.endpoint_scope)."""
+
+    USER = 1
+    DEVICE = 2
+
+
+class MessageDispatchOutboxType(IntEnum):
+    """Dispatch outbox task type (message_dispatch_outbox.outbox_type)."""
+
+    TIMELINE_FANOUT = 1
+
+
+class MessageDispatchOutboxStatus(IntEnum):
+    """Dispatch outbox task status (message_dispatch_outbox.status)."""
+
+    PENDING = 1
+    PROCESSING = 2
+    DONE = 3
+    FAILED = 4
 
 
 class MessageType(IntEnum):
@@ -177,13 +205,12 @@ class NotificationStatus(IntEnum):
     FAILED = 2
 
 
-class MessageStatus(IntEnum):
-    """Message delivery status (message_history.status)."""
+class MessageDeliveryStatus(IntEnum):
+    """Message delivery status (message_deliveries.status)."""
 
-    SENT = 1
-    DELIVERED = 2
-    READ = 3
-    FAILED = 4
+    PENDING = 1
+    DISPATCHED = 2
+    FAILED = 3
 
 
 class EncryptionType(str, Enum):

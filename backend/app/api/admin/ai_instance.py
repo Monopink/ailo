@@ -196,7 +196,7 @@ async def generate_instance_relationship(
         raise
     except Exception as e:
         logger.error("instance_generate_relationship_failed", instance_id=instance_id, error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to generate relationship") from e
+        raise HTTPException(status_code=500, detail="系统错误") from e
 
     else:
         return result

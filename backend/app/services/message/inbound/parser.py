@@ -4,7 +4,7 @@ Inbound message parser (business layer).
 Converts intermediate format to InboundMessageEvent with business logic.
 """
 
-from app.enums import MessageType
+from app.enums import MessageTransportProvider, MessageType
 from app.services.message.schemas import EventMetadata, InboundMessageEvent
 from app.services.message.security.encryption import decrypt_from_transport
 from app.type_defs import JSONDict
@@ -32,15 +32,22 @@ def parse_to_event(intermediate: JSONDict) -> InboundMessageEvent | None:
         # Validate required fields
         from_qiao_id_raw = intermediate.get("from_qiao_id")
         to_qiao_id_raw = intermediate.get("to_qiao_id")
-        conv_id_raw = intermediate.get("conv_id")
+        conversation_id_raw = intermediate.get("conversation_id")
         message_type_raw = intermediate.get("message_type")
 
-        if not all([from_qiao_id_raw, to_qiao_id_raw, conv_id_raw, message_type_raw is not None]):
+        if not all(
+            [
+                from_qiao_id_raw,
+                to_qiao_id_raw,
+                conversation_id_raw,
+                message_type_raw is not None,
+            ]
+        ):
             logger.error(
                 "missing_required_fields",
                 has_from=bool(from_qiao_id_raw),
                 has_to=bool(to_qiao_id_raw),
-                has_conv_id=bool(conv_id_raw),
+                has_conversation_id=bool(conversation_id_raw),
                 has_message_type=message_type_raw is not None,
             )
             raise TypeError("missing_required_fields")
@@ -54,8 +61,8 @@ def parse_to_event(intermediate: JSONDict) -> InboundMessageEvent | None:
             logger.error("invalid_to_qiao_id_type", value=to_qiao_id_raw)
             raise TypeError("invalid_to_qiao_id_type")
 
-        if not isinstance(conv_id_raw, str) or not conv_id_raw:
-            logger.error("invalid_conversation_id_type", value=conv_id_raw)
+        if not isinstance(conversation_id_raw, str) or not conversation_id_raw:
+            logger.error("invalid_conversation_id_type", value=conversation_id_raw)
             raise TypeError("invalid_conversation_id_type")
 
         if not isinstance(message_type_raw, int):
@@ -69,7 +76,7 @@ def parse_to_event(intermediate: JSONDict) -> InboundMessageEvent | None:
         # Type narrowing complete - assign to typed variables
         from_qiao_id: str = from_qiao_id_raw
         to_qiao_id: str = to_qiao_id_raw
-        conv_id: str = conv_id_raw
+        conversation_id: str = conversation_id_raw
 
         # Decrypt content if encrypted
         content_raw = intermediate.get("content", "")
@@ -145,27 +152,44 @@ def parse_to_event(intermediate: JSONDict) -> InboundMessageEvent | None:
 
         msg_id_client: str = msg_id_client_raw
 
-        # Validate msg_id_provider type (required for InboundMessageEvent)
+        msg_id_provider: str | None = None
         msg_id_provider_raw = intermediate.get("msg_id_provider")
-        if not isinstance(msg_id_provider_raw, str) or not msg_id_provider_raw:
-            logger.error("invalid_msg_id_provider_type", value=msg_id_provider_raw)
-            raise TypeError("invalid_msg_id_provider_type")
+        if msg_id_provider_raw is not None:
+            if not isinstance(msg_id_provider_raw, str) or not msg_id_provider_raw:
+                logger.error("invalid_msg_id_provider_type", value=msg_id_provider_raw)
+                raise TypeError("invalid_msg_id_provider_type")
+            msg_id_provider = msg_id_provider_raw
 
-        msg_id_provider: str = msg_id_provider_raw
+        inbound_provider_raw = intermediate.get("inbound_provider")
+        if not isinstance(inbound_provider_raw, int):
+            logger.error("invalid_inbound_provider_type", value=inbound_provider_raw)
+            raise TypeError("invalid_inbound_provider_type")
+        try:
+            inbound_provider = MessageTransportProvider(inbound_provider_raw)
+        except ValueError:
+            logger.error("invalid_inbound_provider_value", value=inbound_provider_raw)
+            raise TypeError("invalid_inbound_provider_type") from None
+
+        inbound_device_id_raw = intermediate.get("inbound_device_id")
+        inbound_device_id: str | None = (
+            inbound_device_id_raw if isinstance(inbound_device_id_raw, str) else None
+        )
 
         # Build InboundMessageEvent
         return InboundMessageEvent(
             message_type=MessageType(message_type_raw),
-            conversation_id=conv_id,
+            conversation_id=conversation_id,
             from_qiao_id=from_qiao_id,
             to_qiao_id=to_qiao_id,
             content=content,
             sent_at_ms=timestamp_ms,
+            client_sent_time_ms=client_sent_time,
             msg_id_client=msg_id_client,
             msg_id_provider_inbound=msg_id_provider,
             supports_typing=supports_typing,
-            client_sent_time=client_sent_time,
             metadata=event_metadata,
+            inbound_provider=inbound_provider,
+            inbound_device_id=inbound_device_id,
         )
 
     except Exception as e:

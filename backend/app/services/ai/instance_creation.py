@@ -12,7 +12,11 @@ from app.models.ai import AIInstance
 from app.models.ai.template import AIPersona, AITemplate
 from app.schemas.ai import AIInstanceCreate
 from app.services.ai.memory import copy_template_memories_to_instance
-from app.services.ai.relationship_scoring import initialize_relationship_scores
+from app.services.ai.profile_integrity import ensure_instance_profile
+from app.services.ai.relationship_scoring import (
+    initialize_instance_relationship,
+    initialize_relationship_scores,
+)
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -71,6 +75,7 @@ async def create_instance_from_persona(
         user_id=user_id,
         user_qiao_id=user_qiao_id,
         qiao_id=persona.qiao_id,
+        username=persona.username,
         creation_metadata=creation_metadata,
         style_id=template.style_id,
         personality_id=template.personality_id,
@@ -97,6 +102,12 @@ async def create_instance_from_persona(
         instance.status = 1
         await db.flush()
 
+    await ensure_instance_profile(
+        db,
+        instance=instance,
+        source="instance_creation.create_instance_from_persona",
+    )
+
     logger.info(
         "instance_created_from_persona",
         instance_qiao_id=instance.qiao_id,
@@ -110,6 +121,7 @@ async def create_instance_from_persona(
         template.style_id,
         template.position_mapping_config,
     )
+    await initialize_instance_relationship(db, instance_id=instance.id)
 
     await copy_template_memories_to_instance(db, template_id=template.id, instance=instance)
 

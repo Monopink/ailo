@@ -11,7 +11,7 @@ from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.base import CRUDBase
-from app.enums import MessageStatus, MessageType
+from app.enums import MessageType
 from app.models.message import MessageHistory
 
 
@@ -100,56 +100,6 @@ class CRUDMessage(CRUDBase[MessageHistory, _MessageSchema, _MessageSchema]):
             .limit(limit)
         )
         return [{"conversation_id": row[0], "last_message_time": row[1]} for row in result.all()]
-
-    async def get_unread_count(
-        self,
-        db: AsyncSession,
-        *,
-        conversation_id: str,
-        user_qiao_id: str,
-        last_read_time: datetime | None = None,
-    ) -> int:
-        """Get unread message count for a conversation."""
-        conditions = [
-            self.model.conversation_id == conversation_id,
-            self.model.to_qiao_id == user_qiao_id,
-            self.model.status == MessageStatus.DELIVERED,
-        ]
-
-        if last_read_time:
-            conditions.append(self.model.created_at > last_read_time)
-
-        result = await db.execute(select(func.count(self.model.id)).where(and_(*conditions)))
-        count = result.scalar()
-        return count if count is not None else 0
-
-    async def update_message_status(
-        self, db: AsyncSession, *, msg_id_server: str, status: MessageStatus
-    ) -> MessageHistory | None:
-        """Update message status."""
-        message = await self.get_by_server_id(db, msg_id_server=msg_id_server)
-        if message:
-            message.status = status
-            db.add(message)
-            await db.commit()
-            await db.refresh(message)
-        return message
-
-    async def batch_update_status(
-        self, db: AsyncSession, *, msg_ids: list[str], status: MessageStatus
-    ) -> int:
-        """Batch update message status."""
-        result = await db.execute(select(self.model).where(self.model.msg_id_server.in_(msg_ids)))
-        messages = result.scalars().all()
-
-        count = 0
-        for message in messages:
-            message.status = status
-            db.add(message)
-            count += 1
-
-        await db.commit()
-        return count
 
     async def search_messages(
         self, db: AsyncSession, *, conversation_id: str, query: str, limit: int = 20

@@ -46,6 +46,7 @@ _ALLOWED_PARAM_OVERRIDES: tuple[str, ...] = (
     "audio",
     "instructions",
 )
+_ALLOWED_THINKING_TYPES: tuple[str, ...] = ("enabled", "disabled", "auto")
 
 
 class DoubaoResponsesAdapter(OpenAIBaseAdapter):
@@ -277,6 +278,10 @@ def _build_request_kwargs(options: LLMRequestOptions) -> JSONDict:
     Build kwargs (extra headers/body/query) for Responses API invocation.
     """
     extra_body: JSONDict = dict(options.extra_body or {})
+    if "thinking" in extra_body:
+        raise LLMConfigurationError(
+            "Use thinking_mode for thinking control. extra_body.thinking is not allowed."
+        )
 
     if options.temperature is not None:
         extra_body["temperature"] = options.temperature
@@ -286,6 +291,8 @@ def _build_request_kwargs(options: LLMRequestOptions) -> JSONDict:
         extra_body["max_output_tokens"] = options.max_tokens
     if options.stop_sequences:
         extra_body["stop"] = cast(JSONValue, options.stop_sequences)
+    if options.thinking_mode:
+        extra_body["thinking"] = {"type": options.thinking_mode}
 
     if options.tools:
         extra_body["tools"] = cast(JSONValue, options.tools)
@@ -312,6 +319,11 @@ def _build_request_kwargs(options: LLMRequestOptions) -> JSONDict:
 
     overrides_extra_body = options.provider_overrides.get("extra_body")
     if isinstance(overrides_extra_body, dict):
+        if "thinking" in overrides_extra_body:
+            raise LLMConfigurationError(
+                "Use thinking_mode for thinking control. "
+                "provider_overrides.extra_body.thinking is not allowed."
+            )
         extra_body.update(overrides_extra_body)
 
     override_headers = options.provider_overrides.get("extra_headers")
@@ -346,12 +358,31 @@ def _build_request_payload(params: dict[str, JSONDict]) -> JSONDict | None:
 
 
 def _validate_extra_body(extra_body: JSONDict) -> None:
-    """Ensure no legacy Chat Completions fields are present."""
-    unsupported_keys = sorted(key for key in ("response_format", "thinking") if key in extra_body)
-    if unsupported_keys:
+    """Validate request kwargs payload before Responses API invocation."""
+    if "response_format" in extra_body:
         raise LLMConfigurationError(
-            f"Unsupported Responses payload fields detected: {', '.join(unsupported_keys)}. "
-            "Please migrate to text.format and disable legacy thinking settings."
+            "Unsupported Responses payload field detected: response_format. "
+            "Please migrate to text.format."
+        )
+
+    thinking_payload = extra_body.get("thinking")
+    if thinking_payload is None:
+        return
+    if not isinstance(thinking_payload, dict):
+        raise LLMConfigurationError(
+            "Invalid thinking payload. Expected object: {'type': 'enabled|disabled|auto'}."
+        )
+
+    unexpected_keys = sorted(key for key in thinking_payload if key != "type")
+    if unexpected_keys:
+        raise LLMConfigurationError(
+            f"Invalid thinking payload keys: {', '.join(unexpected_keys)}. Only 'type' is allowed."
+        )
+
+    thinking_type = thinking_payload.get("type")
+    if thinking_type not in _ALLOWED_THINKING_TYPES:
+        raise LLMConfigurationError(
+            f"Unsupported thinking.type '{thinking_type}'. Allowed values: enabled/disabled/auto."
         )
 
 

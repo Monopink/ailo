@@ -4,7 +4,6 @@ Modules should import TypedDicts and aliases from here instead of touching
 service-specific files, ensuring type contracts stay consistent.
 """
 
-from app.type_defs.admin import AIInstanceTestContext, AIInstanceTestResponse
 from app.type_defs.ai import (
     AITypeInfo,
     AlgorithmParameterSpec,
@@ -36,9 +35,6 @@ from app.type_defs.llm import (
 from app.type_defs.system import ConfigGroup
 
 __all__ = [
-    # Admin types
-    "AIInstanceTestContext",
-    "AIInstanceTestResponse",
     "AITypeInfo",
     "AlgorithmParameterSpec",
     # System types

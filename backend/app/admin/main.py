@@ -23,10 +23,10 @@ from .views import (
     admin_user_view,
     ai_conversation_item_archive_view,
     ai_conversation_item_view,
+    ai_conversation_runtime_view,
     ai_conversation_state_view,
     ai_dimension_relationship_mapping_view,
     ai_dimension_view,
-    ai_instance_chat_test_view,
     ai_instance_dimension_view,
     ai_instance_memory_view,
     ai_instance_view,
@@ -42,6 +42,7 @@ from .views import (
     ai_template_memory_view,
     ai_template_view,
     ai_type_view,
+    chat_console_view,
     contact_request_view,
     contact_view,
     llm_config_test_view,
@@ -50,9 +51,11 @@ from .views import (
     llm_test_log_view,
     login_record_view,
     media_file_view,
-    message_delivery_failure_view,
+    message_delivery_view,
+    message_device_view,
+    message_dispatch_outbox_view,
+    message_endpoint_view,
     message_history_view,
-    message_offline_cursor_view,
     notification_push_history_view,
     pending_contact_request_view,
     profile_view,
@@ -131,9 +134,11 @@ def _register_dropdowns(admin_instance: Admin) -> None:
         icon="fa fa-comments",
         views=[
             message_history_view,
-            message_delivery_failure_view,
+            message_delivery_view,
+            message_device_view,
+            message_endpoint_view,
+            message_dispatch_outbox_view,
             notification_push_history_view,
-            message_offline_cursor_view,
         ],
         always_open=False,
     )
@@ -143,18 +148,16 @@ def _register_dropdowns(admin_instance: Admin) -> None:
         "AI Configuration",
         icon="fa fa-sliders",
         views=[
+            chat_console_view,
             pending_contact_request_view,
             ai_type_view,
             ai_persona_view,
             ai_template_view,
-            ai_template_memory_view,
             ai_style_view,
             ai_personality_view,
             ai_relationship_view,
-            ai_dimension_view,
-            ai_style_dimension_view,
-            ai_personality_placeholder_view,
-            ai_dimension_relationship_mapping_view,
+            ai_instance_view,
+            ai_request_log_view,
         ],
         always_open=False,
     )
@@ -164,20 +167,23 @@ def _register_dropdowns(admin_instance: Admin) -> None:
         "AI Runtime",
         icon="fa fa-robot",
         views=[
-            ai_instance_view,
-            ai_instance_dimension_view,
             ai_instance_memory_view,
+            ai_instance_dimension_view,
             ai_message_buffer_view,
             ai_conversation_item_view,
             ai_conversation_item_archive_view,
+            ai_conversation_runtime_view,
             ai_conversation_state_view,
-            ai_request_log_view,
+            ai_dimension_view,
+            ai_template_memory_view,
+            ai_style_dimension_view,
+            ai_personality_placeholder_view,
+            ai_dimension_relationship_mapping_view,
         ],
         always_open=False,
     )
     admin_instance.add_view(ai_runtime_group)
 
-    admin_instance.add_view(ai_instance_chat_test_view)
     admin_instance.add_view(ai_style_test_view)
     admin_instance.add_view(llm_config_test_view)
 
@@ -295,7 +301,11 @@ class ThemeSwitchView(CustomView):
         )
         response = RedirectResponse(url=referer, status_code=303)
         response.set_cookie(
-            "qiao_admin_theme", mode, max_age=60 * 60 * 24 * 365, path="/", samesite="lax"
+            "qiao_admin_theme",
+            mode,
+            max_age=60 * 60 * 24 * 365,
+            path="/",
+            samesite="lax",
         )
         return response
 

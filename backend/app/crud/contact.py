@@ -23,9 +23,13 @@ from app.utils.snowflake import generate_snowflake_id
 class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
     """CRUD operations for Contact model."""
 
-    async def get_by_conv_id(self, db: AsyncSession, *, conv_id: str) -> Contact | None:
-        """Get contact by conversation ID."""
-        result = await db.execute(select(self.model).where(self.model.conv_id == conv_id))
+    async def get_by_conversation_id(
+        self, db: AsyncSession, *, conversation_id: str
+    ) -> Contact | None:
+        """Get contact by conversation_id."""
+        result = await db.execute(
+            select(self.model).where(self.model.conversation_id == conversation_id)
+        )
         return result.scalar_one_or_none()
 
     async def get_user_contact(
@@ -126,14 +130,14 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         obj_in: ContactCreate,
         user_qiao_id: str,
         user_id: int,
-        conv_id: str,
+        conversation_id: str,
     ) -> Contact:
         """Create contact with user information."""
         tags_payload = {"tags": obj_in.tags} if obj_in.tags else None
 
         contact_data = {
             "id": generate_snowflake_id(),
-            "conv_id": conv_id,
+            "conversation_id": conversation_id,
             "user_id": user_id,
             "user_qiao_id": user_qiao_id,
             "contact_type": obj_in.contact_type,

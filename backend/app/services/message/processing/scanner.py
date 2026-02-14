@@ -1,7 +1,7 @@
 """
 Periodic scanner for expired buffer contexts.
 
-Scans database every 100ms for expired OPEN contexts and triggers processing.
+Scans database every 100ms for expired active contexts and triggers processing.
 This replaces the timer-based approach with a database-driven design.
 
 Design: Follows docs/spec/message/buffer.md specification
@@ -12,8 +12,9 @@ Design: Follows docs/spec/message/buffer.md specification
 
 import asyncio
 import random
+from decimal import Decimal
 
-from sqlalchemy import and_, or_, select, update
+from sqlalchemy import select
 
 from app.core.database import get_sessionmaker
 from app.enums.common import AIMessageBufferState
@@ -26,6 +27,7 @@ from app.services.message.processing.buffer import (
     get_locked_context,
     lock_conversation_preemptively,
 )
+from app.services.message.processing.sender import clear_conversation_pending_messages
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -52,7 +54,7 @@ async def start_buffer_scanner() -> None:
     Start the buffer scanner background task.
 
     Should be called once during application startup.
-    Scans database every 100ms for expired OPEN contexts.
+    Scans database every 100ms for expired active contexts.
     """
     if _scanner_state.running:
         logger.warning("scanner_already_running")
@@ -112,11 +114,10 @@ async def _scan_and_process() -> None:
     Scan for expired contexts and trigger processing.
 
     Steps:
-    1. Promote WAITING_WAKEUP buffers whose wake timers expired
-    2. Query expired OPEN contexts (buffer_expires_at_ms <= now)
-    3. Group by conversation (user_qiao_id, instance_qiao_id)
-    4. For each conversation, attempt preemptive lock
-    5. If locked successfully, trigger AI processing asynchronously
+    1. Query expired active contexts (buffer_expires_at_ms <= now)
+    2. Group by conversation (user_qiao_id, instance_qiao_id)
+    3. For each conversation, attempt preemptive lock
+    4. If locked successfully, trigger AI processing asynchronously
     """
     session_factory = get_sessionmaker()
     async with session_factory() as db:
@@ -124,43 +125,18 @@ async def _scan_and_process() -> None:
             # Get current DB time
             now_ms = await _get_db_now_ms(db)
 
-            # Step 1: promote wake-complete buffers
-            wake_result = await db.execute(
-                update(AIMessageBuffer)
-                .where(
-                    AIMessageBuffer.aggregate_state == AIMessageBufferState.WAITING_WAKEUP,
-                    AIMessageBuffer.wake_expires_at_ms.is_not(None),
-                    AIMessageBuffer.wake_expires_at_ms <= now_ms,
-                )
-                .values(
-                    aggregate_state=AIMessageBufferState.OPEN,
-                    wake_expires_at_ms=None,
-                )
-                .execution_options(synchronize_session=False)
-            )
-            wake_count = wake_result.rowcount or 0
-            if wake_count:
-                await db.commit()
-                logger.info("wake_expired_buffers_transitioned", count=wake_count)
-
-            # Query expired OPEN contexts (distinct conversations)
+            # Query expired active contexts (distinct conversations)
             result = await db.execute(
                 select(
                     AIMessageBuffer.user_qiao_id,
                     AIMessageBuffer.instance_qiao_id,
                 )
                 .where(
-                    AIMessageBuffer.aggregate_state == AIMessageBufferState.OPEN,
-                    or_(
-                        and_(
-                            AIMessageBuffer.micro_expires_at_ms.is_not(None),
-                            AIMessageBuffer.micro_expires_at_ms <= now_ms,
-                        ),
-                        and_(
-                            AIMessageBuffer.macro_expires_at_ms.is_not(None),
-                            AIMessageBuffer.macro_expires_at_ms <= now_ms,
-                        ),
+                    AIMessageBuffer.aggregate_state.in_(
+                        [AIMessageBufferState.WAITING_WAKEUP, AIMessageBufferState.OPEN]
                     ),
+                    AIMessageBuffer.buffer_expires_at_ms.is_not(None),
+                    AIMessageBuffer.buffer_expires_at_ms <= now_ms,
                 )
                 .distinct()
             )
@@ -192,7 +168,7 @@ async def _process_conversation_async(
     Process a single conversation asynchronously.
 
     Steps:
-    1. Attempt preemptive lock (cancel old + lock new)
+    1. Attempt preemptive lock (lock newest expired active window, then apply preemption)
     2. If successful, get locked context content
     3. Trigger AI processing with buffer_id
     4. Handle errors gracefully (don't crash scanner)
@@ -205,13 +181,13 @@ async def _process_conversation_async(
         session_factory = get_sessionmaker()
         async with session_factory() as db:
             # Step 1: Attempt preemptive lock
-            buffer_id = await lock_conversation_preemptively(
+            lock_result = await lock_conversation_preemptively(
                 db=db,
                 user_qiao_id=user_qiao_id,
                 instance_qiao_id=instance_qiao_id,
             )
 
-            if not buffer_id:
+            if lock_result is None:
                 # Lock failed (conflict or no expired context)
                 logger.debug(
                     "lock_failed_for_conversation",
@@ -219,6 +195,8 @@ async def _process_conversation_async(
                     instance_qiao_id=instance_qiao_id,
                 )
                 return
+            buffer_id = lock_result.buffer_id
+            task_turn_version = lock_result.task_turn_version
 
             # Step 2: Get locked context content
             context = await get_locked_context(db, buffer_id)
@@ -235,21 +213,18 @@ async def _process_conversation_async(
                 user_qiao_id=user_qiao_id,
                 instance_qiao_id=instance_qiao_id,
             )
+            if relationship_config is None:
+                raise ValueError(
+                    "Missing relationship config for no_reply_probability; "
+                    "relationship_id must be initialized during instance creation"
+                )
 
-            # Extract no_reply_probability with type safety
-            if relationship_config is not None:
-                no_reply_prob_value = relationship_config.get("no_reply_probability", 0.0)
-                # Validate type to ensure it's numeric (defensive programming)
-                # While TypedDict declares float, database values might be corrupted
-                if isinstance(no_reply_prob_value, int | float):
-                    no_reply_prob = float(no_reply_prob_value)
-                else:
-                    # Defensive fallback for invalid database values
-                    no_reply_prob = 0.0  # type: ignore[unreachable]
-                    logger.warning("invalid_no_reply_probability_type", value=no_reply_prob_value)
-            else:
-                # Use default when relationship_config is None (database default is 0.0)
-                no_reply_prob = 0.0
+            no_reply_prob_value = relationship_config.get("no_reply_probability")
+            if not isinstance(no_reply_prob_value, int | float | Decimal):
+                raise TypeError(
+                    f"Invalid no_reply_probability type: {type(no_reply_prob_value).__name__}"
+                )
+            no_reply_prob = float(no_reply_prob_value)
             should_reply = random.random() >= no_reply_prob
 
             if not should_reply:
@@ -257,6 +232,7 @@ async def _process_conversation_async(
                     db, buffer_id, target_state=AIMessageBufferState.COMPLETE
                 )
                 if finalized:
+                    await clear_conversation_pending_messages(db, user_qiao_id, instance_qiao_id)
                     await db.commit()
                     logger.info(
                         "buffer_no_reply_decision",
@@ -274,7 +250,7 @@ async def _process_conversation_async(
 
             # Step 3: Trigger AI processing
             # Note: process_conversation will handle finalization and error handling
-            await process_conversation(
+            conversation_result = await process_conversation(
                 db=db,
                 user_qiao_id=user_qiao_id,
                 instance_qiao_id=instance_qiao_id,
@@ -284,7 +260,28 @@ async def _process_conversation_async(
                 user_message_item_id=context.conversation_item_id,
                 message_blocks=None,
                 persist=True,
+                task_turn_version=task_turn_version,
             )
+
+            if bool(conversation_result.get("business_rejected")):
+                logger.info(
+                    "ai_processing_business_rejected",
+                    buffer_id=buffer_id,
+                    user_qiao_id=user_qiao_id,
+                    instance_qiao_id=instance_qiao_id,
+                    reason=conversation_result.get("reason"),
+                    error_code=conversation_result.get("error_code"),
+                )
+                return
+
+            if bool(conversation_result.get("preempted")):
+                logger.info(
+                    "ai_processing_preempted",
+                    buffer_id=buffer_id,
+                    user_qiao_id=user_qiao_id,
+                    instance_qiao_id=instance_qiao_id,
+                )
+                return
 
             logger.info(
                 "ai_processing_completed",
@@ -301,7 +298,6 @@ async def _process_conversation_async(
             instance_qiao_id=instance_qiao_id,
             exc_info=True,
         )
-        # Don't re-raise - let scanner continue with other conversations
 
 
 def _schedule_processing_task(user_qiao_id: str, instance_qiao_id: str) -> None:

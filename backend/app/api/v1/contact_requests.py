@@ -66,7 +66,7 @@ async def create_contact_request(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="系统错误，请稍后再试",
+            detail="系统错误",
         )
 
 
@@ -122,7 +122,7 @@ async def accept_contact_request(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="接受请求失败",
+            detail="系统错误",
         )
 
 
@@ -172,5 +172,5 @@ async def ignore_contact_request(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="忽略请求失败",
+            detail="系统错误",
         )

@@ -6,7 +6,14 @@ from collections.abc import MutableMapping, Sequence
 from typing import Any, ClassVar, SupportsInt, cast
 
 from starlette.requests import Request
-from starlette_admin import BooleanField, IntegerField, JSONField, StringField, TextAreaField
+from starlette_admin import (
+    BooleanField,
+    HasOne,
+    IntegerField,
+    JSONField,
+    StringField,
+    TextAreaField,
+)
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 from starlette_admin.fields import BaseField
@@ -16,16 +23,23 @@ from app.admin.views.base import IntegerEnumField
 from app.enums import (
     FileStatus,
     FileType,
+    MessageDeliveryStatus,
     MessageDirection,
+    MessageDispatchOutboxStatus,
+    MessageDispatchOutboxType,
     MessageParticipantType,
-    MessageStatus,
+    MessageTransportProvider,
     MessageType,
     NotificationStatus,
     NotificationType,
-    ServiceProvider,
     UploaderType,
 )
-from app.models.message import MessageDeliveryFailure, MessageOfflineCursor
+from app.models.message import (
+    MessageDelivery,
+    MessageDevice,
+    MessageDispatchOutbox,
+    MessageEndpoint,
+)
 from app.models.message.media import MediaFile
 from app.models.message.message import MessageHistory
 from app.models.message.notification import NotificationPushHistory
@@ -63,29 +77,39 @@ class MessageHistoryView(ModelView):
     exclude_fields_from_edit: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
     searchable_fields: ClassVar[list[str]] = [
+        "id",
         "conversation_id",
+        "msg_id_server",
         "from_qiao_id",
         "to_qiao_id",
+        "llm_request_id",
     ]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "direction",
         "message_type",
-        "status",
         "created_at",
     ]
 
     fields: ClassVar[Sequence[BaseField]] = cast(
         Sequence[BaseField],
         [
+            StringField("id", label="ID", help_text="Message history snowflake ID"),
             IntegerEnumField(
-                "direction", enum=MessageDirection, label="Direction", help_text="Message direction"
+                "direction",
+                enum=MessageDirection,
+                label="Direction",
+                help_text="Message direction",
             ),
             StringField(
-                "conversation_id", label="Conversation ID", help_text="Conversation identifier"
+                "conversation_id",
+                label="Conversation ID",
+                help_text="Conversation identifier",
             ),
             StringField(
-                "msg_id_server", label="Server Message ID", help_text="Server-generated message ID"
+                "msg_id_server",
+                label="Server Message ID",
+                help_text="Server-generated message ID",
             ),
             StringField(
                 "msg_id_provider_inbound",
@@ -93,37 +117,65 @@ class MessageHistoryView(ModelView):
                 help_text="Third-party provider message ID for inbound messages",
             ),
             StringField(
-                "msg_id_provider_outbound",
-                label="Outbound Provider Message ID",
-                help_text="Third-party provider message ID for outbound messages",
+                "msg_id_client",
+                label="Client Message ID",
+                help_text="Client-generated message ID",
             ),
-            StringField(
-                "msg_id_client", label="Client Message ID", help_text="Client-generated message ID"
+            LocalDateTimeField(
+                "client_sent_at",
+                label="Client Sent At",
+                help_text="Client-provided timestamp (optional)",
+                required=False,
             ),
-            "client_sent_time",
+            LocalDateTimeField(
+                "sent_at",
+                label="Sent At",
+                help_text="Server-side event timestamp",
+                required=False,
+            ),
             IntegerEnumField(
-                "from_type", enum=MessageParticipantType, label="From Type", help_text="Sender type"
+                "from_type",
+                enum=MessageParticipantType,
+                label="From Type",
+                help_text="Sender type",
             ),
             StringField("from_id", label="From ID", help_text="Sender snowflake ID"),
             StringField("from_qiao_id", label="From Qiao ID", help_text="Sender external ID"),
             IntegerEnumField(
-                "to_type", enum=MessageParticipantType, label="To Type", help_text="Receiver type"
+                "to_type",
+                enum=MessageParticipantType,
+                label="To Type",
+                help_text="Receiver type",
             ),
             StringField("to_id", label="To ID", help_text="Receiver snowflake ID"),
             StringField("to_qiao_id", label="To Qiao ID", help_text="Receiver external ID"),
             IntegerEnumField(
-                "service_provider",
-                enum=ServiceProvider,
-                label="Service Provider",
-                help_text="Message service provider",
+                "inbound_provider",
+                enum=MessageTransportProvider,
+                label="Inbound Provider",
+                help_text="Inbound transport provider (inbound only)",
+                required=False,
+            ),
+            StringField(
+                "inbound_device_id",
+                label="Inbound Device ID",
+                help_text="Device UUID (websocket inbound only)",
+                required=False,
+            ),
+            HasOne(
+                "llm_request_log",
+                identity="ai_request_log",
+                label="LLM Request Log",
+                help_text="Linked ai_request_logs row",
+                required=False,
             ),
             IntegerEnumField(
-                "message_type", enum=MessageType, label="Message Type", help_text="Type of message"
+                "message_type",
+                enum=MessageType,
+                label="Message Type",
+                help_text="Type of message",
             ),
             TextAreaField("content", label="Content", help_text="Message content"),
-            IntegerEnumField(
-                "status", enum=MessageStatus, label="Status", help_text="Message status"
-            ),
             "message_metadata",
             "created_at",
         ],
@@ -173,7 +225,10 @@ class MediaFileView(ModelView):
             StringField("id", label="ID", help_text="Internal file ID"),
             StringField("file_id", label="File ID", help_text="External file identifier"),
             IntegerEnumField(
-                "file_type", enum=FileType, label="File Type", help_text="Type of media file"
+                "file_type",
+                enum=FileType,
+                label="File Type",
+                help_text="Type of media file",
             ),
             StringField(
                 "category",
@@ -182,11 +237,20 @@ class MediaFileView(ModelView):
                 required=False,
             ),
             StringField(
-                "original_name", label="Original Name", help_text="Original filename when uploaded"
+                "original_name",
+                label="Original Name",
+                help_text="Original filename when uploaded",
             ),
-            StringField("storage_provider", label="Storage Provider", help_text="Storage backend"),
             StringField(
-                "bucket_name", label="Bucket Name", help_text="Cloud bucket", required=False
+                "storage_provider",
+                label="Storage Provider",
+                help_text="Storage backend",
+            ),
+            StringField(
+                "bucket_name",
+                label="Bucket Name",
+                help_text="Cloud bucket",
+                required=False,
             ),
             StringField("object_key", label="Object Key", help_text="Object key in storage"),
             StringField(
@@ -208,7 +272,9 @@ class MediaFileView(ModelView):
             ),
             StringField("upload_by_id", label="Uploader ID", help_text="Uploader snowflake ID"),
             StringField(
-                "upload_by_qiao_id", label="Uploader Qiao ID", help_text="External ID of uploader"
+                "upload_by_qiao_id",
+                label="Uploader Qiao ID",
+                help_text="External ID of uploader",
             ),
             LocalDateTimeField(
                 "confirmed_at",
@@ -245,132 +311,79 @@ class MediaFileView(ModelView):
         obj.upload_by_qiao_id = admin_username  # Use admin username as identifier
 
 
-class MessageDeliveryFailureView(ModelView):
-    """Enhanced Message Delivery Failure view for failed message management."""
+class MessageDeliveryView(ModelView):
+    """Delivery record view."""
 
-    label = "Message Failures"
-    name = "Message Failures"
+    def can_create(self, request: Request) -> bool:
+        del request
+        return False
 
-    exclude_fields_from_create: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
-    exclude_fields_from_edit: ClassVar[list[str]] = [
-        "id",
-        "msg_id_server",
-        "from_id",
-        "to_id",
-        "created_at",
-        "updated_at",
-    ]
-    exclude_fields_from_list: ClassVar[list[str]] = []
+    def can_edit(self, request: Request) -> bool:
+        del request
+        return False
+
+    def can_delete(self, request: Request) -> bool:
+        del request
+        return True
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = [
-        "msg_id_server",
-        "from_qiao_id",
-        "to_qiao_id",
-        "fail_reason_code",
-    ]
-    sortable_fields: ClassVar[list[str]] = [
-        "id",
-        "msg_id_server",
-        "from_qiao_id",
-        "to_qiao_id",
-        "message_type",
-        "service_provider",
-        "retry_count",
-        "max_retry_count",
-        "next_retry_at",
-        "created_at",
-        "updated_at",
-    ]
+    searchable_fields: ClassVar[list[str]] = ["msg_id_server", "target_key"]
 
     fields: ClassVar[Sequence[BaseField]] = cast(
         Sequence[BaseField],
         [
-            StringField("msg_id_server", label="Message ID", help_text="Original message ID"),
+            StringField("id", label="ID", help_text="Delivery ID"),
+            StringField("msg_id_server", label="Msg ID Server", help_text="Timeline message ID"),
+            StringField("endpoint_id", label="Endpoint ID", help_text="Delivery endpoint ID"),
             IntegerEnumField(
-                "from_type",
-                enum=MessageParticipantType,
-                label="Sender Type",
-                help_text="Type of message sender",
+                "provider",
+                enum=MessageTransportProvider,
+                label="Provider",
+                help_text="Transport provider",
             ),
-            StringField("from_id", label="Sender ID", help_text="Sender snowflake ID"),
+            StringField("target_key", label="Target Key", help_text="Provider target identifier"),
             StringField(
-                "from_qiao_id", label="Sender Qiao ID", help_text="Sender external identifier"
+                "provider_msg_id",
+                label="Provider Msg ID",
+                help_text="Third-party provider receipt ID (nullable)",
+                required=False,
             ),
             IntegerEnumField(
-                "to_type",
-                enum=MessageParticipantType,
-                label="Receiver Type",
-                help_text="Type of message receiver",
+                "status",
+                enum=MessageDeliveryStatus,
+                label="Status",
+                help_text="Delivery status",
             ),
-            StringField("to_id", label="Receiver ID", help_text="Receiver snowflake ID"),
+            LocalDateTimeField(
+                "dispatched_at",
+                label="Dispatched At",
+                help_text="Provider dispatched time",
+                required=False,
+            ),
             StringField(
-                "to_qiao_id", label="Receiver Qiao ID", help_text="Receiver external identifier"
+                "failed_reason_code",
+                label="Failed Reason Code",
+                help_text="Failure code (nullable)",
+                required=False,
             ),
-            IntegerEnumField(
-                "message_type",
-                enum=MessageType,
-                label="Message Type",
-                help_text="Type of failed message",
-            ),
-            IntegerEnumField(
-                "service_provider",
-                enum=ServiceProvider,
-                label="Service Provider",
-                help_text="Message service provider",
-            ),
-            TextAreaField("content", label="Message Content", help_text="Original message content"),
-            StringField("fail_reason_code", label="Failure Code", help_text="Error reason code"),
             TextAreaField(
-                "fail_detail", label="Failure Details", help_text="Detailed error information"
+                "failed_detail",
+                label="Failed Detail",
+                help_text="Failure detail (nullable)",
+                required=False,
             ),
-            IntegerField("retry_count", label="Retry Count", help_text="Current retry attempts"),
-            IntegerField(
-                "max_retry_count", label="Max Retries", help_text="Maximum retry attempts allowed"
-            ),
-            LocalDateTimeField(
-                "next_retry_at", label="Next Retry", help_text="Scheduled next retry time"
-            ),
-            LocalDateTimeField(
-                "created_at", label="Created At", help_text="Failure record creation time"
-            ),
+            LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
             LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
         ],
     )
 
-    async def validate(
-        self,
-        request: Request,
-        data: MutableMapping[str, object],
-    ) -> None:
-        """Custom validation for message delivery failures."""
-        # Validate retry count
-        if "retry_count" in data and "max_retry_count" in data:
-            retry_count = _coerce_int(data["retry_count"], "retry_count")
-            max_retry = _coerce_int(data["max_retry_count"], "max_retry_count")
-            if retry_count > max_retry:
-                raise FormValidationError(
-                    {"retry_count": "Retry count cannot exceed maximum retries"}
-                )
-
-        # Validate message type
-        if "message_type" in data:
-            valid_types = [msg_type.value for msg_type in MessageType]
-            message_type_value = _coerce_int(data["message_type"], "message_type")
-            if message_type_value not in valid_types:
-                raise FormValidationError({"message_type": "Invalid message type"})
-
-        await super().validate(request, data)
-
-    def can_delete(self, request: Request) -> bool:
-        """Allow deletion of failure records after successful retry or manual resolution."""
-        del request
-        return True
-
 
 # Create view instances
 message_history_view = MessageHistoryView(
-    MessageHistory, name="Message History", icon="fa fa-comments", identity="message_history"
+    MessageHistory,
+    name="Message History",
+    icon="fa fa-comments",
+    identity="message_history",
 )
 media_file_view = MediaFileView(
     MediaFile, name="Media Files", icon="fa fa-file-image", identity="media_file"
@@ -424,7 +437,9 @@ class NotificationPushHistoryView(ModelView):
                 help_text="Delivery status",
             ),
             TextAreaField(
-                "error_message", label="Error Message", help_text="Error details if failed"
+                "error_message",
+                label="Error Message",
+                help_text="Error details if failed",
             ),
             LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
             LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
@@ -432,11 +447,11 @@ class NotificationPushHistoryView(ModelView):
     )
 
 
-message_delivery_failure_view = MessageDeliveryFailureView(
-    MessageDeliveryFailure,
-    name="Message Failures",
-    icon="fa fa-exclamation-circle",
-    identity="message_delivery_failure",
+message_delivery_view = MessageDeliveryView(
+    MessageDelivery,
+    name="Message Deliveries",
+    icon="fa fa-truck",
+    identity="message_delivery",
 )
 
 notification_push_history_view = NotificationPushHistoryView(
@@ -447,8 +462,8 @@ notification_push_history_view = NotificationPushHistoryView(
 )
 
 
-class MessageOfflineCursorView(ModelView):
-    """Offline message cursor view for monitoring per-device delivery progress."""
+class MessageDeviceView(ModelView):
+    """Device-level cursor/state view."""
 
     def can_create(self, request: Request) -> bool:
         del request
@@ -462,42 +477,39 @@ class MessageOfflineCursorView(ModelView):
         del request
         return True
 
-    exclude_fields_from_list: ClassVar[list[str]] = []
-    exclude_fields_from_create: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
-    exclude_fields_from_edit: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("updated_at", True)]
     searchable_fields: ClassVar[list[str]] = ["user_qiao_id", "device_id"]
-    sortable_fields: ClassVar[list[str]] = [
-        "id",
-        "user_id",
-        "user_qiao_id",
-        "last_ack_sent_at",
-        "last_pull_at",
-        "created_at",
-        "updated_at",
-    ]
 
     fields: ClassVar[Sequence[BaseField]] = cast(
         Sequence[BaseField],
         [
-            StringField("id", label="ID", help_text="Cursor record ID"),
+            StringField("id", label="ID", help_text="Record ID"),
             IntegerField("user_id", label="User ID", help_text="User internal ID"),
             StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
-            StringField("device_id", label="Device ID", help_text="Device/installation UUID"),
+            StringField("device_id", label="Device ID", help_text="Device UUID"),
             StringField(
-                "last_ack_msg_id",
-                label="Last Ack Message ID",
-                help_text="Latest acknowledged server message ID",
+                "last_acked_msg_id",
+                label="Last Ack Msg ID",
+                help_text="Latest acknowledged msg_id_server",
+                required=False,
             ),
             LocalDateTimeField(
-                "last_ack_sent_at",
+                "last_acked_msg_sent_at",
                 label="Last Ack Sent At",
-                help_text="Latest acknowledged message sent time",
+                help_text="Latest acknowledged message sent_at",
+                required=False,
             ),
             LocalDateTimeField(
                 "last_pull_at",
                 label="Last Pull At",
                 help_text="Latest offline pull timestamp",
+                required=False,
+            ),
+            LocalDateTimeField(
+                "last_seen_at",
+                label="Last Seen At",
+                help_text="Last seen timestamp",
+                required=False,
             ),
             LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
             LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
@@ -505,18 +517,175 @@ class MessageOfflineCursorView(ModelView):
     )
 
 
-message_offline_cursor_view = MessageOfflineCursorView(
-    MessageOfflineCursor,
-    name="Offline Cursors",
-    icon="fa fa-bookmark",
-    identity="message_offline_cursor",
+class MessageEndpointView(ModelView):
+    """Deliverable endpoint binding view."""
+
+    def can_create(self, request: Request) -> bool:
+        del request
+        return False
+
+    def can_edit(self, request: Request) -> bool:
+        del request
+        return False
+
+    def can_delete(self, request: Request) -> bool:
+        del request
+        return True
+
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("updated_at", True)]
+    searchable_fields: ClassVar[list[str]] = ["user_qiao_id", "target_key", "device_id"]
+
+    fields: ClassVar[Sequence[BaseField]] = cast(
+        Sequence[BaseField],
+        [
+            StringField("id", label="ID", help_text="Endpoint ID"),
+            IntegerField("user_id", label="User ID", help_text="User internal ID"),
+            StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
+            StringField("device_id", label="Device ID", help_text="Device UUID"),
+            IntegerEnumField(
+                "provider",
+                enum=MessageTransportProvider,
+                label="Provider",
+                help_text="Transport provider",
+            ),
+            StringField(
+                "target_key",
+                label="Target Key",
+                help_text="websocket=device_id; leancloud=installation id",
+            ),
+            StringField(
+                "client_kind",
+                label="Client Kind",
+                help_text="web/miniprogram/ios/android",
+                required=False,
+            ),
+            LocalDateTimeField(
+                "lease_expires_at",
+                label="Lease Expires At",
+                help_text="Lease expiry time",
+                required=False,
+            ),
+            LocalDateTimeField(
+                "last_seen_at",
+                label="Last Seen At",
+                help_text="Last seen timestamp",
+                required=False,
+            ),
+            LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
+            LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        ],
+    )
+
+
+class MessageDispatchOutboxView(ModelView):
+    """Dispatch outbox queue view."""
+
+    def can_create(self, request: Request) -> bool:
+        del request
+        return False
+
+    def can_edit(self, request: Request) -> bool:
+        del request
+        return False
+
+    def can_delete(self, request: Request) -> bool:
+        del request
+        return True
+
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    searchable_fields: ClassVar[list[str]] = [
+        "msg_id_server",
+        "owner_user_id",
+        "last_error_code",
+    ]
+
+    fields: ClassVar[Sequence[BaseField]] = cast(
+        Sequence[BaseField],
+        [
+            StringField("id", label="ID", help_text="Outbox task ID"),
+            IntegerEnumField(
+                "outbox_type",
+                enum=MessageDispatchOutboxType,
+                label="Outbox Type",
+                help_text="Dispatch task type",
+            ),
+            StringField(
+                "msg_id_server",
+                label="Msg ID Server",
+                help_text="Timeline message ID",
+            ),
+            IntegerField(
+                "owner_user_id",
+                label="Owner User ID",
+                help_text="Owner user internal ID",
+            ),
+            IntegerEnumField(
+                "status",
+                enum=MessageDispatchOutboxStatus,
+                label="Status",
+                help_text="Dispatch task status",
+            ),
+            IntegerField(
+                "attempt_count",
+                label="Attempt Count",
+                help_text="Retry attempts count",
+            ),
+            LocalDateTimeField(
+                "next_retry_at",
+                label="Next Retry At",
+                help_text="Next retry schedule time",
+                required=False,
+            ),
+            LocalDateTimeField(
+                "locked_at",
+                label="Locked At",
+                help_text="Current worker lock time",
+                required=False,
+            ),
+            StringField(
+                "last_error_code",
+                label="Last Error Code",
+                help_text="Last failure reason code",
+                required=False,
+            ),
+            TextAreaField(
+                "last_error_detail",
+                label="Last Error Detail",
+                help_text="Last failure detail",
+                required=False,
+            ),
+            LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
+            LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        ],
+    )
+
+
+message_device_view = MessageDeviceView(
+    MessageDevice,
+    name="Message Devices",
+    icon="fa fa-mobile",
+    identity="message_device",
+)
+message_endpoint_view = MessageEndpointView(
+    MessageEndpoint,
+    name="Message Endpoints",
+    icon="fa fa-plug",
+    identity="message_endpoint",
+)
+message_dispatch_outbox_view = MessageDispatchOutboxView(
+    MessageDispatchOutbox,
+    name="Message Dispatch Outbox",
+    icon="fa fa-list-check",
+    identity="message_dispatch_outbox",
 )
 
 # Export all message and media views
 MESSAGE_MEDIA_MODEL_VIEWS = [
     message_history_view,
-    message_delivery_failure_view,
+    message_delivery_view,
+    message_device_view,
+    message_endpoint_view,
+    message_dispatch_outbox_view,
     notification_push_history_view,
-    message_offline_cursor_view,
     media_file_view,
 ]

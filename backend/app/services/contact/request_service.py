@@ -40,7 +40,7 @@ from app.schemas.contact import (
 )
 from app.services.ai.contact_handler import ContactRequestDecision, handle_ai_contact_request
 from app.services.ai.instance_creation import create_instance_from_persona
-from app.services.contact.service import _get_im_conv_id, get_contact_with_profile
+from app.services.contact.service import get_contact_with_profile
 from app.services.message.outbound.helpers import send_chat_info, send_contact_request_notification
 from app.services.profile.avatar import get_avatar_url
 from app.type_defs import JSONDict, JSONValue
@@ -104,7 +104,7 @@ async def _get_contact_expiration_days(db: AsyncSession) -> int:
         logger.error("contact_request_expiration_config_missing")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="系统配置缺失",
+            detail="系统错误",
         )
 
     return expiry
@@ -168,7 +168,7 @@ async def _create_contact_record(
     contact_qiao_id: str,
     contact_id: int,
     contact_type: ContactType,
-    conv_id: str,
+    conversation_id: str,
     alias: str | None,
     tags: list[str] | None,
     source: str | None,
@@ -183,7 +183,7 @@ async def _create_contact_record(
         contact_qiao_id: Contact's qiao_id
         contact_id: Contact's internal ID
         contact_type: Contact type
-        conv_id: Conversation ID
+        conversation_id: Conversation identifier
         alias: Contact alias
         tags: Contact tags
 
@@ -202,7 +202,11 @@ async def _create_contact_record(
     )
 
     contact = await contact_crud.create_with_user(
-        db, obj_in=contact_data, user_qiao_id=user_qiao_id, user_id=user_id, conv_id=conv_id
+        db,
+        obj_in=contact_data,
+        user_qiao_id=user_qiao_id,
+        user_id=user_id,
+        conversation_id=conversation_id,
     )
 
     # Update contact_id
@@ -248,7 +252,7 @@ async def _process_ai_contact_request(
     """
     _req_id = contact_request.id
     _to_qiao_id = contact_request.to_qiao_id
-    conv_id: str | None = None
+    conversation_id: str | None = None
     ai_qiao_id: str | None = None
     contact_id: int | None = None
 
@@ -290,7 +294,7 @@ async def _process_ai_contact_request(
             user_qiao_id=user_qiao_id,
         )
 
-        conv_id = f"conv_{generate_snowflake_id()}"
+        conversation_id = f"conv_{generate_snowflake_id()}"
 
         contact = await _create_contact_record(
             db=db,
@@ -299,7 +303,7 @@ async def _process_ai_contact_request(
             contact_qiao_id=ai_instance.qiao_id,
             contact_id=ai_instance.id,
             contact_type=ContactType.AI,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
             alias=alias,
             tags=tags,
             source=_map_request_source_to_contact(contact_request.source),
@@ -328,7 +332,7 @@ async def _process_ai_contact_request(
             await send_chat_info(
                 db=db,
                 to_qiao_id=user_qiao_id,
-                conv_id=conv_id,
+                conversation_id=conversation_id,
                 content=content,
             )
         except Exception as e:
@@ -846,7 +850,7 @@ async def retry_pending_contact_request(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="重试请求失败",
+            detail="系统错误",
         ) from exc
     else:
         return {"message": "请求已发送"}
@@ -943,7 +947,7 @@ async def get_contact_requests_service(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="获取请求列表失败",
+            detail="系统错误",
         ) from e
 
 
@@ -1002,7 +1006,7 @@ async def accept_contact_request_service(
     def _raise_sync_failed() -> None:
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="联系人信息同步失败",
+            detail="系统错误",
         )
 
     try:
@@ -1033,8 +1037,18 @@ async def accept_contact_request_service(
             _raise_user_not_found()
         assert user is not None
 
-        # Create contact
-        conv_id = await _get_im_conv_id(db, ensure_valid=True)
+        # Create contact conversation_id.
+        # If reverse contact already exists (applicant -> current user), reuse its conversation_id.
+        reverse_contact = await contact_crud.get_user_contact(
+            db,
+            user_qiao_id=contact_request.from_qiao_id,
+            contact_qiao_id=user_qiao_id,
+        )
+        conversation_id = (
+            reverse_contact.conversation_id
+            if reverse_contact
+            else f"conv_{generate_snowflake_id()}"
+        )
 
         contact_data = ContactCreate(
             contact_type=ContactType(contact_request.from_type),
@@ -1052,7 +1066,7 @@ async def accept_contact_request_service(
             obj_in=contact_data,
             user_qiao_id=user_qiao_id,
             user_id=user.id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
 
         # Update request status
@@ -1066,7 +1080,7 @@ async def accept_contact_request_service(
             await send_chat_info(
                 db=db,
                 to_qiao_id=contact_request.from_qiao_id,
-                conv_id=conv_id,
+                conversation_id=conversation_id,
                 content=content,
             )
         except Exception as e:
@@ -1081,7 +1095,7 @@ async def accept_contact_request_service(
         contact_response = await get_contact_with_profile(
             db=db,
             user_qiao_id=user_qiao_id,
-            conv_id=contact.conv_id,
+            conversation_id=contact.conversation_id,
         )
         if not contact_response:
             _raise_sync_failed()
@@ -1106,7 +1120,7 @@ async def accept_contact_request_service(
         )
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="接受请求失败",
+            detail="系统错误",
         ) from e
     else:
         return contact_response
@@ -1188,7 +1202,7 @@ async def ignore_contact_request_service(
         )
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="忽略请求失败",
+            detail="系统错误",
         ) from e
     else:
         return {"message": "已忽略"}

@@ -428,7 +428,77 @@ async def deinitialize_user(qiao_id: str, db: AsyncSession) -> bool:
         return False
 
 
-# Placeholder functions for future implementation
+async def _load_send_config(db: AsyncSession) -> tuple[str, str, str, str] | None:
+    """Load LeanCloud send configuration."""
+    leancloud_config = await config_service.get_leancloud_config(db)
+    app_id = _get_non_empty_str(leancloud_config.get("app_id"))
+    master_key = _get_non_empty_str(leancloud_config.get("master_key"))
+    base_url = _get_non_empty_str(leancloud_config.get("base_url"))
+    lc_conv_id = _get_non_empty_str(
+        await system_configs.get_config_value(db, config_key="leancloud_im_service_conversation_id")
+    )
+    if app_id is None or master_key is None or base_url is None or lc_conv_id is None:
+        return None
+    return app_id, master_key, base_url, lc_conv_id
+
+
+async def send_message_to_client(
+    db: AsyncSession,
+    *,
+    target_client_id: str,
+    from_qiao_id: str,
+    to_qiao_id: str,
+    conv_id: str,
+    content: str,
+    message_type: int = MessageType.TEXT,
+    action: JSONDict | None = None,
+    extra_fields: JSONDict | None = None,
+    msg_id: str | None = None,
+    supports_typing: bool = True,
+) -> MessageResult:
+    """Send one message to one LeanCloud client id (endpoint-level send)."""
+    try:
+        config = await _load_send_config(db)
+        if config is None:
+            return MessageResult(
+                success=False,
+                error_code="CONFIG_MISSING",
+                error_message="LeanCloud configuration incomplete",
+            )
+        app_id, master_key, base_url, lc_conv_id = config
+
+        message_json = build_outbound_typed_message(
+            from_qiao_id=from_qiao_id,
+            to_qiao_id=to_qiao_id,
+            conversation_id=conv_id,
+            content=content,
+            message_type=message_type,
+            msg_id=msg_id or f"msg_{generate_snowflake_id()}",
+            supports_typing=supports_typing,
+            action=action,
+            extra_fields=extra_fields,
+        )
+
+        success, provider_msg_id, error = await send_service_message(
+            app_id=app_id,
+            master_key=master_key,
+            base_url=base_url,
+            conversation_id=lc_conv_id,
+            from_client=from_qiao_id,
+            to_clients=[target_client_id],
+            message=message_json,
+        )
+        if success:
+            return MessageResult(success=True, msg_id_provider=provider_msg_id)
+        return MessageResult(success=False, error_code="SEND_FAILED", error_message=error)
+    except Exception as e:
+        logger.error(
+            "send_message_to_client_exception",
+            error=str(e),
+            from_qiao_id=from_qiao_id,
+            target_client_id=target_client_id,
+        )
+        return MessageResult(success=False, error_code="EXCEPTION", error_message=str(e))
 
 
 async def send_message(
@@ -441,73 +511,20 @@ async def send_message(
     extra_fields: JSONDict | None = None,
     msg_id: str | None = None,
 ) -> MessageResult:
-    """
-    Send message through LeanCloud.
-
-    Args:
-        db: Database session for configuration access
-        from_qiao_id: Sender's qiao_id
-        to_qiao_id: Receiver's qiao_id
-        conv_id: Internal conversation ID (included in message)
-        content: Message content
-        message_type: Message type (default: 1=TEXT)
-
-    Returns:
-        MessageResult with success status and message ID
-    """
-    try:
-        # Get LeanCloud configuration
-        leancloud_config = await config_service.get_leancloud_config(db)
-        app_id = _get_non_empty_str(leancloud_config.get("app_id"))
-        master_key = _get_non_empty_str(leancloud_config.get("master_key"))
-        base_url = _get_non_empty_str(leancloud_config.get("base_url"))
-
-        # Get LeanCloud IM system conversation ID
-        lc_conv_id = _get_non_empty_str(
-            await system_configs.get_config_value(
-                db, config_key="leancloud_im_service_conversation_id"
-            )
-        )
-
-        if app_id is None or master_key is None or base_url is None or lc_conv_id is None:
-            return MessageResult(
-                success=False,
-                error_code="CONFIG_MISSING",
-                error_message="LeanCloud configuration incomplete",
-            )
-
-        # Construct message JSON
-        message_json = build_outbound_typed_message(
-            from_qiao_id=from_qiao_id,
-            to_qiao_id=to_qiao_id,
-            conv_id=conv_id,
-            content=content,
-            message_type=message_type,
-            msg_id=msg_id or f"msg_{generate_snowflake_id()}",
-            supports_typing=True,
-            extra_fields=extra_fields,
-        )
-
-        # Send message through LeanCloud API
-        success, msg_id, error = await send_service_message(
-            app_id=app_id,
-            master_key=master_key,
-            base_url=base_url,
-            conversation_id=lc_conv_id,
-            from_client=from_qiao_id,
-            to_clients=[to_qiao_id],
-            message=message_json,
-        )
-
-        if success:
-            return MessageResult(success=True, msg_id_provider=msg_id)
-        return MessageResult(success=False, error_code="SEND_FAILED", error_message=error)
-
-    except Exception as e:
-        logger.error(
-            "send_message_exception", error=str(e), from_qiao_id=from_qiao_id, to_qiao_id=to_qiao_id
-        )
-        return MessageResult(success=False, error_code="EXCEPTION", error_message=str(e))
+    """Compatibility wrapper: recipient qiao_id is also target client id."""
+    return await send_message_to_client(
+        db,
+        target_client_id=to_qiao_id,
+        from_qiao_id=from_qiao_id,
+        to_qiao_id=to_qiao_id,
+        conv_id=conv_id,
+        content=content,
+        message_type=message_type,
+        action=None,
+        extra_fields=extra_fields,
+        msg_id=msg_id,
+        supports_typing=True,
+    )
 
 
 async def send_message_as_system(
@@ -520,72 +537,20 @@ async def send_message_as_system(
     extra_fields: JSONDict | None = None,
     msg_id: str | None = None,
 ) -> MessageResult:
-    """
-    Send message as system through LeanCloud.
-
-    Messages sent as system use "system" as from_client.
-
-    Args:
-        db: Database session for configuration access
-        to_qiao_id: Receiver's qiao_id
-        conv_id: Internal conversation ID (included in message)
-        content: Message content (already mapped by business layer)
-
-    Returns:
-        MessageResult with success status and message ID
-    """
-    try:
-        # Get LeanCloud configuration
-        leancloud_config = await config_service.get_leancloud_config(db)
-        app_id = _get_non_empty_str(leancloud_config.get("app_id"))
-        master_key = _get_non_empty_str(leancloud_config.get("master_key"))
-        base_url = _get_non_empty_str(leancloud_config.get("base_url"))
-
-        # Get LeanCloud IM system conversation ID
-        lc_conv_id = _get_non_empty_str(
-            await system_configs.get_config_value(
-                db, config_key="leancloud_im_service_conversation_id"
-            )
-        )
-
-        if app_id is None or master_key is None or base_url is None or lc_conv_id is None:
-            return MessageResult(
-                success=False,
-                error_code="CONFIG_MISSING",
-                error_message="LeanCloud configuration incomplete",
-            )
-
-        # Construct message JSON
-        message_json = build_outbound_typed_message(
-            from_qiao_id="system",
-            to_qiao_id=to_qiao_id,
-            conv_id=conv_id,
-            content=content,
-            message_type=message_type,
-            msg_id=msg_id or f"msg_{generate_snowflake_id()}",
-            supports_typing=False,
-            action=action,
-            extra_fields=extra_fields,
-        )
-
-        # Send message as system through LeanCloud API
-        success, msg_id, error = await send_service_message(
-            app_id=app_id,
-            master_key=master_key,
-            base_url=base_url,
-            conversation_id=lc_conv_id,
-            from_client="system",  # Messages sent as system use "system" as sender
-            to_clients=[to_qiao_id],
-            message=message_json,
-        )
-
-        if success:
-            return MessageResult(success=True, msg_id_provider=msg_id)
-        return MessageResult(success=False, error_code="SEND_FAILED", error_message=error)
-
-    except Exception as e:
-        logger.error("send_message_as_system_exception", error=str(e), to_qiao_id=to_qiao_id)
-        return MessageResult(success=False, error_code="EXCEPTION", error_message=str(e))
+    """Send message as system through LeanCloud."""
+    return await send_message_to_client(
+        db,
+        target_client_id=to_qiao_id,
+        from_qiao_id="system",
+        to_qiao_id=to_qiao_id,
+        conv_id=conv_id,
+        content=content,
+        message_type=message_type,
+        action=action,
+        extra_fields=extra_fields,
+        msg_id=msg_id,
+        supports_typing=False,
+    )
 
 
 async def get_conversation_registry_state(db: AsyncSession) -> JSONDict:

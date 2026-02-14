@@ -5,18 +5,12 @@ This module provides complex transaction operations that involve multiple
 database operations and require atomicity.
 """
 
-import secrets
-import string
 from collections.abc import Mapping, Sequence
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums import ProfileOwnerType
-from app.models.ai import AIConversationItem, AIConversationItemArchive, AIInstance, AIRequestLog
-from app.models.contact import Contact
-from app.models.profile import Profile
-from app.services.ai.memory import copy_template_memories_to_instance
+from app.models.ai import AIConversationItem, AIConversationItemArchive, AIRequestLog
 from app.type_defs import InstanceContext
 from app.utils.logging import get_logger
 
@@ -41,120 +35,6 @@ SENSITIVE_REQUEST_KEYS = {
 }
 
 
-def _coerce_template_id(value: object) -> int | None:
-    """Convert mixed template_id payloads into an integer."""
-
-    if isinstance(value, int):
-        return value
-    if isinstance(value, str) and value.strip():
-        try:
-            return int(value)
-        except ValueError:
-            return None
-    return None
-
-
-async def create_instance_with_relations(
-    db: AsyncSession, instance_data: Mapping[str, object]
-) -> str:
-    """
-    Create an instance with associated inventory in one transaction.
-
-    Args:
-        db: Database session
-        instance_data: Instance creation payload
-
-    Returns:
-        Instance qiao_id
-
-    Raises:
-        RuntimeError: If creation fails
-    """
-    if "typing_speed_wpm" not in instance_data:
-        raise ValueError("typing_speed_wpm is required to create instance")
-
-    qiao_id = instance_data.get("qiao_id")
-    if not isinstance(qiao_id, str) or not qiao_id:
-        raise ValueError("qiao_id must be provided as a non-empty string")
-
-    creation_metadata = instance_data.get("creation_metadata")
-    if creation_metadata is None:
-        creation_metadata = dict(instance_data)
-        creation_metadata.pop("creation_metadata", None)
-
-    try:
-        ai_instance = AIInstance(
-            qiao_id=qiao_id,
-            status=instance_data.get("status", 1),
-            style_id=instance_data["style_id"],
-            personality_id=instance_data["personality_id"],
-            prompt_variables=instance_data.get("prompt_variables", {}),
-            request_params=instance_data.get("request_params"),
-            llm_config_id=instance_data.get("llm_config_id"),
-            created_by=instance_data.get("created_by", 2),
-            typing_speed_wpm=instance_data["typing_speed_wpm"],
-            creation_metadata=creation_metadata,
-        )
-
-        db.add(ai_instance)
-        await db.flush()
-
-        template_id_candidate = instance_data.get("template_id")
-        if template_id_candidate is None and isinstance(creation_metadata, dict):
-            template_id_candidate = creation_metadata.get("template_id")
-        template_id_value = _coerce_template_id(template_id_candidate)
-        if template_id_value is not None:
-            await copy_template_memories_to_instance(
-                db, template_id=template_id_value, instance=ai_instance
-            )
-
-        profile = Profile(
-            owner_qiao_id=qiao_id,
-            owner_type=ProfileOwnerType.AI_INSTANCE,
-            nickname=instance_data.get("nickname"),
-            gender=instance_data.get("gender"),
-            avatar_key=instance_data.get("avatar_key"),
-            avatar_media_id=instance_data.get("avatar_media_id"),
-            bio=instance_data.get("bio"),
-            region=instance_data.get("region"),
-        )
-        db.add(profile)
-
-        if instance_data.get("user_qiao_id"):
-            random_chars = "".join(
-                secrets.choice(string.ascii_letters + string.digits) for _ in range(16)
-            )
-            conv_id = f"conv_{random_chars}"
-
-            contact = Contact(
-                conv_id=conv_id,
-                user_qiao_id=instance_data["user_qiao_id"],
-                contact_type=2,
-                contact_qiao_id=qiao_id,
-                is_pinned=0,
-                is_muted=0,
-                is_blocked=0,
-                is_deleted=0,
-            )
-            db.add(contact)
-
-        await db.flush()
-
-        logger.info(
-            "instance_created_with_relations",
-            instance_qiao_id=instance_data["qiao_id"],
-            user_qiao_id=instance_data.get("user_qiao_id"),
-        )
-
-        result_qiao_id = qiao_id
-
-    except Exception as exc:
-        logger.error("instance_creation_failed", error=str(exc), instance_data=instance_data)
-        raise RuntimeError(f"Failed to create instance with relations: {exc!s}") from exc
-    else:
-        return result_qiao_id
-
-
 async def save_ai_request_log(
     db: AsyncSession,
     instance_context: InstanceContext,
@@ -162,7 +42,7 @@ async def save_ai_request_log(
     ai_response: object,
     llm_result: Mapping[str, object],
     buffer_id: int | None,
-) -> None:
+) -> int | None:
     """
     Save AI request log with correct field mapping.
 
@@ -180,7 +60,7 @@ async def save_ai_request_log(
         user_id = await get_user_id_by_qiao_id(db, user_qiao_id)
         if not user_id:
             logger.warning("user_not_found_for_log", user_qiao_id=user_qiao_id)
-            return
+            return None
 
         response_payload = _coerce_response_payload(ai_response)
 
@@ -252,12 +132,14 @@ async def save_ai_request_log(
             instance_id=instance_context["instance_id"],
             user_id=user_id,
         )
+        return int(request_log.id)
 
     except Exception as exc:
         logger.error(
             "ai_request_log_save_failed", error=str(exc), user_qiao_id=user_qiao_id, exc_info=True
         )
         # Don't raise - logging failure shouldn't break the conversation
+        return None
 
 
 async def archive_contexts_transaction(

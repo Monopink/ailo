@@ -7,7 +7,7 @@ Usage:
     from app.enums.templates import CHAT_INFO_TEMPLATES, ChatInfoType
 
     content = CHAT_INFO_TEMPLATES[ChatInfoType.CONTACT_ADDED]
-    await send_chat_info(db, to_qiao_id=user_id, conv_id=conv_id, content=content)
+    await send_chat_info(db, to_qiao_id=user_id, conversation_id=conversation_id, content=content)
 """
 
 from app.enums.common import ChatInfoType

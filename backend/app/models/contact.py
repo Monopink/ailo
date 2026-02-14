@@ -31,8 +31,11 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
 
     __tablename__ = "contacts"
 
-    conv_id: Mapped[str] = mapped_column(
-        String(32), nullable=False, unique=True, comment="Conversation identifier: conv_+random"
+    conversation_id: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        unique=True,
+        comment="Conversation identifier: conv_+random",
     )
 
     user_id: Mapped[int | None] = mapped_column(
@@ -162,7 +165,7 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
         return None
 
     # Indexes - Only essential indexes for MVP
-    # Note: conv_id already has unique index
+    # Note: conversation_id already has unique index
     __table_args__ = (
         Index("idx_contacts_user_qiao_id", "user_qiao_id"),
         Index("idx_contacts_contact_qiao_id", "contact_qiao_id"),

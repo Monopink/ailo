@@ -155,7 +155,7 @@ class InstanceContext(TypedDict):
     # Linked metadata
     style: StyleInfo
     personality: PersonalityInfo
-    profile: ProfileInfo
+    profile: ProfileInfo | None
 
     # Derived collections
     dimensions: list[DimensionSpec]

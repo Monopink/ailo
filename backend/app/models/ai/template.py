@@ -165,6 +165,11 @@ class AIPersona(SnowflakeQiaoModel):
     __tablename__ = "ai_personas"
 
     type_id: Mapped[int] = mapped_column(Integer, nullable=False, comment="AI type association")
+    username: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        comment="Public AI username, unique in ai_personas (case-insensitive)",
+    )
     is_reusable: Mapped[int] = mapped_column(
         Integer,
         nullable=False,

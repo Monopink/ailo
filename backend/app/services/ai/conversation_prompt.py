@@ -363,13 +363,11 @@ async def _build_pending_messages_placeholder(
         return ""
 
     outgoing = _coerce_str_list(pending_data.get("outgoing"))
-    followup = _coerce_str_list(pending_data.get("followup"))
-    all_pending = outgoing + followup
-    if not all_pending:
+    if not outgoing:
         return ""
 
-    total = _coerce_non_negative_int(pending_data.get("total_pending"), len(all_pending))
-    message_lines = "\n".join(f"- {msg}" for msg in all_pending)
+    total = _coerce_non_negative_int(pending_data.get("total_pending"), len(outgoing))
+    message_lines = "\n".join(f"- {msg}" for msg in outgoing)
     return (
         f"【系统提示】你有 {total} 条消息因被打断而未发送:\n"
         f"{message_lines}\n"

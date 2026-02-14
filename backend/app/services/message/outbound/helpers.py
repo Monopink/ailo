@@ -2,7 +2,7 @@
 Convenience functions for common message sending scenarios.
 
 These functions provide business-level abstractions over the core
-send_message and send_notification functions.
+timeline and notification sending functions.
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +19,7 @@ from app.schemas.message import (
     NotificationAction,
     NotificationActionData,
 )
-from app.services.message.outbound.sender import send_message, send_notification
+from app.services.message.outbound.sender import send_notification, send_timeline_message
 from app.services.profile.avatar import get_avatar_url
 from app.type_defs import JSONDict
 from app.utils.logging import get_logger
@@ -31,7 +31,7 @@ async def send_chat_info(
     db: AsyncSession,
     *,
     to_qiao_id: str,
-    conv_id: str,
+    conversation_id: str,
     content: str,
     action: JSONDict | None = None,
 ) -> None:
@@ -44,18 +44,20 @@ async def send_chat_info(
     Args:
         db: Database session
         to_qiao_id: Receiver's qiao_id
-        conv_id: Internal conversation ID
+        conversation_id: Internal conversation identifier
         content: Message text (already resolved from template)
 
     Example:
         content = CHAT_INFO_TEMPLATES[ChatInfoType.CONTACT_ADDED]
-        await send_chat_info(db, to_qiao_id=user_id, conv_id=conv_id, content=content)
+        await send_chat_info(
+            db, to_qiao_id=user_id, conversation_id=conversation_id, content=content
+        )
     """
-    await send_message(
+    await send_timeline_message(
         db=db,
         from_qiao_id="system",
         to_qiao_id=to_qiao_id,
-        conv_id=conv_id,
+        conv_id=conversation_id,
         content=content,
         message_type=MessageType.CHAT_INFO,
         action=action,

@@ -23,8 +23,10 @@ from app.services.ai.queries.updates import (
     update_instance_status,
 )
 from app.services.ai.relationship_scoring import determine_relationship_type
-from app.services.message.processing.buffer import finalize_buffer_if_locked
-from app.services.message.processing.sender import send_ai_messages_with_typing
+from app.services.message.processing.sender import (
+    SendExecutionResult,
+    send_ai_messages_with_typing,
+)
 from app.type_defs import InstanceContext, JSONDict, JSONValue
 from app.utils.logging import get_logger
 
@@ -44,50 +46,31 @@ async def process_llm_response(
     llm_result: JSONDict,
     locked_buffer_id: int | None,
     user_message_item_id: int | None,
+    task_turn_version: int | None,
 ) -> JSONDict:
     """Persist side effects from one LLM response and emit outgoing messages."""
 
+    outgoing_messages: list[str] = _coerce_string_list(ai_response.get("outgoing_messages"))
+    followup_messages: list[str] = _coerce_string_list(ai_response.get("followup_messages"))
+    should_reply = bool(ai_response.get("should_reply", True))
+
+    score_updates = _normalize_score_payload(ai_response.get("score"))
+    memory_ops_payload = _normalize_memory_operations(ai_response.get("memory_operations"))
+    has_memory_ops = any(memory_ops_payload[key] for key in ("remove", "update", "refresh", "add"))
+    should_apply_memory = bool(ai_response.get("should_update_memory")) and has_memory_ops
+
+    if task_turn_version is None:
+        raise ValueError("task_turn_version is required for response handling")
+
+    llm_request_id: int | None = None
     try:
-        score_updates = _normalize_score_payload(ai_response.get("score"))
-
-        if score_updates:
-            await update_instance_relationship_scores(
-                db, instance_context["instance_id"], score_updates
-            )
-
-            latest_scores = await get_instance_relationship_scores(
-                db, instance_context["instance_id"]
-            )
-            if latest_scores:
-                rel = await determine_relationship_type(db, instance_context, latest_scores)
-                if rel and rel.get("relationship"):
-                    relationship = rel["relationship"]
-                    display_name = getattr(
-                        relationship, "display_name", getattr(relationship, "name", "")
-                    )
-                    await set_instance_current_relationship(
-                        db, instance_context["instance_id"], relationship.id, display_name
-                    )
-
-        memory_ops_payload = _normalize_memory_operations(ai_response.get("memory_operations"))
-        has_memory_ops = any(
-            memory_ops_payload[key] for key in ("remove", "update", "refresh", "add")
-        )
-        if ai_response.get("should_update_memory") and has_memory_ops:
-            await process_memory_operations(
-                db,
-                instance_context,
-                memory_ops_payload,
-                source_message_id=user_message_item_id,
-            )
-
         if ai_response.get("attack_detected") and user_message_item_id:
             await mark_conversation_item_as_excluded(db, user_message_item_id)
 
         if ai_response.get("should_block"):
             await update_instance_status(db, instance_context["instance_id"], status=3)
 
-        await save_ai_request_log(
+        llm_request_id = await save_ai_request_log(
             db=db,
             instance_context=instance_context,
             user_qiao_id=user_qiao_id,
@@ -96,16 +79,14 @@ async def process_llm_response(
             buffer_id=locked_buffer_id,
         )
 
-        if locked_buffer_id:
-            await finalize_buffer_if_locked(db, locked_buffer_id)
-
         await db.commit()
 
         logger.info(
-            "conversation_result_saved",
+            "conversation_safety_side_effects_saved",
             user_qiao_id=user_qiao_id,
             instance_qiao_id=instance_qiao_id,
             buffer_id=locked_buffer_id,
+            task_turn_version=task_turn_version,
         )
 
     except Exception as exc:  # pragma: no cover - orchestration level logging only
@@ -119,9 +100,13 @@ async def process_llm_response(
         )
         raise
 
-    outgoing_messages: list[str] = _coerce_string_list(ai_response.get("outgoing_messages"))
-    followup_messages: list[str] = _coerce_string_list(ai_response.get("followup_messages"))
-    should_reply = bool(ai_response.get("should_reply", True))
+    logger.info(
+        "conversation_result_saved",
+        user_qiao_id=user_qiao_id,
+        instance_qiao_id=instance_qiao_id,
+        buffer_id=locked_buffer_id,
+        task_turn_version=task_turn_version,
+    )
 
     if should_reply and (outgoing_messages or followup_messages):
         typing_speed_seconds_per_word = await _resolve_typing_speed_seconds_per_word(
@@ -137,7 +122,7 @@ async def process_llm_response(
         followup_delay_seconds = 0.0
 
     send_task = asyncio.create_task(
-        send_ai_messages_with_typing(
+        _send_and_apply_post_send_effects(
             session_factory=session_factory,
             user_qiao_id=user_qiao_id,
             instance_qiao_id=instance_qiao_id,
@@ -146,6 +131,13 @@ async def process_llm_response(
             followup_messages=followup_messages,
             typing_speed_seconds_per_word=typing_speed_seconds_per_word,
             followup_delay_seconds=followup_delay_seconds,
+            llm_request_id=llm_request_id,
+            task_turn_version=task_turn_version,
+            instance_context=instance_context,
+            score_updates=score_updates,
+            should_apply_memory=should_apply_memory,
+            memory_ops_payload=memory_ops_payload,
+            user_message_item_id=user_message_item_id,
         )
     )
     send_task.add_done_callback(_log_send_task_failure)
@@ -154,6 +146,90 @@ async def process_llm_response(
         "success": True,
         "buffer_id": locked_buffer_id,
     }
+
+
+async def _send_and_apply_post_send_effects(
+    *,
+    session_factory: async_sessionmaker[AsyncSession],
+    user_qiao_id: str,
+    instance_qiao_id: str,
+    buffer_id: int | None,
+    outgoing_messages: list[str],
+    followup_messages: list[str],
+    typing_speed_seconds_per_word: float,
+    followup_delay_seconds: float,
+    llm_request_id: int | None,
+    task_turn_version: int,
+    instance_context: InstanceContext,
+    score_updates: dict[str, int],
+    should_apply_memory: bool,
+    memory_ops_payload: JSONDict,
+    user_message_item_id: int | None,
+) -> None:
+    send_result: SendExecutionResult = await send_ai_messages_with_typing(
+        session_factory=session_factory,
+        user_qiao_id=user_qiao_id,
+        instance_qiao_id=instance_qiao_id,
+        buffer_id=buffer_id,
+        outgoing_messages=outgoing_messages,
+        followup_messages=followup_messages,
+        typing_speed_seconds_per_word=typing_speed_seconds_per_word,
+        followup_delay_seconds=followup_delay_seconds,
+        llm_request_id=llm_request_id,
+        task_turn_version=task_turn_version,
+    )
+
+    if not send_result.first_message_sent:
+        logger.info(
+            "conversation_side_effects_skipped_without_first_send",
+            user_qiao_id=user_qiao_id,
+            instance_qiao_id=instance_qiao_id,
+            task_turn_version=task_turn_version,
+        )
+        return
+
+    if not should_apply_memory and not score_updates:
+        return
+
+    async with session_factory() as db:
+        try:
+            if should_apply_memory:
+                await process_memory_operations(
+                    db,
+                    instance_context,
+                    memory_ops_payload,
+                    source_message_id=user_message_item_id,
+                )
+
+            if score_updates:
+                await update_instance_relationship_scores(
+                    db, instance_context["instance_id"], score_updates
+                )
+
+                latest_scores = await get_instance_relationship_scores(
+                    db, instance_context["instance_id"]
+                )
+                if latest_scores:
+                    rel = await determine_relationship_type(db, instance_context, latest_scores)
+                    if rel and rel.get("relationship"):
+                        relationship = rel["relationship"]
+                        display_name = getattr(
+                            relationship, "display_name", getattr(relationship, "name", "")
+                        )
+                        await set_instance_current_relationship(
+                            db, instance_context["instance_id"], relationship.id, display_name
+                        )
+
+            await db.commit()
+            logger.info(
+                "conversation_side_effects_applied_after_send",
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+                task_turn_version=task_turn_version,
+            )
+        except Exception:
+            await db.rollback()
+            raise
 
 
 async def _resolve_typing_speed_seconds_per_word(db: AsyncSession, instance_id: int) -> float:
@@ -298,7 +374,7 @@ def _coerce_delay_value(value: JSONValue | None) -> float | None:
     return None
 
 
-def _log_send_task_failure(task: asyncio.Task[JSONDict | None]) -> None:
+def _log_send_task_failure(task: asyncio.Task[None]) -> None:
     """Log any exceptions raised by the background send task."""
     try:
         task.result()

@@ -59,14 +59,14 @@ async def send_email_code(
             raise HTTPException(status_code=400, detail="邮箱格式不正确")
 
         # TODO: Implement email verification code sending
-        raise HTTPException(status_code=501, detail="邮箱验证功能暂未实现")
+        raise HTTPException(status_code=501, detail="系统错误")
 
     except HTTPException:
         raise
 
     except Exception as e:
         logger.error("send_email_code_failed", error=str(e), user_id=current_user.id, exc_info=True)
-        raise HTTPException(status_code=500, detail="发送验证码失败，请稍后再试")
+        raise HTTPException(status_code=500, detail="系统错误")
 
 
 @router.post("/email", response_model=BindEmailResponse)
@@ -118,7 +118,7 @@ async def bind_email(
 
     except Exception as e:
         logger.error("bind_email_failed", error=str(e), user_id=current_user.id, exc_info=True)
-        raise HTTPException(status_code=500, detail="绑定邮箱失败，请稍后再试")
+        raise HTTPException(status_code=500, detail="系统错误")
 
 
 @router.put("/email", response_model=ChangeEmailResponse)
@@ -173,7 +173,7 @@ async def change_email(
 
     except Exception as e:
         logger.error("change_email_failed", error=str(e), user_id=current_user.id, exc_info=True)
-        raise HTTPException(status_code=500, detail="修改邮箱失败，请稍后再试")
+        raise HTTPException(status_code=500, detail="系统错误")
 
 
 @router.delete("/email", status_code=status.HTTP_204_NO_CONTENT)
@@ -215,7 +215,7 @@ async def unbind_email(
 
     except Exception as e:
         logger.error("unbind_email_failed", error=str(e), user_id=current_user.id, exc_info=True)
-        raise HTTPException(status_code=500, detail="解绑邮箱失败，请稍后再试")
+        raise HTTPException(status_code=500, detail="系统错误")
 
 
 @router.put("/phone", response_model=ChangePhoneResponse)
@@ -278,4 +278,4 @@ async def change_phone(
 
     except Exception as e:
         logger.error("change_phone_failed", error=str(e), user_id=current_user.id, exc_info=True)
-        raise HTTPException(status_code=500, detail="修改手机号失败，请稍后再试")
+        raise HTTPException(status_code=500, detail="系统错误")

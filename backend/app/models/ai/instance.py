@@ -56,6 +56,14 @@ class AIInstance(SnowflakeQiaoModel):
         default=generate_qiao_id,
         comment="External persona identifier (multiple users can add same persona)",
     )
+    username: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        comment=(
+            "Runtime username snapshot; source=persona must equal persona.username, "
+            "source=admin_manual must be NULL"
+        ),
+    )
 
     user_id: Mapped[int] = mapped_column(
         BigInteger, nullable=False, comment="Owning user ID, references users.id"
@@ -181,8 +189,13 @@ class AIInstance(SnowflakeQiaoModel):
     # Note: qiao_id is indexed for lookup
     __table_args__ = (
         UniqueConstraint("user_id", "qiao_id", name="uq_ai_instances_user_qiao"),
+        CheckConstraint(
+            "(creation_metadata->>'source') <> 'admin_manual' OR username IS NULL",
+            name="ck_ai_instances_manual_username_null",
+        ),
         Index("idx_ai_instances_user_id", "user_id"),
         Index("idx_ai_instances_user_qiao_id", "user_qiao_id"),
+        Index("idx_ai_instances_user_username", "user_id", "username"),
         Index("idx_ai_instances_style_id", "style_id"),
         Index("idx_ai_instances_personality_id", "personality_id"),
     )
@@ -214,7 +227,9 @@ class AIMessageBuffer(SnowflakeModel):
         BigInteger, nullable=True, comment="Macro timer expiration timestamp (ms)"
     )
     buffer_expires_at_ms: Mapped[int | None] = mapped_column(
-        BigInteger, nullable=True, comment="Next timer deadline (min of micro/macro)"
+        BigInteger,
+        nullable=True,
+        comment="Effective processing deadline (ms), combining micro/macro timers with wake gate",
     )
     last_message_category: Mapped[str | None] = mapped_column(
         String(32), nullable=True, comment="Last inbound message category"
@@ -241,7 +256,7 @@ class AIMessageBuffer(SnowflakeModel):
     wake_expires_at_ms: Mapped[int | None] = mapped_column(
         BigInteger,
         nullable=True,
-        comment="Wake timer expiration (ms), NULL if already awake or in OPEN state",
+        comment="Wake gate deadline (ms), NULL when wake gate is inactive",
     )
     wake_adjustment_count: Mapped[int] = mapped_column(
         SmallInteger,
@@ -259,16 +274,6 @@ class AIMessageBuffer(SnowflakeModel):
             "aggregate_state",
         ),
         Index(
-            "idx_ai_message_buffer_micro",
-            "micro_expires_at_ms",
-            postgresql_where=text("aggregate_state = 1 AND micro_expires_at_ms IS NOT NULL"),
-        ),
-        Index(
-            "idx_ai_message_buffer_macro",
-            "macro_expires_at_ms",
-            postgresql_where=text("aggregate_state = 1 AND macro_expires_at_ms IS NOT NULL"),
-        ),
-        Index(
             "idx_ai_message_buffer_locked",
             "user_qiao_id",
             "instance_qiao_id",
@@ -280,12 +285,7 @@ class AIMessageBuffer(SnowflakeModel):
             "user_qiao_id",
             "instance_qiao_id",
             "buffer_expires_at_ms",
-            postgresql_where=text("aggregate_state = 1 AND buffer_expires_at_ms IS NOT NULL"),
-        ),
-        Index(
-            "idx_ai_message_buffer_wake_scan",
-            "wake_expires_at_ms",
-            postgresql_where=text("aggregate_state = 0 AND wake_expires_at_ms IS NOT NULL"),
+            postgresql_where=text("aggregate_state IN (0, 1) AND buffer_expires_at_ms IS NOT NULL"),
         ),
     )
 
@@ -390,9 +390,7 @@ class AIConversationState(Base, TimestampMixin):
     pending_messages: Mapped[JSONDict | None] = mapped_column(
         JSONB,
         nullable=True,
-        comment=(
-            'Pending messages structure: {"outgoing": [...], "followup": [...], "total_pending": N}'
-        ),
+        comment='Pending messages structure: {"outgoing": [...], "total_pending": N}',
     )
     interrupted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
@@ -401,6 +399,31 @@ class AIConversationState(Base, TimestampMixin):
     )
 
     __table_args__ = (Index("idx_ai_conversation_state_updated", "updated_at"),)
+
+
+class AIConversationRuntime(Base, TimestampMixin):
+    """Per-conversation runtime turn versions for delayed preemption."""
+
+    __tablename__ = "ai_conversation_runtime"
+
+    user_qiao_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    instance_qiao_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    ingress_version: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Inbound turn version incremented on each CONTENT_INPUT event",
+    )
+    active_turn_version: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Active processing turn version switched on successful LOCKED acquisition",
+    )
+
+    __table_args__ = (Index("idx_ai_conversation_runtime_updated", "updated_at"),)
 
 
 class AIConversationItemArchive(ImmutableSnowflakeModel):

@@ -1,29 +1,15 @@
 """Offline message schemas."""
 
-from datetime import datetime
-
 from pydantic import BaseModel, Field
 
 from app.type_defs import JSONDict
 
 
-class OfflineCursorCreate(BaseModel):
-    """Create schema for offline cursor records."""
+class OfflineMessageItemMetadata(BaseModel):
+    """Subset of message metadata exposed by offline API."""
 
-    user_id: int
-    user_qiao_id: str
-    device_id: str
-    last_ack_msg_id: str | None = None
-    last_ack_sent_at: datetime | None = None
-    last_pull_at: datetime | None = None
-
-
-class OfflineCursorUpdate(BaseModel):
-    """Update schema for offline cursor records."""
-
-    last_ack_msg_id: str | None = None
-    last_ack_sent_at: datetime | None = None
-    last_pull_at: datetime | None = None
+    action: JSONDict | None = None
+    notification_type: int | None = None
 
 
 class OfflineMessageItem(BaseModel):
@@ -31,16 +17,14 @@ class OfflineMessageItem(BaseModel):
 
     msg_id_server: str
     msg_id_client: str | None = None
-    conv_id: str
+    conversation_id: str
     from_qiao_id: str
     to_qiao_id: str
     content: str | None = None
     message_type: int
-    sent_time: int
-    server_time: int
-    action: JSONDict | None = None
-    notification_type: int | None = None
-    data: JSONDict | None = None
+    client_sent_time_ms: int | None = None
+    sent_time_ms: int
+    metadata: OfflineMessageItemMetadata = Field(default_factory=OfflineMessageItemMetadata)
 
 
 class OfflineMessagesResponse(BaseModel):
@@ -54,11 +38,13 @@ class OfflineMessagesResponse(BaseModel):
 
 
 class OfflineMessageAckRequest(BaseModel):
-    """Offline message ACK request payload."""
+    """Offline message ACK request payload.
+
+    ACK indicates the client has persisted messages up to last_ack_msg_id.
+    """
 
     device_id: str = Field(..., description="Device/installation UUID")
     last_ack_msg_id: str = Field(..., description="Last acknowledged server message ID")
-    last_ack_sent_at: int = Field(..., description="Last acknowledged sent_time in ms")
 
 
 class OfflineMessageAckResponse(BaseModel):

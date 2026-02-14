@@ -62,7 +62,7 @@ async def get_offline_messages(
             exc_info=True,
         )
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="服务异常"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误"
         ) from e
 
 
@@ -96,5 +96,5 @@ async def ack_offline_messages(
             exc_info=True,
         )
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="服务异常"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误"
         ) from e

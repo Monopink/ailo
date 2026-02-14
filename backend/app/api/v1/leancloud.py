@@ -10,11 +10,15 @@ from app.crud.system import system_configs
 from app.models.user import User
 from app.schemas.message import (
     LeanCloudConfigResponse,
+    LeanCloudPresenceRequest,
+    LeanCloudPresenceResponse,
     LeanCloudSignatureRequest,
     LeanCloudSignatureResponse,
 )
 from app.services.message.providers.leancloud import service as leancloud_service
+from app.services.message.providers.leancloud.presence import upsert_user_presence_endpoint
 from app.services.message.providers.leancloud.signature import create_login_signature
+from app.services.system_config import get_config_int
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -41,9 +45,7 @@ async def get_lc_im_config(
         logger.error(
             "invalid_im_conv_id_type", value=im_conv_id_raw, user_qiao_id=current_user.qiao_id
         )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid system configuration"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误")
 
     im_conv_id: str = im_conv_id_raw
 
@@ -74,13 +76,13 @@ async def generate_lc_im_signature(
         logger.error("leancloud_im_app_id_not_configured")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="消息服务未配置",
+            detail="系统错误",
         )
     if not app_id:
         logger.error("leancloud_im_app_id_not_configured")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="消息服务未配置",
+            detail="系统错误",
         )
 
     signature_data = await create_login_signature(app_id=app_id, client_id=payload.client_id)
@@ -93,4 +95,65 @@ async def generate_lc_im_signature(
         timestamp=signature_data["timestamp"],
         nonce=signature_data["nonce"],
         expires_in=SIGNATURE_TTL_SECONDS,
+    )
+
+
+@router.post("/presence", response_model=LeanCloudPresenceResponse)
+async def register_lc_im_presence(
+    payload: LeanCloudPresenceRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> LeanCloudPresenceResponse:
+    """Register or renew LeanCloud USER endpoint lease for dispatch."""
+    if payload.client_id != current_user.qiao_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="客户端ID与当前用户不匹配"
+        )
+
+    try:
+        lease_ttl_days = await get_config_int(db, key="registration_lease_ttl_days")
+        endpoint = await upsert_user_presence_endpoint(
+            db,
+            user_id=int(current_user.id),
+            user_qiao_id=current_user.qiao_id,
+            client_id=payload.client_id,
+            lease_ttl_days=lease_ttl_days,
+            client_kind=payload.client_kind,
+        )
+        await db.commit()
+    except Exception as exc:  # pragma: no cover - defensive API guard
+        logger.error(
+            "lc_im_presence_register_failed",
+            user_qiao_id=current_user.qiao_id,
+            client_id=payload.client_id,
+            error=str(exc),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="系统错误",
+        ) from exc
+
+    if endpoint.lease_expires_at is None:
+        logger.error(
+            "lc_im_presence_lease_missing",
+            user_qiao_id=current_user.qiao_id,
+            endpoint_id=int(endpoint.id),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="系统错误",
+        )
+
+    logger.info(
+        "lc_im_presence_registered",
+        user_qiao_id=current_user.qiao_id,
+        endpoint_id=int(endpoint.id),
+        lease_ttl_days=lease_ttl_days,
+    )
+
+    return LeanCloudPresenceResponse(
+        endpoint_id=int(endpoint.id),
+        client_id=payload.client_id,
+        lease_ttl_days=lease_ttl_days,
+        lease_expires_at_ms=int(endpoint.lease_expires_at.timestamp() * 1000),
     )

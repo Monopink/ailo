@@ -8,7 +8,9 @@ Following the architectural pattern of separating concerns:
 """
 
 import json
+from uuid import uuid4
 
+from fastapi import status
 from starlette.datastructures import FormData
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -16,6 +18,7 @@ from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
 
 from app.core.database import get_sessionmaker
+from app.exceptions.error_codes import build_error_code
 from app.services.admin.testing.llm_config import execute_llm_config_test
 from app.services.llm.config import get_llm_config
 from app.type_defs import JSONDict, JSONValue
@@ -26,6 +29,7 @@ logger = get_logger(__name__)
 
 # Initialize templates
 templates = Jinja2Templates(directory="app/admin/templates")
+REQUEST_ID_HEADER = "X-Request-ID"
 
 
 class LLMConfigTestView(CustomView):
@@ -43,6 +47,20 @@ class LLMConfigTestView(CustomView):
     def is_accessible(self, _request: Request) -> bool:
         """Allow access to this view."""
         return True
+
+    @staticmethod
+    def _build_error_response(request: Request, status_code: int, message: str) -> JSONResponse:
+        error_code = build_error_code(
+            path=request.url.path, status_code=status_code, detail=message
+        )
+        request_id = request.headers.get(REQUEST_ID_HEADER) or f"req_{uuid4().hex[:12]}"
+        if status_code >= status.HTTP_500_INTERNAL_SERVER_ERROR:
+            message = f"系统错误（{error_code}）"
+        return JSONResponse(
+            {"error_code": error_code, "message": message, "request_id": request_id},
+            status_code=status_code,
+            headers={REQUEST_ID_HEADER: request_id},
+        )
 
     async def render(self, request: Request, templates: Jinja2Templates) -> Response:
         """Render the LLM config test interface.
@@ -209,7 +227,7 @@ class LLMConfigTestView(CustomView):
 
             except FormFieldError as e:
                 logger.warning("llm_config_test_form_validation_error", error=str(e))
-                return JSONResponse({"success": False, "error": str(e)}, status_code=400)
+                return self._build_error_response(request, status_code=400, message=str(e))
 
             # Execute test using service layer
             session_factory = get_sessionmaker()
@@ -234,9 +252,7 @@ class LLMConfigTestView(CustomView):
 
         except Exception as e:
             logger.error("llm_config_test_request_failed", error=str(e), exc_info=True)
-            return JSONResponse(
-                {"success": False, "error": f"Test request failed: {e!s}"}, status_code=500
-            )
+            return self._build_error_response(request, status_code=500, message="测试失败")
 
     def _validate_test_message(self, test_message: str) -> None:
         """Validate test message is not empty."""

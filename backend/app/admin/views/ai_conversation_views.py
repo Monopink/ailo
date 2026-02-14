@@ -16,6 +16,7 @@ from app.enums import AIMessageBufferState
 from app.models.ai.instance import (
     AIConversationItem,
     AIConversationItemArchive,
+    AIConversationRuntime,
     AIConversationState,
     AIMessageBuffer,
 )
@@ -399,10 +400,7 @@ class AIConversationStateView(ModelView):
         JSONField(
             "pending_messages",
             label="Pending Messages",
-            help_text=(
-                'Pending messages structure: {"outgoing": [...], '
-                '"followup": [...], "total_pending": N}'
-            ),
+            help_text='Pending messages structure: {"outgoing": [...], "total_pending": N}',
         ),
         LocalDateTimeField(
             "interrupted_at",
@@ -410,6 +408,64 @@ class AIConversationStateView(ModelView):
             help_text="Timestamp when the last interruption occurred",
         ),
         LocalDateTimeField("created_at", label="Created At", help_text="State creation time"),
+        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+    ]
+
+
+class AIConversationRuntimeView(ModelView):
+    """AI Conversation Runtime view - turn-version state for delayed preemption."""
+
+    exclude_fields_from_create: ClassVar[list[str]] = [
+        "created_at",
+        "updated_at",
+    ]
+    exclude_fields_from_edit: ClassVar[list[str]] = [
+        "user_qiao_id",
+        "instance_qiao_id",
+        "created_at",
+        "updated_at",
+    ]
+    exclude_fields_from_list: ClassVar[list[str]] = []
+
+    def can_create(self, _request: Request) -> bool:
+        return False
+
+    def can_delete(self, _request: Request) -> bool:
+        return False
+
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("updated_at", True)]
+    searchable_fields: ClassVar[list[str]] = ["user_qiao_id", "instance_qiao_id"]
+    sortable_fields: ClassVar[list[str]] = [
+        "user_qiao_id",
+        "instance_qiao_id",
+        "ingress_version",
+        "active_turn_version",
+        "created_at",
+        "updated_at",
+    ]
+
+    fields: ClassVar[list[object]] = [
+        StringField(
+            "user_qiao_id",
+            label="User Qiao ID",
+            help_text="User external ID (primary key)",
+        ),
+        StringField(
+            "instance_qiao_id",
+            label="Instance Qiao ID",
+            help_text="Instance external ID (primary key)",
+        ),
+        StringField(
+            "ingress_version",
+            label="Ingress Version",
+            help_text="Content-input ingress turn version",
+        ),
+        StringField(
+            "active_turn_version",
+            label="Active Turn Version",
+            help_text="Active processing turn version",
+        ),
+        LocalDateTimeField("created_at", label="Created At", help_text="Runtime row creation time"),
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
@@ -447,9 +503,18 @@ ai_conversation_state_view = AIConversationStateView(
     identity="ai_conversation_state",
 )
 
+ai_conversation_runtime_view = AIConversationRuntimeView(
+    AIConversationRuntime,
+    name="Conversation Runtime",
+    label="Conversation Runtime",
+    icon="fa fa-stopwatch",
+    identity="ai_conversation_runtime",
+)
+
 # Export conversation views
 AI_CONVERSATION_VIEWS = [
     ai_conversation_state_view,
+    ai_conversation_runtime_view,
     ai_message_buffer_view,
     ai_conversation_item_view,
     ai_conversation_item_archive_view,

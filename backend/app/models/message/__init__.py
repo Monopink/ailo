@@ -7,18 +7,20 @@ This module imports all message-related SQLAlchemy models.
 from .media import MediaFile
 
 # Message models
-from .message import MessageDeliveryFailure, MessageHistory
+from .message import MessageHistory
 
 # Notification models
 from .notification import NotificationPushHistory
-from .offline_cursor import MessageOfflineCursor
+from .routing import MessageDelivery, MessageDevice, MessageDispatchOutbox, MessageEndpoint
 
 # Export all message models
 __all__ = [
     # Message
     "MessageHistory",
-    "MessageDeliveryFailure",
-    "MessageOfflineCursor",
+    "MessageDevice",
+    "MessageEndpoint",
+    "MessageDelivery",
+    "MessageDispatchOutbox",
     # Media
     "MediaFile",
     # Notification

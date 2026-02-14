@@ -16,6 +16,7 @@ from starlette_admin.exceptions import FormValidationError
 
 from app.admin.fields import LocalDateTimeField
 from app.admin.views.base import IntegerEnumField
+from app.crud.ai import ai_instance as ai_instance_crud
 from app.enums import AIInstanceCreator, AIInstanceStatus, Gender, ProfileOwnerType
 from app.models.ai import AIInstanceDimension
 from app.models.ai.instance import AIInstance
@@ -24,10 +25,14 @@ from app.models.ai.style import AIStyleDimension
 from app.models.base import generate_qiao_id
 from app.models.profile import Profile
 from app.models.user import User
+from app.services.ai.profile_integrity import ensure_instance_profile
+from app.services.ai.relationship_scoring import initialize_instance_relationship
 from app.services.ai.utils.position_mapping import map_score_to_position
+from app.utils.logging import get_logger
 from app.utils.snowflake import generate_snowflake_id
 
 FormData = MutableMapping[str, object]
+logger = get_logger(__name__)
 
 POSITION_MIN = 0
 POSITION_MAX = 1000
@@ -216,13 +221,14 @@ class _DimensionDisplayNameField(StringField):
 
 
 class AIInstanceView(ModelView):
-    """Enhanced AI Instance view with proper field configuration and chat test functionality."""
+    """Enhanced AI Instance view with proper field configuration."""
 
     exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
         "qiao_id",
         "user_id",
         "user_qiao_id",
+        "username",
         "created_by",
         "created_at",
         "updated_at",
@@ -237,6 +243,7 @@ class AIInstanceView(ModelView):
         "user",
         "user_id",
         "user_qiao_id",
+        "username",
         "created_by",
         "created_at",
         "updated_at",
@@ -255,9 +262,9 @@ class AIInstanceView(ModelView):
         if request.path_params.get("identity", None) == self.identity:
             return True
 
-        # Check for advanced-edit or chat-test page with exact identity match
+        # Check for advanced-edit page with exact identity match
         path = request.scope["path"]
-        return f"/{self.identity}/advanced-edit/" in path or f"/{self.identity}/chat-test/" in path
+        return f"/{self.identity}/advanced-edit/" in path
 
     def can_delete(self, _request: Request) -> bool:
         return False
@@ -275,13 +282,40 @@ class AIInstanceView(ModelView):
         if not data.get("id"):
             data["id"] = generate_snowflake_id()
 
-        return await super().create(request, data)
+        created_instance = await super().create(request, data)
+
+        session = request.state.session
+        try:
+            await initialize_instance_relationship(session, instance_id=int(created_instance.id))
+            await session.commit()
+        except Exception as exc:
+            await session.rollback()
+            logger.error(
+                "admin_instance_relationship_initialization_failed",
+                instance_id=getattr(created_instance, "id", None),
+                error=str(exc),
+                exc_info=True,
+            )
+            try:
+                await ai_instance_crud.remove(session, record_id=int(created_instance.id))
+            except Exception as cleanup_exc:
+                logger.error(
+                    "admin_instance_cleanup_failed_after_relationship_init_error",
+                    instance_id=getattr(created_instance, "id", None),
+                    error=str(cleanup_exc),
+                    exc_info=True,
+                )
+            raise FormValidationError(
+                {"relationship": "Failed to initialize relationship for new instance"}
+            ) from exc
+
+        return created_instance
 
     async def edit(self, request: Request, pk: str, data: FormData) -> AIInstance:
         """Override edit to handle data processing."""
         return await super().edit(request, pk, data)
 
-    async def before_create(self, _request: Request, data: FormData, obj: AIInstance) -> None:
+    async def before_create(self, request: Request, data: FormData, obj: AIInstance) -> None:
         """Auto-fill foreign keys and required fields before creating instance."""
         if not getattr(obj, "id", None):
             obj.id = generate_snowflake_id()
@@ -316,6 +350,10 @@ class AIInstanceView(ModelView):
 
         if not hasattr(obj, "creation_metadata") or obj.creation_metadata is None:
             obj.creation_metadata = {}
+        metadata = obj.creation_metadata if isinstance(obj.creation_metadata, dict) else {}
+        metadata["source"] = "admin_manual"
+        obj.creation_metadata = metadata
+        obj.username = None
 
         # Validate required foreign keys
         errors = {}
@@ -328,6 +366,21 @@ class AIInstanceView(ModelView):
 
         if errors:
             raise FormValidationError(errors)
+
+        try:
+            await ensure_instance_profile(
+                request.state.session,
+                instance=obj,
+                source="admin.ai_instance.before_create",
+            )
+        except (TypeError, ValueError) as exc:
+            logger.error(
+                "admin_instance_profile_validation_failed",
+                error=str(exc),
+                instance_id=getattr(obj, "id", None),
+                instance_qiao_id=getattr(obj, "qiao_id", None),
+            )
+            raise FormValidationError({"qiao_id": str(exc)}) from exc
 
     async def before_edit(self, _request: Request, _data: FormData, obj: AIInstance) -> None:
         """Auto-fill foreign keys before editing instance."""
@@ -350,6 +403,10 @@ class AIInstanceView(ModelView):
 
         if not hasattr(obj, "creation_metadata") or obj.creation_metadata is None:
             obj.creation_metadata = {}
+        if isinstance(obj.creation_metadata, dict):
+            source = obj.creation_metadata.get("source")
+            if source == "admin_manual":
+                obj.username = None
 
         # Validate required foreign keys
         errors = {}
@@ -362,7 +419,7 @@ class AIInstanceView(ModelView):
             raise FormValidationError(errors)
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["qiao_id", "user_qiao_id"]
+    searchable_fields: ClassVar[list[str]] = ["qiao_id", "username", "user_qiao_id"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "user_id",
@@ -384,6 +441,12 @@ class AIInstanceView(ModelView):
         ),
         StringField("user_qiao_id", label="User Qiao ID", help_text="Owning user qiao_id"),
         StringField("qiao_id", label="Qiao ID", help_text="External AI identifier"),
+        StringField(
+            "username",
+            label="Username",
+            help_text="Runtime username snapshot; admin manual creation keeps this empty",
+            required=False,
+        ),
         _ProfileRelatedStringField(
             "profile_nickname", profile_attr="nickname", label="Profile Nickname"
         ),
@@ -469,7 +532,7 @@ class AIInstanceView(ModelView):
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    row_actions: ClassVar[list[str]] = ["view", "edit", "advanced_edit", "chat_test"]
+    row_actions: ClassVar[list[str]] = ["view", "edit", "advanced_edit"]
 
     @link_row_action(
         name="advanced_edit",
@@ -479,15 +542,6 @@ class AIInstanceView(ModelView):
     def advanced_edit_row_action(self, _request: Request, pk: str) -> str:
         """Link to instance advanced edit."""
         return f"/qiao-dash/ai_instance/advanced-edit/{pk}"
-
-    @link_row_action(
-        name="chat_test",
-        text="Chat Test",
-        icon_class="fas fa-flask",
-    )
-    def chat_test_row_action(self, _request: Request, pk: str) -> str:
-        """Link to AI instance chat test page."""
-        return f"/qiao-dash/ai_instance/chat-test/{pk}"
 
 
 class AIInstanceDimensionView(ModelView):

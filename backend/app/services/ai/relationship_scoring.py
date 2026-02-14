@@ -25,7 +25,11 @@ from app.type_defs import (
 )
 from app.utils.logging import get_logger
 
-from .queries import get_instance_relationship_scores, get_style_with_relationships
+from .queries import (
+    get_instance_context,
+    get_instance_relationship_scores,
+    get_style_with_relationships,
+)
 from .queries.updates import set_instance_current_relationship
 from .queries.updates import (
     update_instance_relationship_scores as _update_instance_relationship_scores,
@@ -205,6 +209,61 @@ async def initialize_relationship_scores(
             reason="initialization_failed",
             message=f"Failed to initialize relationship scores: {e!s}",
         )
+
+
+async def initialize_instance_relationship(
+    db: AsyncSession,
+    *,
+    instance_id: int,
+) -> int:
+    """
+    Initialize and persist current relationship for a newly created instance.
+
+    This function reuses the existing score + relationship selection pipeline
+    so creation and conversation phases share the same relationship logic.
+    """
+
+    context = await get_instance_context(db, instance_id=instance_id)
+    if not context:
+        raise AIRelationshipError(
+            operation="initialize_instance_relationship",
+            reason="missing_instance_context",
+            message=f"Instance context not found for instance_id={instance_id}",
+        )
+
+    scores = await get_relationship_scores(db, instance_id, auto_initialize=True)
+    relationship_result = await determine_relationship_type(db, context, scores)
+    relationship_obj = relationship_result.get("relationship") if relationship_result else None
+    if relationship_obj is None:
+        raise AIRelationshipError(
+            operation="initialize_instance_relationship",
+            reason="relationship_not_determined",
+            message=f"Unable to determine relationship for instance_id={instance_id}",
+        )
+
+    relationship_id = int(relationship_obj.id)
+    relationship_display_name = str(relationship_obj.display_name)
+    updated = await update_instance_current_relationship(
+        db,
+        instance_id=instance_id,
+        relationship_id=relationship_id,
+        relationship_display_name=relationship_display_name,
+    )
+    if not updated:
+        raise AIRelationshipError(
+            operation="initialize_instance_relationship",
+            reason="relationship_persist_failed",
+            message=(
+                f"Failed to persist relationship_id={relationship_id} for instance_id={instance_id}"
+            ),
+        )
+
+    logger.info(
+        "instance_relationship_initialized",
+        instance_id=instance_id,
+        relationship_id=relationship_id,
+    )
+    return relationship_id
 
 
 async def determine_relationship_type(

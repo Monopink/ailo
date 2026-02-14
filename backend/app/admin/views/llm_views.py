@@ -175,21 +175,59 @@ class LLMConfigView(ModelView):
         path = request.scope["path"]
         return f"/{self.identity}/test/" in path
 
+    @staticmethod
+    def _normalize_config_data(data: dict[str, Any]) -> dict[str, Any]:
+        """Normalize optional form fields and apply system defaults for required config values."""
+        normalized = dict(data)
+
+        nullable_fields = [
+            "model_name",
+            "temperature",
+            "max_tokens",
+            "timeout_seconds",
+            "extra_params",
+        ]
+        for field in nullable_fields:
+            if normalized.get(field) == "":
+                normalized[field] = None
+
+        scalar_defaults: dict[str, Any] = {
+            "thinking_mode": "auto",
+            "top_p": 0.70,
+            "frequency_penalty": 0.00,
+            "presence_penalty": 0.00,
+            "json_schema_mode": "auto",
+            "default_tool_choice": "auto",
+            "parallel_tool_calls": False,
+            "max_tool_calls": 1,
+            "enable_streaming": False,
+            "status": 1,
+        }
+        for field, default_value in scalar_defaults.items():
+            if normalized.get(field) in ("", None):
+                normalized[field] = default_value
+
+        json_defaults: dict[str, Any] = {
+            "stop_sequences": [],
+            "default_tools": [],
+            "default_extra_headers": {},
+            "default_extra_query": {},
+        }
+        for field, default_value in json_defaults.items():
+            if normalized.get(field) in ("", None):
+                normalized[field] = default_value
+
+        return normalized
+
+    async def create(self, request: Request, data: dict[str, Any]) -> Any:
+        """Normalize optional fields before persisting a new config."""
+        normalized_data = self._normalize_config_data(data)
+        return await super().create(request, normalized_data)
+
     async def edit(self, request: Request, pk: Any, data: dict[str, Any]) -> Any:
         """Normalize field types before persisting."""
-        # Convert empty strings to None for optional JSON fields
-        json_fields = [
-            "default_tools",
-            "default_extra_headers",
-            "default_extra_query",
-            "extra_params",
-            "stop_sequences",
-        ]
-        for field in json_fields:
-            if field in data and data[field] == "":
-                data[field] = None
-
-        return await super().edit(request, pk, data)
+        normalized_data = self._normalize_config_data(data)
+        return await super().edit(request, pk, normalized_data)
 
     fields_default_sort = [("name", False)]
     searchable_fields = ["name", "model_name"]
@@ -217,7 +255,7 @@ class LLMConfigView(ModelView):
             "timeout_seconds",
             label="Timeout (seconds)",
             help_text="Timeout in seconds",
-            required=True,
+            required=False,
         ),
         EnumField(
             "thinking_mode",
@@ -228,22 +266,22 @@ class LLMConfigView(ModelView):
             ],
             label="Thinking Mode",
             help_text="Thinking mode: enabled=force on, disabled=force off, auto=let model decide",
-            required=True,
+            required=False,
         ),
         FloatField(
-            "top_p", label="Top P", help_text="Nucleus sampling threshold (0.0-1.0)", required=True
+            "top_p", label="Top P", help_text="Nucleus sampling threshold (0.0-1.0)", required=False
         ),
         FloatField(
             "frequency_penalty",
             label="Frequency Penalty",
             help_text="Frequency penalty (-2.0 to 2.0). Reduces repetition based on token frequency.",
-            required=True,
+            required=False,
         ),
         FloatField(
             "presence_penalty",
             label="Presence Penalty",
             help_text="Presence penalty (-2.0 to 2.0). Encourages new topics based on token presence.",
-            required=True,
+            required=False,
         ),
         JSONField(
             "stop_sequences",
@@ -265,7 +303,7 @@ class LLMConfigView(ModelView):
                 "disabled=Verified not supported (test only), "
                 "auto=Not verified (please test first)"
             ),
-            required=True,
+            required=False,
         ),
         JSONField(
             "default_tools",
@@ -281,7 +319,7 @@ class LLMConfigView(ModelView):
             ],
             label="Tool Choice",
             help_text="How the model decides whether to call tools",
-            required=True,
+            required=False,
         ),
         BooleanField(
             "parallel_tool_calls",
@@ -292,7 +330,7 @@ class LLMConfigView(ModelView):
             "max_tool_calls",
             label="Max Tool Calls",
             help_text="Maximum number of tool calls per request",
-            required=True,
+            required=False,
         ),
         JSONField(
             "default_extra_headers",
@@ -314,7 +352,7 @@ class LLMConfigView(ModelView):
             choices=[(1, "Active"), (2, "Inactive")],
             label="Status",
             help_text="Configuration status",
-            required=True,
+            required=False,
         ),
         IntegerField(
             "priority",

@@ -33,6 +33,9 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/contacts", tags=["Contacts"])
 
+CONTACTS_LIMIT_MIN = 1
+CONTACTS_LIMIT_MAX = 100
+
 
 def _decode_cursor(cursor: str | None) -> int:
     """Decode opaque cursor into skip offset."""
@@ -55,7 +58,7 @@ def _encode_cursor(offset: int) -> str:
 @router.get("", response_model=ContactListResult)
 async def get_contacts(
     cursor: str | None = Query(None, description="Pagination cursor"),
-    limit: int = Query(20, ge=1, le=100, description="Number of items to return"),
+    limit: int = Query(20, description="Number of items to return"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ContactListResult:
@@ -76,6 +79,12 @@ async def get_contacts(
         HTTPException: 500 if retrieval fails
 
     """
+    if limit < CONTACTS_LIMIT_MIN or limit > CONTACTS_LIMIT_MAX:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="请求参数错误",
+        )
+
     try:
         skip = _decode_cursor(cursor)
 
@@ -99,8 +108,10 @@ async def get_contacts(
             pagination=ContactListPagination(cursor=next_cursor, has_more=has_more),
         )
 
+    except HTTPException:
+        raise
     except ValueError as e:
-        # Configuration error (e.g., IM conv_id not configured)
+        # Configuration error (e.g., im_conv_id not configured)
         logger.error(
             "contacts_list_config_error",
             user_qiao_id=current_user.qiao_id,
@@ -108,7 +119,7 @@ async def get_contacts(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="操作失败，请稍后再试",
+            detail="系统错误",
         )
     except Exception as e:
         logger.error(
@@ -119,13 +130,13 @@ async def get_contacts(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="操作失败，请稍后再试",
+            detail="系统错误",
         )
 
 
-@router.get("/{conv_id}", response_model=ContactDetailResponse)
+@router.get("/{conversation_id}", response_model=ContactDetailResponse)
 async def get_contact(
-    conv_id: str,
+    conversation_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ContactDetailResponse:
@@ -134,7 +145,7 @@ async def get_contact(
     Returns detailed information about a specific contact.
 
     Args:
-        conv_id: Conversation identifier
+        conversation_id: Conversation identifier
         current_user: Authenticated user
         db: Database session
 
@@ -149,7 +160,7 @@ async def get_contact(
         contact = await get_contact_with_profile(
             db=db,
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
 
         if not contact:
@@ -161,7 +172,7 @@ async def get_contact(
         logger.info(
             "contact_detail_retrieved",
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
 
         return contact
@@ -172,30 +183,30 @@ async def get_contact(
         logger.error(
             "contact_detail_config_error",
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
             error=str(e),
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="操作失败，请稍后再试",
+            detail="系统错误",
         )
     except Exception as e:
         logger.error(
             "contact_detail_failed",
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
             error=str(e),
             exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="操作失败，请稍后再试",
+            detail="系统错误",
         )
 
 
-@router.get("/{conv_id}/conversation", response_model=ConversationInfoResponse)
+@router.get("/{conversation_id}/conversation", response_model=ConversationInfoResponse)
 async def get_contact_conversation(
-    conv_id: str,
+    conversation_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ConversationInfoResponse:
@@ -205,7 +216,7 @@ async def get_contact_conversation(
     Used by messaging client to initialize conversation.
 
     Args:
-        conv_id: Conversation identifier
+        conversation_id: Conversation identifier
         current_user: Authenticated user
         db: Database session
 
@@ -220,7 +231,7 @@ async def get_contact_conversation(
         conversation = await get_conversation_info(
             db=db,
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
 
         if not conversation:
@@ -232,7 +243,7 @@ async def get_contact_conversation(
         logger.info(
             "conversation_info_retrieved",
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
 
         return conversation
@@ -243,30 +254,30 @@ async def get_contact_conversation(
         logger.error(
             "conversation_info_config_error",
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
             error=str(e),
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="操作失败，请稍后再试",
+            detail="系统错误",
         )
     except Exception as e:
         logger.error(
             "conversation_info_failed",
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
             error=str(e),
             exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="操作失败，请稍后再试",
+            detail="系统错误",
         )
 
 
-@router.put("/{conv_id}", response_model=ContactDetailResponse)
+@router.put("/{conversation_id}", response_model=ContactDetailResponse)
 async def update_contact_info(
-    conv_id: str,
+    conversation_id: str,
     update_data: ContactUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -277,7 +288,7 @@ async def update_contact_info(
     All fields are optional - only provided fields will be updated.
 
     Args:
-        conv_id: Conversation identifier
+        conversation_id: Conversation identifier
         update_data: Contact update data
         current_user: Current authenticated user
         db: Database session
@@ -294,7 +305,7 @@ async def update_contact_info(
         updated_contact = await update_contact(
             db=db,
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
             update_data=update_data,
         )
 
@@ -302,7 +313,7 @@ async def update_contact_info(
             logger.warning(
                 "contact_update_not_found",
                 user_qiao_id=current_user.qiao_id,
-                conv_id=conv_id,
+                conversation_id=conversation_id,
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -312,7 +323,7 @@ async def update_contact_info(
         logger.info(
             "contact_updated_via_api",
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
 
         return updated_contact
@@ -323,30 +334,30 @@ async def update_contact_info(
         logger.error(
             "contact_update_config_error",
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
             error=str(e),
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="操作失败，请稍后再试",
+            detail="系统错误",
         )
     except Exception as e:
         logger.error(
             "contact_update_failed",
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
             error=str(e),
             exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="操作失败，请稍后再试",
+            detail="系统错误",
         )
 
 
-@router.post("/{conv_id}/block", response_model=ContactDetailResponse)
+@router.post("/{conversation_id}/block", response_model=ContactDetailResponse)
 async def block_contact_endpoint(
-    conv_id: str,
+    conversation_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ContactDetailResponse:
@@ -355,7 +366,7 @@ async def block_contact_endpoint(
     Blocks the specified contact, preventing messages from being received.
 
     Args:
-        conv_id: Conversation identifier
+        conversation_id: Conversation identifier
         current_user: Current authenticated user
         db: Database session
 
@@ -371,14 +382,14 @@ async def block_contact_endpoint(
         blocked_contact = await block_contact(
             db=db,
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
 
         if not blocked_contact:
             logger.warning(
                 "contact_block_not_found",
                 user_qiao_id=current_user.qiao_id,
-                conv_id=conv_id,
+                conversation_id=conversation_id,
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -388,7 +399,7 @@ async def block_contact_endpoint(
         logger.info(
             "contact_blocked_via_api",
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
 
         return blocked_contact
@@ -399,30 +410,30 @@ async def block_contact_endpoint(
         logger.error(
             "contact_block_config_error",
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
             error=str(e),
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="操作失败，请稍后再试",
+            detail="系统错误",
         )
     except Exception as e:
         logger.error(
             "contact_block_failed",
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
             error=str(e),
             exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="操作失败，请稍后再试",
+            detail="系统错误",
         )
 
 
-@router.post("/{conv_id}/unblock", response_model=ContactDetailResponse)
+@router.post("/{conversation_id}/unblock", response_model=ContactDetailResponse)
 async def unblock_contact_endpoint(
-    conv_id: str,
+    conversation_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ContactDetailResponse:
@@ -431,7 +442,7 @@ async def unblock_contact_endpoint(
     Unblocks the specified contact, allowing messages to be received again.
 
     Args:
-        conv_id: Conversation identifier
+        conversation_id: Conversation identifier
         current_user: Current authenticated user
         db: Database session
 
@@ -447,14 +458,14 @@ async def unblock_contact_endpoint(
         unblocked_contact = await unblock_contact(
             db=db,
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
 
         if not unblocked_contact:
             logger.warning(
                 "contact_unblock_not_found",
                 user_qiao_id=current_user.qiao_id,
-                conv_id=conv_id,
+                conversation_id=conversation_id,
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -464,7 +475,7 @@ async def unblock_contact_endpoint(
         logger.info(
             "contact_unblocked_via_api",
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
 
         return unblocked_contact
@@ -475,30 +486,30 @@ async def unblock_contact_endpoint(
         logger.error(
             "contact_unblock_config_error",
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
             error=str(e),
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="操作失败，请稍后再试",
+            detail="系统错误",
         )
     except Exception as e:
         logger.error(
             "contact_unblock_failed",
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
             error=str(e),
             exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="操作失败，请稍后再试",
+            detail="系统错误",
         )
 
 
-@router.delete("/{conv_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_contact_endpoint(
-    conv_id: str,
+    conversation_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
@@ -507,7 +518,7 @@ async def delete_contact_endpoint(
     Soft deletes the contact relationship. Chat history is not deleted (managed by client).
 
     Args:
-        conv_id: Conversation identifier
+        conversation_id: Conversation identifier
         current_user: Current authenticated user
         db: Database session
 
@@ -523,14 +534,14 @@ async def delete_contact_endpoint(
         success = await delete_contact(
             db=db,
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
 
         if not success:
             logger.warning(
                 "contact_delete_not_found",
                 user_qiao_id=current_user.qiao_id,
-                conv_id=conv_id,
+                conversation_id=conversation_id,
             )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -540,7 +551,7 @@ async def delete_contact_endpoint(
         logger.info(
             "contact_deleted_via_api",
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
 
         return
@@ -551,11 +562,11 @@ async def delete_contact_endpoint(
         logger.error(
             "contact_delete_failed",
             user_qiao_id=current_user.qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
             error=str(e),
             exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="操作失败，请稍后再试",
+            detail="系统错误",
         )

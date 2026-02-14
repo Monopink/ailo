@@ -86,6 +86,7 @@ async def leancloud_webhook(
 
         except Exception:
             message_id = message.get("msgId") if isinstance(message, dict) else None
+            await db.rollback()
             logger.exception("webhook_message_processing_failed", message_id=message_id)
             continue
 

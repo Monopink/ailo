@@ -1,0 +1,381 @@
+{% extends "layout.html" %}
+
+{% block title %}<title>{{ page_title or "Chat Console" }}</title>{% endblock %}
+
+{% block head_css %}
+<link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/chat-console.css') }}">
+{% endblock %}
+
+{% block header %}
+<div class="d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="mb-0">{{ page_title or "Chat Console" }}</h1>
+    <div class="text-muted small">Chat-first realtime verification client.</div>
+  </div>
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{{ url_for(__name__ ~ ':index') }}">Admin</a></li>
+    <li class="breadcrumb-item active">Chat Console</li>
+  </ol>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="page-body">
+  <div class="container-fluid cc-root" data-ws-path="/ws/messages">
+    <div class="cc-board" aria-label="聊天控制台工作区">
+      <section class="cc-zone cc-zone-primary" aria-label="聊天主工作区">
+        <div class="cc-rail cc-rail-center">
+          <section class="cc-chat cc-card cc-card-chat" aria-label="会话时间线">
+            <header class="cc-chat-header">
+              <div class="cc-chat-title-row">
+                <div id="cc_chat_title" class="fw-semibold text-truncate">请选择聊天</div>
+                <div id="cc_typing_hint" class="cc-meta-value text-muted cc-chat-typing-hint text-truncate"></div>
+              </div>
+              <div id="cc_chat_subtitle" class="cc-meta-value text-muted text-truncate">-</div>
+            </header>
+
+            <div id="cc_message_list" class="cc-message-list" aria-label="消息"></div>
+
+            <footer class="cc-chat-composer">
+              <div class="d-flex align-items-end gap-2">
+                <textarea id="cc_message_input" class="form-control" rows="2" placeholder="输入消息..."></textarea>
+                <button id="cc_btn_send" class="btn btn-primary">发送</button>
+              </div>
+            </footer>
+          </section>
+        </div>
+
+        <div class="cc-rail cc-rail-left">
+          <section class="cc-panel cc-card cc-card-session" aria-label="当前会话">
+            <header class="cc-panel-title d-flex align-items-center justify-content-between">
+              <span>会话&账号</span>
+              <button id="cc_btn_reconnect" class="btn btn-outline-secondary btn-sm">重连</button>
+            </header>
+            <div class="cc-panel-body">
+              <div class="cc-status-grid">
+                <div class="cc-meta-label">登录</div>
+                <span id="cc_auth_badge" class="badge bg-secondary-lt">未登录</span>
+                <div class="cc-meta-label">连接</div>
+                <span id="cc_ws_badge" class="badge bg-secondary-lt">未连接</span>
+              </div>
+              <div class="cc-meta-group mt-2">
+                <div class="d-flex align-items-center justify-content-between">
+                  <span class="cc-meta-label">阶段</span>
+                  <span id="cc_stage" class="cc-meta-value">UNAUTH</span>
+                </div>
+                <div id="cc_status" class="cc-meta-value text-muted"></div>
+              </div>
+              <div class="cc-meta-label mt-3">已保存账号</div>
+              <div class="cc-account-select-row mt-1">
+                <select id="cc_account_select" class="form-select"></select>
+                <button
+                  id="cc_btn_open_login_modal"
+                  class="btn btn-primary cc-btn-add-account"
+                  type="button"
+                  aria-label="添加账号"
+                >
+                  +
+                </button>
+              </div>
+              <div class="cc-inline-actions mt-2">
+                <button id="cc_btn_switch_account" class="btn btn-outline-primary">切换</button>
+                <button id="cc_btn_forget_account" class="btn btn-outline-danger">忘记</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="cc-panel cc-card cc-card-log cc-panel-fill cc-log-panel" aria-label="日志">
+            <header class="cc-panel-title d-flex align-items-center justify-content-between">
+              <span>日志</span>
+              <button id="cc_btn_clear_log" class="btn btn-outline-secondary btn-sm">清空</button>
+            </header>
+            <div class="cc-panel-body cc-panel-body-fill">
+              <pre id="cc_log" class="cc-pre"></pre>
+            </div>
+          </section>
+        </div>
+
+        <div class="cc-rail cc-rail-mid">
+          <section class="cc-panel cc-card cc-card-account" aria-label="当前账号">
+            <header class="cc-panel-title">当前账号</header>
+            <div class="cc-panel-body">
+              <div class="cc-profile-row">
+                <img
+                  id="cc_self_avatar_img"
+                  class="cc-avatar"
+                  src=""
+                  alt="我的头像"
+                  loading="lazy"
+                  referrerpolicy="no-referrer"
+                >
+                <div class="cc-profile-main">
+                  <div id="cc_self_name" class="fw-semibold text-truncate">-</div>
+                  <div id="cc_self_identifier" class="cc-meta-value text-muted text-break">-</div>
+                </div>
+              </div>
+              <div class="cc-kv mt-2">
+                <div class="cc-kv-item">
+                  <div class="cc-meta-label">username</div>
+                  <div id="cc_self_username" class="cc-meta-value text-break">-</div>
+                </div>
+                <div class="cc-kv-item">
+                  <div class="cc-meta-label">地区 / 性别</div>
+                  <div id="cc_self_region_gender" class="cc-meta-value text-break">-</div>
+                </div>
+                <div class="cc-kv-item">
+                  <div class="cc-meta-label">简介</div>
+                  <div id="cc_self_bio" class="cc-meta-value text-break">-</div>
+                </div>
+                <div class="cc-kv-item">
+                  <div class="cc-meta-label">device_id</div>
+                  <div id="cc_self_device" class="cc-meta-value font-monospace text-break">-</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="cc-panel cc-card cc-card-chats cc-panel-fill" aria-label="会话列表">
+            <header class="cc-panel-title d-flex justify-content-between align-items-center">
+              <span>会话</span>
+              <button id="cc_btn_refresh_contacts" class="btn btn-outline-secondary btn-sm">刷新</button>
+            </header>
+            <div class="cc-panel-body cc-panel-body-fill">
+              <input id="cc_contact_search" class="form-control mb-2" placeholder="搜索" autocomplete="off">
+              <div class="d-flex align-items-center justify-content-between cc-meta-label mb-2">
+                <span>联系人</span>
+                <span id="cc_contacts_count">0</span>
+              </div>
+              <div id="cc_contact_list" class="cc-contact-list" role="listbox" aria-label="联系人"></div>
+            </div>
+          </section>
+        </div>
+
+        <div class="cc-rail cc-rail-right">
+          <section class="cc-panel cc-card cc-card-peer" aria-label="对方资料">
+            <header class="cc-panel-title">对方资料</header>
+            <div class="cc-panel-body">
+              <div class="cc-profile-row">
+                <img
+                  id="cc_peer_avatar_img"
+                  class="cc-avatar"
+                  src=""
+                  alt="对方头像"
+                  loading="lazy"
+                  referrerpolicy="no-referrer"
+                >
+                <div class="cc-profile-main">
+                  <div id="cc_peer_name" class="fw-semibold text-truncate">-</div>
+                  <div id="cc_peer_identifier" class="cc-meta-value text-muted text-break">-</div>
+                </div>
+              </div>
+              <div class="cc-kv mt-2">
+                <div class="cc-kv-item">
+                  <div class="cc-meta-label">username</div>
+                  <div id="cc_peer_username" class="cc-meta-value text-break">-</div>
+                </div>
+                <div class="cc-kv-item">
+                  <div class="cc-meta-label">地区 / 性别</div>
+                  <div id="cc_peer_region_gender" class="cc-meta-value text-break">-</div>
+                </div>
+                <div class="cc-kv-item">
+                  <div class="cc-meta-label">简介</div>
+                  <div id="cc_peer_bio" class="cc-meta-value text-break">-</div>
+                </div>
+                <div class="cc-kv-item">
+                  <div class="cc-meta-label">别名 / 备注</div>
+                  <div id="cc_peer_alias_remark" class="cc-meta-value text-break">-</div>
+                </div>
+                <div class="cc-kv-item">
+                  <div class="cc-meta-label">标记</div>
+                  <div id="cc_peer_flags" class="cc-meta-value text-break">-</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="cc-panel cc-card cc-card-snapshot" aria-label="实例快照">
+            <header class="cc-panel-title d-flex justify-content-between align-items-center">
+              <span>实例快照</span>
+              <button id="cc_btn_refresh_snapshot" class="btn btn-outline-secondary btn-sm">刷新</button>
+            </header>
+            <div class="cc-panel-body">
+              <div id="cc_snapshot_status" class="cc-meta-value text-muted">-</div>
+              <div class="cc-kv mt-2">
+                <div class="cc-kv-item">
+                  <div class="cc-meta-label">实例</div>
+                  <div id="cc_snapshot_base" class="cc-meta-value text-break">-</div>
+                </div>
+                <div class="cc-kv-item">
+                  <div class="cc-meta-label">风格 / 人设</div>
+                  <div id="cc_snapshot_style_personality" class="cc-meta-value text-break">-</div>
+                </div>
+                <div class="cc-kv-item">
+                  <div class="cc-meta-label">关系</div>
+                  <div id="cc_snapshot_relationship" class="cc-meta-value text-break">-</div>
+                </div>
+              </div>
+              <div class="cc-meta-label mt-2">记忆摘要</div>
+              <pre id="cc_snapshot_memory_items" class="cc-pre-small"></pre>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="cc-zone cc-zone-debug" aria-label="调试诊断区">
+        <section class="cc-panel cc-card cc-card-llm cc-llm-panel" aria-label="LLM 诊断">
+          <header class="cc-panel-title">LLM 日志</header>
+          <div class="cc-panel-body cc-panel-body-fill">
+            <div class="cc-log-tools-group cc-llm-lookup-group">
+              <div class="cc-meta-label mb-1">输入 llm_request_id，查看请求与响应详情。</div>
+              <div class="input-group">
+                <input
+                  id="cc_llm_request_id_input"
+                  class="form-control"
+                  placeholder="llm_request_id"
+                >
+                <button id="cc_btn_llm_request_detail" class="btn btn-outline-secondary">查询</button>
+              </div>
+            </div>
+            <div class="cc-llm-toolbar mb-2">
+              <div class="cc-llm-current">
+                <div class="cc-meta-label">当前 msg_id_server</div>
+                <div id="cc_llm_current_msg_id_server" class="cc-meta-value text-break">-</div>
+                <div class="cc-meta-label mt-1">当前 llm_request_id</div>
+                <div id="cc_llm_current_request_id" class="cc-meta-value text-break">-</div>
+                <div class="cc-meta-label mt-1">LLM 请求状态</div>
+                <div id="cc_llm_auto_status" class="cc-meta-value text-break">等待中</div>
+              </div>
+            </div>
+            <div class="cc-meta-label mb-1">最新 LLM 请求分析</div>
+            <div class="cc-llm-analysis">
+              <ul class="nav nav-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    data-bs-toggle="tab"
+                    data-bs-target="#cc_llm_tab_request_analysis"
+                    type="button"
+                    role="tab"
+                  >
+                    请求分析
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link active"
+                    data-bs-toggle="tab"
+                    data-bs-target="#cc_llm_tab_summary"
+                    type="button"
+                    role="tab"
+                  >
+                    响应分析
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    data-bs-toggle="tab"
+                    data-bs-target="#cc_llm_tab_request"
+                    type="button"
+                    role="tab"
+                  >
+                    请求载荷
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    data-bs-toggle="tab"
+                    data-bs-target="#cc_llm_tab_response"
+                    type="button"
+                    role="tab"
+                  >
+                    原始响应
+                  </button>
+                </li>
+              </ul>
+              <div class="tab-content mt-2">
+                <div class="tab-pane fade" id="cc_llm_tab_request_analysis" role="tabpanel">
+                  <div class="cc-meta-label">系统提示词</div>
+                  <pre id="cc_llm_auto_system_prompt" class="cc-pre-small"></pre>
+                </div>
+                <div class="tab-pane fade show active" id="cc_llm_tab_summary" role="tabpanel">
+                  <div class="cc-meta-label">描述</div>
+                  <div id="cc_llm_auto_flags" class="cc-analysis-line">-</div>
+                  <div class="cc-meta-label mt-2">内部思考</div>
+                  <div id="cc_llm_auto_internal_thoughts" class="cc-analysis-line">-</div>
+                  <div class="cc-meta-label mt-2">当前状态</div>
+                  <div id="cc_llm_auto_current_state" class="cc-analysis-line">-</div>
+                  <div class="cc-meta-label mt-2">出站消息</div>
+                  <div id="cc_llm_auto_outgoing" class="cc-analysis-line">-</div>
+                  <div class="cc-meta-label mt-2">跟进消息</div>
+                  <div id="cc_llm_auto_followup" class="cc-analysis-line">-</div>
+                  <div class="cc-meta-label mt-2">分数更新</div>
+                  <div id="cc_llm_auto_scores" class="cc-analysis-line">-</div>
+                  <div class="cc-meta-label mt-2">关系选择</div>
+                  <div id="cc_llm_auto_relationship" class="cc-analysis-line">-</div>
+                  <div class="cc-meta-label mt-2">记忆操作</div>
+                  <pre id="cc_llm_auto_memory_ops" class="cc-pre-small"></pre>
+                  <div class="cc-meta-label mt-2">性能</div>
+                  <div id="cc_llm_auto_perf" class="cc-analysis-line">-</div>
+                </div>
+                <div class="tab-pane fade cc-llm-tab-pane-code" id="cc_llm_tab_request" role="tabpanel">
+                  <pre id="cc_llm_auto_request" class="cc-pre-small cc-pre-fill"></pre>
+                </div>
+                <div class="tab-pane fade cc-llm-tab-pane-code" id="cc_llm_tab_response" role="tabpanel">
+                  <pre id="cc_llm_auto_response" class="cc-pre-small cc-pre-fill"></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="cc-panel cc-card cc-card-tools" aria-label="工具">
+          <header class="cc-panel-title">工具</header>
+          <div class="cc-panel-body">
+            <div class="cc-log-tools-group">
+              <label class="form-label">传输操作</label>
+              <div class="cc-inline-actions cc-tools-actions">
+                <button id="cc_btn_pull_offline" class="btn btn-outline-secondary">拉取离线消息</button>
+                <button id="cc_btn_ping" class="btn btn-outline-secondary">心跳</button>
+                <button id="cc_btn_clear_local" class="btn btn-outline-danger">清空本地</button>
+              </div>
+            </div>
+            <div class="cc-log-tools-group">
+              <label class="form-label">手动 HTTP ACK</label>
+              <div class="input-group">
+                <input id="cc_ack_msg_id" class="form-control" placeholder="msg_id_server">
+                <button id="cc_btn_ack" class="btn btn-outline-primary">ACK</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div id="cc_login_modal" class="modal fade" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">登录 / 添加账号</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">账户</label>
+        <input id="cc_identifier" class="form-control mb-2" placeholder="username / 手机号 / 邮箱" autocomplete="username">
+        <label class="form-label">密码</label>
+        <input id="cc_password" type="password" class="form-control" autocomplete="current-password">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+        <button id="cc_btn_login" type="button" class="btn btn-primary">登录</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script type="module" src="{{ url_for(__name__ ~ ':statics', path='js/chat-console/index.js') }}"></script>
+{% endblock %}

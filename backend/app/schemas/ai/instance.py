@@ -15,6 +15,12 @@ from app.type_defs import JSONDict
 class AIInstanceBase(BaseSchema):
     """Base AI instance schema."""
 
+    username: str | None = Field(
+        None,
+        min_length=5,
+        max_length=20,
+        description="Instance username snapshot",
+    )
     style_id: int = Field(..., description="Style ID")
     personality_id: int = Field(..., description="Personality ID")
     creation_metadata: JSONDict = Field(
@@ -47,6 +53,12 @@ class AIInstanceCreate(BaseModel):
     user_id: int = Field(..., description="Owning user ID")
     user_qiao_id: str = Field(..., max_length=32, description="Owning user qiao_id")
     qiao_id: str = Field(..., max_length=32, description="Instance qiao_id")
+    username: str | None = Field(
+        None,
+        min_length=5,
+        max_length=20,
+        description="Instance username snapshot",
+    )
     style_id: int = Field(..., description="Style ID")
     personality_id: int = Field(..., description="Personality ID")
     creation_metadata: JSONDict | None = Field(
@@ -122,6 +134,7 @@ class AIInstanceListResponse(BaseSchema):
 
     id: int = Field(..., description="Internal instance ID")
     qiao_id: str = Field(..., description="Instance qiao_id")
+    username: str | None = Field(None, description="Instance username snapshot")
     user_qiao_id: str = Field(..., description="Owning user qiao_id")
     style_id: int = Field(..., description="Style ID")
     personality_id: int = Field(..., description="Personality ID")

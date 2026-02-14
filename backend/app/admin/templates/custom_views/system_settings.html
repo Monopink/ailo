@@ -223,10 +223,124 @@
         </div>
 
         <!-- Configuration Form -->
+        <style>
+          .config-row {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) minmax(260px, 1.2fr) minmax(320px, 2fr);
+            gap: 0.75rem 1rem;
+            align-items: start;
+          }
+
+          .config-name,
+          .config-current,
+          .config-modify {
+            min-width: 0;
+          }
+
+          .config-current-value,
+          .config-default-value {
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+          }
+
+          .config-current-value {
+            display: block;
+            margin-bottom: 0.25rem;
+            line-height: 1.4;
+          }
+
+          .config-modify .input-group {
+            width: 100%;
+          }
+
+          .config-modify .form-control,
+          .config-modify .form-select {
+            min-width: 0;
+          }
+
+          .settings-nav-fab {
+            position: fixed;
+            inset: auto 1.5rem 1.5rem auto;
+            z-index: 1050;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: auto;
+            max-width: calc(100vw - 2rem);
+            white-space: nowrap;
+          }
+
+          .settings-nav-panel {
+            position: fixed;
+            inset: auto 1.5rem 5rem auto;
+            width: min(295px, calc(100vw - 2rem));
+            max-height: min(60vh, 460px);
+            overflow: hidden;
+            z-index: 1050;
+          }
+
+          .settings-nav-list {
+            max-height: min(52vh, 390px);
+            overflow-y: auto;
+          }
+
+          .settings-nav-link {
+            cursor: pointer;
+          }
+
+          @media (max-width: 991.98px) {
+            .config-row {
+              grid-template-columns: 1fr;
+            }
+          }
+
+          @media (max-width: 575.98px) {
+            .settings-nav-fab {
+              inset: auto 1rem 1rem auto;
+            }
+
+            .settings-nav-panel {
+              inset: auto 1rem 4.5rem auto;
+              width: calc(100vw - 1.25rem);
+            }
+          }
+        </style>
+
+        <button
+          type="button"
+          class="btn btn-primary settings-nav-fab"
+          id="settings-nav-toggle"
+          aria-expanded="true"
+          aria-controls="settings-nav-panel"
+          title="Quick navigation"
+        >
+          <i class="fa fa-list me-1"></i>Quick Nav
+        </button>
+
+        <div class="card shadow settings-nav-panel" id="settings-nav-panel">
+          <div class="card-header py-2">
+            <h3 class="card-title mb-0">Jump to group</h3>
+          </div>
+          <div class="list-group list-group-flush settings-nav-list">
+            {% for group_key, group in config_groups.items() %}
+            {% if group.configs %}
+            <a
+              href="#config-group-{{ group_key }}"
+              class="list-group-item list-group-item-action settings-nav-link group-nav-label"
+              data-target-group="{{ group_key }}"
+            >
+              {{ group.title }}
+            </a>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
         <form method="post">
           {% for group_key, group in config_groups.items() %}
           {% if group.configs %}
-          <div class="card mb-3">
+          <div class="card mb-3 config-group-card" id="config-group-{{ group_key }}" data-group-key="{{ group_key }}">
             <div class="card-header">
               <h3 class="card-title group-title">{{ group.title }}</h3>
             </div>
@@ -236,9 +350,9 @@
               <!-- Single column layout with table-like rows -->
               <div class="config-list">
                 {% for config_key, config in group.configs.items() %}
-                <div class="config-row d-flex align-items-start mb-3 pb-3 border-bottom">
-                  <!-- Config Name (25%) -->
-                  <div class="config-name" style="flex: 0 0 25%; padding-right: 1rem;">
+                <div class="config-row mb-3 pb-3 border-bottom">
+                  <!-- Config Name -->
+                  <div class="config-name">
                     <label class="form-label fw-bold mb-1" for="config_modify_{{ config_key }}">
                       {{ config_key | replace('_', ' ') | title }}
                     </label>
@@ -253,10 +367,10 @@
                     </small>
                   </div>
 
-                  <!-- Current & Default Value (30%) -->
-                  <div class="config-current" style="flex: 0 0 30%; padding-right: 1rem;">
+                  <!-- Current & Default Value -->
+                  <div class="config-current">
                     <!-- Current Value (color indicates if modified) -->
-                    <strong class="{% if config.config_value == config.default_value %}text-success{% else %}text-primary{% endif %} d-block mb-1" data-current-{{ config_key }}>
+                    <strong class="config-current-value {% if config.config_value == config.default_value %}text-success{% else %}text-primary{% endif %}" data-current-{{ config_key }}>
                       {% if config.config_value is sameas true or config.config_value == 'true' %}
                       true
                       {% elif config.config_value is sameas false or config.config_value ==
@@ -272,7 +386,7 @@
                     <!-- Default Value -->
                     <small class="text-muted d-block">
                       Default:
-                      <span class="text-secondary">
+                      <span class="text-secondary config-default-value">
                         {% if config.default_value is sameas true or config.default_value ==
                         'true' %}
                         true
@@ -288,8 +402,8 @@
                     </small>
                   </div>
 
-                  <!-- Modification Input (45%) - Dynamic based on config_type -->
-                  <div class="config-modify" style="flex: 1;">
+                  <!-- Modification Input - Dynamic based on config_type -->
+                  <div class="config-modify">
                     <div class="input-group">
                       {% if config.config_type == 3 %}
                       <!-- Boolean field (config_type=3) -->
@@ -321,8 +435,27 @@
                       <input type="text" class="form-control" name="config_modify_{{ config_key }}" id="config_modify_{{ config_key }}" placeholder="Leave empty for no change">
                       {% endif %}
 
+                      <!-- Copy current value button -->
+                      <button
+                        class="btn btn-outline-secondary"
+                        type="button"
+                        title="Use current value"
+                        data-copy-current-target="config_modify_{{ config_key }}"
+                        data-copy-current-value="{{ config.config_value | tojson | forceescape }}"
+                        data-copy-current-btn="true"
+                      >
+                        <i class="fa fa-copy"></i>
+                      </button>
+
                       <!-- Reset to default button -->
-                      <button class="btn btn-outline-secondary" type="button" title="Reset to default" onclick="document.getElementById('config_modify_{{ config_key }}').value = '{{ config.default_value }}'">
+                      <button
+                        class="btn btn-outline-secondary"
+                        type="button"
+                        title="Reset to default"
+                        data-reset-target="config_modify_{{ config_key }}"
+                        data-reset-value="{{ config.default_value | tojson | forceescape }}"
+                        data-reset-default-btn="true"
+                      >
                         <i class="fa fa-undo"></i>
                       </button>
                     </div>
@@ -387,7 +520,8 @@
               'url': 'URL', 'json': 'JSON', 'ips': 'IPs', 'ids': 'IDs',
               'html': 'HTML', 'css': 'CSS', 'sql': 'SQL',
               'http': 'HTTP', 'https': 'HTTPS', 'ssl': 'SSL',
-              'jwt': 'JWT', 'oauth': 'OAuth', 'sms': 'SMS'
+              'jwt': 'JWT', 'oauth': 'OAuth', 'sms': 'SMS', 'ttl': 'TTL',
+               'ws': 'WS', 'ms': 'MS'
             };
 
             function formatConfigName(text) {
@@ -404,6 +538,13 @@
               el.textContent = formatConfigName(snakeCase);
             });
 
+            // Format group names in quick navigation
+            document.querySelectorAll('.group-nav-label').forEach(el => {
+              const original = el.textContent.trim();
+              const snakeCase = original.toLowerCase().replace(/ /g, '_');
+              el.textContent = formatConfigName(snakeCase);
+            });
+
             // Format all config names
             document.querySelectorAll('.config-name label').forEach(el => {
               const original = el.textContent.trim();
@@ -415,19 +556,189 @@
         <script>
           document.addEventListener('DOMContentLoaded', function () {
             const reloadForm = document.getElementById('reload-cdn-form');
-            if (!reloadForm) {
-              return;
+            const navToggle = document.getElementById('settings-nav-toggle');
+            const navPanel = document.getElementById('settings-nav-panel');
+            const navLinks = Array.from(document.querySelectorAll('.settings-nav-link'));
+            const groupCards = Array.from(document.querySelectorAll('.config-group-card'));
+            let activeGroupKey = '';
+
+            function normalizeCurrentConfigValue(value) {
+              if (value === null || value === undefined) {
+                return '';
+              }
+
+              if (typeof value === 'boolean') {
+                return value ? 'true' : 'false';
+              }
+
+              if (typeof value === 'number') {
+                return String(value);
+              }
+
+              if (typeof value === 'object') {
+                return JSON.stringify(value);
+              }
+
+              return String(value);
             }
 
-            reloadForm.addEventListener('submit', function (event) {
-              if (
-                !window.confirm(
-                  '⚠️ Reload CDN config will clear caches on all workers.\n\nApply the latest domain now?'
-                )
-              ) {
-                event.preventDefault();
+            window.copyCurrentConfigValue = function (inputId, currentValue) {
+              const input = document.getElementById(inputId);
+              if (!input) {
+                return;
               }
+
+              const normalizedValue = normalizeCurrentConfigValue(currentValue);
+              if (input.tagName === 'SELECT') {
+                const hasOption = Array.from(input.options).some(
+                  option => option.value === normalizedValue
+                );
+                if (!hasOption && normalizedValue !== '') {
+                  alert('Current value is not available in selectable options.');
+                  return;
+                }
+              }
+
+              input.value = normalizedValue;
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              input.focus();
+            };
+
+            function parseConfigPayload(rawValue) {
+              if (!rawValue) {
+                return '';
+              }
+
+              try {
+                return JSON.parse(rawValue);
+              } catch (error) {
+                return rawValue;
+              }
+            }
+
+            function setQuickNavOpen(isOpen) {
+              if (!navPanel || !navToggle) {
+                return;
+              }
+
+              navPanel.hidden = !isOpen;
+              navToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            }
+
+            function highlightActiveGroup(groupKey) {
+              if (!groupKey || groupKey === activeGroupKey) {
+                return;
+              }
+              activeGroupKey = groupKey;
+
+              let activeLink = null;
+              navLinks.forEach(link => {
+                const isActive = link.dataset.targetGroup === groupKey;
+                link.classList.toggle('active', isActive);
+                if (isActive) {
+                  activeLink = link;
+                }
+              });
+
+              if (activeLink) {
+                activeLink.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+              }
+            }
+
+            function updateActiveGroupByViewport() {
+              if (groupCards.length === 0 || navLinks.length === 0) {
+                return;
+              }
+
+              const anchorY = Math.max(120, window.innerHeight * 0.3);
+              let currentCard = groupCards[0];
+              groupCards.forEach(card => {
+                if (card.getBoundingClientRect().top <= anchorY) {
+                  currentCard = card;
+                }
+              });
+
+              highlightActiveGroup(currentCard.dataset.groupKey || '');
+            }
+
+            if (navToggle && navPanel) {
+              navToggle.addEventListener('click', function () {
+                setQuickNavOpen(navPanel.hidden);
+              });
+
+              navLinks.forEach(link => {
+                link.addEventListener('click', function (event) {
+                  event.preventDefault();
+                  const targetId = link.getAttribute('href');
+                  if (!targetId) {
+                    return;
+                  }
+
+                  const target = document.querySelector(targetId);
+                  if (!target) {
+                    return;
+                  }
+
+                  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  highlightActiveGroup(link.dataset.targetGroup || '');
+                });
+              });
+
+              document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') {
+                  setQuickNavOpen(false);
+                }
+              });
+            }
+
+            if (groupCards.length > 0 && navLinks.length > 0) {
+              updateActiveGroupByViewport();
+              window.addEventListener('scroll', updateActiveGroupByViewport, { passive: true });
+              window.addEventListener('resize', updateActiveGroupByViewport);
+            }
+
+            document.querySelectorAll('[data-copy-current-btn="true"]').forEach(button => {
+              button.addEventListener('click', function () {
+                const target = button.dataset.copyCurrentTarget;
+                const rawValue = button.dataset.copyCurrentValue || '';
+                if (!target) {
+                  return;
+                }
+
+                window.copyCurrentConfigValue(target, parseConfigPayload(rawValue));
+              });
             });
+
+            document.querySelectorAll('[data-reset-default-btn="true"]').forEach(button => {
+              button.addEventListener('click', function () {
+                const target = button.dataset.resetTarget;
+                const rawValue = button.dataset.resetValue || '';
+                if (!target) {
+                  return;
+                }
+
+                const input = document.getElementById(target);
+                if (!input) {
+                  return;
+                }
+
+                input.value = normalizeCurrentConfigValue(parseConfigPayload(rawValue));
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.focus();
+              });
+            });
+
+            if (reloadForm) {
+              reloadForm.addEventListener('submit', function (event) {
+                if (
+                  !window.confirm(
+                    '⚠️ Reload CDN config will clear caches on all workers.\n\nApply the latest domain now?'
+                  )
+                ) {
+                  event.preventDefault();
+                }
+              });
+            }
 
             window.copyConversationId = async function () {
               try {

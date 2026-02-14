@@ -7,6 +7,7 @@ This module imports all AI-related SQLAlchemy models.
 from .instance import (
     AIConversationItem,
     AIConversationItemArchive,
+    AIConversationRuntime,
     AIConversationState,
     AIInstance,
     AIMessageBuffer,
@@ -44,6 +45,7 @@ __all__ = [
     "AIConversationItem",
     "AIConversationItemArchive",
     "AIConversationState",
+    "AIConversationRuntime",
     # Memory
     "AIInstanceMemory",
     "AITemplateMemory",

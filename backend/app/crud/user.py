@@ -6,7 +6,7 @@ This module contains CRUD operations for user accounts, tokens, and authenticati
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import verify_password
@@ -39,8 +39,10 @@ class CRUDUser(CRUDBaseWithQiaoId[User, UserCreate, UserUpdate]):
         return result.scalar_one_or_none()
 
     async def get_by_username(self, db: AsyncSession, *, username: str) -> User | None:
-        """Get user by username."""
-        result = await db.execute(select(self.model).where(self.model.username == username))
+        """Get user by username (case-insensitive)."""
+        result = await db.execute(
+            select(self.model).where(func.lower(self.model.username) == username.lower())
+        )
         return result.scalar_one_or_none()
 
     async def get_by_phone_or_email(
@@ -60,10 +62,20 @@ class CRUDUser(CRUDBaseWithQiaoId[User, UserCreate, UserUpdate]):
         return result.scalar_one_or_none()
 
     async def authenticate(
-        self, db: AsyncSession, *, phone: str | None = None, email: str | None = None, password: str
+        self,
+        db: AsyncSession,
+        *,
+        username: str | None = None,
+        phone: str | None = None,
+        email: str | None = None,
+        password: str,
     ) -> User | None:
-        """Authenticate user with phone/email and password."""
-        user = await self.get_by_phone_or_email(db, phone=phone, email=email)
+        """Authenticate user with username/phone/email and password."""
+        user: User | None = None
+        if username:
+            user = await self.get_by_username(db, username=username)
+        if user is None:
+            user = await self.get_by_phone_or_email(db, phone=phone, email=email)
         if not user:
             return None
 

@@ -66,6 +66,4 @@ async def list_dimension_relationship_mappings(
             dimension_id=dimension_id,
             error=str(e),
         )
-        raise HTTPException(
-            status_code=500, detail="Failed to list dimension relationship mappings"
-        )
+        raise HTTPException(status_code=500, detail="系统错误")

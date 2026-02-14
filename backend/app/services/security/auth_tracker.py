@@ -17,15 +17,18 @@ logger = get_logger(__name__)
 
 # Global cache for failure tracking
 _failure_cache: dict[str, dict[str, Any]] = {}
+_FAILURE_CACHE_MAX_KEYS = 50_000
+_FAILURE_CACHE_CLEANUP_INTERVAL_SECONDS = 60
+_failure_cache_state = {"last_cleanup_at": 0.0}
 
 MAX_FAILURE_KEYS: dict[str, str] = {
     "admin_auth": "admin_auth_max_failures",
-    "user_auth": "auth_max_failures",
+    "user_auth": "auth_password_max_failures",
 }
 
 LOCKOUT_DURATION_KEYS: dict[str, tuple[str, int]] = {
     "admin_auth": ("admin_auth_lockout_duration_minutes", 60),
-    "user_auth": ("auth_lockout_duration_minutes", 60),
+    "user_auth": ("auth_password_lockout_duration_seconds", 1),
 }
 
 CAPTCHA_THRESHOLD_KEYS: dict[str, str] = {
@@ -33,10 +36,69 @@ CAPTCHA_THRESHOLD_KEYS: dict[str, str] = {
     "user_auth": "captcha_threshold_failures",
 }
 
+# Failure counting window (separate from lockout duration for clearer semantics).
+FAILURE_WINDOW_KEYS: dict[str, tuple[str, int] | None] = {
+    # Admin: reuse lockout duration as the failure counting window (no separate config yet).
+    "admin_auth": None,
+    "user_auth": ("auth_password_failure_window_seconds", 1),
+}
+
 AUTH_WHITELIST_KEYS: dict[str, str | None] = {
     "admin_auth": "admin_auth_whitelist",
     "user_auth": None,
 }
+
+
+def _maybe_cleanup_failure_cache(now: float) -> None:
+    """Run periodic cleanup on auth hot paths."""
+    if now - _failure_cache_state["last_cleanup_at"] < _FAILURE_CACHE_CLEANUP_INTERVAL_SECONDS:
+        return
+    cleanup_auth_tracker_cache(now=now)
+    _failure_cache_state["last_cleanup_at"] = now
+
+
+def _pick_failure_cache_eviction_key(now: float) -> str | None:
+    """Pick the oldest non-protected key for eviction when capacity is reached."""
+    selected_key: str | None = None
+    selected_ts: float | None = None
+
+    for key, data in _failure_cache.items():
+        locked_until_raw = data.get("locked_until")
+        locked_until = (
+            float(locked_until_raw) if isinstance(locked_until_raw, int | float) else None
+        )
+        if locked_until is not None and locked_until > now:
+            continue
+
+        failures_raw = data.get("failures")
+        failures = failures_raw if isinstance(failures_raw, deque) else None
+        key_ts = failures[-1] if failures else 0.0
+        if selected_ts is None or key_ts < selected_ts:
+            selected_key = key
+            selected_ts = key_ts
+
+    return selected_key
+
+
+def _ensure_failure_cache_capacity(now: float) -> None:
+    """Bound failure cache size to avoid unbounded memory growth."""
+    if len(_failure_cache) < _FAILURE_CACHE_MAX_KEYS:
+        return
+
+    cleanup_auth_tracker_cache(now=now)
+    if len(_failure_cache) < _FAILURE_CACHE_MAX_KEYS:
+        return
+
+    evicted_key = _pick_failure_cache_eviction_key(now)
+    if evicted_key is None:
+        evicted_key = next(iter(_failure_cache))
+    del _failure_cache[evicted_key]
+    logger.warning(
+        "auth_failure_cache_capacity_evicted",
+        evicted_key=evicted_key,
+        max_keys=_FAILURE_CACHE_MAX_KEYS,
+        remaining_keys_count=len(_failure_cache),
+    )
 
 
 async def record_auth_failure(
@@ -54,9 +116,11 @@ async def record_auth_failure(
     """
     cache_key = f"{auth_type}:{identifier}"
     now = time.time()
+    _maybe_cleanup_failure_cache(now)
 
     # Initialize cache for this key if not exists
     if cache_key not in _failure_cache:
+        _ensure_failure_cache_capacity(now)
         _failure_cache[cache_key] = {"failures": deque(), "locked_until": None}
 
     # Record failure
@@ -70,10 +134,18 @@ async def record_auth_failure(
     lockout_duration_value = await get_config_int(db, key=duration_key)
     lockout_duration = lockout_duration_value * multiplier
 
-    # Clean old failures (outside lockout window)
-    while (
-        _failure_cache[cache_key]["failures"]
-        and _failure_cache[cache_key]["failures"][0] < now - lockout_duration
+    # Clean old failures (outside failure counting window)
+    failure_window_cfg = FAILURE_WINDOW_KEYS.get(auth_type)
+    if failure_window_cfg is None:
+        # Fallback: use lockout duration as the failure counting window.
+        failure_window = lockout_duration
+    else:
+        failure_window_key, failure_window_multiplier = failure_window_cfg
+        failure_window_value = await get_config_int(db, key=failure_window_key)
+        failure_window = failure_window_value * failure_window_multiplier
+
+    while _failure_cache[cache_key]["failures"] and _failure_cache[cache_key]["failures"][0] < (
+        now - failure_window
     ):
         _failure_cache[cache_key]["failures"].popleft()
 
@@ -135,6 +207,7 @@ async def check_lockout(
 
     cache_key = f"{auth_type}:{identifier}"
     now = time.time()
+    _maybe_cleanup_failure_cache(now)
 
     # Check if locked
     if cache_key in _failure_cache:
@@ -172,15 +245,20 @@ async def should_require_captcha(identifier: str, auth_type: str, db: AsyncSessi
     Returns:
         True if CAPTCHA is required
     """
+    # User-side CAPTCHA is intentionally disabled for now.
+    # Reason: no provider configured in system_configs, and we avoid introducing unused keys.
+    if auth_type == "user_auth":
+        return False
+
     # Check if CAPTCHA is enabled
     captcha_provider = await get_config_str(
         db,
         key=f"{auth_type.split('_')[0]}_captcha_provider",  # Extract 'admin' or 'user'
         required=False,
-        default="",
+        default="none",
     )
 
-    if captcha_provider is None or captcha_provider == "none":
+    if not captcha_provider or captcha_provider == "none":
         return False
 
     threshold_key = CAPTCHA_THRESHOLD_KEYS.get(auth_type)
@@ -232,25 +310,25 @@ async def reset_failures(identifier: str, auth_type: str) -> None:
         logger.info("auth_failures_reset", identifier=identifier, auth_type=auth_type)
 
 
-def cleanup_auth_tracker_cache() -> None:
+def cleanup_auth_tracker_cache(*, now: float | None = None) -> None:
     """
     Clean up auth tracker cache.
 
     Removes entries with no recent failures.
     Should be called periodically.
     """
-    now = time.time()
+    now_ts = time.time() if now is None else now
     keys_to_remove = []
 
     for key, data in _failure_cache.items():
         failures = data["failures"]
 
         # Clean old failures (older than 1 hour)
-        while failures and failures[0] < now - 3600:
+        while failures and failures[0] < now_ts - 3600:
             failures.popleft()
 
         # Mark key for removal if no recent failures and not locked
-        if not failures and (not data["locked_until"] or data["locked_until"] <= now):
+        if not failures and (not data["locked_until"] or data["locked_until"] <= now_ts):
             keys_to_remove.append(key)
 
     # Remove marked keys

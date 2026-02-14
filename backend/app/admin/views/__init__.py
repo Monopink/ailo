@@ -8,10 +8,10 @@ from .ai_conversation_views import (
     AI_CONVERSATION_VIEWS,
     ai_conversation_item_archive_view,
     ai_conversation_item_view,
+    ai_conversation_runtime_view,
     ai_conversation_state_view,
     ai_message_buffer_view,
 )
-from .ai_instance_chat_test_view import ai_instance_chat_test_view
 from .ai_instance_views import (
     AI_INSTANCE_VIEWS,
     ai_instance_dimension_view,
@@ -42,18 +42,30 @@ from .ai_template_views import (
     ai_template_view,
 )
 from .ai_type_views import AI_TYPE_VIEWS, ai_type_view
+from .chat_console_view import chat_console_view
 from .discovery_views import DISCOVERY_MODEL_VIEWS, square_type_entry_view
 from .llm_test_views import llm_config_test_view
-from .llm_views import LLM_MODEL_VIEWS, llm_config_view, llm_provider_view, llm_test_log_view
+from .llm_views import (
+    LLM_MODEL_VIEWS,
+    llm_config_view,
+    llm_provider_view,
+    llm_test_log_view,
+)
 from .message_media_views import (
     MESSAGE_MEDIA_MODEL_VIEWS,
     media_file_view,
-    message_delivery_failure_view,
+    message_delivery_view,
+    message_device_view,
+    message_dispatch_outbox_view,
+    message_endpoint_view,
     message_history_view,
-    message_offline_cursor_view,
     notification_push_history_view,
 )
-from .security_views import SECURITY_MODEL_VIEWS, user_risk_stats_view, user_violation_log_view
+from .security_views import (
+    SECURITY_MODEL_VIEWS,
+    user_risk_stats_view,
+    user_violation_log_view,
+)
 from .stats_views import (
     STATS_MODEL_VIEWS,
     stats_ai_daily_view,
@@ -73,7 +85,12 @@ from .system_views import (
     admin_user_view,
     system_config_view,
 )
-from .token_views import TOKEN_MODEL_VIEWS, login_record_view, user_auth_view, user_token_view
+from .token_views import (
+    TOKEN_MODEL_VIEWS,
+    login_record_view,
+    user_auth_view,
+    user_token_view,
+)
 from .user_views import (
     USER_MODEL_VIEWS,
     contact_request_retry_view,
@@ -145,6 +162,7 @@ __all__ = [
     "ai_persona_view",
     "ai_request_log_view",
     "ai_conversation_state_view",
+    "ai_conversation_runtime_view",
     "ai_message_buffer_view",
     "ai_conversation_item_view",
     "ai_conversation_item_archive_view",
@@ -159,10 +177,13 @@ __all__ = [
     "pending_contact_request_view",
     # Individual message/media views
     "message_history_view",
+    "message_delivery_view",
+    "message_dispatch_outbox_view",
+    "message_device_view",
+    "message_endpoint_view",
     "media_file_view",
     "system_config_view",
     "notification_push_history_view",
-    "message_offline_cursor_view",
     "square_type_entry_view",
     # Individual LLM views
     "llm_provider_view",
@@ -178,7 +199,6 @@ __all__ = [
     # Individual business views
     "contact_request_view",
     "contact_request_retry_view",
-    "message_delivery_failure_view",
     # Individual statistics views
     "stats_user_daily_view",
     "stats_user_weekly_view",
@@ -193,7 +213,7 @@ __all__ = [
     "stats_ai_weekly_view",
     "stats_ai_monthly_view",
     # AI Testing views (for routing only, not in menu)
-    "ai_instance_chat_test_view",
+    "chat_console_view",
     "ai_style_test_view",
     # LLM Testing views (for routing only, not in menu)
     "llm_config_test_view",

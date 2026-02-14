@@ -8,6 +8,8 @@ from .admin import AdminLoginLog, AdminOperationLog, AdminUser
 from .ai import (
     AIConversationItem,
     AIConversationItemArchive,
+    AIConversationRuntime,
+    AIConversationState,
     AIDimension,
     AIDimensionRelationshipMapping,
     AIInstance,
@@ -39,7 +41,14 @@ from .base import (
 from .contact import Contact, ContactRequest
 from .discovery import SquareTypeEntry
 from .llm import LLMConfig, LLMProvider, LLMTestLog
-from .message import MediaFile, MessageDeliveryFailure, MessageHistory, MessageOfflineCursor
+from .message import (
+    MediaFile,
+    MessageDelivery,
+    MessageDevice,
+    MessageDispatchOutbox,
+    MessageEndpoint,
+    MessageHistory,
+)
 from .profile import Profile, UserProfileLog
 from .security import UserRiskStats, UserViolationLog
 from .system import (
@@ -62,6 +71,8 @@ from .user import LoginRecord, User, UserToken
 __all__ = [
     "AIConversationItem",
     "AIConversationItemArchive",
+    "AIConversationRuntime",
+    "AIConversationState",
     "AIDimension",
     "AIDimensionRelationshipMapping",
     "AIInstance",
@@ -93,9 +104,11 @@ __all__ = [
     "LLMTestLog",
     "LoginRecord",
     "MediaFile",
-    "MessageDeliveryFailure",
+    "MessageDevice",
+    "MessageEndpoint",
+    "MessageDelivery",
+    "MessageDispatchOutbox",
     "MessageHistory",
-    "MessageOfflineCursor",
     "Profile",
     "SnowflakeModel",
     "SnowflakeQiaoModel",

@@ -30,7 +30,7 @@ from .profile_queries import get_instance_profile, get_profile_by_owner, get_use
 from .relationship_queries import get_instance_relationship_scores, get_relationship_score_ranges
 
 # Complex transactions
-from .transactions import create_instance_with_relations, save_ai_request_log
+from .transactions import save_ai_request_log
 
 # Database updates (simple operations)
 from .updates import (
@@ -66,6 +66,5 @@ __all__ = [
     "mark_conversation_item_as_excluded",
     "update_instance_status",
     # Transactions
-    "create_instance_with_relations",
     "save_ai_request_log",
 ]

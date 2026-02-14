@@ -16,7 +16,7 @@ from .contact import contact, contact_request
 from .llm import llm_config, llm_provider, llm_test_log
 
 # Message CRUD
-from .message import media_file, message, message_failure
+from .message import media_file, message
 
 # System CRUD
 from .system import (
@@ -45,7 +45,6 @@ __all__ = [
     "contact_request",
     # Message
     "message",
-    "message_failure",
     "media_file",
     # AI - removed (using new data access layer)
     # Admin

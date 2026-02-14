@@ -7,7 +7,6 @@ import jwt
 
 from app.core.config import get_settings
 from app.enums import DeviceType
-from app.utils.snowflake import generate_snowflake_id
 
 
 def generate_jwt_token(
@@ -15,7 +14,7 @@ def generate_jwt_token(
     qiao_id: str,
     device_type: DeviceType,
     expires_in_seconds: int,
-    session_id: int | None = None,
+    session_id: int,
 ) -> str:
     """Generate a JWT token for user authentication.
 
@@ -24,7 +23,7 @@ def generate_jwt_token(
         qiao_id: User's qiao_id
         device_type: Device type enum
         expires_in_seconds: Token lifetime in seconds
-        session_id: Optional session/token record ID (will be set after token creation)
+        session_id: Stable session ID (must match user_tokens.id)
 
     Returns:
         JWT token string
@@ -36,7 +35,7 @@ def generate_jwt_token(
     payload = {
         "sub": qiao_id,  # Subject: user qiao_id
         "user_id": user_id,  # Internal user ID
-        "session_id": session_id or generate_snowflake_id(),  # Session record ID
+        "session_id": session_id,  # Stable session record ID
         "device_type": device_type.value,  # Device type
         "iat": int(now.timestamp()),  # Issued at
         "exp": int(exp.timestamp()),  # Expiration

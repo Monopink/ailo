@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.enums import MessageType
+from app.enums import MessageTransportProvider, MessageType
 
 CURRENT_SCHEMA_VERSION = "1.0.0"
 EventType = Literal["inbound_message", "outbound_message"]
@@ -57,6 +57,10 @@ class BaseMessageEvent(BaseModel):
     to_qiao_id: str
     content: str = Field(default="", description="Textual content, optional for control frames")
     sent_at_ms: int = Field(..., description="Event timestamp in milliseconds")
+    client_sent_time_ms: int | None = Field(
+        default=None,
+        description="Client-provided sent time in milliseconds (optional)",
+    )
     msg_id_server: str | None = Field(
         default=None,
         description="Server-assigned Snowflake ID; set before persistence",
@@ -66,23 +70,34 @@ class BaseMessageEvent(BaseModel):
         description="Client-generated ID (required for inbound user messages)",
     )
     msg_id_provider_inbound: str | None = None
-    msg_id_provider_outbound: str | None = None
-    supports_typing: bool = True
-    client_sent_time: int | None = Field(
+    inbound_provider: MessageTransportProvider | None = Field(
         default=None,
-        description="Original client timestamp (if provided)",
+        description="Inbound transport provider enum (inbound only)",
     )
+    inbound_device_id: str | None = Field(
+        default=None,
+        description="Inbound device_id (UUID string, websocket only)",
+    )
+    llm_request_id: int | None = Field(
+        default=None,
+        description="ai_request_logs.id (only set for assistant outbound messages)",
+    )
+    supports_typing: bool = True
     metadata: EventMetadata = Field(default_factory=EventMetadata)
 
 
 class InboundMessageEvent(BaseMessageEvent):
-    """LeanCloud → Webhook inbound event."""
+    """Inbound event from transport layer (LeanCloud webhook or WebSocket)."""
 
     event_type: Literal["inbound_message"] = Field(default="inbound_message", frozen=True)
     msg_id_client: str = Field(..., description="Client-generated ID for deduplication")
-    msg_id_provider_inbound: str = Field(
+    msg_id_provider_inbound: str | None = Field(
+        default=None,
+        description="Provider message ID (LeanCloud msgId); null for websocket inbound",
+    )
+    inbound_provider: MessageTransportProvider = Field(
         ...,
-        description="Provider message ID (e.g., LeanCloud msgId)",
+        description="Inbound transport provider enum",
     )
 
 
@@ -90,7 +105,3 @@ class OutboundMessageEvent(BaseMessageEvent):
     """System/AI → user outbound event."""
 
     event_type: Literal["outbound_message"] = Field(default="outbound_message", frozen=True)
-    msg_id_provider_outbound: str | None = Field(
-        default=None,
-        description="Outbound provider ID (set after provider send succeeds)",
-    )

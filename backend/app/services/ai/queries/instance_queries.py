@@ -64,7 +64,7 @@ async def get_instance_context(
             select(AIInstance, AIPersonality, AIStyle, Profile, AIRelationship)
             .join(AIPersonality, AIInstance.personality_id == AIPersonality.id)
             .join(AIStyle, AIInstance.style_id == AIStyle.id)
-            .join(
+            .outerjoin(
                 Profile,
                 and_(Profile.owner_qiao_id == AIInstance.qiao_id, Profile.owner_type.in_([2, 3])),
             )
@@ -93,7 +93,7 @@ async def get_instance_context(
 
         dimensions = await get_style_dimensions(db, style.id)
 
-        avatar_url = await get_avatar_url(profile)
+        avatar_url = await get_avatar_url(profile) if profile is not None else None
 
         context: InstanceContext = {
             "instance_id": instance.id,
@@ -113,10 +113,17 @@ async def get_instance_context(
             "relationship_counts": _normalize_relationship_counts(instance.relationship_counts),
             "style": _build_style(style),
             "personality": _build_personality(personality),
-            "profile": _build_profile(profile, avatar_url),
+            "profile": _build_profile(profile, avatar_url) if profile is not None else None,
             "current_relationship": _build_current_relationship(relationship),
             "dimensions": dimensions,
         }
+        if profile is None:
+            logger.warning(
+                "instance_profile_missing_for_context",
+                instance_id=instance.id,
+                instance_qiao_id=instance.qiao_id,
+                user_qiao_id=instance.user_qiao_id,
+            )
 
         validate_typed_dict(context, InstanceContext)
 

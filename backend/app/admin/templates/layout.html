@@ -10,9 +10,9 @@
     {% set env_label = 'Dev' %}
     {% set env_color = 'secondary' %}
     {% set env_icon = 'code' %}
-  {% elif env in ['test', 'testing'] %}
-    {% set env_label = 'Test' %}
-    {% set env_color = 'success' %}
+  {% elif env in ['staging', 'stage'] %}
+    {% set env_label = 'Staging' %}
+    {% set env_color = 'warning' %}
     {% set env_icon = 'flask' %}
   {% elif env in ['production', 'prod'] %}
     {% set env_label = 'Prod' %}

@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.system import system_configs
+from app.enums import MessageTransportProvider
 from app.type_defs import JSONDict, JSONValue
 from app.utils.logging import get_logger
 
@@ -134,7 +135,7 @@ async def parse_webhook_to_dict(db: AsyncSession, webhook_payload: JSONDict) -> 
         msg_id_client = _extract("msg_id", attrs, inner_message)
         from_qiao_id = _extract("from_qiao_id", attrs, inner_message, outer_fields, default=lc_from)
         to_qiao_id = _extract("to_qiao_id", attrs, inner_message, outer_fields)
-        conv_id = _extract("conv_id", attrs, inner_message)
+        conversation_id = _extract("conversation_id", attrs, inner_message)
         content = _extract("content", attrs, inner_message, default="") or ""
         message_type = _extract("message_type", attrs, inner_message)
         supports_typing_raw = _extract("supports_typing", attrs, inner_message, default=False)
@@ -176,11 +177,13 @@ async def parse_webhook_to_dict(db: AsyncSession, webhook_payload: JSONDict) -> 
 
         # Return intermediate format (business layer will process further)
         return {
+            "inbound_provider": MessageTransportProvider.LEANCLOUD,
+            "inbound_device_id": None,
             "msg_id_provider": msg_id_provider,
             "msg_id_client": msg_id_client,
             "from_qiao_id": from_qiao_id,
             "to_qiao_id": to_qiao_id,
-            "conv_id": conv_id,
+            "conversation_id": conversation_id,
             "content": content,
             "message_type": message_type,
             "supports_typing": supports_typing,
@@ -202,7 +205,7 @@ def build_outbound_typed_message(
     *,
     from_qiao_id: str,
     to_qiao_id: str,
-    conv_id: str,
+    conversation_id: str,
     content: str,
     message_type: int,
     msg_id: str,
@@ -218,7 +221,7 @@ def build_outbound_typed_message(
     Args:
         from_qiao_id: Sender qiao_id
         to_qiao_id: Receiver qiao_id
-        conv_id: Internal conversation ID
+        conversation_id: Internal conversation identifier
         content: Message content (already encrypted by business layer)
         message_type: Message type
         msg_id: Optional message ID
@@ -233,7 +236,7 @@ def build_outbound_typed_message(
             "lc_outbound_msg_id_missing",
             from_qiao_id=from_qiao_id,
             to_qiao_id=to_qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
             message_type=message_type,
         )
         raise ValueError("msg_id is required for outbound messages.")
@@ -242,7 +245,7 @@ def build_outbound_typed_message(
         "msg_id": msg_id,
         "from_qiao_id": from_qiao_id,
         "to_qiao_id": to_qiao_id,
-        "conv_id": conv_id,
+        "conversation_id": conversation_id,
         "content": content,
         "message_type": message_type,
         "supports_typing": supports_typing,

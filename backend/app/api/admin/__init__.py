@@ -16,6 +16,8 @@ from .ai_style import style_router
 from .ai_template import template_router
 from .contact_requests import contact_requests_router
 from .dashboard import dashboard_router
+from .debug_messages import instance_router as debug_instances_router
+from .debug_messages import router as debug_messages_router
 from .discovery import router as discovery_router
 from .llm_management import llm_router
 from .system_management import system_router
@@ -35,3 +37,5 @@ admin_api_router.include_router(memory_router, prefix="/ai", tags=["Admin AI Mem
 admin_api_router.include_router(system_router, prefix="/system", tags=["Admin System Management"])
 admin_api_router.include_router(discovery_router, prefix="/discovery", tags=["Admin Discovery"])
 admin_api_router.include_router(contact_requests_router, prefix="/contact-requests")
+admin_api_router.include_router(debug_messages_router)
+admin_api_router.include_router(debug_instances_router)

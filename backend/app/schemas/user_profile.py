@@ -31,7 +31,7 @@ class UserProfileUpdateRequest(BaseModel):
     """User profile update request schema for PUT /api/v1/user/profile."""
 
     username: str | None = Field(
-        None, min_length=3, max_length=20, description="User-customizable ID"
+        None, min_length=5, max_length=20, description="User-customizable ID"
     )
     nickname: str | None = Field(None, max_length=10, description="Display nickname")
     gender: int | None = Field(

@@ -5,6 +5,7 @@ This module contains Pydantic schemas for user accounts, tokens, and authenticat
 
 from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -17,7 +18,7 @@ from app.schemas.common import BaseSchema
 class UserBase(BaseSchema):
     """Base user schema with common fields."""
 
-    username: str = Field(..., min_length=1, max_length=50, description="Username")
+    username: str = Field(..., min_length=5, max_length=20, description="Username")
     phone: str | None = Field(None, max_length=20, description="Phone number")
     email: str | None = Field(None, max_length=100, description="Email address")
     user_type: UserType = Field(UserType.NORMAL, description="User type")
@@ -29,7 +30,7 @@ class UserCreate(BaseModel):
     phone: str | None = Field(None, max_length=20, description="Phone number for registration")
     email: str | None = Field(None, max_length=100, description="Email address for registration")
     password: str | None = Field(None, min_length=8, max_length=128, description="Password")
-    username: str | None = Field(None, min_length=1, max_length=50, description="Custom username")
+    username: str | None = Field(None, min_length=5, max_length=20, description="Custom username")
 
     @model_validator(mode="after")
     def validate_login_method(self) -> "UserCreate":
@@ -42,7 +43,7 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     """Schema for updating user information."""
 
-    username: str | None = Field(None, min_length=1, max_length=50, description="Username")
+    username: str | None = Field(None, min_length=5, max_length=20, description="Username")
     phone: str | None = Field(None, max_length=20, description="Phone number")
     email: str | None = Field(None, max_length=100, description="Email address")
 
@@ -74,7 +75,7 @@ class TokenCreate(BaseModel):
     """Schema for creating a user token."""
 
     device_type: DeviceType = Field(..., description="Device type")
-    device_id: str | None = Field(None, max_length=128, description="Device identifier")
+    device_id: UUID | None = Field(None, description="Device identifier (UUID)")
     platform_info: dict[str, Any] | None = Field(None, description="Platform information")
     ip_address: str | None = Field(None, max_length=45, description="IP address")
     user_agent: str | None = Field(None, description="User agent string")
@@ -84,7 +85,7 @@ class TokenUpdate(BaseModel):
     """Schema for updating a user token."""
 
     device_type: DeviceType | None = Field(None, description="Device type")
-    device_id: str | None = Field(None, max_length=128, description="Device identifier")
+    device_id: UUID | None = Field(None, description="Device identifier (UUID)")
     platform_info: dict[str, Any] | None = Field(None, description="Platform information")
     ip_address: str | None = Field(None, max_length=45, description="IP address")
     user_agent: str | None = Field(None, description="User agent string")
@@ -101,7 +102,7 @@ class TokenResponse(BaseSchema):
 
     access_token: str = Field(..., description="Access token (JWT)")
     device_type: DeviceType = Field(..., description="Device type")
-    device_id: str | None = Field(None, description="Device identifier")
+    device_id: UUID | None = Field(None, description="Device identifier (UUID)")
     access_expires_at: datetime = Field(..., description="Access token expiration time")
     status: int = Field(..., description="Token status: 1=active, 2=revoked")
     last_activity_at: datetime = Field(..., description="Last activity time")
@@ -125,7 +126,7 @@ class LoginRequest(BaseModel):
     )
     login_type: LoginType = Field(..., description="Login method")
     device_type: DeviceType = Field(..., description="Device type")
-    device_id: str | None = Field(None, max_length=128, description="Device identifier")
+    device_id: UUID | None = Field(None, description="Device identifier (UUID)")
 
     @model_validator(mode="after")
     def validate_login_identifier(self) -> "LoginRequest":
@@ -225,9 +226,9 @@ class LoginRecordCreate(BaseModel):
     login_time: datetime | None = Field(None, description="Login attempt time")
     login_type: LoginType = Field(..., description="Login method")
     platform: DeviceType = Field(..., description="Platform used for login")
-    device_id: str | None = Field(None, max_length=128, description="Device identifier")
+    device_id: UUID | None = Field(None, description="Device identifier (UUID)")
     ip_address: str | None = Field(None, max_length=45, description="Login IP address")
     user_agent: str | None = Field(None, description="User agent string")
     result: LoginResult = Field(..., description="Login result")
     fail_reason: str | None = Field(None, max_length=255, description="Failure reason")
-    token: str | None = Field(None, max_length=512, description="Associated JWT token")
+    user_token_id: int | None = Field(None, description="Associated user_tokens.id on success")

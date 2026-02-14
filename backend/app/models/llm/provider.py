@@ -5,8 +5,10 @@ This module contains the LLMProvider SQLAlchemy model.
 
 from typing import TYPE_CHECKING
 
+from markupsafe import escape
 from sqlalchemy import Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from starlette.requests import Request
 
 from app.models.base import AutoIncrementModel
 
@@ -84,3 +86,9 @@ class LLMProvider(AutoIncrementModel):
     def supports_thinking_display(self) -> str:
         """Display value for supports_thinking."""
         return "Yes" if self.supports_thinking == 1 else "No"
+
+    def __admin_select2_repr__(self, request: Request) -> str:
+        parts: list[str] = [escape(self.display_name), escape(self.name)]
+        if self.default_model:
+            parts.append(escape(self.default_model))
+        return f"<span>[{self.id}] {' / '.join(parts)}</span>"

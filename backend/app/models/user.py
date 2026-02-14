@@ -4,10 +4,12 @@ This module contains SQLAlchemy models for user accounts, tokens, and login reco
 """
 
 from datetime import datetime
+from uuid import UUID
 
 from markupsafe import escape
 from sqlalchemy import BigInteger, Boolean, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import INET, JSONB, TIMESTAMP
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from starlette.requests import Request
 
@@ -25,7 +27,7 @@ class User(SnowflakeQiaoModel, StatusMixin):
     __tablename__ = "users"
 
     username: Mapped[str | None] = mapped_column(
-        String(50), nullable=True, comment="User-customizable ID, NULL if not set"
+        String(20), nullable=True, comment="User-customizable ID, NULL if not set"
     )
 
     phone: Mapped[str | None] = mapped_column(
@@ -112,8 +114,8 @@ class UserToken(SnowflakeModel):
         Integer, nullable=False, comment="Device type: 1=ios, 2=android, 3=web, 4=mini_program"
     )
 
-    device_id: Mapped[str | None] = mapped_column(
-        String(128), nullable=True, comment="Device unique identifier"
+    device_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), nullable=False, comment="Device unique identifier (UUID)"
     )
 
     platform_info: Mapped[JSONDict | None] = mapped_column(
@@ -265,8 +267,8 @@ class LoginRecord(Base, SnowflakeIDMixin):
         Integer, nullable=False, comment="Platform: 1=ios, 2=android, 3=web, 4=mini_program"
     )
 
-    device_id: Mapped[str | None] = mapped_column(
-        String(128), nullable=True, comment="Device identifier"
+    device_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True, comment="Device identifier (UUID)"
     )
 
     ip_address: Mapped[str | None] = mapped_column(INET, nullable=True, comment="Login IP address")
@@ -281,8 +283,10 @@ class LoginRecord(Base, SnowflakeIDMixin):
         String(255), nullable=True, comment="Failure reason"
     )
 
-    token: Mapped[str | None] = mapped_column(
-        String(512), nullable=True, comment="Associated JWT token"
+    user_token_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        nullable=True,
+        comment="Associated session ID (references user_tokens.id on successful login)",
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -297,6 +301,14 @@ class LoginRecord(Base, SnowflakeIDMixin):
         "User",
         primaryjoin="LoginRecord.user_id == User.id",
         foreign_keys=[user_id],
+        lazy="select",
+        viewonly=True,
+    )
+
+    user_token: Mapped["UserToken | None"] = relationship(
+        "UserToken",
+        primaryjoin="LoginRecord.user_token_id == UserToken.id",
+        foreign_keys=[user_token_id],
         lazy="select",
         viewonly=True,
     )

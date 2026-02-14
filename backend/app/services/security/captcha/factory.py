@@ -176,6 +176,8 @@ async def create_captcha_provider(
     captcha_provider = await get_config_str(
         db,
         key=f"{provider_type}_captcha_provider",
+        required=False,
+        default="none",
     )
 
     provider, _ = await _create_provider_by_name(captcha_provider, provider_type, db)
@@ -223,5 +225,7 @@ async def create_captcha_provider_for_request(
     captcha_provider = await get_config_str(
         db,
         key=f"{provider_type}_captcha_provider",
+        required=False,
+        default="none",
     )
     return await _create_provider_by_name(captcha_provider, provider_type, db)

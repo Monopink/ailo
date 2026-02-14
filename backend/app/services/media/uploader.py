@@ -116,7 +116,7 @@ async def upload_via_proxy(
         )
     except StorageError as exc:
         logger.error("media_proxy_upload_failed", error=str(exc))
-        raise HTTPException(status_code=503, detail="上传失败，请稍后再试") from exc
+        raise HTTPException(status_code=503, detail="系统错误") from exc
 
     record = MediaFile(
         file_id=file_id,

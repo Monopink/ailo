@@ -39,6 +39,11 @@ from app.models.message import MediaFile
 from app.models.profile import Profile, UserProfileLog
 from app.models.user import User
 from app.services.contact.request_service import retry_pending_contact_request
+from app.services.security.username import (
+    USERNAME_HELP_TEXT,
+    UsernameValidationConfigError,
+    validate_username_or_error,
+)
 from app.services.system_config import get_config_int
 from app.type_defs import JSONDict
 
@@ -91,7 +96,14 @@ class UserView(BaseRoleAwareModelView):
     fields: ClassVar[list[BaseField]] = [
         StringField("id", label="ID", help_text="Internal user ID"),
         StringField("qiao_id", label="Qiao ID", help_text="External user identifier"),
-        StringField("username", label="Username", help_text="Display name for the user"),
+        StringField(
+            "username",
+            label="Username",
+            help_text=USERNAME_HELP_TEXT,
+            minlength=5,
+            maxlength=20,
+            required=False,
+        ),
         StringField("phone", label="Phone Number", help_text="Phone number for login"),
         StringField("email", label="Email Address", help_text="Email address for notifications"),
         StringField(
@@ -147,19 +159,42 @@ class UserView(BaseRoleAwareModelView):
 
     async def validate(self, request: Request, data: FormData) -> None:
         """Validate user data."""
+        errors: dict[str | int, object] = {}
         password_value = data.get("password")
 
         # For create operation, password is required
         if request.url.path.endswith("/create"):
             if not password_value:
-                raise FormValidationError({"password": "Password is required when creating user"})
+                errors["password"] = "Password is required when creating user"  # noqa: S105
 
         # Validate password length if provided
         if isinstance(password_value, str) and password_value:
             if len(password_value) < PASSWORD_MIN_LENGTH:
-                raise FormValidationError(
-                    {"password": f"Password must be at least {PASSWORD_MIN_LENGTH} characters long"}
+                errors["password"] = (
+                    f"Password must be at least {PASSWORD_MIN_LENGTH} characters long"
                 )
+
+        username_value = data.get("username")
+        if isinstance(username_value, str):
+            if username_value == "":
+                # Treat empty input as unset; will be normalized to NULL in before_create/before_edit.
+                pass
+            else:
+                try:
+                    username_error = await validate_username_or_error(
+                        request.state.session,
+                        username_value,
+                    )
+                except UsernameValidationConfigError as exc:
+                    errors["username"] = str(exc)
+                else:
+                    if username_error is not None:
+                        errors["username"] = username_error
+        elif username_value is not None:
+            errors["username"] = "Invalid username"
+
+        if errors:
+            raise FormValidationError(errors)
 
         await super().validate(request, data)
 
@@ -171,7 +206,7 @@ class UserView(BaseRoleAwareModelView):
             obj.password_hash = get_password_hash(password)
 
         # Convert empty unique fields to NULL to avoid unique constraint violation
-        convert_empty_strings_to_none(obj, ["phone", "email"])
+        convert_empty_strings_to_none(obj, ["phone", "email", "username"])
 
     async def before_edit(self, _request: Request, data: FormData, obj: User) -> None:
         """Hash password before updating user if password is changed.
@@ -185,7 +220,7 @@ class UserView(BaseRoleAwareModelView):
             obj.password_hash = get_password_hash(password)
 
         # Convert empty unique fields to NULL to avoid unique constraint violation
-        convert_empty_strings_to_none(obj, ["phone", "email"])
+        convert_empty_strings_to_none(obj, ["phone", "email", "username"])
 
 
 class ProfileView(BaseRoleAwareModelView):
@@ -475,7 +510,7 @@ class ContactView(BaseRoleAwareModelView):
     # Exclude auto-filled fields from create/edit
     exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
-        "conv_id",  # Auto-generated
+        "conversation_id",  # Auto-generated
         "user_id",  # Auto-filled
         "user_qiao_id",  # Auto-filled
         "contact_type",  # Auto-inferred from selected contact
@@ -489,7 +524,7 @@ class ContactView(BaseRoleAwareModelView):
     ]
     exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
-        "conv_id",  # Auto-generated
+        "conversation_id",  # Auto-generated
         "user_id",  # Auto-filled
         "user_qiao_id",  # Auto-filled
         "contact_type",  # Auto-inferred from selected contact
@@ -514,7 +549,12 @@ class ContactView(BaseRoleAwareModelView):
         return False
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["conv_id", "user_qiao_id", "contact_qiao_id", "alias"]
+    searchable_fields: ClassVar[list[str]] = [
+        "conversation_id",
+        "user_qiao_id",
+        "contact_qiao_id",
+        "alias",
+    ]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "contact_type",
@@ -529,7 +569,11 @@ class ContactView(BaseRoleAwareModelView):
 
     fields: ClassVar[list[BaseField]] = [
         StringField("id", label="ID", help_text="Internal contact ID"),
-        StringField("conv_id", label="Conversation ID", help_text="Unique conversation identifier"),
+        StringField(
+            "conversation_id",
+            label="Conversation ID",
+            help_text="Unique conversation identifier",
+        ),
         HasOne(
             "user",
             identity="user",
@@ -653,7 +697,7 @@ class ContactView(BaseRoleAwareModelView):
             obj.contact_id = contact_instance.id
             obj.contact_qiao_id = contact_instance.qiao_id
 
-        # Validate and handle conv_id generation with reverse contact checking
+        # Validate and handle conversation_id generation with reverse contact checking
         session = request.state.session
         errors: dict[str, str] = {}
 
@@ -677,7 +721,7 @@ class ContactView(BaseRoleAwareModelView):
                         f"Each user can only have one contact record per contact."
                     )
 
-                # Check for reverse contact (contact → user) to reuse conv_id
+                # Check for reverse contact (contact → user) to reuse conversation_id
                 # Only check reverse if contact is a User (user-to-user relationship)
                 if obj.contact_type == ContactType.USER:
                     reverse_stmt = select(Contact).where(
@@ -689,20 +733,20 @@ class ContactView(BaseRoleAwareModelView):
                     reverse_contact = reverse_result.scalar_one_or_none()
 
                     if reverse_contact:
-                        # Reuse conv_id from reverse contact
-                        obj.conv_id = reverse_contact.conv_id
+                        # Reuse conversation_id from reverse contact
+                        obj.conversation_id = reverse_contact.conversation_id
                     else:
-                        # Generate new conv_id
+                        # Generate new conversation_id
                         random_chars = "".join(
                             secrets.choice(string.ascii_letters + string.digits) for _ in range(16)
                         )
-                        obj.conv_id = f"conv_{random_chars}"
+                        obj.conversation_id = f"conv_{random_chars}"
                 else:
-                    # For AI contacts, always generate new conv_id (no reverse relationship)
+                    # For AI contacts, always generate new conversation_id (no reverse relationship)
                     random_chars = "".join(
                         secrets.choice(string.ascii_letters + string.digits) for _ in range(16)
                     )
-                    obj.conv_id = f"conv_{random_chars}"
+                    obj.conversation_id = f"conv_{random_chars}"
 
         if errors:
             raise FormValidationError(errors)

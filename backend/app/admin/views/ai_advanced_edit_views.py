@@ -247,6 +247,7 @@ class InstanceAdvancedEditView(CustomView):
         return {
             "id": instance.id,
             "qiao_id": instance.qiao_id,
+            "username": instance.username,
             "personality_display_name": (
                 instance.personality.display_name if instance.personality else "N/A"
             ),
@@ -256,6 +257,7 @@ class InstanceAdvancedEditView(CustomView):
                 instance.relationship.display_name if instance.relationship else None
             ),
             "typing_speed_wpm": instance.typing_speed_wpm,
+            "timezone": instance.timezone,
             "llm_config_id": instance.llm_config_id,
             "llm_config": llm_summary,
         }

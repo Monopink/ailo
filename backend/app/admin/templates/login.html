@@ -21,6 +21,11 @@
     <!-- Tabler CSS (pinned to 1.1.0 to match admin) -->
     <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.1.0/dist/css/tabler.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/iconfont/tabler-icons.min.css" rel="stylesheet" />
+    <!-- Project dark-mode fixes to keep login behavior aligned with other admin pages -->
+    <link
+      rel="stylesheet"
+      href="{{ request.url_for(admin.route_name + ':statics', path='css/admin-fixes.css') }}"
+    />
     <!-- Cloudflare Turnstile Script -->
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>

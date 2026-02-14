@@ -16,12 +16,18 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.admin import get_admin
 from app.api.admin import admin_api_router
 from app.api.v1 import v1_router
+from app.api.ws import ws_router
 from app.core.config import Settings, get_settings
 from app.core.database import close_database, get_sessionmaker, init_database
+from app.exceptions.handlers import register_exception_handlers
 from app.middleware.rate_limit import APIRateLimitMiddleware
 from app.services.contact.request_worker import start_contact_request_worker
 from app.services.media.cleanup import start_media_cleanup_worker, stop_media_cleanup_worker
 from app.services.media.config import refresh_media_base_url
+from app.services.message.dispatch.worker import (
+    start_dispatch_outbox_worker,
+    stop_dispatch_outbox_worker,
+)
 from app.services.message.processing import reset_open_conversation_windows
 from app.services.message.processing.scanner import start_buffer_scanner, stop_buffer_scanner
 from app.services.message.providers.leancloud import create_leancloud_provider
@@ -93,18 +99,6 @@ async def set_theme(mode: str, request: Request) -> RedirectResponse:
     return response
 
 
-async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Catch-all exception handler to hide internal details."""
-    logger.error(
-        "unhandled_exception",
-        path=request.url.path,
-        method=request.method,
-        error=str(exc),
-        exc_info=True,
-    )
-    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
-
-
 def _create_lifespan(
     settings: Settings,
 ) -> "Callable[[FastAPI], AbstractAsyncContextManager[None]]":
@@ -157,6 +151,7 @@ def _create_lifespan(
                 logger.error("contact_request_worker_start_failed", error=str(exc), exc_info=True)
 
             await start_buffer_scanner()
+            await start_dispatch_outbox_worker()
             start_media_cleanup_worker(app)
 
             logger.info("application_startup_complete")
@@ -169,6 +164,7 @@ def _create_lifespan(
             logger.info("shutting_down_application")
             try:
                 await stop_buffer_scanner()
+                await stop_dispatch_outbox_worker()
                 await stop_media_cleanup_worker(app)
                 worker = getattr(app.state, "contact_request_worker", None)
                 if worker:
@@ -201,7 +197,6 @@ def _register_debug_middleware(app: FastAPI) -> None:
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         if "/api/" in str(request.url):
-            url = str(request.url)
             path = request.url.path
             path_params = dict(request.path_params)
             if path.startswith("/api/v1/leancloud/webhook/"):
@@ -215,11 +210,12 @@ def _register_debug_middleware(app: FastAPI) -> None:
                 if path_parts and path_parts[-1]:
                     path_parts[-1] = masked_token
                     path = "/".join(path_parts)
-                if path in url:
-                    url = url.replace(request.url.path, path, 1)
+            # Keep scheme/host/path for debug diagnostics but never log query strings.
+            url_no_query = f"{request.url.scheme}://{request.url.netloc}{path}"
             logger.info(
                 "api_request_debug",
-                url=url,
+                method=request.method,
+                url=url_no_query,
                 path=path,
                 path_params=path_params,
             )
@@ -265,12 +261,14 @@ def create_app() -> FastAPI:
     )
     app.state.settings = settings
     _configure_middlewares(app, settings)
-    app.add_exception_handler(Exception, global_exception_handler)
+    register_exception_handlers(app)
     app.include_router(api_router)
+    app.include_router(ws_router)
     app.include_router(v1_router, prefix="/api/v1")
     app.include_router(admin_api_router, prefix="/admin-api")
     _mount_admin(app)
-    _register_debug_middleware(app)
+    if settings.DEBUG:
+        _register_debug_middleware(app)
     logger.info("app_routes", routes=[str(route) for route in app.routes])
     return app
 

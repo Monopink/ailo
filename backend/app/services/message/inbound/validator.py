@@ -30,9 +30,9 @@ async def validate_message(db: AsyncSession, event: InboundMessageEvent) -> bool
         True if valid, False otherwise
     """
     # Verify conversation exists in contacts table
-    contact = await contact_crud.get_by_conv_id(db, conv_id=event.conversation_id)
+    contact = await contact_crud.get_by_conversation_id(db, conversation_id=event.conversation_id)
     if not contact:
-        logger.warning("conversation_not_found", conv_id=event.conversation_id)
+        logger.warning("conversation_not_found", conversation_id=event.conversation_id)
         return False
 
     return True

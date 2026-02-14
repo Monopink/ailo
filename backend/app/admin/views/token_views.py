@@ -185,7 +185,12 @@ class LoginRecordView(ModelView):
 
     exclude_fields_from_list: ClassVar[list[str]] = ["user_id", "user_qiao_id"]
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("login_time", True)]
-    searchable_fields: ClassVar[list[str]] = ["user_qiao_id", "ip_address", "device_id"]
+    searchable_fields: ClassVar[list[str]] = [
+        "user_qiao_id",
+        "ip_address",
+        "device_id",
+        "user_token_id",
+    ]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "user_qiao_id",
@@ -193,6 +198,7 @@ class LoginRecordView(ModelView):
         "login_type",
         "platform",
         "result",
+        "user_token_id",
         "created_at",
     ]
 
@@ -230,7 +236,11 @@ class LoginRecordView(ModelView):
             help_text="Login attempt result",
         ),
         TextAreaField("fail_reason", label="Failure Reason", help_text="Reason for login failure"),
-        StringField("token", label="JWT Token", help_text="Associated JWT token"),
+        StringField(
+            "user_token_id",
+            label="User Token ID",
+            help_text="Associated user_tokens.id (null for failed attempts)",
+        ),
         LocalDateTimeField("created_at", label="Created At", help_text="Record creation time"),
     ]
 

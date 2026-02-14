@@ -1,41 +1,52 @@
 """
-Async AI message sending with typing simulation and interruption support.
+Async AI message sending with typing simulation and turn-version preemption checks.
 """
 
 from __future__ import annotations
 
 import asyncio
 import unicodedata
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.crud.contact import contact as contact_crud
-from app.enums import MessageType
+from app.enums import AIMessageBufferState, MessageType
 from app.models.ai import AIConversationState
 from app.services.ai.queries.updates import create_conversation_item
-from app.services.message.outbound.sender import send_message
+from app.services.message.outbound.sender import (
+    fanout_realtime_typing_best_effort,
+    send_timeline_message,
+)
+from app.services.message.processing.buffer import finalize_buffer_if_locked
+from app.services.message.processing.runtime import is_active_turn
 from app.utils.logging import get_logger
+from app.utils.snowflake import generate_snowflake_id
 
 logger = get_logger(__name__)
 
-_active_sending_tasks: dict[tuple[str, str], asyncio.Event] = {}
+_TURN_CHECK_INTERVAL_SECONDS = 0.2
 
 
-def interrupt_sending_task(user_qiao_id: str, instance_qiao_id: str) -> None:
-    """
-    Interrupt in-flight sending task for a conversation (single instance only).
-    """
-    key = (user_qiao_id, instance_qiao_id)
-    event = _active_sending_tasks.get(key)
-    if event and not event.is_set():
-        event.set()
-        logger.info(
-            "sending_task_interrupted",
-            user_qiao_id=user_qiao_id,
-            instance_qiao_id=instance_qiao_id,
-        )
+@dataclass
+class SendExecutionResult:
+    """Message sending outcome summary for post-send orchestration."""
+
+    first_message_sent: bool
+    completed: bool
+    interrupted: bool
+
+
+async def clear_conversation_pending_messages(
+    db: AsyncSession,
+    user_qiao_id: str,
+    instance_qiao_id: str,
+) -> None:
+    """Clear pending outgoing messages for one conversation."""
+
+    await _clear_pending_messages(db, user_qiao_id, instance_qiao_id)
 
 
 async def send_ai_messages_with_typing(
@@ -47,131 +58,181 @@ async def send_ai_messages_with_typing(
     followup_messages: list[str],
     typing_speed_seconds_per_word: float,
     followup_delay_seconds: float,
-) -> None:
+    llm_request_id: int | None,
+    task_turn_version: int,
+) -> SendExecutionResult:
     """
-    Send AI messages sequentially while simulating typing latency and handling interruptions.
+    Send AI messages sequentially while simulating typing latency.
     """
 
     if not outgoing_messages and not followup_messages:
         async with session_factory() as db:
             await _clear_pending_messages(db, user_qiao_id, instance_qiao_id)
+            if buffer_id is not None:
+                await finalize_buffer_if_locked(
+                    db,
+                    buffer_id,
+                    target_state=AIMessageBufferState.COMPLETE,
+                )
             await db.commit()
         logger.info(
             "sending_task_skipped_empty_payload",
             user_qiao_id=user_qiao_id,
             instance_qiao_id=instance_qiao_id,
+            task_turn_version=task_turn_version,
         )
-        return
+        return SendExecutionResult(
+            first_message_sent=False,
+            completed=True,
+            interrupted=False,
+        )
 
-    conversation_key = (user_qiao_id, instance_qiao_id)
-    interrupt_event = asyncio.Event()
-    _active_sending_tasks[conversation_key] = interrupt_event
+    first_message_sent = False
 
-    try:
-        async with session_factory() as db:
-            try:
-                success, sent = await _send_message_list(
+    async with session_factory() as db:
+        try:
+            outgoing_sent, interrupted, first_message_sent = await _send_message_list(
+                db=db,
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+                buffer_id=buffer_id,
+                messages=outgoing_messages,
+                typing_speed=typing_speed_seconds_per_word,
+                llm_request_id=llm_request_id,
+                task_turn_version=task_turn_version,
+                first_message_sent=first_message_sent,
+            )
+            if interrupted:
+                await _cancel_buffer_before_first_message(
+                    db,
+                    buffer_id=buffer_id,
+                    first_message_sent=first_message_sent,
+                )
+                await _save_pending_messages(
+                    db,
+                    user_qiao_id,
+                    instance_qiao_id,
+                    outgoing_messages[outgoing_sent:],
+                )
+                await db.commit()
+                logger.info(
+                    "sending_interrupted_during_outgoing",
+                    user_qiao_id=user_qiao_id,
+                    instance_qiao_id=instance_qiao_id,
+                    task_turn_version=task_turn_version,
+                    sent_count=outgoing_sent,
+                )
+                return SendExecutionResult(
+                    first_message_sent=first_message_sent,
+                    completed=False,
+                    interrupted=True,
+                )
+
+            if followup_messages:
+                interrupted = await _wait_for_turn_change(
+                    db=db,
+                    user_qiao_id=user_qiao_id,
+                    instance_qiao_id=instance_qiao_id,
+                    task_turn_version=task_turn_version,
+                    duration_seconds=followup_delay_seconds,
+                )
+                if interrupted:
+                    await _cancel_buffer_before_first_message(
+                        db,
+                        buffer_id=buffer_id,
+                        first_message_sent=first_message_sent,
+                    )
+                    await _clear_pending_messages(db, user_qiao_id, instance_qiao_id)
+                    await db.commit()
+                    logger.info(
+                        "sending_interrupted_during_followup_delay",
+                        user_qiao_id=user_qiao_id,
+                        instance_qiao_id=instance_qiao_id,
+                        task_turn_version=task_turn_version,
+                    )
+                    return SendExecutionResult(
+                        first_message_sent=first_message_sent,
+                        completed=False,
+                        interrupted=True,
+                    )
+
+                followup_sent, interrupted, first_message_sent = await _send_message_list(
                     db=db,
                     user_qiao_id=user_qiao_id,
                     instance_qiao_id=instance_qiao_id,
                     buffer_id=buffer_id,
-                    messages=outgoing_messages,
+                    messages=followup_messages,
                     typing_speed=typing_speed_seconds_per_word,
-                    interrupt_event=interrupt_event,
+                    llm_request_id=llm_request_id,
+                    task_turn_version=task_turn_version,
+                    first_message_sent=first_message_sent,
                 )
-                if not success:
-                    await _save_pending_messages(
+                if interrupted:
+                    await _cancel_buffer_before_first_message(
                         db,
-                        user_qiao_id,
-                        instance_qiao_id,
-                        outgoing_messages[sent:],
-                        followup_messages,
+                        buffer_id=buffer_id,
+                        first_message_sent=first_message_sent,
                     )
+                    await _clear_pending_messages(db, user_qiao_id, instance_qiao_id)
                     await db.commit()
                     logger.info(
-                        "sending_interrupted_during_outgoing",
+                        "sending_interrupted_during_followup",
                         user_qiao_id=user_qiao_id,
                         instance_qiao_id=instance_qiao_id,
-                        sent_count=sent,
+                        task_turn_version=task_turn_version,
+                        sent_count=followup_sent,
                     )
-                    return
+                    return SendExecutionResult(
+                        first_message_sent=first_message_sent,
+                        completed=False,
+                        interrupted=True,
+                    )
 
-                if followup_messages:
-                    logger.debug(
-                        "waiting_before_followup",
-                        user_qiao_id=user_qiao_id,
-                        instance_qiao_id=instance_qiao_id,
-                        delay_seconds=followup_delay_seconds,
+            await _clear_pending_messages(db, user_qiao_id, instance_qiao_id)
+            await db.commit()
+            logger.info(
+                "all_messages_sent_successfully",
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+                buffer_id=buffer_id,
+                task_turn_version=task_turn_version,
+            )
+            return SendExecutionResult(
+                first_message_sent=first_message_sent,
+                completed=True,
+                interrupted=False,
+            )
+
+        except Exception as exc:
+            await db.rollback()
+            if buffer_id is not None and not first_message_sent:
+                try:
+                    cancelled = await finalize_buffer_if_locked(
+                        db,
+                        buffer_id,
+                        target_state=AIMessageBufferState.CANCELLED,
                     )
-                    try:
-                        await asyncio.wait_for(
-                            interrupt_event.wait(), timeout=followup_delay_seconds
-                        )
-                        await _save_pending_messages(
-                            db,
-                            user_qiao_id,
-                            instance_qiao_id,
-                            [],
-                            followup_messages,
-                        )
+                    if cancelled:
                         await db.commit()
-                        logger.info(
-                            "sending_interrupted_during_followup_delay",
-                            user_qiao_id=user_qiao_id,
-                            instance_qiao_id=instance_qiao_id,
-                        )
-                        return
-                    except TimeoutError:
-                        # No interruption -> continue with followup messages
-                        pass
-
-                    success, followup_sent = await _send_message_list(
-                        db=db,
+                    else:
+                        await db.rollback()
+                except Exception:
+                    await db.rollback()
+                    logger.exception(
+                        "sending_cancel_buffer_failed",
                         user_qiao_id=user_qiao_id,
                         instance_qiao_id=instance_qiao_id,
                         buffer_id=buffer_id,
-                        messages=followup_messages,
-                        typing_speed=typing_speed_seconds_per_word,
-                        interrupt_event=interrupt_event,
+                        task_turn_version=task_turn_version,
                     )
-                    if not success:
-                        await _save_pending_messages(
-                            db,
-                            user_qiao_id,
-                            instance_qiao_id,
-                            [],
-                            followup_messages[followup_sent:],
-                        )
-                        await db.commit()
-                        logger.info(
-                            "sending_interrupted_during_followup",
-                            user_qiao_id=user_qiao_id,
-                            instance_qiao_id=instance_qiao_id,
-                            sent_count=followup_sent,
-                        )
-                        return
-
-                await _clear_pending_messages(db, user_qiao_id, instance_qiao_id)
-                await db.commit()
-                logger.info(
-                    "all_messages_sent_successfully",
-                    user_qiao_id=user_qiao_id,
-                    instance_qiao_id=instance_qiao_id,
-                    buffer_id=buffer_id,
-                )
-
-            except Exception as exc:
-                await db.rollback()
-                logger.error(
-                    "sending_task_failed",
-                    error=str(exc),
-                    user_qiao_id=user_qiao_id,
-                    instance_qiao_id=instance_qiao_id,
-                )
-                raise
-
-    finally:
-        _active_sending_tasks.pop(conversation_key, None)
+            logger.error(
+                "sending_task_failed",
+                error=str(exc),
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+                task_turn_version=task_turn_version,
+            )
+            raise
 
 
 async def _send_message_list(
@@ -182,14 +243,18 @@ async def _send_message_list(
     buffer_id: int | None,
     messages: list[str],
     typing_speed: float,
-    interrupt_event: asyncio.Event,
-) -> tuple[bool, int]:
+    llm_request_id: int | None,
+    task_turn_version: int,
+    first_message_sent: bool,
+) -> tuple[int, bool, bool]:
     """
-    Send messages sequentially while respecting interruption flag.
-    Returns (success, sent_count).
+    Send messages sequentially and stop when task turn is no longer active.
+
+    Returns:
+        (sent_count, interrupted, first_message_sent)
     """
     if not messages:
-        return True, 0
+        return 0, False, first_message_sent
 
     contact = await contact_crud.get_user_contact(
         db, user_qiao_id=user_qiao_id, contact_qiao_id=instance_qiao_id
@@ -199,36 +264,40 @@ async def _send_message_list(
             f"Contact between user {user_qiao_id} and instance {instance_qiao_id} not found"
         )
 
-    conv_id = contact.conv_id
+    conv_id = contact.conversation_id
 
     for idx, message in enumerate(messages):
-        if interrupt_event.is_set():
-            return False, idx
+        if not await is_active_turn(db, user_qiao_id, instance_qiao_id, task_turn_version):
+            return idx, True, first_message_sent
 
         typing_duration = calculate_typing_time(message, typing_speed)
         if typing_duration > 0:
-            await send_message(
+            await fanout_realtime_typing_best_effort(
                 db=db,
                 from_qiao_id=instance_qiao_id,
                 to_qiao_id=user_qiao_id,
                 conv_id=conv_id,
-                content="",
-                message_type=MessageType.TYPING_START,
+                typing_state="start",
             )
-            try:
-                await asyncio.wait_for(interrupt_event.wait(), timeout=typing_duration)
+            interrupted = await _wait_for_turn_change(
+                db=db,
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+                task_turn_version=task_turn_version,
+                duration_seconds=typing_duration,
+            )
+            if interrupted:
                 logger.debug(
                     "interrupted_during_typing",
                     user_qiao_id=user_qiao_id,
                     instance_qiao_id=instance_qiao_id,
+                    task_turn_version=task_turn_version,
                     position=idx,
                 )
-                return False, idx
-            except TimeoutError:
-                pass
+                return idx, True, first_message_sent
 
-        if interrupt_event.is_set():
-            return False, idx
+        if not await is_active_turn(db, user_qiao_id, instance_qiao_id, task_turn_version):
+            return idx, True, first_message_sent
 
         await _send_and_record_message(
             db=db,
@@ -237,9 +306,65 @@ async def _send_message_list(
             conv_id=conv_id,
             buffer_id=buffer_id,
             message=message,
+            llm_request_id=llm_request_id,
         )
+        if not first_message_sent:
+            if buffer_id is not None:
+                finalized = await finalize_buffer_if_locked(
+                    db,
+                    buffer_id,
+                    target_state=AIMessageBufferState.COMPLETE,
+                )
+                if not finalized:
+                    raise ValueError(
+                        "Failed to finalize locked buffer after first assistant message."
+                    )
+            first_message_sent = True
+        await db.commit()
 
-    return True, len(messages)
+    return len(messages), False, first_message_sent
+
+
+async def _cancel_buffer_before_first_message(
+    db: AsyncSession,
+    *,
+    buffer_id: int | None,
+    first_message_sent: bool,
+) -> None:
+    """Cancel locked buffer when first assistant message was never persisted."""
+    if buffer_id is None or first_message_sent:
+        return
+
+    cancelled = await finalize_buffer_if_locked(
+        db,
+        buffer_id,
+        target_state=AIMessageBufferState.CANCELLED,
+    )
+    if not cancelled:
+        logger.warning("buffer_cancel_skipped_not_locked", buffer_id=buffer_id)
+
+
+async def _wait_for_turn_change(
+    *,
+    db: AsyncSession,
+    user_qiao_id: str,
+    instance_qiao_id: str,
+    task_turn_version: int,
+    duration_seconds: float,
+) -> bool:
+    """
+    Wait for duration and return True when task turn is preempted.
+    """
+
+    remaining = max(duration_seconds, 0.0)
+    while remaining > 0:
+        if not await is_active_turn(db, user_qiao_id, instance_qiao_id, task_turn_version):
+            return True
+        sleep_window = min(_TURN_CHECK_INTERVAL_SECONDS, remaining)
+        await asyncio.sleep(sleep_window)
+        remaining -= sleep_window
+
+    return not await is_active_turn(db, user_qiao_id, instance_qiao_id, task_turn_version)
 
 
 async def _send_and_record_message(
@@ -250,20 +375,24 @@ async def _send_and_record_message(
     conv_id: str,
     buffer_id: int | None,
     message: str,
+    llm_request_id: int | None,
 ) -> None:
     """
-    Send single message via provider transport and persist conversation item.
+    Persist single assistant timeline message and conversation item.
     """
-    await send_message(
+    msg_id_server = f"msg_{generate_snowflake_id()}"
+    await send_timeline_message(
         db=db,
         from_qiao_id=instance_qiao_id,
         to_qiao_id=user_qiao_id,
         conv_id=conv_id,
         content=message,
         message_type=MessageType.TEXT,
+        msg_id=msg_id_server,
+        llm_request_id=llm_request_id,
     )
 
-    await create_conversation_item(
+    item_id = await create_conversation_item(
         db,
         {
             "instance_qiao_id": instance_qiao_id,
@@ -275,8 +404,8 @@ async def _send_and_record_message(
             "created_at": datetime.now(UTC),
         },
     )
-
-    await db.commit()
+    if item_id is None:
+        raise ValueError("Assistant conversation item persistence failed.")
 
 
 async def _save_pending_messages(
@@ -284,15 +413,17 @@ async def _save_pending_messages(
     user_qiao_id: str,
     instance_qiao_id: str,
     outgoing_remaining: list[str],
-    followup_remaining: list[str],
 ) -> None:
     """
-    Persist pending messages for the conversation.
+    Persist pending outgoing messages for the conversation.
     """
-    total = len(outgoing_remaining) + len(followup_remaining)
+    total = len(outgoing_remaining)
+    if total == 0:
+        await _clear_pending_messages(db, user_qiao_id, instance_qiao_id)
+        return
+
     payload: dict[str, Any] = {
         "outgoing": outgoing_remaining,
-        "followup": followup_remaining,
         "total_pending": total,
     }
 

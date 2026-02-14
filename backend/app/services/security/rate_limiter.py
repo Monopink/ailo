@@ -17,10 +17,14 @@ logger = get_logger(__name__)
 
 # Global cache for rate limiting
 _rate_limit_cache: dict[str, deque[float]] = {}
+_RATE_LIMIT_CACHE_MAX_KEYS = 50_000
+_RATE_LIMIT_CACHE_CLEANUP_INTERVAL_SECONDS = 60
+_rate_limit_cache_state = {"last_cleanup_at": 0.0}
 
 RATE_LIMIT_REQUEST_KEYS: dict[str, str] = {
     "admin_auth": "admin_auth_rate_limit_requests",
-    "user_auth": "auth_rate_limit_requests",
+    "auth_password_short": "auth_password_rate_limit_short_requests",
+    "auth_password_long": "auth_password_rate_limit_long_requests",
     "sms": "sms_rate_limit_requests",
     "message_short": "message_rate_limit_short_requests",
     "message_long": "message_rate_limit_long_requests",
@@ -30,7 +34,8 @@ RATE_LIMIT_REQUEST_KEYS: dict[str, str] = {
 
 RATE_LIMIT_WINDOW_KEYS: dict[str, tuple[str, int]] = {
     "admin_auth": ("admin_auth_rate_limit_window_seconds", 1),
-    "user_auth": ("auth_rate_limit_window_hours", 3600),
+    "auth_password_short": ("auth_password_rate_limit_short_window_seconds", 1),
+    "auth_password_long": ("auth_password_rate_limit_long_window_seconds", 1),
     "sms": ("sms_rate_limit_window_seconds", 1),
     "message_short": ("message_rate_limit_short_window_seconds", 1),
     "message_long": ("message_rate_limit_long_window_seconds", 1),
@@ -40,7 +45,8 @@ RATE_LIMIT_WINDOW_KEYS: dict[str, tuple[str, int]] = {
 
 RATE_LIMIT_WHITELIST_KEYS: dict[str, str | None] = {
     "admin_auth": "admin_auth_whitelist",
-    "user_auth": None,
+    "auth_password_short": None,
+    "auth_password_long": None,
     "sms": "sms_whitelist",
     "message_short": None,
     "message_long": None,
@@ -49,9 +55,39 @@ RATE_LIMIT_WHITELIST_KEYS: dict[str, str | None] = {
 }
 
 
+def _maybe_cleanup_rate_limit_cache(now: float) -> None:
+    """Run periodic cleanup on the hot path without a background scheduler."""
+    if (
+        now - _rate_limit_cache_state["last_cleanup_at"]
+        < _RATE_LIMIT_CACHE_CLEANUP_INTERVAL_SECONDS
+    ):
+        return
+    cleanup_rate_limit_cache(now=now)
+    _rate_limit_cache_state["last_cleanup_at"] = now
+
+
+def _ensure_rate_limit_cache_capacity(now: float) -> None:
+    """Bound cache size to avoid unbounded memory growth."""
+    if len(_rate_limit_cache) < _RATE_LIMIT_CACHE_MAX_KEYS:
+        return
+
+    cleanup_rate_limit_cache(now=now)
+    if len(_rate_limit_cache) < _RATE_LIMIT_CACHE_MAX_KEYS:
+        return
+
+    evicted_key = next(iter(_rate_limit_cache))
+    del _rate_limit_cache[evicted_key]
+    logger.warning(
+        "rate_limit_cache_capacity_evicted",
+        evicted_key=evicted_key,
+        max_keys=_RATE_LIMIT_CACHE_MAX_KEYS,
+        remaining_keys_count=len(_rate_limit_cache),
+    )
+
+
 async def check_rate_limit(
     identifier: str,  # IP or user_id
-    group: str,  # 'admin_auth', 'user_auth', 'sms', 'message_short', 'message_long'
+    group: str,  # e.g. 'admin_auth', 'auth_password_short', 'message_short'
     db: AsyncSession,
 ) -> tuple[bool, str | None, int | None]:
     """
@@ -95,9 +131,11 @@ async def check_rate_limit(
     # Check rate limit
     cache_key = f"{group}:{identifier}"
     now = time.time()
+    _maybe_cleanup_rate_limit_cache(now)
 
     # Initialize cache for this key if not exists
     if cache_key not in _rate_limit_cache:
+        _ensure_rate_limit_cache_capacity(now)
         _rate_limit_cache[cache_key] = deque()
 
     # Remove old requests outside the window
@@ -165,19 +203,46 @@ async def check_message_rate_limit(
     return True, None, None
 
 
-def cleanup_rate_limit_cache() -> None:
+async def check_password_login_rate_limit(
+    identifier: str, db: AsyncSession
+) -> tuple[bool, str | None, int | None]:
+    """
+    Check password login rate limit with dual constraints.
+
+    This is intentionally separated from generic "user_auth" limits because
+    password login is the highest-risk auth path (credential stuffing).
+
+    Args:
+        identifier: "{client_ip}:{identifier_key}"
+        db: Database session
+
+    Returns:
+        (is_allowed, error_code, retry_after_seconds)
+    """
+    allowed, _error, retry = await check_rate_limit(identifier, "auth_password_short", db)
+    if not allowed:
+        return False, "PASSWORD_LOGIN_RATE_LIMIT_SHORT", retry
+
+    allowed, _error, retry = await check_rate_limit(identifier, "auth_password_long", db)
+    if not allowed:
+        return False, "PASSWORD_LOGIN_RATE_LIMIT_LONG", retry
+
+    return True, None, None
+
+
+def cleanup_rate_limit_cache(*, now: float | None = None) -> None:
     """
     Clean up rate limit cache.
 
     Removes entries with no recent requests.
     Should be called periodically.
     """
-    now = time.time()
+    now_ts = time.time() if now is None else now
     keys_to_remove = []
 
     for key, requests in _rate_limit_cache.items():
         # Assume max window is 3600 seconds (1 hour)
-        while requests and requests[0] < now - 3600:
+        while requests and requests[0] < now_ts - 3600:
             requests.popleft()
 
         # Mark key for removal if no recent requests

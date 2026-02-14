@@ -15,10 +15,9 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
-from sqlalchemy import and_, or_, select, text, update
+from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql.elements import ColumnElement
 
 from app.enums import MessageType
 from app.enums.common import AIMessageBufferState, ConversationRole
@@ -26,7 +25,10 @@ from app.models.ai.instance import AIConversationItem, AIMessageBuffer
 from app.services.ai.queries.instance_queries import get_instance_relationship_config
 from app.services.ai.queries.updates import create_conversation_item
 from app.services.config import config_service
-from app.services.message.processing.sender import interrupt_sending_task
+from app.services.message.processing.runtime import (
+    activate_current_ingress_turn,
+    increment_ingress_version,
+)
 from app.services.message.schemas import InboundMessageEvent
 from app.type_defs import RelationshipTiming
 from app.utils.logging import get_logger
@@ -54,6 +56,7 @@ class BufferTimerConfig:
     """Resolved buffer wait durations (milliseconds)."""
 
     normal_wait_ms: int
+    typing_short_wait_ms: int
     typing_total_wait_ms: int
     typing_end_wait_ms: int
     no_typing_wait_ms: int
@@ -80,6 +83,14 @@ class LockedConversationWindow:
     content: str
 
 
+@dataclass
+class LockedBufferTurn:
+    """Result of successful lock acquisition."""
+
+    buffer_id: int
+    task_turn_version: int
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -98,12 +109,16 @@ async def add_message_to_buffer(
         event: Inbound message payload
         instance_qiao_id: Instance external ID
     """
-    interrupt_sending_task(event.from_qiao_id, instance_qiao_id)
-
     category = _categorize_event(event)
     if category is None:
         logger.debug("buffer_event_ignored", reason="unsupported_category", type=event.message_type)
         return
+
+    if category in (
+        BufferMessageCategory.SUPPORTS_TYPING,
+        BufferMessageCategory.NO_TYPING,
+    ):
+        await increment_ingress_version(db, event.from_qiao_id, instance_qiao_id)
 
     buffer_config = await _get_buffer_config(db)
     current_time = await _get_db_now_ms(db)
@@ -186,32 +201,23 @@ async def lock_conversation_preemptively(
     db: AsyncSession,
     user_qiao_id: str,
     instance_qiao_id: str,
-) -> int | None:
+) -> LockedBufferTurn | None:
     """
-    Lock the latest expired OPEN buffer window for processing.
+    Lock the latest expired active buffer window for processing.
     """
     try:
         now_ms = await _get_db_now_ms(db)
-
-        await db.execute(
-            update(AIMessageBuffer)
-            .where(
-                AIMessageBuffer.user_qiao_id == user_qiao_id,
-                AIMessageBuffer.instance_qiao_id == instance_qiao_id,
-                AIMessageBuffer.aggregate_state.in_(
-                    [AIMessageBufferState.OPEN, AIMessageBufferState.LOCKED]
-                ),
-            )
-            .values(aggregate_state=AIMessageBufferState.CANCELLED)
-        )
 
         result = await db.execute(
             select(AIMessageBuffer)
             .where(
                 AIMessageBuffer.user_qiao_id == user_qiao_id,
                 AIMessageBuffer.instance_qiao_id == instance_qiao_id,
-                AIMessageBuffer.aggregate_state == AIMessageBufferState.CANCELLED,
-                _buffer_expired_clause(now_ms),
+                AIMessageBuffer.aggregate_state.in_(
+                    [AIMessageBufferState.WAITING_WAKEUP, AIMessageBufferState.OPEN]
+                ),
+                AIMessageBuffer.buffer_expires_at_ms.is_not(None),
+                AIMessageBuffer.buffer_expires_at_ms <= now_ms,
             )
             .order_by(AIMessageBuffer.created_at.desc())
             .limit(1)
@@ -228,11 +234,50 @@ async def lock_conversation_preemptively(
             )
             return None
 
-        buffer_obj.aggregate_state = AIMessageBufferState.LOCKED
-        buffer_obj.locked_at = datetime.now(UTC)
-        buffer_obj.micro_expires_at_ms = None
-        buffer_obj.macro_expires_at_ms = None
-        await db.flush()
+        await db.execute(
+            update(AIMessageBuffer)
+            .where(
+                AIMessageBuffer.user_qiao_id == user_qiao_id,
+                AIMessageBuffer.instance_qiao_id == instance_qiao_id,
+                AIMessageBuffer.aggregate_state == AIMessageBufferState.LOCKED,
+                AIMessageBuffer.id != buffer_obj.id,
+            )
+            .values(aggregate_state=AIMessageBufferState.CANCELLED)
+        )
+
+        lock_result = await db.execute(
+            update(AIMessageBuffer)
+            .where(
+                AIMessageBuffer.id == buffer_obj.id,
+                AIMessageBuffer.aggregate_state.in_(
+                    [AIMessageBufferState.WAITING_WAKEUP, AIMessageBufferState.OPEN]
+                ),
+            )
+            .values(
+                aggregate_state=AIMessageBufferState.LOCKED,
+                locked_at=datetime.now(UTC),
+                micro_expires_at_ms=None,
+                macro_expires_at_ms=None,
+                buffer_expires_at_ms=None,
+                wake_expires_at_ms=None,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        if (lock_result.rowcount or 0) == 0:
+            await db.rollback()
+            logger.debug(
+                "buffer_lock_lost_race",
+                buffer_id=buffer_obj.id,
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+            )
+            return None
+
+        task_turn_version = await activate_current_ingress_turn(
+            db=db,
+            user_qiao_id=user_qiao_id,
+            instance_qiao_id=instance_qiao_id,
+        )
         await db.commit()
 
         logger.info(
@@ -240,8 +285,12 @@ async def lock_conversation_preemptively(
             buffer_id=buffer_obj.id,
             user_qiao_id=user_qiao_id,
             instance_qiao_id=instance_qiao_id,
+            task_turn_version=task_turn_version,
         )
-        return buffer_obj.id
+        return LockedBufferTurn(
+            buffer_id=buffer_obj.id,
+            task_turn_version=task_turn_version,
+        )
 
     except IntegrityError:
         await db.rollback()
@@ -387,19 +436,18 @@ async def finalize_buffer_if_locked(
     """
     try:
         result = await db.execute(
-            select(AIMessageBuffer).where(
+            update(AIMessageBuffer)
+            .where(
                 AIMessageBuffer.id == buffer_id,
                 AIMessageBuffer.aggregate_state == AIMessageBufferState.LOCKED,
             )
+            .values(aggregate_state=target_state)
+            .execution_options(synchronize_session=False)
         )
-        buffer_obj = result.scalar_one_or_none()
 
-        if not buffer_obj:
+        if (result.rowcount or 0) == 0:
             logger.debug("buffer_not_locked_on_finalize", buffer_id=buffer_id)
             return False
-
-        buffer_obj.aggregate_state = target_state
-        await db.flush()
 
         logger.info(
             "buffer_finalized",
@@ -514,10 +562,10 @@ async def _create_wake_buffer(
         current_category=category,
         current_micro=None,
         current_macro=None,
-        now_ms=wake_expires_at_ms,
+        now_ms=current_time,
         config=config,
+        wake_expires_at_ms=wake_expires_at_ms,
     )
-    buffer_expires_at_ms = timer_state.buffer_expires_at_ms or wake_expires_at_ms
 
     msg_id_client = event.msg_id_client or event.msg_id_provider_inbound
     client_msg_ids = [msg_id_client] if msg_id_client else []
@@ -528,7 +576,7 @@ async def _create_wake_buffer(
         aggregate_state=AIMessageBufferState.WAITING_WAKEUP,
         micro_expires_at_ms=timer_state.micro_expires_at_ms,
         macro_expires_at_ms=timer_state.macro_expires_at_ms,
-        buffer_expires_at_ms=buffer_expires_at_ms,
+        buffer_expires_at_ms=timer_state.buffer_expires_at_ms,
         last_message_category=timer_state.last_message_category,
         first_msg_id_client=msg_id_client,
         last_msg_id_client=msg_id_client,
@@ -572,15 +620,7 @@ async def _handle_wake_adjustment(
     config: BufferTimerConfig,
     current_time: int,
 ) -> None:
-    """Adjust wake timer and merge message content while still waiting to wake."""
-
-    if event.message_type != MessageType.TEXT:
-        logger.debug(
-            "wake_buffer_non_text_ignored",
-            buffer_id=buffer_obj.id,
-            message_type=event.message_type,
-        )
-        return
+    """Adjust wake gate and buffer timers while still waiting to wake."""
 
     relationship_config = await get_instance_relationship_config(
         db,
@@ -602,54 +642,63 @@ async def _handle_wake_adjustment(
         current_category=category,
         current_micro=buffer_obj.micro_expires_at_ms,
         current_macro=buffer_obj.macro_expires_at_ms,
-        now_ms=new_wake_expires_at_ms,
+        now_ms=current_time,
         config=config,
+        wake_expires_at_ms=new_wake_expires_at_ms,
     )
-    buffer_expires_at_ms = timer_state.buffer_expires_at_ms or new_wake_expires_at_ms
 
     msg_id_client = event.msg_id_client or event.msg_id_provider_inbound
+    is_text_event = event.message_type == MessageType.TEXT
     update_values: dict[str, Any] = {
         "wake_expires_at_ms": new_wake_expires_at_ms,
-        "wake_adjustment_count": (buffer_obj.wake_adjustment_count or 0) + 1,
+        "wake_adjustment_count": (
+            (buffer_obj.wake_adjustment_count or 0) + 1
+            if is_text_event
+            else (buffer_obj.wake_adjustment_count or 0)
+        ),
         "micro_expires_at_ms": timer_state.micro_expires_at_ms,
         "macro_expires_at_ms": timer_state.macro_expires_at_ms,
-        "buffer_expires_at_ms": buffer_expires_at_ms,
+        "buffer_expires_at_ms": timer_state.buffer_expires_at_ms,
         "last_message_category": timer_state.last_message_category,
-        "message_count": buffer_obj.message_count + 1,
-        "last_msg_time_ms": current_time,
-        "last_msg_id_client": msg_id_client,
     }
+
+    if is_text_event:
+        update_values["message_count"] = buffer_obj.message_count + 1
+        update_values["last_msg_time_ms"] = current_time
+        update_values["last_msg_id_client"] = msg_id_client
 
     await db.execute(
         update(AIMessageBuffer).where(AIMessageBuffer.id == buffer_obj.id).values(update_values)
     )
 
-    if buffer_item:
-        buffer_item.text_content = _append_text(buffer_item.text_content, event.content)
-        if msg_id_client:
-            client_ids = list(buffer_item.client_msg_ids or [])
-            client_ids.append(msg_id_client)
-            buffer_item.client_msg_ids = client_ids
-    else:
-        client_ids = [msg_id_client] if msg_id_client else []
-        await create_conversation_item(
-            db,
-            {
-                "user_qiao_id": buffer_obj.user_qiao_id,
-                "instance_qiao_id": buffer_obj.instance_qiao_id,
-                "role": ConversationRole.USER.value,
-                "message_type": "text",
-                "text_content": event.content or "",
-                "buffer_id": buffer_obj.id,
-                "client_msg_ids": client_ids,
-            },
-        )
+    if is_text_event:
+        if buffer_item:
+            buffer_item.text_content = _append_text(buffer_item.text_content, event.content)
+            if msg_id_client:
+                client_ids = list(buffer_item.client_msg_ids or [])
+                client_ids.append(msg_id_client)
+                buffer_item.client_msg_ids = client_ids
+        else:
+            client_ids = [msg_id_client] if msg_id_client else []
+            await create_conversation_item(
+                db,
+                {
+                    "user_qiao_id": buffer_obj.user_qiao_id,
+                    "instance_qiao_id": buffer_obj.instance_qiao_id,
+                    "role": ConversationRole.USER.value,
+                    "message_type": "text",
+                    "text_content": event.content or "",
+                    "buffer_id": buffer_obj.id,
+                    "client_msg_ids": client_ids,
+                },
+            )
 
     logger.debug(
         "wake_buffer_adjusted",
         buffer_id=buffer_obj.id,
         new_wake_remaining_ms=adjusted_remaining,
         adjustment_mode=adjustment_mode,
+        message_type=event.message_type,
     )
 
 
@@ -817,6 +866,7 @@ async def _create_new_buffer_window(
         aggregate_state=AIMessageBufferState.OPEN,
         micro_expires_at_ms=timer_state.micro_expires_at_ms,
         macro_expires_at_ms=timer_state.macro_expires_at_ms,
+        buffer_expires_at_ms=timer_state.buffer_expires_at_ms,
         last_message_category=timer_state.last_message_category,
         first_msg_id_client=msg_id_client,
         last_msg_id_client=msg_id_client,
@@ -869,11 +919,9 @@ async def _update_buffer_window(
     update_values: dict[str, Any] = {
         "micro_expires_at_ms": timer_state.micro_expires_at_ms,
         "macro_expires_at_ms": timer_state.macro_expires_at_ms,
+        "buffer_expires_at_ms": timer_state.buffer_expires_at_ms,
         "last_message_category": timer_state.last_message_category,
     }
-
-    if timer_state.buffer_expires_at_ms:
-        update_values["buffer_expires_at_ms"] = timer_state.buffer_expires_at_ms
 
     if event.message_type == MessageType.TEXT:
         update_values["message_count"] = buffer_obj.message_count + 1
@@ -949,6 +997,7 @@ def _compute_timer_state(
     current_macro: int | None,
     now_ms: int,
     config: BufferTimerConfig,
+    wake_expires_at_ms: int | None = None,
 ) -> TimerComputationResult:
     new_micro = current_micro
     new_macro = current_macro
@@ -958,7 +1007,11 @@ def _compute_timer_state(
         return TimerComputationResult(
             micro_expires_at_ms=new_micro,
             macro_expires_at_ms=new_macro,
-            buffer_expires_at_ms=_compute_buffer_expiration(new_micro, new_macro),
+            buffer_expires_at_ms=_compute_buffer_expiration(
+                new_micro,
+                new_macro,
+                wake_expires_at_ms=wake_expires_at_ms,
+            ),
             last_message_category=last_category_value,
         )
 
@@ -971,10 +1024,13 @@ def _compute_timer_state(
     elif current_category == BufferMessageCategory.TYPING_END:
         new_micro = now_ms + config.typing_end_wait_ms
     elif current_category == BufferMessageCategory.TYPING_START:
-        new_micro = None
-        new_macro = (
-            now_ms + config.typing_total_wait_ms if config.typing_total_wait_ms > 0 else None
+        new_micro = (
+            now_ms + config.typing_short_wait_ms if config.typing_short_wait_ms > 0 else None
         )
+        if prev_category in (None, BufferMessageCategory.SUPPORTS_TYPING):
+            new_macro = (
+                now_ms + config.typing_total_wait_ms if config.typing_total_wait_ms > 0 else None
+            )
 
     if prev_category == BufferMessageCategory.TYPING_START:
         if current_category in (
@@ -987,12 +1043,15 @@ def _compute_timer_state(
         prev_category == BufferMessageCategory.TYPING_END
         and current_category == BufferMessageCategory.TYPING_START
     ):
-        new_micro = None
-        new_macro = (
-            now_ms + config.typing_total_wait_ms if config.typing_total_wait_ms > 0 else None
+        new_micro = (
+            now_ms + config.typing_short_wait_ms if config.typing_short_wait_ms > 0 else None
         )
 
-    buffer_expires = _compute_buffer_expiration(new_micro, new_macro)
+    buffer_expires = _compute_buffer_expiration(
+        new_micro,
+        new_macro,
+        wake_expires_at_ms=wake_expires_at_ms,
+    )
 
     return TimerComputationResult(
         micro_expires_at_ms=new_micro,
@@ -1003,29 +1062,27 @@ def _compute_timer_state(
 
 
 def _compute_buffer_expiration(
-    micro_expires_at_ms: int | None, macro_expires_at_ms: int | None
+    micro_expires_at_ms: int | None,
+    macro_expires_at_ms: int | None,
+    *,
+    wake_expires_at_ms: int | None = None,
 ) -> int | None:
-    candidates = [t for t in (micro_expires_at_ms, macro_expires_at_ms) if t is not None]
-    return min(candidates) if candidates else None
+    timer_candidates = [t for t in (micro_expires_at_ms, macro_expires_at_ms) if t is not None]
+    timer_due_ms = min(timer_candidates) if timer_candidates else None
 
-
-def _buffer_expired_clause(now_ms: int) -> ColumnElement[bool]:
-    """Generate SQLAlchemy clause for expired buffers."""
-    return or_(
-        and_(
-            AIMessageBuffer.micro_expires_at_ms.is_not(None),
-            AIMessageBuffer.micro_expires_at_ms <= now_ms,
-        ),
-        and_(
-            AIMessageBuffer.macro_expires_at_ms.is_not(None),
-            AIMessageBuffer.macro_expires_at_ms <= now_ms,
-        ),
-    )
+    if wake_expires_at_ms is None:
+        return timer_due_ms
+    if timer_due_ms is None:
+        return wake_expires_at_ms
+    return max(timer_due_ms, wake_expires_at_ms)
 
 
 async def _get_buffer_config(db: AsyncSession) -> BufferTimerConfig:
     return BufferTimerConfig(
         normal_wait_ms=await config_service.get_int(db, "message_buffer_normal_wait_ms"),
+        typing_short_wait_ms=await config_service.get_int(
+            db, "message_buffer_typing_short_wait_ms"
+        ),
         typing_total_wait_ms=await config_service.get_int(
             db, "message_buffer_typing_total_wait_ms"
         ),

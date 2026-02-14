@@ -11,6 +11,7 @@ import hashlib
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -22,14 +23,18 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.crud.profile import profile as profile_crud
 from app.crud.system import system_configs
+from app.crud.user import login_record as login_record_crud
 from app.crud.user import user as user_crud
 from app.crud.user import user_auth as user_auth_crud
 from app.crud.user import user_token as token_crud
-from app.enums import AuthType, DeviceType, ProfileOwnerType
+from app.enums import AuthType, DeviceType, LoginResult, LoginType, ProfileOwnerType
+from app.exceptions.error_codes import build_protective_denial_detail
 from app.models.base import generate_qiao_id
 from app.models.profile import Profile
 from app.models.user import User, UserAuth, UserToken
 from app.schemas.auth import (
+    PasswordLoginRequest,
+    PasswordLoginResponse,
     RefreshTokenRequest,
     RefreshTokenResponse,
     VerifyPhoneRequest,
@@ -42,6 +47,7 @@ from app.schemas.auth import (
     WeChatRefreshPhoneResponse,
 )
 from app.schemas.profile import ProfileCreate
+from app.schemas.user import LoginRecordCreate
 from app.schemas.verify import (
     OperationTokenResponse,
     VerifyConfirmRequest,
@@ -49,11 +55,12 @@ from app.schemas.verify import (
     VerifySendCodeResponse,
 )
 from app.services.profile.avatar import get_avatar_url
+from app.services.security.auth_tracker import check_lockout, record_auth_failure, reset_failures
 from app.services.security.captcha.factory import (
     create_captcha_provider_for_request,
 )
 from app.services.security.captcha.none import NoneCaptchaProvider
-from app.services.security.rate_limiter import check_rate_limit
+from app.services.security.rate_limiter import check_password_login_rate_limit, check_rate_limit
 from app.services.security.sms.factory import create_sms_provider
 from app.services.wechat.client import WeChatAPIError, WeChatClient
 from app.type_defs import JSONDict, JSONValue
@@ -91,6 +98,23 @@ REFRESH_RATE_LIMIT = 5
 REFRESH_RATE_WINDOW = timedelta(minutes=1)
 
 
+def _protective_denial_detail(
+    *,
+    reason: str,
+    camouflage_message: str = "操作异常",
+    camouflage_status_code: int = status.HTTP_400_BAD_REQUEST,
+    **metadata: object,
+) -> dict[str, object]:
+    """Create detail payload for protective-denial responses."""
+    detail_metadata = metadata or None
+    return build_protective_denial_detail(
+        reason=reason,
+        camouflage_status_code=camouflage_status_code,
+        camouflage_message=camouflage_message,
+        metadata=detail_metadata,
+    )
+
+
 @dataclass
 class TokenPair:
     """Access and refresh tokens issued together."""
@@ -98,6 +122,7 @@ class TokenPair:
     access_token: str
     refresh_token: str
     expires_in: int
+    user_token_id: int
 
 
 @dataclass
@@ -121,6 +146,46 @@ def _get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+async def _record_login_attempt(
+    db: AsyncSession,
+    *,
+    user: User | None,
+    login_type: LoginType,
+    platform: DeviceType,
+    device_id: UUID | None,
+    result: LoginResult,
+    fail_reason: str | None,
+    client_ip: str,
+    user_agent: str | None,
+    user_token_id: int | None = None,
+) -> None:
+    """Persist a login attempt audit record without breaking auth flow."""
+    try:
+        await login_record_crud.create(
+            db,
+            obj_in=LoginRecordCreate(
+                user_id=user.id if user else None,
+                user_qiao_id=user.qiao_id if user else None,
+                login_type=login_type,
+                platform=platform,
+                device_id=device_id,
+                ip_address=client_ip,
+                user_agent=user_agent,
+                result=result,
+                fail_reason=fail_reason,
+                user_token_id=user_token_id,
+            ),
+        )
+    except Exception:
+        logger.error(
+            "login_record_write_failed",
+            login_type=login_type.value,
+            platform=platform.value,
+            has_user=user is not None,
+            result=result.value,
+        )
+
+
 async def _get_jwt_expiration_seconds(db: AsyncSession) -> int:
     """Return JWT expiration duration in seconds from configuration."""
     expires_in_days = await system_configs.get_config_value(
@@ -131,7 +196,7 @@ async def _get_jwt_expiration_seconds(db: AsyncSession) -> int:
         logger.error("jwt_expiration_config_missing")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="服务暂时不可用，请稍后再试",
+            detail="系统错误",
         )
 
     return expires_in * 86400
@@ -156,9 +221,11 @@ def _enforce_refresh_rate_limit(refresh_hash: str) -> None:
     history = [ts for ts in _refresh_token_requests.get(refresh_hash, []) if ts > window_start]
     if len(history) >= REFRESH_RATE_LIMIT:
         raise HTTPException(
-            status_code=429,
-            detail="刷新过于频繁，请稍后再试",
-            headers={"Retry-After": str(int(REFRESH_RATE_WINDOW.total_seconds()))},
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=_protective_denial_detail(
+                reason="REFRESH_RATE_LIMIT",
+                camouflage_message="登录已失效，请重新登录",
+            ),
         )
     history.append(now)
     _refresh_token_requests[refresh_hash] = history
@@ -348,6 +415,7 @@ async def _rotate_access_token(
         qiao_id=user_token.user_qiao_id,
         device_type=DeviceType(user_token.device_type),
         expires_in_seconds=expires_in_seconds,
+        session_id=user_token.id,
     )
     access_expires_at = calculate_token_expiry(expires_in_seconds)
 
@@ -368,17 +436,20 @@ async def _issue_jwt_token_for_user(
     client_ip: str,
     user_agent: str | None,
     log_event: str,
-    device_type: DeviceType = DeviceType.MINI_PROGRAM,
+    device_type: DeviceType,
+    device_id: UUID,
 ) -> TokenPair:
     """Create and persist a JWT token for the given user."""
     expires_in_seconds = await _get_jwt_expiration_seconds(db)
     refresh_days = await _get_refresh_token_expiration_days(db)
+    user_token_id = generate_snowflake_id()
 
     jwt_token = generate_jwt_token(
         user_id=user.id,
         qiao_id=user.qiao_id,
         device_type=device_type,
         expires_in_seconds=expires_in_seconds,
+        session_id=user_token_id,
     )
     expires_at = calculate_token_expiry(expires_in_seconds)
     refresh_token = secrets.token_urlsafe(64)
@@ -386,12 +457,12 @@ async def _issue_jwt_token_for_user(
     refresh_expires_at = datetime.now(UTC) + timedelta(days=refresh_days)
 
     user_token = UserToken(
-        id=generate_snowflake_id(),
+        id=user_token_id,
         user_id=user.id,
         user_qiao_id=user.qiao_id,
         access_token=jwt_token,
         device_type=device_type,
-        device_id=None,
+        device_id=device_id,
         platform_info=None,
         ip_address=client_ip,
         user_agent=user_agent,
@@ -409,10 +480,148 @@ async def _issue_jwt_token_for_user(
     await db.commit()
     await db.refresh(user_token)
 
-    logger.info(log_event, qiao_id=user.qiao_id, token=jwt_token[:16] + "...")
+    logger.info(log_event, qiao_id=user.qiao_id)
 
     return TokenPair(
-        access_token=jwt_token, refresh_token=refresh_token, expires_in=expires_in_seconds
+        access_token=jwt_token,
+        refresh_token=refresh_token,
+        expires_in=expires_in_seconds,
+        user_token_id=user_token_id,
+    )
+
+
+@router.post("/login", response_model=PasswordLoginResponse)
+async def password_login(
+    request: Request,
+    body: PasswordLoginRequest,
+    db: AsyncSession = Depends(get_db),
+) -> PasswordLoginResponse:
+    """Password login (username/phone/email + password)."""
+    client_ip = _get_client_ip(request)
+    user_agent = request.headers.get("user-agent")
+    device_type = body.device_type
+
+    identifier = body.identifier.strip()
+    if not identifier:
+        raise HTTPException(status_code=400, detail="登录失败")
+
+    username: str | None = None
+    phone: str | None = None
+    email: str | None = None
+
+    # Heuristics:
+    # - Contains '@' => email
+    # - Otherwise if looks like CN phone => normalize to E.164
+    # - Else => username
+    if "@" in identifier:
+        email = identifier.lower()
+    elif is_china_phone(identifier):
+        phone = normalize_phone(identifier)
+    else:
+        username = identifier
+
+    identifier_key = str(email or phone or username or identifier).lower()
+    auth_identifier = f"{client_ip}:{identifier_key}"
+
+    locked, remaining = await check_lockout(auth_identifier, "user_auth", db)
+    if locked:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=_protective_denial_detail(
+                reason="AUTH_LOCKED_OUT",
+                camouflage_message="登录失败，请稍后再试",
+                retry_after=remaining,
+            ),
+        )
+
+    allowed, error_code, retry_after = await check_password_login_rate_limit(auth_identifier, db)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=_protective_denial_detail(
+                reason="AUTH_PASSWORD_RATE_LIMIT",
+                camouflage_message="登录失败，请稍后再试",
+                limiter_error=error_code,
+                retry_after=retry_after,
+            ),
+        )
+
+    user = await user_crud.authenticate(
+        db,
+        username=username,
+        phone=phone,
+        email=email,
+        password=body.password,
+    )
+    if not user:
+        await _record_login_attempt(
+            db,
+            user=user,
+            login_type=LoginType.PASSWORD,
+            platform=device_type,
+            device_id=body.device_id,
+            result=LoginResult.FAIL,
+            fail_reason="INVALID_CREDENTIALS",
+            client_ip=client_ip,
+            user_agent=user_agent,
+        )
+        await record_auth_failure(auth_identifier, "user_auth", db)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="账号或密码错误",
+        )
+
+    if not await user_crud.is_active(user):
+        await _record_login_attempt(
+            db,
+            user=user,
+            login_type=LoginType.PASSWORD,
+            platform=device_type,
+            device_id=body.device_id,
+            result=LoginResult.FAIL,
+            fail_reason="USER_STATUS_NOT_ACTIVE",
+            client_ip=client_ip,
+            user_agent=user_agent,
+        )
+        await record_auth_failure(auth_identifier, "user_auth", db)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="账号已被禁用",
+        )
+
+    await reset_failures(auth_identifier, "user_auth")
+
+    token_pair = await _issue_jwt_token_for_user(
+        db,
+        user=user,
+        client_ip=client_ip,
+        user_agent=user_agent,
+        log_event="password_login_token_created",
+        device_type=device_type,
+        device_id=body.device_id,
+    )
+    await _record_login_attempt(
+        db,
+        user=user,
+        login_type=LoginType.PASSWORD,
+        platform=device_type,
+        device_id=body.device_id,
+        result=LoginResult.SUCCESS,
+        fail_reason=None,
+        user_token_id=token_pair.user_token_id,
+        client_ip=client_ip,
+        user_agent=user_agent,
+    )
+
+    profile = await _ensure_profile_stub(db, user=user)
+    avatar_url = await get_avatar_url(profile)
+
+    return PasswordLoginResponse(
+        access_token=token_pair.access_token,
+        refresh_token=token_pair.refresh_token,
+        expires_in=token_pair.expires_in,
+        needs_profile_setup=bool(user.needs_profile_setup),
+        user=_build_user_payload(user, profile, avatar_url),
     )
 
 
@@ -464,7 +673,7 @@ class SendSMSRequest(BaseModel):
 
     phone: str = Field(..., description="Phone number (11 digits)")
     # Optional for on-demand verification. When CAPTCHA is enabled and
-    # token is missing, API will return HTTP 428 to instruct the client
+    # token is missing, API returns a user-actionable 400 error.
     # to perform human verification and retry with this token.
     captcha_token: str | None = Field(None, description="CAPTCHA verification token (on-demand)")
 
@@ -494,7 +703,7 @@ async def send_sms_code(
         HTTPException: 400 for invalid phone, 429 for rate limit
 
     """
-    # 0. On-demand CAPTCHA: if enabled and missing token -> 428
+    # 0. On-demand CAPTCHA: if enabled and missing token -> friendly 400
     try:
         client_ip = _get_client_ip(request)
         provider, captcha_meta = await create_captcha_provider_for_request("user", db, request)
@@ -504,24 +713,31 @@ async def send_sms_code(
             if not body.captcha_token:
                 # Signal client to perform CAPTCHA first
                 raise HTTPException(
-                    status_code=status.HTTP_428_PRECONDITION_REQUIRED,
-                    detail={
-                        "error": "CAPTCHA_REQUIRED",
-                        "message": "需要完成人机验证后再试",
-                        **captcha_meta.to_response(),
-                    },
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=_protective_denial_detail(
+                        reason="SMS_CAPTCHA_REQUIRED",
+                        camouflage_message="需要完成人机验证后再试",
+                        captcha_metadata=captcha_meta.to_response(),
+                    ),
                 )
 
             is_valid, error = await provider.verify_token(body.captcha_token, client_ip)
             if not is_valid:
                 logger.warning("sms_captcha_failed", ip=client_ip, error=error)
-                raise HTTPException(status_code=400, detail="人机验证失败，请重试")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=_protective_denial_detail(
+                        reason="SMS_CAPTCHA_INVALID",
+                        camouflage_message="需要完成人机验证后再试",
+                        captcha_error=error,
+                    ),
+                )
             logger.info("sms_captcha_verified", ip=client_ip)
     except HTTPException:
         raise
     except Exception as e:
         logger.error("sms_captcha_error", error=str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="服务繁忙，请稍后再试")
+        raise HTTPException(status_code=500, detail="系统错误")
 
     # 1. Normalize and check phone number
     try:
@@ -541,13 +757,13 @@ async def send_sms_code(
 
     if not allowed:
         raise HTTPException(
-            status_code=429,
-            detail={
-                "error": error_code,
-                "message": "短信发送过于频繁，请稍后再试",
-                "retry_after": retry_after,
-            },
-            headers={"Retry-After": str(retry_after)},
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=_protective_denial_detail(
+                reason="SMS_RATE_LIMIT",
+                camouflage_message="请30秒后再试",
+                limiter_error=error_code,
+                retry_after=retry_after,
+            ),
         )
 
     # 3. Generate 6-digit verification code
@@ -570,7 +786,7 @@ async def send_sms_code(
             error_code=result.error_code,
             error_message=result.error_message,
         )
-        raise HTTPException(status_code=500, detail="短信发送失败，请稍后再试")
+        raise HTTPException(status_code=500, detail="系统错误")
 
     logger.info("sms_sent", phone=normalized_phone, provider_id=result.provider_id)
 
@@ -583,6 +799,7 @@ async def wechat_login(
 ) -> WeChatLoginResponse:
     """WeChat Mini Program login stage 1: openid check only."""
     client_ip = _get_client_ip(request)
+    user_agent = request.headers.get("user-agent")
     wechat_client = WeChatClient()
 
     try:
@@ -624,6 +841,17 @@ async def wechat_login(
             raise HTTPException(status_code=400, detail="登录遇到问题，请联系客服")
 
         if not await user_crud.is_active(user):
+            await _record_login_attempt(
+                db,
+                user=user,
+                login_type=LoginType.WECHAT,
+                platform=DeviceType.MINI_PROGRAM,
+                device_id=body.device_id,
+                result=LoginResult.FAIL,
+                fail_reason="ACCOUNT_INACTIVE",
+                client_ip=client_ip,
+                user_agent=user_agent,
+            )
             logger.warning("wechat_login_user_inactive", qiao_id=user.qiao_id, ip=client_ip)
             raise HTTPException(status_code=400, detail="账号已被禁用")
 
@@ -631,8 +859,22 @@ async def wechat_login(
             db,
             user=user,
             client_ip=client_ip,
-            user_agent=request.headers.get("user-agent"),
+            user_agent=user_agent,
             log_event="wechat_token_created",
+            device_type=DeviceType.MINI_PROGRAM,
+            device_id=body.device_id,
+        )
+        await _record_login_attempt(
+            db,
+            user=user,
+            login_type=LoginType.WECHAT,
+            platform=DeviceType.MINI_PROGRAM,
+            device_id=body.device_id,
+            result=LoginResult.SUCCESS,
+            fail_reason=None,
+            user_token_id=token_pair.user_token_id,
+            client_ip=client_ip,
+            user_agent=user_agent,
         )
 
         profile = await _ensure_profile_stub(db, user=user)
@@ -663,14 +905,14 @@ async def wechat_login(
             errmsg=e.errmsg,
             ip=client_ip,
         )
-        raise HTTPException(status_code=500, detail="服务繁忙，请稍后再试")
+        raise HTTPException(status_code=500, detail="系统错误")
 
     except HTTPException:
         raise
 
     except Exception as e:
         logger.error("wechat_login_failed", error=str(e), ip=client_ip, exc_info=True)
-        raise HTTPException(status_code=500, detail="登录失败，请稍后再试")
+        raise HTTPException(status_code=500, detail="系统错误")
 
 
 @router.post("/wechat/bind-phone", response_model=WeChatBindPhoneResponse)
@@ -679,6 +921,7 @@ async def bind_wechat_phone(
 ) -> WeChatBindPhoneResponse:
     """WeChat Mini Program login stage 2: bind phone and issue tokens."""
     client_ip = _get_client_ip(request)
+    user_agent = request.headers.get("user-agent")
     wechat_client = WeChatClient()
 
     try:
@@ -798,7 +1041,7 @@ async def bind_wechat_phone(
                     error=str(e),
                     exc_info=True,
                 )
-                raise HTTPException(status_code=500, detail="注册失败，请稍后再试")
+                raise HTTPException(status_code=500, detail="系统错误")
 
         # Resolve binding for existing user (or newly created one)
         user_binding_result = await db.execute(
@@ -868,6 +1111,17 @@ async def bind_wechat_phone(
                 await db.refresh(binding_obj)
 
         if not await user_crud.is_active(user):
+            await _record_login_attempt(
+                db,
+                user=user,
+                login_type=LoginType.WECHAT,
+                platform=DeviceType.MINI_PROGRAM,
+                device_id=body.device_id,
+                result=LoginResult.FAIL,
+                fail_reason="ACCOUNT_INACTIVE",
+                client_ip=client_ip,
+                user_agent=user_agent,
+            )
             logger.warning("wechat_login_user_inactive", qiao_id=user.qiao_id, ip=client_ip)
             raise HTTPException(status_code=400, detail="账号已被禁用")
 
@@ -875,8 +1129,22 @@ async def bind_wechat_phone(
             db,
             user=user,
             client_ip=client_ip,
-            user_agent=request.headers.get("user-agent"),
+            user_agent=user_agent,
             log_event="wechat_token_created",
+            device_type=DeviceType.MINI_PROGRAM,
+            device_id=body.device_id,
+        )
+        await _record_login_attempt(
+            db,
+            user=user,
+            login_type=LoginType.WECHAT,
+            platform=DeviceType.MINI_PROGRAM,
+            device_id=body.device_id,
+            result=LoginResult.SUCCESS,
+            fail_reason=None,
+            user_token_id=token_pair.user_token_id,
+            client_ip=client_ip,
+            user_agent=user_agent,
         )
 
         profile = await _ensure_profile_stub(db, user=user)
@@ -915,14 +1183,14 @@ async def bind_wechat_phone(
             errmsg=e.errmsg,
             ip=client_ip,
         )
-        raise HTTPException(status_code=500, detail="服务繁忙，请稍后再试")
+        raise HTTPException(status_code=500, detail="系统错误")
 
     except HTTPException:
         raise
 
     except Exception as e:
         logger.error("wechat_bind_phone_failed", error=str(e), ip=client_ip, exc_info=True)
-        raise HTTPException(status_code=500, detail="绑定失败，请稍后再试")
+        raise HTTPException(status_code=500, detail="系统错误")
 
 
 @router.post("/wechat/refresh-phone", response_model=WeChatRefreshPhoneResponse)
@@ -1056,7 +1324,7 @@ async def refresh_wechat_phone(
             qiao_id=current_user.qiao_id,
             ip=client_ip,
         )
-        raise HTTPException(status_code=500, detail="服务繁忙，请稍后再试")
+        raise HTTPException(status_code=500, detail="系统错误")
 
     except HTTPException:
         raise
@@ -1069,7 +1337,7 @@ async def refresh_wechat_phone(
             ip=client_ip,
             exc_info=True,
         )
-        raise HTTPException(status_code=500, detail="更新手机号失败，请稍后再试")
+        raise HTTPException(status_code=500, detail="系统错误")
 
 
 @router.post("/refresh-token", response_model=RefreshTokenResponse)
@@ -1153,7 +1421,7 @@ async def logout(request: Request, db: AsyncSession = Depends(get_db)) -> dict[s
         logger.error(
             "logout_failed", error=str(e), qiao_id=user.qiao_id, ip=client_ip, exc_info=True
         )
-        raise HTTPException(status_code=500, detail="退出登录失败，请稍后再试")
+        raise HTTPException(status_code=500, detail="系统错误")
 
 
 @router.post("/phone", response_model=VerifyPhoneResponse)
@@ -1179,6 +1447,7 @@ async def verify_phone(
 
     """
     client_ip = _get_client_ip(request)
+    user_agent = request.headers.get("user-agent")
 
     try:
         # 1. Normalize phone number
@@ -1234,7 +1503,7 @@ async def verify_phone(
                     error=str(e),
                     exc_info=True,
                 )
-                raise HTTPException(status_code=500, detail="注册失败，请稍后再试")
+                raise HTTPException(status_code=500, detail="系统错误")
         else:
             logger.info(
                 "verify_phone_user_exists",
@@ -1245,6 +1514,17 @@ async def verify_phone(
 
         # Check user status
         if not await user_crud.is_active(user):
+            await _record_login_attempt(
+                db,
+                user=user,
+                login_type=LoginType.SMS,
+                platform=DeviceType.MINI_PROGRAM,
+                device_id=body.device_id,
+                result=LoginResult.FAIL,
+                fail_reason="ACCOUNT_INACTIVE",
+                client_ip=client_ip,
+                user_agent=user_agent,
+            )
             logger.warning("verify_phone_user_inactive", qiao_id=user.qiao_id, ip=client_ip)
             raise HTTPException(status_code=400, detail="账号已被禁用")
 
@@ -1256,8 +1536,10 @@ async def verify_phone(
                 db,
                 user=user,
                 client_ip=client_ip,
-                user_agent=request.headers.get("user-agent"),
+                user_agent=user_agent,
                 log_event="verify_phone_token_created",
+                device_type=DeviceType.MINI_PROGRAM,
+                device_id=body.device_id,
             )
         except HTTPException:
             raise
@@ -1268,7 +1550,7 @@ async def verify_phone(
                 error=str(e),
                 exc_info=True,
             )
-            raise HTTPException(status_code=500, detail="登录失败，请稍后再试")
+            raise HTTPException(status_code=500, detail="系统错误")
 
         if created_new_user:
             logger.info(
@@ -1276,6 +1558,18 @@ async def verify_phone(
                 qiao_id=user.qiao_id,
                 needs_profile_setup=user.needs_profile_setup,
             )
+        await _record_login_attempt(
+            db,
+            user=user,
+            login_type=LoginType.SMS,
+            platform=DeviceType.MINI_PROGRAM,
+            device_id=body.device_id,
+            result=LoginResult.SUCCESS,
+            fail_reason=None,
+            user_token_id=token_pair.user_token_id,
+            client_ip=client_ip,
+            user_agent=user_agent,
+        )
 
         return VerifyPhoneResponse(
             access_token=token_pair.access_token,
@@ -1290,7 +1584,7 @@ async def verify_phone(
 
     except Exception as e:
         logger.error("verify_phone_failed", error=str(e), ip=client_ip, exc_info=True)
-        raise HTTPException(status_code=500, detail="验证失败，请稍后再试")
+        raise HTTPException(status_code=500, detail="系统错误")
 
 
 @router.post("/user/verify/send-code", response_model=VerifySendCodeResponse)
@@ -1331,24 +1625,31 @@ async def send_verification_code(
                     if not body.captcha_token:
                         # Ask client to complete CAPTCHA first
                         raise HTTPException(
-                            status_code=status.HTTP_428_PRECONDITION_REQUIRED,
-                            detail={
-                                "error": "CAPTCHA_REQUIRED",
-                                "message": "需要完成人机验证后再试",
-                                **captcha_meta.to_response(),
-                            },
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=_protective_denial_detail(
+                                reason="VERIFY_SEND_CAPTCHA_REQUIRED",
+                                camouflage_message="需要完成人机验证后再试",
+                                captcha_metadata=captcha_meta.to_response(),
+                            ),
                         )
 
                     is_valid, error = await provider.verify_token(body.captcha_token, client_ip)
                     if not is_valid:
                         logger.warning("verify_send_code_captcha_failed", error=error)
-                        raise HTTPException(status_code=400, detail="验证失败，请稍后再试")
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=_protective_denial_detail(
+                                reason="VERIFY_SEND_CAPTCHA_INVALID",
+                                camouflage_message="需要完成人机验证后再试",
+                                captcha_error=error,
+                            ),
+                        )
                 logger.info("verify_send_code_captcha_verified", user_id=current_user.id)
             except HTTPException:
                 raise
             except Exception as e:
                 logger.error("verify_send_code_captcha_error", error=str(e), exc_info=True)
-                raise HTTPException(status_code=500, detail="服务繁忙，请稍后再试")
+                raise HTTPException(status_code=500, detail="系统错误")
 
             target = body.target if body.target else current_user.phone
             if not target:
@@ -1361,13 +1662,13 @@ async def send_verification_code(
             allowed, error_code, retry_after = await check_rate_limit(normalized_phone, "sms", db)
             if not allowed:
                 raise HTTPException(
-                    status_code=429,
-                    detail={
-                        "error": error_code,
-                        "message": "短信发送过于频繁，请稍后再试",
-                        "retry_after": retry_after,
-                    },
-                    headers={"Retry-After": str(retry_after) if retry_after else "60"},
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=_protective_denial_detail(
+                        reason="VERIFY_SEND_SMS_RATE_LIMIT",
+                        camouflage_message="请30秒后再试",
+                        limiter_error=error_code,
+                        retry_after=retry_after,
+                    ),
                 )
 
             # Generate verification code
@@ -1390,7 +1691,7 @@ async def send_verification_code(
                     error_code=result.error_code,
                     error_message=result.error_message,
                 )
-                raise HTTPException(status_code=500, detail="发送失败，请稍后再试")
+                raise HTTPException(status_code=500, detail="系统错误")
 
             logger.info(
                 "verification_code_sent",
@@ -1408,7 +1709,7 @@ async def send_verification_code(
 
             # TODO: Implement email verification code sending
             # For now, raise not implemented error
-            raise HTTPException(status_code=501, detail="邮箱验证功能即将推出")
+            raise HTTPException(status_code=501, detail="系统错误")
 
         raise HTTPException(status_code=400, detail="不支持的验证类型")
 
@@ -1419,7 +1720,7 @@ async def send_verification_code(
         logger.error(
             "send_verification_code_failed", error=str(e), user_id=current_user.id, exc_info=True
         )
-        raise HTTPException(status_code=500, detail="发送验证码失败，请稍后再试")
+        raise HTTPException(status_code=500, detail="系统错误")
 
 
 @router.post("/user/verify/confirm", response_model=OperationTokenResponse)
@@ -1473,7 +1774,7 @@ async def confirm_verification_code(
 
         if body.verify_type == "email":
             # TODO: Implement email verification
-            raise HTTPException(status_code=501, detail="邮箱验证功能即将推出")
+            raise HTTPException(status_code=501, detail="系统错误")
 
         raise HTTPException(status_code=400, detail="不支持的验证类型")
 
@@ -1484,7 +1785,7 @@ async def confirm_verification_code(
         logger.error(
             "confirm_verification_failed", error=str(e), user_id=current_user.id, exc_info=True
         )
-        raise HTTPException(status_code=500, detail="验证失败，请稍后再试")
+        raise HTTPException(status_code=500, detail="系统错误")
 
 
 def _coerce_int(value: JSONValue | None) -> int | None:

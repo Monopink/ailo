@@ -11,6 +11,7 @@ from starlette.requests import Request
 from app.core.database import get_db
 from app.crud.user import user as user_crud
 from app.crud.user import user_token as token_crud
+from app.exceptions.error_codes import build_protective_denial_detail
 from app.models.user import User
 from app.services.security.auth_tracker import should_require_captcha
 from app.services.security.captcha.factory import create_captcha_provider
@@ -32,6 +33,23 @@ DBSession = Annotated[AsyncSession, Depends(get_db)]
 DEFAULT_CAPTCHA_TOKEN_FIELD = "captcha_token"  # noqa: S105
 
 logger = get_logger(__name__)
+
+
+def _protective_denial_detail(
+    *,
+    reason: str,
+    camouflage_message: str = "操作异常",
+    camouflage_status_code: int = status.HTTP_400_BAD_REQUEST,
+    **metadata: object,
+) -> dict[str, object]:
+    """Create detail payload for protective-denial responses."""
+    detail_metadata = metadata or None
+    return build_protective_denial_detail(
+        reason=reason,
+        camouflage_status_code=camouflage_status_code,
+        camouflage_message=camouflage_message,
+        metadata=detail_metadata,
+    )
 
 
 async def verify_admin_session(request: Request) -> dict[str, Any]:
@@ -95,7 +113,7 @@ async def require_auth_rate_limit(
     """Create authentication rate limit dependency factory.
 
     Args:
-        auth_type: 'admin' or 'user'
+        auth_type: 'admin'
 
     Returns:
         Dependency function that validates rate limits for auth operations.
@@ -104,6 +122,10 @@ async def require_auth_rate_limit(
         HTTPException: 429 if rate limit exceeded
 
     """
+    if auth_type != "admin":
+        # User password login has its own dedicated security strategy
+        # (see auth/login-security spec).
+        raise ValueError(f"Unsupported auth_type for require_auth_rate_limit: {auth_type}")
 
     async def dependency(request: Request, db: DBSession) -> None:
         ip = request.client.host if request.client else "unknown"
@@ -111,13 +133,13 @@ async def require_auth_rate_limit(
 
         if not allowed:
             raise HTTPException(
-                status_code=429,
-                detail={
-                    "error": error_code,
-                    "message": "操作过于频繁，请稍后再试",
-                    "retry_after": retry_after,
-                },
-                headers={"Retry-After": str(retry_after)},
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=_protective_denial_detail(
+                    reason="ADMIN_AUTH_RATE_LIMIT",
+                    camouflage_message="Authentication required",
+                    limiter_error=error_code,
+                    retry_after=retry_after,
+                ),
             )
 
     return dependency
@@ -147,13 +169,13 @@ async def require_sms_rate_limit(request: Request, db: DBSession) -> None:
 
     if not allowed:
         raise HTTPException(
-            status_code=429,
-            detail={
-                "error": error_code,
-                "message": "短信发送过于频繁，请稍后再试",
-                "retry_after": retry_after,
-            },
-            headers={"Retry-After": str(retry_after)},
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=_protective_denial_detail(
+                reason="SMS_RATE_LIMIT_DEP",
+                camouflage_message="请30秒后再试",
+                limiter_error=error_code,
+                retry_after=retry_after,
+            ),
         )
 
 
@@ -174,13 +196,13 @@ async def require_message_rate_limit(user_id: str, db: DBSession) -> None:
 
     if not allowed:
         raise HTTPException(
-            status_code=429,
-            detail={
-                "error": error_code,
-                "message": "消息发送过于频繁，请稍后再试",
-                "retry_after": retry_after,
-            },
-            headers={"Retry-After": str(retry_after)},
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=_protective_denial_detail(
+                reason="MESSAGE_RATE_LIMIT_DEP",
+                camouflage_message="请求过于频繁，请稍后再试",
+                limiter_error=error_code,
+                retry_after=retry_after,
+            ),
         )
 
 
@@ -212,7 +234,13 @@ async def require_captcha_if_needed(
             token = body.get(token_field)
 
             if not token:
-                raise HTTPException(status_code=400, detail="需要进行验证")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=_protective_denial_detail(
+                        reason="CAPTCHA_REQUIRED_DEP",
+                        camouflage_message="需要完成人机验证后再试",
+                    ),
+                )
 
             # Verify token
             provider = await create_captcha_provider(auth_type, db)
@@ -222,7 +250,14 @@ async def require_captcha_if_needed(
                 logger.warning(
                     "captcha_verification_failed", ip=ip, auth_type=auth_type, error=error
                 )
-                raise HTTPException(status_code=400, detail=f"验证失败: {error}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=_protective_denial_detail(
+                        reason="CAPTCHA_INVALID_DEP",
+                        camouflage_message="需要完成人机验证后再试",
+                        captcha_error=error,
+                    ),
+                )
 
             logger.info("captcha_verification_success", ip=ip, auth_type=auth_type)
 
@@ -289,6 +324,6 @@ async def get_current_user(request: Request, db: DBSession) -> User:
     db.add(user_token)
     await db.commit()
 
-    logger.debug("user_authenticated", qiao_id=user.qiao_id, token=token[:16] + "...")
+    logger.debug("user_authenticated", qiao_id=user.qiao_id)
 
     return user

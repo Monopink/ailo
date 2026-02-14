@@ -100,8 +100,7 @@ def _build_standard_response_fields() -> tuple[dict[str, Any], list[str]]:
         "should_block": {
             "type": "boolean",
             "description": (
-                "是否删除好友，如果删除，对方将永远无法再给你发消息。"
-                "这个操作不可逆，请谨慎选择！"
+                "是否删除好友，如果删除，对方将永远无法再给你发消息。这个操作不可逆，请谨慎选择！"
             ),
         },
         "should_reply": {

@@ -3,7 +3,7 @@
 (function () {
   try {
     var cookieName = 'timezone';
-    var current = (typeof Cookies !== 'undefined') ? Cookies.get(cookieName) : null;
+    var current = typeof Cookies !== 'undefined' ? Cookies.get(cookieName) : null;
     var deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (!current && deviceTz) {
       if (typeof Cookies !== 'undefined') {

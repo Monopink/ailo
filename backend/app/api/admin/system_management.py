@@ -136,7 +136,7 @@ async def refresh_leancloud_conversation(
             error_type=type(e).__name__,
             exc_info=True,
         )
-        raise HTTPException(status_code=500, detail=f"Failed to refresh system conversation: {e!s}")
+        raise HTTPException(status_code=500, detail="系统错误")
 
 
 # Removed: get_leancloud_conversation_status endpoint
@@ -232,7 +232,7 @@ async def get_leancloud_service_status(
             admin_user=admin_user["username"],
             error=str(e),
         )
-        raise HTTPException(status_code=500, detail=f"Failed to check service status: {e!s}")
+        raise HTTPException(status_code=500, detail="系统错误")
 
 
 # Removed: get_webhook_url endpoint
@@ -285,9 +285,7 @@ async def regenerate_webhook_token(
                 "webhook_token_update_failed",
                 admin_user=admin_user["username"],
             )
-            raise HTTPException(
-                status_code=500, detail="Failed to update webhook token in database"
-            )
+            raise HTTPException(status_code=500, detail="系统错误")
 
         # Log operation to database
         await create_operation_log(
@@ -343,4 +341,4 @@ async def regenerate_webhook_token(
             error_type=type(e).__name__,
             exc_info=True,
         )
-        raise HTTPException(status_code=500, detail=f"Failed to regenerate webhook token: {e!s}")
+        raise HTTPException(status_code=500, detail="系统错误")

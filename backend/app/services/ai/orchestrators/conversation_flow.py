@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_sessionmaker
-from app.enums.common import ContactType
+from app.enums.common import AIMessageBufferState, ContactType
 from app.enums.templates import CHAT_INFO_TEMPLATES, ChatInfoType
 from app.exceptions import AIConversationError, AIInstanceInactiveError, AIInstanceNotFoundError
 from app.exceptions.llm import ConfigNotVerifiedError, JSONSchemaNotSupportedError
@@ -43,7 +43,8 @@ from app.services.llm.client import select_config_for_ai, validate_ai_response
 from app.services.llm.config import get_instance_llm_config
 from app.services.llm.streaming_policy import extract_stream_override, resolve_streaming_decision
 from app.services.message.outbound.helpers import send_chat_info
-from app.services.message.processing.buffer import is_buffer_cancelled
+from app.services.message.processing.buffer import finalize_buffer_if_locked
+from app.services.message.processing.runtime import is_active_turn
 from app.services.message.security.validation import message_validation_service
 from app.type_defs import InstanceContext, JSONDict, JSONValue, LLMSessionContext
 from app.utils.logging import get_logger
@@ -52,6 +53,94 @@ logger = get_logger(__name__)
 
 
 # Exception classes moved to exceptions/business.py for consistency
+
+
+def _build_business_rejected_result(
+    *,
+    buffer_id: int | None,
+    error_code: str,
+    reason: str,
+    chat_info_type: ChatInfoType,
+    chat_info_sent: bool,
+) -> JSONDict:
+    return {
+        "success": True,
+        "business_rejected": True,
+        "buffer_id": buffer_id,
+        "error_code": error_code,
+        "reason": reason,
+        "chat_info_type": int(chat_info_type),
+        "chat_info_sent": chat_info_sent,
+    }
+
+
+async def _reject_as_business_result(
+    db: AsyncSession,
+    *,
+    user_qiao_id: str,
+    instance_qiao_id: str,
+    template_key: ChatInfoType,
+    error_code: str,
+    reason: str,
+    locked_buffer_id: int | None,
+    conversation_id: str | None,
+    task_turn_version: int | None,
+) -> JSONDict:
+    if locked_buffer_id is not None and task_turn_version is not None:
+        if not await is_active_turn(
+            db=db,
+            user_qiao_id=user_qiao_id,
+            instance_qiao_id=instance_qiao_id,
+            task_turn_version=task_turn_version,
+        ):
+            return {
+                "success": False,
+                "error": "Conversation preempted by newer active turn",
+                "preempted": True,
+                "buffer_id": locked_buffer_id,
+            }
+
+    content = CHAT_INFO_TEMPLATES.get(template_key)
+    if not content:
+        raise AIConversationError(
+            conversation_step="permission_validation",
+            reason="chat_info_template_missing",
+            message=f"Missing CHAT_INFO template for type={int(template_key)}",
+        )
+
+    chat_info_sent = False
+    if conversation_id:
+        await send_chat_info(
+            db=db,
+            to_qiao_id=user_qiao_id,
+            conversation_id=conversation_id,
+            content=content,
+        )
+        chat_info_sent = True
+    else:
+        logger.warning(
+            "chat_info_not_sent_conversation_missing",
+            user_qiao_id=user_qiao_id,
+            instance_qiao_id=instance_qiao_id,
+            chat_info_type=int(template_key),
+        )
+
+    if locked_buffer_id is not None:
+        await finalize_buffer_if_locked(
+            db,
+            locked_buffer_id,
+            target_state=AIMessageBufferState.COMPLETE,
+        )
+
+    await db.commit()
+
+    return _build_business_rejected_result(
+        buffer_id=locked_buffer_id,
+        error_code=error_code,
+        reason=reason,
+        chat_info_type=template_key,
+        chat_info_sent=chat_info_sent,
+    )
 
 
 async def process_conversation(
@@ -66,6 +155,7 @@ async def process_conversation(
     user_message_item_id: int | None = None,
     message_blocks: list[JSONDict] | None = None,
     persist: bool = True,
+    task_turn_version: int | None = None,
 ) -> JSONDict:
     """Wrapper to run conversation flow with consistent error handling."""
     try:
@@ -81,6 +171,7 @@ async def process_conversation(
             user_message_item_id=user_message_item_id,
             message_blocks=message_blocks,
             persist=persist,
+            task_turn_version=task_turn_version,
         )
     except (AIInstanceNotFoundError, AIInstanceInactiveError) as exc:
         logger.error(
@@ -94,6 +185,8 @@ async def process_conversation(
             reason="instance_error",
             message=f"Instance error: {exc!s}",
         ) from exc
+    except AIConversationError:
+        raise
     except Exception as exc:
         logger.error(
             "conversation_processing_unexpected_error",
@@ -120,6 +213,7 @@ async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
     user_message_item_id: int | None = None,
     message_blocks: list[JSONDict] | None = None,
     persist: bool = True,
+    task_turn_version: int | None = None,
 ) -> JSONDict:
     """
     Process AI conversation following the complete 11-step flow.
@@ -162,6 +256,13 @@ async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
         message_type=message_type,
     )
 
+    if persist and locked_buffer_id is not None and task_turn_version is None:
+        raise AIConversationError(
+            conversation_step="preemption_guard",
+            reason="missing_task_turn_version",
+            message="task_turn_version is required when processing a locked buffer",
+        )
+
     # Note: user context creation/aggregation is handled by message.buffer
     # This function assumes, when called by buffer, that locked_buffer_id points
     # to the currently LOCKED user window and message_content reflects its content.
@@ -184,10 +285,16 @@ async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
                 user_qiao_id=user_qiao_id,
                 instance_qiao_id=instance_qiao_id,
             )
-            raise AIConversationError(
-                conversation_step="permission_validation",
-                reason="contact_not_found",
-                message="Contact relationship not found between user and instance",
+            return await _reject_as_business_result(
+                db,
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+                template_key=ChatInfoType.NOT_FRIEND,
+                error_code="contact_not_found",
+                reason="Contact relationship not found between user and instance",
+                locked_buffer_id=locked_buffer_id,
+                conversation_id=None,
+                task_turn_version=task_turn_version,
             )
 
         instance_obj = await db.get(AIInstance, contact.contact_id)
@@ -235,27 +342,17 @@ async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
                 reason=validation_result.reason,
                 error_code=validation_result.error_code,
             )
-            try:
-                template_key = validation_result.chat_info_type or ChatInfoType.MESSAGE_BLOCKED
-                content = CHAT_INFO_TEMPLATES.get(template_key)
-                if content and contact.conv_id:
-                    await send_chat_info(
-                        db=db,
-                        to_qiao_id=user_qiao_id,
-                        conv_id=contact.conv_id,
-                        content=content,
-                    )
-            except Exception as send_error:
-                logger.error(
-                    "chat_info_send_failed",
-                    user_qiao_id=user_qiao_id,
-                    instance_qiao_id=instance_qiao_id,
-                    error=str(send_error),
-                )
-            raise AIConversationError(
-                conversation_step="permission_validation",
-                reason=validation_result.error_code or "permission_denied",
-                message=validation_result.reason or "Message permission denied",
+            template_key = validation_result.chat_info_type or ChatInfoType.MESSAGE_BLOCKED
+            return await _reject_as_business_result(
+                db,
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+                template_key=template_key,
+                error_code=validation_result.error_code or "permission_denied",
+                reason=validation_result.reason or "Message permission denied",
+                locked_buffer_id=locked_buffer_id,
+                conversation_id=contact.conversation_id,
+                task_turn_version=task_turn_version,
             )
     else:
         logger.debug(
@@ -382,30 +479,46 @@ async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
     if stream_override is not None:
         instance_request_params["enable_streaming"] = stream_override
 
-    # Step 8: Request LLM with validation and streaming early stop
-    # Create preemption checker if we have a locked context
+    # Step 8: Request LLM with validation and delayed-preemption guard
     preemption_checker = None
-    if locked_buffer_id is not None:
+    if locked_buffer_id is not None and task_turn_version is not None:
+
+        async def check_preemption() -> bool:
+            return not await is_active_turn(
+                db=db,
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+                task_turn_version=task_turn_version,
+            )
+
+        preemption_checker = check_preemption
         preview_decision = resolve_streaming_decision(
             config=config,
             provider=provider,
             enable_override=stream_override,
             has_preemption_checker=True,
         )
-
-        if preview_decision.should_stream:
-
-            async def check_preemption() -> bool:
-                """Check if buffer has been cancelled during streaming."""
-                return await is_buffer_cancelled(db, locked_buffer_id)
-
-            preemption_checker = check_preemption
-        else:
+        if not preview_decision.should_stream:
             logger.debug(
                 "streaming_disabled_for_context",
                 buffer_id=locked_buffer_id,
                 reason=preview_decision.reason,
             )
+
+        if await preemption_checker():
+            logger.info(
+                "conversation_preempted_before_llm",
+                buffer_id=locked_buffer_id,
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+                task_turn_version=task_turn_version,
+            )
+            return {
+                "success": False,
+                "error": "Conversation preempted by newer active turn",
+                "preempted": True,
+                "buffer_id": locked_buffer_id,
+            }
 
     # No hardcoded parameters - use config priority: instance_request_params > config
     effective_config_name = config_name or config.name
@@ -428,10 +541,11 @@ async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
             buffer_id=locked_buffer_id,
             user_qiao_id=user_qiao_id,
             instance_qiao_id=instance_qiao_id,
+            task_turn_version=task_turn_version,
         )
         return {
             "success": False,
-            "error": "Conversation preempted by new message",
+            "error": "Conversation preempted by newer active turn",
             "preempted": True,
             "buffer_id": locked_buffer_id,
         }
@@ -468,7 +582,7 @@ async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
     assistant_item_id: int | None = None
     if persist:
         session_factory = get_sessionmaker()
-        await process_llm_response(
+        response_result = await process_llm_response(
             db=db,
             session_factory=session_factory,
             user_qiao_id=user_qiao_id,
@@ -494,7 +608,10 @@ async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
             },
             locked_buffer_id=locked_buffer_id,
             user_message_item_id=user_message_item_id,
+            task_turn_version=task_turn_version,
         )
+        if not bool(response_result.get("success", True)):
+            return response_result
     else:
         # Non-persist mode: only update scores/memory without sending messages
         await process_ai_response_updates(

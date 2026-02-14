@@ -42,18 +42,18 @@ async def _get_im_conv_id(db: AsyncSession, ensure_valid: bool = False) -> str:
     Raises:
         ValueError: If conversation ID is not configured
     """
-    conv_id = await system_configs.get_config_value(
+    im_conv_id = await system_configs.get_config_value(
         db, config_key="leancloud_im_service_conversation_id"
     )
-    if ensure_valid or not conv_id:
-        existing_conv_id = conv_id if isinstance(conv_id, str) else None
-        conv_id = await ensure_system_conversation(db, existing_conv_id=existing_conv_id)
+    if ensure_valid or not im_conv_id:
+        existing_im_conv_id = im_conv_id if isinstance(im_conv_id, str) else None
+        im_conv_id = await ensure_system_conversation(db, existing_conv_id=existing_im_conv_id)
 
-    if not conv_id:
+    if not im_conv_id:
         logger.error("im_conv_id_not_configured")
         raise ValueError("IM conversation ID not configured in system settings")
 
-    return str(conv_id)
+    return str(im_conv_id)
 
 
 async def _get_contact_profile(db: AsyncSession, contact_qiao_id: str) -> Profile | None:
@@ -114,7 +114,7 @@ def _build_contact_list_item(
     """Construct a ContactListItem from ORM entities."""
 
     return ContactListItem(
-        conv_id=contact.conv_id,
+        conversation_id=contact.conversation_id,
         contact_qiao_id=contact.contact_qiao_id,
         alias=contact.alias,
         tags=_extract_tags(contact.tags),
@@ -197,7 +197,7 @@ async def get_user_contacts_with_profiles(
 
 
 async def get_contact_with_profile(
-    db: AsyncSession, user_qiao_id: str, conv_id: str
+    db: AsyncSession, user_qiao_id: str, conversation_id: str
 ) -> ContactDetailResponse | None:
     """
     Get specific contact with profile information and IM conversation ID.
@@ -205,16 +205,16 @@ async def get_contact_with_profile(
     Args:
         db: Database session
         user_qiao_id: User's qiao_id
-        conv_id: Conversation ID
+        conversation_id: Conversation identifier
 
     Returns:
         ContactDetailResponse or None if not found
     """
     # Get contact from database
-    contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
+    contact = await contact_crud.get_by_conversation_id(db, conversation_id=conversation_id)
 
     if not contact:
-        logger.warning("contact_not_found", conv_id=conv_id)
+        logger.warning("contact_not_found", conversation_id=conversation_id)
         return None
 
     # Verify ownership
@@ -223,7 +223,7 @@ async def get_contact_with_profile(
             "contact_access_denied",
             user_qiao_id=user_qiao_id,
             contact_owner=contact.user_qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
         return None
 
@@ -235,13 +235,13 @@ async def get_contact_with_profile(
     # Build response
     contact_response = _build_contact_detail(contact, profile, avatar_url=avatar_url)
 
-    logger.info("contact_retrieved", user_qiao_id=user_qiao_id, conv_id=conv_id)
+    logger.info("contact_retrieved", user_qiao_id=user_qiao_id, conversation_id=conversation_id)
 
     return contact_response
 
 
 async def get_conversation_info(
-    db: AsyncSession, user_qiao_id: str, conv_id: str
+    db: AsyncSession, user_qiao_id: str, conversation_id: str
 ) -> ConversationInfoResponse | None:
     """
     Get conversation information including contact basic info and IM conversation ID.
@@ -249,7 +249,7 @@ async def get_conversation_info(
     Args:
         db: Database session
         user_qiao_id: User's qiao_id
-        conv_id: Conversation ID
+        conversation_id: Conversation identifier
 
     Returns:
         ConversationInfoResponse or None if not found
@@ -258,10 +258,10 @@ async def get_conversation_info(
     im_conv_id = await _get_im_conv_id(db, ensure_valid=True)
 
     # Get contact
-    contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
+    contact = await contact_crud.get_by_conversation_id(db, conversation_id=conversation_id)
 
     if not contact:
-        logger.warning("conversation_not_found", conv_id=conv_id)
+        logger.warning("conversation_not_found", conversation_id=conversation_id)
         return None
 
     # Verify ownership
@@ -270,7 +270,7 @@ async def get_conversation_info(
             "conversation_access_denied",
             user_qiao_id=user_qiao_id,
             contact_owner=contact.user_qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
         return None
 
@@ -284,19 +284,23 @@ async def get_conversation_info(
 
     # Build response
     response = ConversationInfoResponse(
-        conv_id=contact.conv_id,
+        conversation_id=contact.conversation_id,
         im_conv_id=im_conv_id,
         contact_qiao_id=contact.contact_qiao_id,
         profile=contact_info,
     )
 
-    logger.info("conversation_info_retrieved", user_qiao_id=user_qiao_id, conv_id=conv_id)
+    logger.info(
+        "conversation_info_retrieved",
+        user_qiao_id=user_qiao_id,
+        conversation_id=conversation_id,
+    )
 
     return response
 
 
 async def update_contact(
-    db: AsyncSession, user_qiao_id: str, conv_id: str, update_data: ContactUpdate
+    db: AsyncSession, user_qiao_id: str, conversation_id: str, update_data: ContactUpdate
 ) -> ContactDetailResponse | None:
     """
     Update contact information.
@@ -304,7 +308,7 @@ async def update_contact(
     Args:
         db: Database session
         user_qiao_id: User's qiao_id
-        conv_id: Conversation ID
+        conversation_id: Conversation identifier
         update_data: Contact update data
 
     Returns:
@@ -314,10 +318,10 @@ async def update_contact(
         ValueError: If validation fails
     """
     # Get contact
-    contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
+    contact = await contact_crud.get_by_conversation_id(db, conversation_id=conversation_id)
 
     if not contact:
-        logger.warning("contact_not_found_for_update", conv_id=conv_id)
+        logger.warning("contact_not_found_for_update", conversation_id=conversation_id)
         return None
 
     # Verify ownership
@@ -326,7 +330,7 @@ async def update_contact(
             "contact_update_access_denied",
             user_qiao_id=user_qiao_id,
             contact_owner=contact.user_qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
         return None
 
@@ -357,7 +361,7 @@ async def update_contact(
     logger.info(
         "contact_updated",
         user_qiao_id=user_qiao_id,
-        conv_id=conv_id,
+        conversation_id=conversation_id,
         updated_fields=list(update_dict.keys()),
     )
 
@@ -365,7 +369,7 @@ async def update_contact(
 
 
 async def block_contact(
-    db: AsyncSession, user_qiao_id: str, conv_id: str
+    db: AsyncSession, user_qiao_id: str, conversation_id: str
 ) -> ContactDetailResponse | None:
     """
     Block a contact.
@@ -373,16 +377,16 @@ async def block_contact(
     Args:
         db: Database session
         user_qiao_id: User's qiao_id
-        conv_id: Conversation ID
+        conversation_id: Conversation identifier
 
     Returns:
         Updated ContactResponse or None if not found
     """
     # Get contact
-    contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
+    contact = await contact_crud.get_by_conversation_id(db, conversation_id=conversation_id)
 
     if not contact:
-        logger.warning("contact_not_found_for_block", conv_id=conv_id)
+        logger.warning("contact_not_found_for_block", conversation_id=conversation_id)
         return None
 
     # Verify ownership
@@ -391,7 +395,7 @@ async def block_contact(
             "contact_block_access_denied",
             user_qiao_id=user_qiao_id,
             contact_owner=contact.user_qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
         return None
 
@@ -406,13 +410,13 @@ async def block_contact(
     # Build response
     contact_response = _build_contact_detail(updated_contact, profile, avatar_url=avatar_url)
 
-    logger.info("contact_blocked", user_qiao_id=user_qiao_id, conv_id=conv_id)
+    logger.info("contact_blocked", user_qiao_id=user_qiao_id, conversation_id=conversation_id)
 
     return contact_response
 
 
 async def unblock_contact(
-    db: AsyncSession, user_qiao_id: str, conv_id: str
+    db: AsyncSession, user_qiao_id: str, conversation_id: str
 ) -> ContactDetailResponse | None:
     """
     Unblock a contact.
@@ -420,16 +424,16 @@ async def unblock_contact(
     Args:
         db: Database session
         user_qiao_id: User's qiao_id
-        conv_id: Conversation ID
+        conversation_id: Conversation identifier
 
     Returns:
         Updated ContactResponse or None if not found
     """
     # Get contact
-    contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
+    contact = await contact_crud.get_by_conversation_id(db, conversation_id=conversation_id)
 
     if not contact:
-        logger.warning("contact_not_found_for_unblock", conv_id=conv_id)
+        logger.warning("contact_not_found_for_unblock", conversation_id=conversation_id)
         return None
 
     # Verify ownership
@@ -438,7 +442,7 @@ async def unblock_contact(
             "contact_unblock_access_denied",
             user_qiao_id=user_qiao_id,
             contact_owner=contact.user_qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
         return None
 
@@ -453,28 +457,28 @@ async def unblock_contact(
     # Build response
     contact_response = _build_contact_detail(updated_contact, profile, avatar_url=avatar_url)
 
-    logger.info("contact_unblocked", user_qiao_id=user_qiao_id, conv_id=conv_id)
+    logger.info("contact_unblocked", user_qiao_id=user_qiao_id, conversation_id=conversation_id)
 
     return contact_response
 
 
-async def delete_contact(db: AsyncSession, user_qiao_id: str, conv_id: str) -> bool:
+async def delete_contact(db: AsyncSession, user_qiao_id: str, conversation_id: str) -> bool:
     """
     Delete a contact (soft delete).
 
     Args:
         db: Database session
         user_qiao_id: User's qiao_id
-        conv_id: Conversation ID
+        conversation_id: Conversation identifier
 
     Returns:
         True if deleted successfully, False if not found or access denied
     """
     # Get contact
-    contact = await contact_crud.get_by_conv_id(db, conv_id=conv_id)
+    contact = await contact_crud.get_by_conversation_id(db, conversation_id=conversation_id)
 
     if not contact:
-        logger.warning("contact_not_found_for_delete", conv_id=conv_id)
+        logger.warning("contact_not_found_for_delete", conversation_id=conversation_id)
         return False
 
     # Verify ownership
@@ -483,7 +487,7 @@ async def delete_contact(db: AsyncSession, user_qiao_id: str, conv_id: str) -> b
             "contact_delete_access_denied",
             user_qiao_id=user_qiao_id,
             contact_owner=contact.user_qiao_id,
-            conv_id=conv_id,
+            conversation_id=conversation_id,
         )
         return False
 
@@ -492,6 +496,6 @@ async def delete_contact(db: AsyncSession, user_qiao_id: str, conv_id: str) -> b
         db, user_qiao_id=user_qiao_id, contact_qiao_id=contact.contact_qiao_id
     )
 
-    logger.info("contact_deleted", user_qiao_id=user_qiao_id, conv_id=conv_id)
+    logger.info("contact_deleted", user_qiao_id=user_qiao_id, conversation_id=conversation_id)
 
     return True

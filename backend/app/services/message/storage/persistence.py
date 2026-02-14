@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,9 +16,7 @@ from app.enums import (
     ContactType,
     MessageDirection,
     MessageParticipantType,
-    MessageStatus,
     MessageType,
-    ServiceProvider,
 )
 from app.models.contact import Contact
 from app.models.message.message import MessageHistory
@@ -59,16 +58,11 @@ async def store_message(
     if event.message_type in (MessageType.TYPING_START, MessageType.TYPING_END):
         return None
 
-    # Determine direction and provider ID based on event type
-    msg_id_provider: str | None
+    # Determine direction based on event type
     if isinstance(event, InboundMessageEvent):
         direction = MessageDirection.INBOUND
-        message_status = MessageStatus.DELIVERED
-        msg_id_provider = event.msg_id_provider_inbound
     elif isinstance(event, OutboundMessageEvent):
         direction = MessageDirection.OUTBOUND
-        message_status = MessageStatus.SENT
-        msg_id_provider = event.msg_id_provider_outbound
     else:
         raise TypeError(f"Unsupported event type: {type(event)}")
 
@@ -91,13 +85,19 @@ async def store_message(
         content=event.content,
         message_type=event.message_type,
         direction=direction,
-        msg_id_provider=msg_id_provider,
+        msg_id_provider_inbound=event.msg_id_provider_inbound
+        if isinstance(event, InboundMessageEvent)
+        else None,
         msg_id_client=event.msg_id_client,
-        client_sent_time=event.client_sent_time,
+        client_sent_at=event.client_sent_time_ms,
         sent_at=event.sent_at_ms,
         msg_id_server=event.msg_id_server,
         metadata=metadata_dict,
-        status=message_status,
+        inbound_provider=event.inbound_provider if isinstance(event, InboundMessageEvent) else None,
+        inbound_device_id=event.inbound_device_id
+        if isinstance(event, InboundMessageEvent)
+        else None,
+        llm_request_id=event.llm_request_id if isinstance(event, OutboundMessageEvent) else None,
     )
 
 
@@ -114,13 +114,15 @@ async def _store_message_internal(
     content: str,
     message_type: int,
     direction: int,
-    msg_id_provider: str | None = None,
+    msg_id_provider_inbound: str | None = None,
     msg_id_client: str | None = None,
-    client_sent_time: int | float | str | datetime | None = None,
+    client_sent_at: int | float | str | datetime | None = None,
     sent_at: int | float | str | datetime | None = None,
     msg_id_server: str | None = None,
     metadata: dict[str, Any] | None = None,
-    status: MessageStatus = MessageStatus.SENT,
+    inbound_provider: int | None = None,
+    inbound_device_id: str | None = None,
+    llm_request_id: int | None = None,
 ) -> MessageHistory:
     """
     Store message to message_history.
@@ -139,7 +141,7 @@ async def _store_message_internal(
         from_id: Sender internal ID
         to_type: Receiver participant type
         to_id: Receiver internal ID
-        msg_id_provider: Provider message ID (optional)
+        msg_id_provider_inbound: Inbound provider message ID (optional)
         msg_id_client: Client message ID (optional, for user messages)
         client_sent_time: Client sent timestamp in ms epoch or datetime
             (optional, for user messages)
@@ -155,24 +157,25 @@ async def _store_message_internal(
         ValueError: If participant not found
     """
     msg_id_server_value = msg_id_server or f"msg_{generate_snowflake_id()}"
-    # Determine service provider
-    service_provider = ServiceProvider.LEANCLOUD if msg_id_provider else ServiceProvider.INTERNAL
 
     # Normalize optional client timestamp (LeanCloud sends epoch milliseconds)
-    normalized_client_sent_time = _normalize_client_sent_time(client_sent_time)
+    normalized_client_sent_time = _normalize_client_sent_time(client_sent_at)
     normalized_sent_at = _normalize_client_sent_time(sent_at)
     if normalized_sent_at is None:
         normalized_sent_at = normalized_client_sent_time or datetime.now(UTC)
 
+    normalized_inbound_device_id: UUID | None = None
+    if inbound_device_id:
+        try:
+            normalized_inbound_device_id = UUID(inbound_device_id)
+        except ValueError:
+            logger.warning("invalid_inbound_device_id", value=inbound_device_id)
+            normalized_inbound_device_id = None
+
     # Create message record
     message_data = {
         "id": generate_snowflake_id(),
-        "msg_id_provider_inbound": msg_id_provider
-        if direction == MessageDirection.INBOUND
-        else None,
-        "msg_id_provider_outbound": msg_id_provider
-        if direction == MessageDirection.OUTBOUND
-        else None,
+        "msg_id_provider_inbound": msg_id_provider_inbound,
         "msg_id_client": msg_id_client,
         "msg_id_server": msg_id_server_value,
         "conversation_id": conv_id,
@@ -185,9 +188,10 @@ async def _store_message_internal(
         "to_qiao_id": to_qiao_id,
         "message_type": message_type,
         "content": content,
-        "service_provider": service_provider,
-        "status": status,
-        "client_sent_time": normalized_client_sent_time,
+        "inbound_provider": inbound_provider,
+        "inbound_device_id": normalized_inbound_device_id,
+        "llm_request_id": llm_request_id,
+        "client_sent_at": normalized_client_sent_time,
         "sent_at": normalized_sent_at,
         "message_metadata": metadata or {},
     }
@@ -256,7 +260,7 @@ def _resolve_participant_from_contact(
 
     if qiao_id == contact.user_qiao_id:
         if contact.user_id is None:
-            logger.error("contact_user_id_missing", conv_id=contact.conv_id)
+            logger.error("contact_user_id_missing", conversation_id=contact.conversation_id)
             raise ValueError("Contact user_id missing for message participant resolution.")
         return MessageParticipantType.USER, contact.user_id
 
@@ -269,7 +273,7 @@ def _resolve_participant_from_contact(
 
     logger.error(
         "participant_qiao_id_mismatch",
-        conv_id=contact.conv_id,
+        conversation_id=contact.conversation_id,
         qiao_id=qiao_id,
         user_qiao_id=contact.user_qiao_id,
         contact_qiao_id=contact.contact_qiao_id,

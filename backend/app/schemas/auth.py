@@ -1,16 +1,19 @@
 """Authentication schemas."""
 
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.enums import DeviceType
 from app.type_defs import JSONDict
 
 
 class WeChatLoginRequest(BaseModel):
-    """WeChat login check request (openid only)."""
+    """WeChat login check request (openid + device)."""
 
     login_code: str = Field(..., description="Login code from wx.login()")
+    device_id: UUID = Field(..., description="Device/installation UUID")
 
 
 class WeChatLoginResponse(BaseModel):
@@ -38,6 +41,7 @@ class WeChatBindPhoneRequest(BaseModel):
 
     login_code: str = Field(..., description="Login code from wx.login()")
     phone_code: str = Field(..., description="Phone code from getPhoneNumber button")
+    device_id: UUID = Field(..., description="Device/installation UUID")
 
 
 class WeChatBindPhoneResponse(BaseModel):
@@ -77,6 +81,7 @@ class VerifyPhoneRequest(BaseModel):
 
     phone: str = Field(..., description="Phone number in E.164 format")
     sms_code: str = Field(..., description="SMS verification code")
+    device_id: UUID = Field(..., description="Device/installation UUID")
 
 
 class VerifyPhoneResponse(BaseModel):
@@ -100,3 +105,30 @@ class RefreshTokenResponse(BaseModel):
 
     access_token: str = Field(..., description="New access token")
     expires_in: int = Field(..., description="Access token lifetime in seconds")
+
+
+class PasswordLoginRequest(BaseModel):
+    """Password login request."""
+
+    identifier: str = Field(
+        ...,
+        description="Login identifier: username | phone | email",
+        min_length=1,
+        max_length=100,
+    )
+    password: str = Field(..., description="Plain password", min_length=1, max_length=200)
+    device_id: UUID = Field(..., description="Device/installation UUID")
+    device_type: DeviceType = Field(
+        ...,
+        description="Device type enum: 1=ios, 2=android, 3=web, 4=mini_program",
+    )
+
+
+class PasswordLoginResponse(BaseModel):
+    """Password login response."""
+
+    access_token: str = Field(..., description="Access token for authenticated user")
+    refresh_token: str = Field(..., description="Refresh token for authenticated user")
+    expires_in: int = Field(..., description="Access token lifetime in seconds")
+    needs_profile_setup: bool = Field(..., description="Whether profile setup is required")
+    user: JSONDict = Field(..., description="User info for the authenticated session")

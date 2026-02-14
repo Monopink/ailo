@@ -6,7 +6,7 @@ This module contains Starlette-Admin views for AI instance configuration and per
 from collections.abc import MutableMapping, Sequence
 from typing import ClassVar
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from starlette.requests import Request
 from starlette_admin import HasOne, IntegerField, JSONField, StringField, TextAreaField
 from starlette_admin._types import RequestAction
@@ -22,6 +22,11 @@ from app.models.ai.memory import AITemplateMemory
 from app.models.ai.template import AIPersona, AITemplate
 from app.models.base import generate_qiao_id
 from app.models.profile import Profile
+from app.services.security.username import (
+    USERNAME_HELP_TEXT,
+    UsernameValidationConfigError,
+    validate_username_or_error,
+)
 
 FormData = MutableMapping[str, object]
 
@@ -368,10 +373,11 @@ class AIPersonaView(ModelView):
         return False
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["qiao_id"]
+    searchable_fields: ClassVar[list[str]] = ["qiao_id", "username"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "qiao_id",
+        "username",
         "is_reusable",
         "status",
         "created_at",
@@ -384,6 +390,14 @@ class AIPersonaView(ModelView):
             "qiao_id",
             label="Persona Qiao ID",
             help_text="System-generated qiao_id (editable if you need to override)",
+        ),
+        StringField(
+            "username",
+            label="Username",
+            help_text=USERNAME_HELP_TEXT,
+            minlength=5,
+            maxlength=20,
+            required=True,
         ),
         _PersonaRelatedStringField(
             "profile_nickname", profile_attr="nickname", label="Profile Nickname"
@@ -414,21 +428,58 @@ class AIPersonaView(ModelView):
         LocalDateTimeField("updated_at", label="Updated At", help_text="Last update timestamp"),
     ]
 
-    async def before_create(self, _request: Request, _data: FormData, obj: AIPersona) -> None:
+    async def before_create(self, request: Request, _data: FormData, obj: AIPersona) -> None:
         """Ensure ai_type is set before creating a persona."""
         self._sync_ai_type(obj)
         errors = {}
         if not hasattr(obj, "type_id") or obj.type_id is None:
             errors["ai_type"] = "AI Type is required"
+        username = getattr(obj, "username", None)
+        if not isinstance(username, str) or not username:
+            errors["username"] = "Username is required"
+        else:
+            try:
+                username_error = await validate_username_or_error(request.state.session, username)
+            except UsernameValidationConfigError as exc:
+                errors["username"] = str(exc)
+            else:
+                if username_error is not None:
+                    errors["username"] = username_error
+                else:
+                    exists_stmt = select(AIPersona.id).where(
+                        func.lower(AIPersona.username) == username.lower()
+                    )
+                    exists_result = await request.state.session.execute(exists_stmt)
+                    if exists_result.scalar_one_or_none() is not None:
+                        errors["username"] = "Username already exists"
         if errors:
             raise FormValidationError(errors)
 
-    async def before_edit(self, _request: Request, _data: FormData, obj: AIPersona) -> None:
+    async def before_edit(self, request: Request, _data: FormData, obj: AIPersona) -> None:
         """Keep ai_type synchronized when editing."""
         self._sync_ai_type(obj)
         errors = {}
         if not hasattr(obj, "type_id") or obj.type_id is None:
             errors["ai_type"] = "AI Type is required"
+        username = getattr(obj, "username", None)
+        if not isinstance(username, str) or not username:
+            errors["username"] = "Username is required"
+        else:
+            try:
+                username_error = await validate_username_or_error(request.state.session, username)
+            except UsernameValidationConfigError as exc:
+                errors["username"] = str(exc)
+            else:
+                if username_error is not None:
+                    errors["username"] = username_error
+                else:
+                    exists_stmt = select(AIPersona.id).where(
+                        func.lower(AIPersona.username) == username.lower(),
+                        AIPersona.id != obj.id,
+                    )
+                    exists_result = await request.state.session.execute(exists_stmt)
+                    if exists_result.scalar_one_or_none() is not None:
+                        errors["username"] = "Username already exists"
         if errors:
             raise FormValidationError(errors)
 

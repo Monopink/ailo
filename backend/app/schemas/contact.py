@@ -27,7 +27,7 @@ class ContactProfileSummary(BaseSchema):
 class ContactListItem(BaseSchema):
     """List item for contact collections."""
 
-    conv_id: str = Field(..., description="Conversation identifier")
+    conversation_id: str = Field(..., description="Conversation identifier")
     contact_qiao_id: str = Field(..., description="Contact external ID")
     alias: str | None = Field(None, description="Contact alias/remark name")
     tags: list[str] = Field(default_factory=list, description="Contact tags")
@@ -93,7 +93,7 @@ class ContactUpdate(BaseModel):
 class ConversationInfoResponse(BaseSchema):
     """Schema for conversation info response."""
 
-    conv_id: str = Field(..., description="Conversation identifier")
+    conversation_id: str = Field(..., description="Conversation identifier")
     im_conv_id: str = Field(..., description="IM provider conversation ID")
     contact_qiao_id: str = Field(..., description="Contact external ID")
     profile: ContactProfileSummary = Field(..., description="Contact basic info")

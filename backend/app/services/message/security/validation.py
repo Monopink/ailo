@@ -99,64 +99,6 @@ class MessageValidationService:
         )
         return ValidationResult(allowed=True)
 
-    async def validate_test_user_permission(
-        self, db: AsyncSession, test_user_qiao_id: str, instance: AIInstance, contact: Contact
-    ) -> ValidationResult:
-        """
-        Validate test user permission for chat testing.
-
-        Similar to validate_message_permission but with more detailed error messages
-        for admin/testing purposes.
-
-        Args:
-            db: Database session
-            test_user_qiao_id: Test user's qiao_id
-            instance: AI instance
-            contact: Contact relationship instance
-
-        Returns:
-            ValidationResult with permission status and detailed suggestions
-        """
-        logger.debug(
-            "test_user_permission_validation_started",
-            db_session_id=id(db),
-            test_user_qiao_id=test_user_qiao_id,
-            instance_qiao_id=instance.qiao_id,
-        )
-
-        # Check 1: User blocked AI instance
-        if contact.is_blocked:
-            return ValidationResult(
-                allowed=False,
-                reason=(
-                    f"Test user '{test_user_qiao_id}' has blocked AI instance '{instance.qiao_id}'"
-                ),
-                chat_info_type=ChatInfoType.MESSAGE_BLOCKED,
-                error_code="TEST_USER_BLOCKED_INSTANCE",
-                suggestions=[
-                    "Unblock the AI instance in Contacts management",
-                    "Set contact.is_blocked = 0",
-                ],
-            )
-
-        # Check 2: AI instance blocked user
-        if instance.status == BLOCKED_STATUS:
-            return ValidationResult(
-                allowed=False,
-                reason=(
-                    f"AI instance '{instance.qiao_id}' has blocked test user '{test_user_qiao_id}'"
-                ),
-                chat_info_type=ChatInfoType.MESSAGE_BLOCKED,
-                error_code="INSTANCE_BLOCKED_TEST_USER",
-                suggestions=[
-                    "Change instance status from BLOCKED to ACTIVE",
-                    "Check AI Instance management to update status",
-                ],
-            )
-
-        # All checks passed
-        return ValidationResult(allowed=True)
-
 
 # Global instance for dependency injection
 message_validation_service = MessageValidationService()

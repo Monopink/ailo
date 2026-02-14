@@ -11,13 +11,13 @@ from .monitoring.health import check_message_service_health
 from .outbound.helpers import send_chat_info, send_contact_request_notification
 
 # Export commonly used functions
-from .outbound.sender import send_message, send_notification
+from .outbound.sender import send_notification, send_timeline_message
 
 __all__ = [
     "check_message_service_health",
     "route_message",
     "send_chat_info",
     "send_contact_request_notification",
-    "send_message",
+    "send_timeline_message",
     "send_notification",
 ]

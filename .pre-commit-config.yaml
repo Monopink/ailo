@@ -36,6 +36,25 @@ repos:
         name: Format with Ruff
         files: ^backend/app/.*\.py$
 
+  # JavaScript/CSS checks for admin static files
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.17.0
+    hooks:
+      - id: eslint
+        name: Lint admin JavaScript
+        files: ^backend/app/admin/static/.*\.js$
+        args: ['--config', 'eslint.config.admin.mjs', '--fix']
+        additional_dependencies:
+          - eslint@9.17.0
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        name: Format admin static files
+        files: ^backend/app/admin/static/.*\.(js|css)$
+        args: ['--write', '--config', '.prettierrc.admin.json']
+
   # Local custom hooks
   - repo: local
     hooks:

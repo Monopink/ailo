@@ -1,215 +1,37 @@
 # Database Migration Workflow
 
-Detailed steps for creating and applying database migrations.
+Use this protocol after schema model changes.
 
-## Configuration
+## Precheck
 
-**Read from**:
-- Database: `deployment/.env` (POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD)
-- Docker: `deployment/docker-compose.yml`
-- Alembic: `backend/alembic.ini`
+1. Read DB config from `deployment/.env`.
+2. Confirm changed model files with git diff.
 
-**Verify before starting**:
-```bash
-cd deployment
-grep -E "POSTGRES_DB|POSTGRES_USER" .env
-```
+## Migration Steps
 
-## Migration Workflow
-
-### Step 1: Verify Model Changes
-
-Check what models were modified:
-
-```bash
-cd deployment
-git diff --name-only HEAD | grep "app/models/"
-```
-
-Read the modified model files to understand schema changes.
-
-### Step 2: Create Alembic Migration
-
-Generate new Alembic migration:
+1. Generate migration:
 
 ```bash
 cd deployment
 docker-compose exec backend alembic revision --autogenerate -m "descriptive_message"
 ```
 
-**Migration message guidelines**:
-- Use snake_case: `add_user_avatar_field`
-- Be specific: "add_user_avatar_field" not "update_user"
-- Include action: `add_`, `remove_`, `modify_`, `create_table_`, `drop_table_`
+2. Review generated file under `backend/alembic/versions/`.
+3. Update init SQL to final schema state in `backend/database/init/`.
+4. Update related tables in `docs/data-dict/`.
+5. Verify three-way sync (model, init SQL, data dictionary).
 
-### Step 3: Review Generated Migration
+## Verification
 
-Read the generated migration file in `backend/alembic/versions/`.
-
-**Check for**:
-- Correct table and column names
-- Proper foreign key constraints
-- Index definitions
-- Data type accuracy
-- Default values
-
-**Common issues to fix**:
-- Missing `nullable=False` constraints
-- Incorrect `server_default` values
-- Missing indexes on foreign keys
-- Enum type changes (may need manual handling)
-
-### Step 4: Update Initialization Scripts
-
-Update `backend/database/init/01_schema.sql` to match new schema.
-
-**For new tables**:
-- Add complete CREATE TABLE statement
-- Include all constraints (PRIMARY KEY, FOREIGN KEY, UNIQUE, CHECK)
-- Add indexes
-- Add comments explaining table purpose
-
-**For modified tables**:
-- Update table definition to reflect changes
-- Ensure consistency with migration
-
-**Important**: Init script should represent **final state** of database, not incremental changes.
-
-### Step 5: Update Data Dictionary
-
-Update documentation in `docs/data-dict/`.
-
-**For each modified table**, update or create `docs/data-dict/<table_name>.md`:
-
-```markdown
-# Table Name
-
-## Purpose
-Brief description of what this table stores
-
-## Schema
-
-| Column | Type | Nullable | Default | Description |
-|--------|------|----------|---------|-------------|
-| id | INTEGER | NO | AUTO | Primary key |
-| name | VARCHAR(100) | NO | - | User name |
-| created_at | TIMESTAMP | NO | NOW() | Creation time |
-
-## Relationships
-
-- **Belongs to**: users (user_id → users.id)
-- **Has many**: orders (orders.user_id → id)
-
-## Indexes
-
-- PRIMARY KEY (id)
-- INDEX idx_user_name (name)
-- UNIQUE INDEX uk_user_email (email)
-
-## Business Rules
-
-- Email must be unique
-- Name cannot be empty
-- Soft delete using deleted_at column
-```
-
-### Step 6: Verify Three-Way Sync
-
-Ensure these three sources are synchronized:
-
-1. **SQLAlchemy Models** (`backend/app/models/*.py`)
-2. **Init Scripts** (`backend/database/init/01_schema.sql`)
-3. **Data Dictionary** (`docs/data-dict/*.md`)
-
-**Verification checklist**:
-- [ ] All columns in model exist in init script
-- [ ] All constraints match between model and init script
-- [ ] Data dictionary documents all columns
-- [ ] Relationships are documented
-- [ ] Indexes are documented
-
-### Step 7: Test Migration
-
-Test migration in development:
-
-```bash
-cd deployment
-# Apply migration
-docker-compose exec backend alembic upgrade head
-
-# Verify database state (uses env vars from .env)
-docker-compose exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB -c "\d+ table_name"
-```
-
-**Check**:
-- Migration applies without errors
-- Schema matches expectations
-- Existing data is preserved (if applicable)
-- Foreign keys work correctly
-
-### Step 8: Test Init Script
-
-Test that init script creates correct schema:
-
-```bash
-cd deployment
-# Drop and recreate test database
-docker-compose exec postgres psql -U $POSTGRES_USER -c "DROP DATABASE IF EXISTS ${POSTGRES_DB}_test;"
-docker-compose exec postgres psql -U $POSTGRES_USER -c "CREATE DATABASE ${POSTGRES_DB}_test;"
-
-# Run init script
-docker-compose exec postgres psql -U $POSTGRES_USER -d ${POSTGRES_DB}_test -f /docker-entrypoint-initdb.d/01_schema.sql
-
-# Verify schema
-docker-compose exec postgres psql -U $POSTGRES_USER -d ${POSTGRES_DB}_test -c "\d+"
-```
-
-## Important Rules
-
-1. **Always create migration first** - Never manually edit database
-2. **Three-way sync is mandatory** - Models, init scripts, and docs must match
-3. **Test before committing** - Verify migration works and init script is correct
-4. **Descriptive migration messages** - Future developers need to understand changes
-5. **Review autogenerated migrations** - Alembic may miss some details
-
-## Common Issues
-
-### Issue: "Target database is not up to date"
-
-**Cause**: Local database is behind migration history
-
-**Solution**:
 ```bash
 cd deployment
 docker-compose exec backend alembic upgrade head
+docker-compose exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB -c "\d+"
 ```
 
-### Issue: Autogenerate misses changes
+## Rules
 
-**Cause**: Alembic can't detect certain changes (e.g., column renames)
-
-**Solution**: Manually edit migration file to add changes
-
-### Issue: Migration fails on existing data
-
-**Cause**: Adding NOT NULL column to table with existing rows
-
-**Solution**: Use two-step migration:
-1. Add column as nullable with default
-2. Later migration to make it NOT NULL
-
-### Issue: Init script out of sync
-
-**Cause**: Forgot to update init script after migration
-
-**Solution**: Regenerate init script from current database schema:
-```bash
-cd deployment
-docker-compose exec postgres pg_dump -U $POSTGRES_USER -d $POSTGRES_DB --schema-only > ../backend/database/init/01_schema.sql
-```
-
-## Reference
-
-- Database migration rules: `backend/AGENTS.md` lines 62-82
-- Three-way sync requirement: `backend/AGENTS.md` lines 66-71
-- Model definition guidelines: `backend/AGENTS.md` lines 83-132
+1. Use descriptive migration names.
+2. Do not skip migration review.
+3. Do not finish with unsynced schema/docs.
+4. If migration fails, fix migration or schema files before continuing.

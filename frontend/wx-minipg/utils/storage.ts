@@ -62,6 +62,30 @@ const ensureJsonObject = (value: unknown): JsonRecord => {
   return value as JsonRecord;
 };
 
+const normalizeContactProfile = (
+  normalizedProfile: JsonRecord,
+  profileSource: JsonRecord
+): void => {
+  const normalizedNickname =
+    typeof normalizedProfile.nickname === 'string' ? normalizedProfile.nickname : null;
+  const profileNicknameValue =
+    typeof profileSource.nickname === 'string' ? profileSource.nickname : null;
+  const contactNickname = isNonEmptyString(normalizedNickname) ? normalizedNickname : undefined;
+  const profileNickname = isNonEmptyString(profileNicknameValue) ? profileNicknameValue : undefined;
+  normalizedProfile.nickname = firstNonEmptyString(contactNickname, profileNickname) ?? '';
+
+  const normalizedAvatar =
+    typeof normalizedProfile.avatar_url === 'string' ? normalizedProfile.avatar_url : null;
+  const profileAvatarValue =
+    typeof profileSource.avatar_url === 'string' ? profileSource.avatar_url : null;
+  const contactAvatar = isNonEmptyString(normalizedAvatar) ? normalizedAvatar : undefined;
+  const profileAvatar = isNonEmptyString(profileAvatarValue) ? profileAvatarValue : undefined;
+  normalizedProfile.avatar_url = firstNonEmptyString(contactAvatar, profileAvatar) ?? '';
+
+  normalizedProfile.gender ??=
+    typeof profileSource.gender === 'number' ? profileSource.gender : null;
+};
+
 const ensureStoredMessages = (value: unknown): StoredMessages => {
   const parsed = safeParse(StoredMessagesSchema, value);
   if (parsed !== null) {
@@ -212,30 +236,13 @@ function normalizeContact(contact: unknown): StoredContact {
   }
 
   const record = contact as JsonRecord;
+
   const profileSource = ensureJsonObject(record.profile);
   const normalizedProfile = { ...profileSource };
   const normalizedBase = ensureStoredContact(record);
   normalizedBase.tags = ensureStringArray(record.tags);
   normalizedBase.profile = normalizedProfile;
-
-  const normalizedNickname =
-    typeof normalizedProfile.nickname === 'string' ? normalizedProfile.nickname : null;
-  const profileNicknameValue =
-    typeof profileSource.nickname === 'string' ? profileSource.nickname : null;
-  const contactNickname = isNonEmptyString(normalizedNickname) ? normalizedNickname : undefined;
-  const profileNickname = isNonEmptyString(profileNicknameValue) ? profileNicknameValue : undefined;
-  normalizedProfile.nickname = firstNonEmptyString(contactNickname, profileNickname) ?? '';
-
-  const normalizedAvatar =
-    typeof normalizedProfile.avatar_url === 'string' ? normalizedProfile.avatar_url : null;
-  const profileAvatarValue =
-    typeof profileSource.avatar_url === 'string' ? profileSource.avatar_url : null;
-  const contactAvatar = isNonEmptyString(normalizedAvatar) ? normalizedAvatar : undefined;
-  const profileAvatar = isNonEmptyString(profileAvatarValue) ? profileAvatarValue : undefined;
-  normalizedProfile.avatar_url = firstNonEmptyString(contactAvatar, profileAvatar) ?? '';
-
-  normalizedProfile.gender ??=
-    typeof profileSource.gender === 'number' ? profileSource.gender : null;
+  normalizeContactProfile(normalizedProfile, profileSource);
 
   return normalizedBase;
 }
@@ -442,12 +449,35 @@ export async function getLatestMessageMeta(convId: string): Promise<LatestMessag
 export async function addMessage(convId: string, message: StoredMessage): Promise<void> {
   const messages = await getMessages(convId);
   const normalizedMessage = ensureStoredMessage(message);
-  const existingIndex = messages.findIndex((m) => m.msg_id === normalizedMessage.msg_id);
+  const shouldCollapseSelfEcho =
+    isNonEmptyString(normalizedMessage.msg_id_server) &&
+    isNonEmptyString(normalizedMessage.msg_id_client);
+  let existingIndex = messages.findIndex((item) => item.msg_id === normalizedMessage.msg_id);
+
+  if (existingIndex === -1 && shouldCollapseSelfEcho) {
+    const clientMsgId = normalizedMessage.msg_id_client;
+    existingIndex = messages.findIndex((item) => {
+      const existingClientMsgId = isNonEmptyString(item.msg_id_client) ? item.msg_id_client : null;
+      return item.msg_id === clientMsgId || existingClientMsgId === clientMsgId;
+    });
+  }
 
   if (existingIndex !== -1) {
-    messages[existingIndex] = normalizedMessage;
+    messages[existingIndex] = ensureStoredMessage({
+      ...messages[existingIndex],
+      ...normalizedMessage,
+    });
   } else {
     messages.push(normalizedMessage);
+    existingIndex = messages.length - 1;
+  }
+
+  if (shouldCollapseSelfEcho) {
+    const dedupedMessages = messages.filter(
+      (item, index) => index === existingIndex || item.msg_id !== normalizedMessage.msg_id
+    );
+    await saveMessages(convId, ensureStoredMessages(dedupedMessages));
+    return;
   }
 
   await saveMessages(convId, ensureStoredMessages(messages));
@@ -537,7 +567,7 @@ export async function getContacts(): Promise<StoredContacts> {
 
 export async function getContactByConvId(convId: string): Promise<StoredContact | null> {
   const contacts = await getContacts();
-  return contacts.find((c) => c.conv_id === convId) ?? null;
+  return contacts.find((c) => c.conversation_id === convId) ?? null;
 }
 
 export async function saveUserInfo(userInfo: StoredAuthUser | null): Promise<void> {

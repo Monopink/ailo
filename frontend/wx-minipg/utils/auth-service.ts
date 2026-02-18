@@ -63,7 +63,6 @@ class AuthService {
 
       logger.info('Token found, verifying with backend', {
         tokenLength: token.length,
-        tokenPrefix: `${token.substring(0, 10)}...`,
       });
 
       const profile = await fetchCurrentUserProfile();

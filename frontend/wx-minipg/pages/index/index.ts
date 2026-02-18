@@ -280,8 +280,8 @@ Page<ContactListPageData, ContactListPageCustom>({
         const enrichedContacts = await this.attachLatestMessages(normalizedContacts, unreadCounts);
         const merged = enrichedContacts.map((contact) => ({
           ...contact,
-          unreadMarked: isNonEmptyString(contact.conv_id)
-            ? Boolean(unreadMarks[contact.conv_id])
+          unreadMarked: isNonEmptyString(contact.conversation_id)
+            ? Boolean(unreadMarks[contact.conversation_id])
             : false,
         }));
         this.updateContactList(merged);
@@ -323,8 +323,8 @@ Page<ContactListPageData, ContactListPageCustom>({
       const enrichedContacts = await this.attachLatestMessages(cachedContacts, unreadCounts);
       const merged = enrichedContacts.map((contact) => ({
         ...contact,
-        unreadMarked: isNonEmptyString(contact.conv_id)
-          ? Boolean(unreadMarks[contact.conv_id])
+        unreadMarked: isNonEmptyString(contact.conversation_id)
+          ? Boolean(unreadMarks[contact.conversation_id])
           : false,
       }));
       this.updateContactList(merged);
@@ -375,7 +375,7 @@ Page<ContactListPageData, ContactListPageCustom>({
     const latestMessage = await getLatestRenderableMessage(convId);
 
     const contactList = this.data.contactList.map((contact) => {
-      if (contact.conv_id !== convId) {
+      if (contact.conversation_id !== convId) {
         return contact;
       }
       const lastMessageContent =
@@ -492,7 +492,7 @@ Page<ContactListPageData, ContactListPageCustom>({
       return;
     }
 
-    const convId = target.conv_id ?? '';
+    const convId = target.conversation_id;
     if (!isNonEmptyString(convId)) {
       return;
     }
@@ -547,7 +547,7 @@ Page<ContactListPageData, ContactListPageCustom>({
       return;
     }
 
-    const convId = target.conv_id ?? '';
+    const convId = target.conversation_id;
     if (!isNonEmptyString(convId)) {
       return;
     }
@@ -600,7 +600,7 @@ Page<ContactListPageData, ContactListPageCustom>({
 
     const enriched = await Promise.all(
       contacts.map(async (contact) => {
-        if (!isNonEmptyString(contact.conv_id)) {
+        if (!isNonEmptyString(contact.conversation_id)) {
           return {
             ...contact,
             unreadCount: 0,
@@ -608,22 +608,22 @@ Page<ContactListPageData, ContactListPageCustom>({
         }
 
         try {
-          const latestMessage = await getLatestRenderableMessage(contact.conv_id);
+          const latestMessage = await getLatestRenderableMessage(contact.conversation_id);
           return {
             ...contact,
             _latestMessage: latestMessage,
-            unreadCount: unreadCounts[contact.conv_id] ?? 0,
+            unreadCount: unreadCounts[contact.conversation_id] ?? 0,
           } as ContactWithPreview;
         } catch (error: unknown) {
           const err = normalizeError(error);
           logger.warn('Failed to load latest message preview', {
-            convId: contact.conv_id,
+            convId: contact.conversation_id,
             error: err.message,
           });
           return {
             ...contact,
             _latestMessage: null,
-            unreadCount: unreadCounts[contact.conv_id] ?? 0,
+            unreadCount: unreadCounts[contact.conversation_id] ?? 0,
           } as ContactWithPreview;
         }
       })

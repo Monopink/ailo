@@ -28,10 +28,7 @@ export async function fetchOfflineMessages(params?: {
   });
 }
 
-export async function ackOfflineMessages(payload: {
-  last_ack_msg_id: string;
-  last_ack_sent_at: number;
-}): Promise<void> {
+export async function ackOfflineMessages(payload: { last_ack_msg_id: string }): Promise<void> {
   const deviceId = await getDeviceId();
 
   await requestValidated(OfflineAckResponseSchema, {
@@ -40,7 +37,6 @@ export async function ackOfflineMessages(payload: {
     data: {
       device_id: deviceId,
       last_ack_msg_id: payload.last_ack_msg_id,
-      last_ack_sent_at: payload.last_ack_sent_at,
     },
   });
 }

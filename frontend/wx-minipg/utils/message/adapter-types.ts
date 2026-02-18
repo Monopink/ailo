@@ -3,6 +3,8 @@ import type { MessageType } from '../constants/message';
 
 export interface BusinessMessagePayload {
   msg_id: string;
+  msg_id_server?: string | null;
+  msg_id_client?: string | null;
   from_qiao_id: string;
   to_qiao_id: string;
   conv_id: string;
@@ -34,6 +36,7 @@ export interface AdapterMessage extends AdapterSendResult {
 
 export type AdapterTypingPayload = {
   from_qiao_id: string;
+  to_qiao_id: string;
   conv_id: string;
   isTyping: boolean;
   sent_time: number;

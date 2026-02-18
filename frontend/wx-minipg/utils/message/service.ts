@@ -41,6 +41,8 @@ const createBusinessMessage = (
   status: MessageStatus
 ): BusinessMessage => ({
   msg_id: msgId,
+  msg_id_server: null,
+  msg_id_client: msgId,
   from_qiao_id: base.from_qiao_id,
   to_qiao_id: base.to_qiao_id,
   conv_id: base.conv_id,
@@ -63,6 +65,23 @@ interface MessageData {
 
 const generateClientMessageId = (): string =>
   `client_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+const requireIncomingServerMsgId = (message: AdapterMessage): string => {
+  if (!isNonEmptyString(message.msg_id_server)) {
+    throw new Error('MESSAGE_MSG_ID_SERVER_REQUIRED');
+  }
+  return message.msg_id_server;
+};
+
+const resolveIncomingClientMsgId = (message: AdapterMessage): string | null =>
+  isNonEmptyString(message.msg_id_client) ? message.msg_id_client : null;
+
+const resolveIncomingLeanCloudMeta = (
+  message: AdapterMessage
+): { lcMsgId: string | undefined; lcTimestamp: number | undefined } => ({
+  lcMsgId: typeof message.lc_msg_id === 'string' ? message.lc_msg_id : undefined,
+  lcTimestamp: typeof message.lc_timestamp === 'number' ? message.lc_timestamp : undefined,
+});
 
 const normalizeError = (error: unknown): Error => {
   if (error instanceof Error) {
@@ -382,18 +401,15 @@ export class MessageService {
     const normalizedFrom = typeof message.from_qiao_id === 'string' ? message.from_qiao_id : '';
     const normalizedTo = typeof message.to_qiao_id === 'string' ? message.to_qiao_id : '';
     const normalizedConvId = typeof message.conv_id === 'string' ? message.conv_id : '';
-
-    const lcMsgId =
-      'lc_msg_id' in message && typeof message.lc_msg_id === 'string'
-        ? message.lc_msg_id
-        : undefined;
-    const lcTimestamp =
-      'lc_timestamp' in message && typeof message.lc_timestamp === 'number'
-        ? message.lc_timestamp
-        : undefined;
+    const normalizedMsgIdServer = requireIncomingServerMsgId(message);
+    const normalizedMsgIdClient = resolveIncomingClientMsgId(message);
+    const { lcMsgId, lcTimestamp } = resolveIncomingLeanCloudMeta(message);
 
     const storedMessage: StoredMessage = {
       ...message,
+      msg_id: normalizedMsgIdServer,
+      msg_id_server: normalizedMsgIdServer,
+      msg_id_client: normalizedMsgIdClient,
       from_qiao_id: normalizedFrom,
       to_qiao_id: normalizedTo,
       conv_id: normalizedConvId,
@@ -402,6 +418,8 @@ export class MessageService {
 
     const appPayload: Ailo.MessagePayload = {
       msg_id: storedMessage.msg_id,
+      msg_id_server: normalizedMsgIdServer,
+      msg_id_client: normalizedMsgIdClient,
       from_qiao_id: normalizedFrom,
       to_qiao_id: normalizedTo,
       conv_id: normalizedConvId,
@@ -432,30 +450,35 @@ export class MessageService {
     convId: string;
   } {
     const normalizedContent = typeof message.content === 'string' ? message.content : '';
+    const metadata = message.metadata ?? {};
     const storedMessage: StoredMessage = {
       msg_id: message.msg_id_server,
+      msg_id_server: message.msg_id_server,
+      msg_id_client: message.msg_id_client ?? null,
       from_qiao_id: message.from_qiao_id,
       to_qiao_id: message.to_qiao_id,
-      conv_id: message.conv_id,
+      conv_id: message.conversation_id,
       content: normalizedContent,
       message_type: message.message_type,
       supports_typing: true,
-      sent_time: message.sent_time,
+      sent_time: message.sent_time_ms,
       status: MESSAGE_STATUS.RECEIVED,
-      action: message.action ?? null,
-      notification_type: message.notification_type ?? null,
-      data: message.data ?? null,
+      action: metadata.action ?? null,
+      notification_type: metadata.notification_type ?? null,
+      data: null,
     };
 
     const appPayload: Ailo.MessagePayload = {
       msg_id: storedMessage.msg_id,
+      msg_id_server: storedMessage.msg_id_server ?? null,
+      msg_id_client: storedMessage.msg_id_client ?? null,
       from_qiao_id: message.from_qiao_id,
       to_qiao_id: message.to_qiao_id,
-      conv_id: message.conv_id,
+      conv_id: message.conversation_id,
       content: normalizedContent,
       message_type: message.message_type,
       supports_typing: true,
-      sent_time: message.sent_time,
+      sent_time: message.sent_time_ms,
       status: storedMessage.status,
       action: storedMessage.action ?? null,
       notification_type: storedMessage.notification_type ?? null,
@@ -466,7 +489,7 @@ export class MessageService {
       storedMessage,
       appPayload,
       contentLength: normalizedContent.length,
-      convId: message.conv_id,
+      convId: message.conversation_id,
     };
   }
 
@@ -493,14 +516,14 @@ export class MessageService {
     return candidate.sentTime === base.sentTime && candidate.msgId > base.msgId;
   }
 
-  private updatePendingAck(message: StoredMessage, sentTime: number): void {
-    const candidate = { sentTime, msgId: message.msg_id };
+  private updatePendingAck(message: StoredMessage, sentTime: number, msgIdServer: string): void {
+    const candidate = { sentTime, msgId: msgIdServer };
     const pending = this.pendingAck;
     if (
       pending === null ||
       this.isAckAhead(candidate, { sentTime: pending.sentTime, msgId: pending.msgId })
     ) {
-      this.pendingAck = { message, sentTime, msgId: message.msg_id };
+      this.pendingAck = { message, sentTime, msgId: msgIdServer };
     }
   }
 
@@ -541,36 +564,33 @@ export class MessageService {
     if (!isNonEmptyString(this.userId)) {
       return;
     }
-    if (message.to_qiao_id !== this.userId) {
-      return;
-    }
-    if (!isNonEmptyString(message.msg_id)) {
+    if (!isNonEmptyString(message.msg_id_server)) {
       return;
     }
     if (typeof message.sent_time !== 'number') {
       return;
     }
+    const msgIdServer = message.msg_id_server;
     const sentTime = message.sent_time;
     if (!options.force && !this.offlineSyncReady) {
-      if (this.shouldAck(sentTime, message.msg_id)) {
-        this.updatePendingAck(message, sentTime);
+      if (this.shouldAck(sentTime, msgIdServer)) {
+        this.updatePendingAck(message, sentTime, msgIdServer);
       }
       return;
     }
-    if (!this.shouldAck(sentTime, message.msg_id)) {
+    if (!this.shouldAck(sentTime, msgIdServer)) {
       return;
     }
 
     try {
       await ackOfflineMessages({
-        last_ack_msg_id: message.msg_id,
-        last_ack_sent_at: sentTime,
+        last_ack_msg_id: msgIdServer,
       });
-      this.lastAcked = { sentTime, msgId: message.msg_id };
+      this.lastAcked = { sentTime, msgId: msgIdServer };
     } catch (error) {
       const err = normalizeError(error);
       logger.warn('Offline ACK failed', {
-        msg_id: message.msg_id,
+        msg_id_server: msgIdServer,
         conv_id: message.conv_id,
         error: err.message,
       });
@@ -618,9 +638,10 @@ export class MessageService {
       const lastMessage = response.messages[response.messages.length - 1];
       const ackPayload: StoredMessage = {
         msg_id: lastMessage.msg_id_server,
-        conv_id: lastMessage.conv_id,
+        msg_id_server: lastMessage.msg_id_server,
+        conv_id: lastMessage.conversation_id,
         to_qiao_id: lastMessage.to_qiao_id,
-        sent_time: lastMessage.sent_time,
+        sent_time: lastMessage.sent_time_ms,
       };
       await this.ackIfNeeded(ackPayload, { force: true });
 
@@ -678,6 +699,7 @@ export class MessageService {
       const signal = {
         conv_id: typing.conv_id,
         from_qiao_id: typing.from_qiao_id,
+        to_qiao_id: typing.to_qiao_id,
         typing: typing.isTyping,
         sent_time: typing.sent_time,
         received_time: Date.now(),

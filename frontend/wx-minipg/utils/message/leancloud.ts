@@ -19,6 +19,7 @@
 import { LEANCLOUD_CONFIG } from '../config';
 import { ENABLE_LEANCLOUD_DEBUG } from '../env';
 import { getLogger } from '../logger';
+import { registerMessagePresence } from '../message-signature';
 import { MESSAGE_STATUS, MESSAGE_TYPE } from '../constants/message';
 import type { MessageType } from '../constants/message';
 import { isNonEmptyString } from '../guards';
@@ -70,6 +71,11 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
 const getStringAttr = (attrs: AttributeRecord | null, key: string, fallback: string): string => {
   const value = attrs?.[key];
   return typeof value === 'string' ? value : fallback;
+};
+
+const getOptionalStringAttr = (attrs: AttributeRecord | null, key: string): string | null => {
+  const value = attrs?.[key];
+  return typeof value === 'string' && value !== '' ? value : null;
 };
 
 const getOptionalActionAttr = (
@@ -137,7 +143,7 @@ class BusinessMessage extends TypedMessage {
   msg_id = '';
   from_qiao_id = '';
   to_qiao_id = '';
-  conv_id = '';
+  conversation_id = '';
   content = '';
   message_type: MessageType = MESSAGE_TYPE.TEXT;
   supports_typing = true;
@@ -158,7 +164,7 @@ class BusinessMessage extends TypedMessage {
       this.to_qiao_id = data.to_qiao_id;
     }
     if (data.conv_id !== undefined) {
-      this.conv_id = data.conv_id;
+      this.conversation_id = data.conv_id;
     }
     if (data.content !== undefined) {
       this.content = data.content;
@@ -188,7 +194,7 @@ messageField([
   'msg_id',
   'from_qiao_id',
   'to_qiao_id',
-  'conv_id',
+  'conversation_id',
   'content',
   'message_type',
   'supports_typing',
@@ -224,28 +230,31 @@ const getAttributeRecord = (message: BusinessMessage): AttributeRecord | null =>
 const resolveBusinessPayload = (message: BusinessMessage): ResolvedPayload | null => {
   const attrs = getAttributeRecord(message);
 
-  const msgIdValue = isNonEmptyString(message.msg_id)
+  const msgIdServerValue = isNonEmptyString(message.msg_id)
     ? message.msg_id
     : getStringAttr(attrs, 'msg_id', '');
-  if (!isNonEmptyString(msgIdValue)) {
+  if (!isNonEmptyString(msgIdServerValue)) {
     logger.error('Business message missing msg_id', {
-      msg_id: msgIdValue,
+      msg_id: msgIdServerValue,
       lc_id: message.id,
       lc_timestamp: message.timestamp,
       message_type: message.message_type,
     });
     return null;
   }
+  const msgIdClientValue = getOptionalStringAttr(attrs, 'msg_id_client');
 
   const fallbackFrom = isNonEmptyString(message.from_qiao_id) ? message.from_qiao_id : '';
   const fallbackTo = isNonEmptyString(message.to_qiao_id) ? message.to_qiao_id : '';
-  const fallbackConv = isNonEmptyString(message.conv_id) ? message.conv_id : '';
+  const fallbackConv = isNonEmptyString(message.conversation_id) ? message.conversation_id : '';
 
   return {
-    msg_id: msgIdValue,
+    msg_id: msgIdServerValue,
+    msg_id_server: msgIdServerValue,
+    msg_id_client: msgIdClientValue,
     from_qiao_id: getStringAttr(attrs, 'from_qiao_id', fallbackFrom),
     to_qiao_id: getStringAttr(attrs, 'to_qiao_id', fallbackTo),
-    conv_id: getStringAttr(attrs, 'conv_id', fallbackConv),
+    conv_id: getStringAttr(attrs, 'conversation_id', fallbackConv),
     content: getStringAttr(attrs, 'content', message.content),
     message_type: getMessageTypeAttr(attrs, 'message_type', message.message_type),
     supports_typing: getBooleanAttr(attrs, 'supports_typing', message.supports_typing),
@@ -316,6 +325,14 @@ export class LCAdapter implements MessageAdapter {
             nonce: signature.nonce,
           }),
       });
+
+      try {
+        await registerMessagePresence(userId);
+      } catch (error) {
+        await this.imClient.close();
+        this.imClient = null;
+        throw error;
+      }
 
       this.imClient.on('message', this.handleMessage.bind(this));
       this.imClient.on('disconnect', this.handleDisconnect.bind(this));
@@ -615,7 +632,7 @@ export class LCAdapter implements MessageAdapter {
       return;
     }
     const lcMsgId =
-      typeof message.id === 'string' && message.id !== '' ? message.id : message.msg_id;
+      typeof message.id === 'string' && message.id !== '' ? message.id : resolvedPayload.msg_id;
     const lcTimestamp =
       typeof message.timestamp === 'number' && Number.isFinite(message.timestamp)
         ? message.timestamp
@@ -642,6 +659,7 @@ export class LCAdapter implements MessageAdapter {
       }
       this.triggerTypingCallbacks({
         from_qiao_id: businessData.from_qiao_id,
+        to_qiao_id: businessData.to_qiao_id,
         conv_id: businessData.conv_id,
         isTyping: businessData.message_type === MESSAGE_TYPE.TYPING_START,
         sent_time: businessData.sent_time,

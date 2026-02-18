@@ -184,13 +184,13 @@ class TypingManager {
   async sendTypingEnd(convId: string): Promise<void> {
     const state = this.getState(convId);
 
-    if (state.status !== 'typing') {
-      return;
-    }
-
     if (state.timer !== null) {
       clearTimeout(state.timer);
       state.timer = null;
+    }
+
+    if (state.status !== 'typing') {
+      return;
     }
 
     try {

@@ -28,9 +28,9 @@
     <t-cell-group>
     <t-swipe-cell
         wx:for="{{contactList}}"
-        wx:key="conv_id"
+        wx:key="conversation_id"
         right="{{item.swipeActions}}"
-        data-id="{{item.conv_id}}"
+        data-id="{{item.conversation_id}}"
         data-index="{{index}}"
         bind:click="onSwipeActionClick">
         <t-cell
@@ -38,7 +38,7 @@
           align="middle"
           hover
           bind:click="goToChat"
-          data-id="{{item.conv_id}}"
+          data-id="{{item.conversation_id}}"
           data-index="{{index}}">
           <t-avatar slot="image" image="{{item.avatarUrl}}" size="small" shape="circle" />
           <view slot="title" class="index-cell__title-row">

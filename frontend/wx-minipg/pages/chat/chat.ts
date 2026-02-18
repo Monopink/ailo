@@ -845,6 +845,8 @@ Page<ChatPageData, ChatPageCustom>({
       const newMessage: StoredMessage = {
         ...failedMessage,
         msg_id: newClientMsgId,
+        msg_id_server: null,
+        msg_id_client: newClientMsgId,
         sent_time: Date.now(),
         status: MESSAGE_STATUS.SENDING,
       };
@@ -986,6 +988,8 @@ Page<ChatPageData, ChatPageCustom>({
       clientMsgId = buildClientMessageId();
       const optimisticMsg: StoredMessage = {
         msg_id: clientMsgId,
+        msg_id_server: null,
+        msg_id_client: clientMsgId,
         from_qiao_id: userInfo.qiao_id,
         to_qiao_id: this.data.contactQiaoId,
         conv_id: this.data.convId,

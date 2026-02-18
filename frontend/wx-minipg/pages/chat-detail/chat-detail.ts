@@ -230,7 +230,7 @@ Page<ChatDetailPageData, ChatDetailPageCustom>({
           await del(`/contacts/${this.data.convId}`);
           const contacts = await getContacts();
           const updatedContacts = contacts.filter(
-            (contact) => contact.conv_id !== this.data.convId
+            (contact) => contact.conversation_id !== this.data.convId
           );
           await saveContacts(updatedContacts);
           await clearMessages(this.data.convId);

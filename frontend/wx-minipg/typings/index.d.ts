@@ -30,6 +30,8 @@ declare global {
 
     interface MessagePayload {
       msg_id: string;
+      msg_id_server?: string | null;
+      msg_id_client?: string | null;
       from_qiao_id: QiaoID;
       to_qiao_id: QiaoID;
       conv_id: string;

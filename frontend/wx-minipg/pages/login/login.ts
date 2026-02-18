@@ -8,7 +8,7 @@ import {
 } from '../../constants/login-content';
 import { fetchAllContactsFromApi } from '../../utils/contact-sync';
 import { getLogger } from '../../utils/logger';
-import { saveContacts, type StoredAuthUser } from '../../utils/storage';
+import { getDeviceId, saveContacts, type StoredAuthUser } from '../../utils/storage';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import {
   parse,
@@ -118,9 +118,10 @@ Page<LoginPageData, LoginPageCustom>({
   async checkBindingStatus(loginCode: string) {
     try {
       this.setData({ wechatLoading: true });
+      const deviceId = await getDeviceId();
       const response = await post<WechatLoginCheckResponse>(
         '/auth/wechat/login',
-        { login_code: loginCode },
+        { login_code: loginCode, device_id: deviceId },
         { auth: false }
       );
       const parsed = parse(WechatLoginCheckSchema, response);
@@ -187,6 +188,7 @@ Page<LoginPageData, LoginPageCustom>({
       if (loginCode === '') {
         throw new Error('Login code not available, please try again');
       }
+      const deviceId = await getDeviceId();
 
       logger.info('Using pre-fetched login code', { loginCode });
 
@@ -195,6 +197,7 @@ Page<LoginPageData, LoginPageCustom>({
         {
           login_code: loginCode,
           phone_code: phoneCode,
+          device_id: deviceId,
         },
         { auth: false }
       );

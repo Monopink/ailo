@@ -15,7 +15,6 @@ interface StorageStatusField {
 
 interface TokenStatus extends StorageStatusField {
   length: number;
-  prefix: string;
 }
 
 interface UserInfoStatus extends StorageStatusField {
@@ -74,7 +73,6 @@ export function checkStorage(): StorageStatus | null {
       token: {
         exists: hasToken,
         length: token.length,
-        prefix: hasToken ? `${token.substring(0, 10)}...` : 'none',
       },
       userInfo: {
         exists: hasUserInfo,

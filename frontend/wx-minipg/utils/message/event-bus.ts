@@ -4,6 +4,7 @@ type MessageSubscriber = (message: StoredMessage) => void;
 type TypingSubscriber = (payload: {
   conv_id: string;
   from_qiao_id: string;
+  to_qiao_id: string;
   typing: boolean;
   sent_time: number;
   received_time: number;
@@ -44,6 +45,7 @@ class MessageEventBus {
   emitTyping(payload: {
     conv_id: string;
     from_qiao_id: string;
+    to_qiao_id: string;
     typing: boolean;
     sent_time: number;
     received_time: number;

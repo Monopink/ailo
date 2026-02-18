@@ -155,7 +155,18 @@ class MessageStateStore {
   }
 
   private mergeMessage(message: StoredMessage): void {
-    const index = this.storedMessages.findIndex((item) => item.msg_id === message.msg_id);
+    const shouldCollapseSelfEcho =
+      isNonEmptyString(message.msg_id_server) && isNonEmptyString(message.msg_id_client);
+    let index = this.storedMessages.findIndex((item) => item.msg_id === message.msg_id);
+    if (index === -1 && shouldCollapseSelfEcho) {
+      const clientMsgId = message.msg_id_client;
+      index = this.storedMessages.findIndex((item) => {
+        const existingClientMsgId = isNonEmptyString(item.msg_id_client)
+          ? item.msg_id_client
+          : null;
+        return item.msg_id === clientMsgId || existingClientMsgId === clientMsgId;
+      });
+    }
     if (index !== -1) {
       this.storedMessages[index] = {
         ...this.storedMessages[index],
@@ -163,12 +174,19 @@ class MessageStateStore {
       };
     } else {
       this.storedMessages.push(message);
+      index = this.storedMessages.length - 1;
+    }
+    if (shouldCollapseSelfEcho) {
+      this.storedMessages = this.storedMessages.filter(
+        (item, currentIndex) => currentIndex === index || item.msg_id !== message.msg_id
+      );
     }
   }
 
   private async handleTypingEvent(payload: {
     conv_id: string;
     from_qiao_id: string;
+    to_qiao_id: string;
     typing: boolean;
     sent_time: number;
     received_time: number;
@@ -180,10 +198,14 @@ class MessageStateStore {
       logger.error('Typing payload missing received_time', {
         conv_id: payload.conv_id,
         from_qiao_id: payload.from_qiao_id,
+        to_qiao_id: payload.to_qiao_id,
       });
       return;
     }
     await this.ensureCurrentUser();
+    if (isNonEmptyString(this.currentUserId) && payload.to_qiao_id !== this.currentUserId) {
+      return;
+    }
     if (isNonEmptyString(this.currentUserId) && payload.from_qiao_id === this.currentUserId) {
       return;
     }

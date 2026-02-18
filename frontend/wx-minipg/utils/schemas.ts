@@ -40,7 +40,7 @@ export const ContactProfileSchema = z.object({
 export type ContactProfile = z.infer<typeof ContactProfileSchema>;
 
 export const ConversationResponseSchema = z.object({
-  conv_id: z.string(),
+  conversation_id: z.string(),
   im_conv_id: z.string(),
   contact_qiao_id: z.string(),
   profile: ContactProfileSchema,
@@ -100,7 +100,7 @@ export const WechatBindPhoneResponseSchema = z.object({
 export type WechatBindPhoneResponse = z.infer<typeof WechatBindPhoneResponseSchema>;
 
 export const StoredContactSchema = z.object({
-  conv_id: z.string().optional(),
+  conversation_id: z.string(),
   contact_qiao_id: z.string().optional(),
   im_conv_id: z.string().optional(),
   alias: z.string().optional().nullable(),
@@ -117,6 +117,8 @@ export type StoredContacts = z.infer<typeof StoredContactsSchema>;
 
 export const StoredMessageSchema = z.object({
   msg_id: z.string(),
+  msg_id_server: z.string().optional().nullable(),
+  msg_id_client: z.string().optional().nullable(),
   conv_id: z.string(),
   from_qiao_id: z.string().optional(),
   to_qiao_id: z.string().optional(),
@@ -170,16 +172,19 @@ export type ConversationViewState = z.infer<typeof ConversationViewStateSchema>;
 export const OfflineMessageSchema = z.object({
   msg_id_server: z.string(),
   msg_id_client: z.string().optional().nullable(),
-  conv_id: z.string(),
+  conversation_id: z.string(),
   from_qiao_id: z.string(),
   to_qiao_id: z.string(),
   content: z.string().optional().nullable(),
   message_type: MessageTypeSchema,
-  sent_time: z.number(),
-  server_time: z.number(),
-  action: z.record(z.string(), z.unknown()).optional().nullable(),
-  notification_type: z.number().optional().nullable(),
-  data: z.record(z.string(), z.unknown()).optional().nullable(),
+  client_sent_time_ms: z.number().optional().nullable(),
+  sent_time_ms: z.number(),
+  metadata: z
+    .object({
+      action: z.record(z.string(), z.unknown()).optional().nullable(),
+      notification_type: z.number().optional().nullable(),
+    })
+    .optional(),
 });
 export type OfflineMessage = z.infer<typeof OfflineMessageSchema>;
 

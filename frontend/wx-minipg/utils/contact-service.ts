@@ -2,6 +2,7 @@ import { requestValidated } from './api';
 import { getAvatarUrl } from './avatar';
 import { getLogger } from './logger';
 import { firstNonEmptyString, isNonEmptyString } from './guards';
+import conversationStore from './message/conversation-store';
 import { getContacts, saveContacts } from './storage';
 import {
   ContactProfile,
@@ -12,6 +13,36 @@ import {
 
 const buildConversationEndpoint = (convId: string): string => `/contacts/${convId}/conversation`;
 const logger = getLogger('ContactService');
+
+async function resolveAuthoritativeImConvId(compatImConvId: string): Promise<string> {
+  let authoritativeImConvId = await conversationStore.getImConvId();
+  if (!isNonEmptyString(authoritativeImConvId)) {
+    const refreshed = await conversationStore.refresh();
+    authoritativeImConvId = refreshed.im_conv_id;
+  }
+
+  if (!isNonEmptyString(authoritativeImConvId)) {
+    throw new Error('IM_CONVERSATION_ID_MISSING');
+  }
+
+  if (isNonEmptyString(compatImConvId) && compatImConvId !== authoritativeImConvId) {
+    logger.warn('im_conv_id mismatch between contacts and lc-im config', {
+      compatImConvId,
+      authoritativeImConvId,
+    });
+    try {
+      const refreshed = await conversationStore.refresh();
+      if (isNonEmptyString(refreshed.im_conv_id)) {
+        authoritativeImConvId = refreshed.im_conv_id;
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn('Failed to refresh authoritative im_conv_id after mismatch', { message });
+    }
+  }
+
+  return authoritativeImConvId;
+}
 
 export interface ChatContactViewModel {
   convId: string;
@@ -35,7 +66,7 @@ export async function refreshStoredContact(
   profile: ContactProfile | null
 ): Promise<StoredContact | null> {
   const contacts = await getContacts();
-  const index = contacts.findIndex((contact) => contact.conv_id === convId);
+  const index = contacts.findIndex((contact) => contact.conversation_id === convId);
   if (index === -1) {
     return null;
   }
@@ -78,16 +109,17 @@ export async function fetchConversationInfo(convId: string): Promise<Conversatio
 export async function getChatContactViewModel(convId: string): Promise<ChatContactViewModel> {
   const conversation = await fetchConversationInfo(convId);
   const contactInfo = conversation.profile;
+  if (conversation.conversation_id !== convId) {
+    throw new Error('CONVERSATION_ID_MISMATCH');
+  }
 
   if (!isNonEmptyString(conversation.contact_qiao_id)) {
     throw new Error('CONTACT_QIAO_ID_MISSING');
   }
-  if (!isNonEmptyString(conversation.im_conv_id)) {
-    throw new Error('IM_CONVERSATION_ID_MISSING');
-  }
+  const imConvId = await resolveAuthoritativeImConvId(conversation.im_conv_id);
 
   const contacts = await getContacts();
-  const index = contacts.findIndex((contact) => contact.conv_id === convId);
+  const index = contacts.findIndex((contact) => contact.conversation_id === convId);
 
   const storedContact = index === -1 ? null : contacts[index];
   const mergedProfile = mergeContactProfile(storedContact?.profile ?? null, contactInfo);
@@ -96,12 +128,14 @@ export async function getChatContactViewModel(convId: string): Promise<ChatConta
   const displayAvatar = getAvatarUrl(mergedProfile.avatar_url ?? '');
 
   if (index !== -1) {
+    const baseContact = contacts[index];
     const updated: StoredContact = {
-      ...storedContact,
+      ...baseContact,
+      conversation_id: baseContact.conversation_id,
       contact_qiao_id: conversation.contact_qiao_id,
-      im_conv_id: conversation.im_conv_id,
+      im_conv_id: imConvId,
       profile: {
-        ...(storedContact?.profile ?? {}),
+        ...(baseContact.profile ?? {}),
         ...mergedProfile,
       },
     };
@@ -113,7 +147,7 @@ export async function getChatContactViewModel(convId: string): Promise<ChatConta
   return {
     convId,
     contactQiaoId: conversation.contact_qiao_id,
-    imConvId: conversation.im_conv_id,
+    imConvId,
     displayName,
     displayAvatar,
     profile: mergedProfile,

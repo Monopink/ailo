@@ -6,11 +6,10 @@ This module contains Starlette-Admin views for AI request logging.
 from typing import ClassVar
 
 from starlette.requests import Request
-from starlette_admin import BooleanField, IntegerField, StringField
+from starlette_admin import BooleanField, DateTimeField, IntegerField, StringField
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.fields import JSONField
 
-from app.admin.fields import LocalDateTimeField
 from app.admin.views.base import IntegerEnumField
 from app.enums import AIRequestStatus
 from app.models.ai.log import AIRequestLog
@@ -118,10 +117,8 @@ class AIRequestLogView(ModelView):
         IntegerEnumField("status", enum=AIRequestStatus, label="Status"),
         IntegerField("token_count", label="Token Count"),
         IntegerField("response_time", label="Response Time (ms)"),
-        LocalDateTimeField("created_at", label="Created At", help_text="Request creation time"),
-        LocalDateTimeField(
-            "completed_at", label="Completed At", help_text="Request completion time"
-        ),
+        DateTimeField("created_at", label="Created At", help_text="Request creation time"),
+        DateTimeField("completed_at", label="Completed At", help_text="Request completion time"),
     ]
 
 

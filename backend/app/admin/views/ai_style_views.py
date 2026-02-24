@@ -6,12 +6,20 @@ This module contains Starlette-Admin views for AI style and relationship system.
 from typing import Any, ClassVar
 
 from starlette.requests import Request
-from starlette_admin import EnumField, FloatField, HasOne, IntegerField, StringField, TextAreaField
+from starlette_admin import (
+    DateTimeField,
+    EnumField,
+    FloatField,
+    HasOne,
+    IntegerField,
+    StringField,
+    TextAreaField,
+)
 from starlette_admin.actions import link_row_action
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
+from starlette_admin.fields import BaseField
 
-from app.admin.fields import LocalDateTimeField
 from app.admin.views.base import IntegerEnumField
 from app.enums import AIStyleStatus
 from app.models.ai.style import (
@@ -85,11 +93,16 @@ class AIStyleView(ModelView):
             help_text="Active styles can be used",
             required=True,
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("created_at", label="Created At", help_text="Creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    row_actions: ClassVar[list[str]] = ["view", "edit", "advanced_edit", "score_algorithm_test"]
+    row_actions: ClassVar[list[str]] = [
+        "view",
+        "edit",
+        "advanced_edit",
+        "score_algorithm_test",
+    ]
 
     @link_row_action(
         name="advanced_edit",
@@ -102,7 +115,7 @@ class AIStyleView(ModelView):
 
     @link_row_action(
         name="score_algorithm_test",
-        text="Score Algorithm Test",
+        text="分数算法测试",
         icon_class="fas fa-flask",
     )
     def score_algorithm_test_row_action(self, _request: Request, pk: Any) -> str:
@@ -115,6 +128,7 @@ MIN_POSITION = 0
 MAX_POSITION = 1000
 MIN_NO_REPLY_PROB = 0.0
 MAX_NO_REPLY_PROB = 1.0
+CHOICE_PAIR_SIZE = 2
 
 WAKE_BIAS_CHOICES = [
     ("balanced", "Balanced"),
@@ -194,21 +208,152 @@ class AIRelationshipView(ModelView):
     exclude_fields_from_create: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
     exclude_fields_from_edit: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
     exclude_fields_from_list: ClassVar[list[str]] = []
+    defaulted_optional_fields: ClassVar[set[str]] = {
+        "status",
+        "wake_time_min_ms",
+        "wake_time_max_ms",
+        "wake_time_bias",
+        "wake_window_ms",
+        "wake_time_adjustment",
+        "no_reply_probability",
+        "followup_delay_ms",
+    }
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._annotate_default_hints()
 
     def can_delete(self, _request: Request) -> bool:
         return False
 
     async def before_create(self, _request: Request, _data: dict[str, Any], obj: Any) -> None:
         """Validate constraints before creating relationship."""
+        self._fill_default_values(obj)
         errors = _validate_relationship_payload(obj)
         if errors:
             raise FormValidationError(errors)
 
     async def before_edit(self, _request: Request, _data: dict[str, Any], obj: Any) -> None:
         """Validate constraints before editing relationship."""
+        self._fill_default_values(obj)
         errors = _validate_relationship_payload(obj)
         if errors:
             raise FormValidationError(errors)
+
+    def _annotate_default_hints(self) -> None:
+        """Mark advanced fields as optional and append dynamic default hints."""
+        for field in self.fields:
+            if not isinstance(field, BaseField):
+                continue
+            if field.name not in self.defaulted_optional_fields:
+                continue
+
+            default_value = self._get_column_default(field.name)
+            default_text = self._format_default_value(field.name, default_value)
+            base_help = str(field.help_text or "").strip()
+            field.help_text = (
+                f"{base_help} Leave empty to use default: {default_text}."
+                if base_help
+                else f"Leave empty to use default: {default_text}."
+            )
+            field.required = False
+
+    def _fill_default_values(self, obj: Any) -> None:
+        """Apply defaults for optional advanced fields when form value is empty."""
+        for field_name in self.defaulted_optional_fields:
+            if getattr(obj, field_name, None) is not None:
+                continue
+            default_value = self._get_column_default(field_name)
+            coerced = self._coerce_default_value(field_name, default_value)
+            if coerced is not None:
+                setattr(obj, field_name, coerced)
+
+    def _format_default_value(self, field_name: str, value: Any) -> str:
+        """Format default values into stable text for admin hints."""
+        if value is None:
+            return "-"
+
+        if field_name == "status":
+            return self._format_status_default(value)
+
+        if field_name == "no_reply_probability":
+            return self._format_probability_default(value)
+
+        return str(value)
+
+    def _format_status_default(self, value: Any) -> str:
+        """Format status default as both raw value and display label when possible."""
+        try:
+            status_value = int(value)
+        except (TypeError, ValueError):
+            return str(value)
+
+        status_label: str | None = None
+        status_field = next(
+            (
+                field
+                for field in self.fields
+                if isinstance(field, IntegerEnumField) and field.name == "status"
+            ),
+            None,
+        )
+        if status_field is not None and status_field.choices is not None:
+            for choice in status_field.choices:
+                if not isinstance(choice, (tuple, list)) or len(choice) != CHOICE_PAIR_SIZE:
+                    continue
+                choice_value, choice_label = choice
+                if choice_value == status_value:
+                    status_label = str(choice_label)
+                    break
+
+        return f"{status_value} ({status_label})" if status_label is not None else str(status_value)
+
+    @staticmethod
+    def _format_probability_default(value: Any) -> str:
+        """Format probability defaults using fixed two-decimal precision."""
+        try:
+            return f"{float(value):.2f}"
+        except (TypeError, ValueError):
+            return str(value)
+
+    def _coerce_default_value(self, field_name: str, value: Any) -> Any:
+        """Coerce defaults to the type expected by SQLAlchemy model fields."""
+        if value is None:
+            return None
+        if field_name in {
+            "status",
+            "wake_time_min_ms",
+            "wake_time_max_ms",
+            "wake_window_ms",
+            "followup_delay_ms",
+        }:
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
+        if field_name == "no_reply_probability":
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+        return str(value)
+
+    @staticmethod
+    def _get_column_default(field_name: str) -> Any:
+        """Read ORM default first, then server default as a fallback."""
+        column = AIRelationship.__table__.columns.get(field_name)
+        if column is None:
+            return None
+
+        if column.default is not None:
+            default_value = column.default.arg
+            return default_value() if callable(default_value) else default_value
+
+        if column.server_default is not None:
+            server_default = getattr(column.server_default, "arg", None)
+            return str(server_default) if server_default is not None else None
+
+        return None
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
     searchable_fields: ClassVar[list[str]] = ["display_name", "prompt_fragment"]
@@ -291,8 +436,8 @@ class AIRelationshipView(ModelView):
             help_text="Active relationships can be used",
             required=True,
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("created_at", label="Created At", help_text="Creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
 
@@ -337,7 +482,12 @@ class AIStyleDimensionView(ModelView):
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("style_id", False)]
     searchable_fields: ClassVar[list[str]] = []
-    sortable_fields: ClassVar[list[str]] = ["id", "style_id", "initial_position", "created_at"]
+    sortable_fields: ClassVar[list[str]] = [
+        "id",
+        "style_id",
+        "initial_position",
+        "created_at",
+    ]
 
     fields: ClassVar[list[object]] = [
         StringField("id", label="ID", help_text="Internal dimension ID"),
@@ -361,7 +511,7 @@ class AIStyleDimensionView(ModelView):
             help_text="Initial position value (0-1000 permille)",
             required=True,
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
+        DateTimeField("created_at", label="Created At", help_text="Creation time"),
     ]
 
 
@@ -494,8 +644,8 @@ class AIDimensionRelationshipMappingView(ModelView):
             label="Limit Count",
             help_text="Maximum occurrences (leave empty for unlimited)",
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("created_at", label="Created At", help_text="Creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
 

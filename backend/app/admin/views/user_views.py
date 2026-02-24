@@ -13,13 +13,20 @@ from sqlalchemy import desc, func, select
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 from starlette.templating import Jinja2Templates
-from starlette_admin import CustomView, HasOne, IntegerField, JSONField, StringField, TextAreaField
+from starlette_admin import (
+    CustomView,
+    DateTimeField,
+    HasOne,
+    IntegerField,
+    JSONField,
+    StringField,
+    TextAreaField,
+)
 from starlette_admin.actions import link_row_action
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 from starlette_admin.fields import BaseField
 
-from app.admin.fields import LocalDateTimeField
 from app.admin.views.base import IntegerEnumField, convert_empty_strings_to_none
 from app.core.security import get_password_hash
 from app.enums import (
@@ -46,6 +53,7 @@ from app.services.security.username import (
 )
 from app.services.system_config import get_config_int
 from app.type_defs import JSONDict
+from app.utils.phone import is_china_phone, normalize_phone
 
 from .base import BaseRoleAwareModelView, InvertedBooleanField
 
@@ -130,16 +138,16 @@ class UserView(BaseRoleAwareModelView):
             required=True,
         ),
         StringField(
-            "verify_source", label="Verify Source", help_text="Verification source/provider"
+            "verify_source",
+            label="Verify Source",
+            help_text="Verification source/provider",
         ),
         TextAreaField(
             "verification_info",
             label="Verification Info",
             help_text="Verification extra information (JSON/text)",
         ),
-        LocalDateTimeField(
-            "verified_at", label="Verified At", help_text="Verification approval time"
-        ),
+        DateTimeField("verified_at", label="Verified At", help_text="Verification approval time"),
         IntegerEnumField(
             "user_type",
             enum=UserType,
@@ -152,9 +160,9 @@ class UserView(BaseRoleAwareModelView):
             label="Profile Completed",
             help_text="Checked=Completed, Unchecked=Needed (inverted from database for clarity)",
         ),
-        LocalDateTimeField("last_login", label="Last Login", help_text="Last login time"),
-        LocalDateTimeField("created_at", label="Created At", help_text="Account creation time"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("last_login", label="Last Login", help_text="Last login time"),
+        DateTimeField("created_at", label="Created At", help_text="Account creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
     async def validate(self, request: Request, data: FormData) -> None:
@@ -192,6 +200,25 @@ class UserView(BaseRoleAwareModelView):
                         errors["username"] = username_error
         elif username_value is not None:
             errors["username"] = "Invalid username"
+
+        phone_value = data.get("phone")
+        if isinstance(phone_value, str):
+            normalized_phone_input = phone_value.strip()
+            if normalized_phone_input == "":
+                # Treat empty input as unset; will be normalized to NULL in before_create/before_edit.
+                pass
+            else:
+                try:
+                    normalized_phone = normalize_phone(normalized_phone_input)
+                    if not is_china_phone(normalized_phone):
+                        errors["phone"] = "Only mainland China phone numbers are supported"
+                    else:
+                        # Persist canonical value for downstream save.
+                        data["phone"] = normalized_phone
+                except ValueError:
+                    errors["phone"] = "Invalid phone number format"
+        elif phone_value is not None:
+            errors["phone"] = "Invalid phone number"
 
         if errors:
             raise FormValidationError(errors)
@@ -295,7 +322,9 @@ class ProfileView(BaseRoleAwareModelView):
             required=False,
         ),
         StringField(
-            "owner_qiao_id", label="Owner Qiao ID", help_text="External ID of the profile owner"
+            "owner_qiao_id",
+            label="Owner Qiao ID",
+            help_text="External ID of the profile owner",
         ),
         StringField("nickname", label="Nickname", help_text="Display nickname"),
         IntegerEnumField("gender", enum=Gender, label="Gender", help_text="Gender information"),
@@ -317,12 +346,14 @@ class ProfileView(BaseRoleAwareModelView):
             help_text="FK to media_files.id for audit trail",
         ),
         TextAreaField(
-            "avatar_prompt", label="Avatar Prompt", help_text="Description for AI-generated avatars"
+            "avatar_prompt",
+            label="Avatar Prompt",
+            help_text="Description for AI-generated avatars",
         ),
         TextAreaField("bio", label="Bio", help_text="Profile biography"),
         StringField("region", label="Region", help_text="Location/region information"),
-        LocalDateTimeField("created_at", label="Created At", help_text="Profile creation time"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("created_at", label="Created At", help_text="Profile creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
     async def validate(self, _request: Request, data: FormData) -> None:
@@ -376,7 +407,8 @@ class ProfileView(BaseRoleAwareModelView):
         session = request.state.session
         with session.no_autoflush:
             stmt = select(Profile).where(
-                Profile.owner_qiao_id == obj.owner_qiao_id, Profile.owner_type == obj.owner_type
+                Profile.owner_qiao_id == obj.owner_qiao_id,
+                Profile.owner_type == obj.owner_type,
             )
             result = await session.execute(stmt)
             existing_profile = result.scalar_one_or_none()
@@ -500,7 +532,7 @@ class UserProfileLogView(ModelView):
         TextAreaField("old_value", label="Old Value", help_text="Old value"),
         TextAreaField("new_value", label="New Value", help_text="New value"),
         StringField("change_reason", label="Change Reason", help_text="Reason for change"),
-        LocalDateTimeField("created_at", label="Created At", help_text="Log creation time"),
+        DateTimeField("created_at", label="Created At", help_text="Log creation time"),
     ]
 
 
@@ -646,9 +678,9 @@ class ContactView(BaseRoleAwareModelView):
             help_text="Soft delete status (default: No)",
             required=True,
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Contact creation time"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
-        LocalDateTimeField("deleted_at", label="Deleted At", help_text="Soft delete time"),
+        DateTimeField("created_at", label="Created At", help_text="Contact creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("deleted_at", label="Deleted At", help_text="Soft delete time"),
     ]
 
     async def validate(self, _request: Request, data: FormData) -> None:
@@ -851,7 +883,9 @@ class ContactRequestView(ModelView):
             required=False,
         ),
         StringField(
-            "from_qiao_id", label="From Qiao ID", help_text="Applicant external identifier"
+            "from_qiao_id",
+            label="From Qiao ID",
+            help_text="Applicant external identifier",
         ),
         # Polymorphic to fields - select one, to_type is auto-inferred
         HasOne(
@@ -897,14 +931,14 @@ class ContactRequestView(ModelView):
             label="Retry Count",
             help_text="Number of times this request has been retried",
         ),
-        LocalDateTimeField(
+        DateTimeField(
             "last_retry_at",
             label="Last Retry At",
             help_text="Timestamp of the most recent retry attempt",
         ),
-        LocalDateTimeField("expires_at", label="Expires At", help_text="Request expiration time"),
-        LocalDateTimeField("created_at", label="Created At", help_text="Request creation time"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("expires_at", label="Expires At", help_text="Request expiration time"),
+        DateTimeField("created_at", label="Created At", help_text="Request creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
     row_actions: ClassVar[list[str]] = ["view", "retry_request"]
@@ -1130,11 +1164,17 @@ class ContactRequestRetryView(CustomView):
 user_view = UserView(User, name="Users", icon="fa fa-user", identity="user")
 profile_view = ProfileView(Profile, name="Profiles", icon="fa fa-id-card", identity="profile")
 user_profile_log_view = UserProfileLogView(
-    UserProfileLog, name="Profile Logs", icon="fa fa-history", identity="user_profile_log"
+    UserProfileLog,
+    name="Profile Logs",
+    icon="fa fa-history",
+    identity="user_profile_log",
 )
 contact_view = ContactView(Contact, name="Contacts", icon="fa fa-address-book", identity="contact")
 contact_request_view = ContactRequestView(
-    ContactRequest, name="Contact Requests", icon="fa fa-user-plus", identity="contact_request"
+    ContactRequest,
+    name="Contact Requests",
+    icon="fa fa-user-plus",
+    identity="contact_request",
 )
 pending_contact_request_view = PendingContactRequestView(
     label="Pending Requests",

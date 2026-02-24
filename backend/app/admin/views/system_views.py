@@ -6,11 +6,10 @@ from typing import Any
 
 from sqlalchemy import select
 from starlette.requests import Request
-from starlette_admin import JSONField, StringField
+from starlette_admin import DateTimeField, JSONField, StringField
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 
-from app.admin.fields import LocalDateTimeField
 from app.admin.views.base import IntegerEnumField
 from app.core.security import get_password_hash
 from app.enums import AdminLoginResult, AdminRole, AdminStatus, ConfigType
@@ -62,7 +61,9 @@ class SystemConfigView(ModelView):
         StringField("config_key", label="Config Key", help_text="Unique configuration key"),
         StringField("config_value", label="Config Value", help_text="Configuration value"),
         StringField(
-            "default_value", label="Default Value", help_text="Default configuration value"
+            "default_value",
+            label="Default Value",
+            help_text="Default configuration value",
         ),
         IntegerEnumField(
             "config_type",
@@ -71,7 +72,9 @@ class SystemConfigView(ModelView):
             help_text="Data type of the configuration",
         ),
         StringField(
-            "description", label="Description", help_text="Description of this configuration"
+            "description",
+            label="Description",
+            help_text="Description of this configuration",
         ),
         StringField("group_name", label="Group Name", help_text="Configuration group name"),
         JSONField(
@@ -80,10 +83,8 @@ class SystemConfigView(ModelView):
             help_text="Allowed values for enum type (JSON array)",
         ),
         "updated_by",
-        LocalDateTimeField(
-            "created_at", label="Created At", help_text="Configuration creation time"
-        ),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("created_at", label="Created At", help_text="Configuration creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
 
@@ -114,7 +115,10 @@ class AdminUserView(BaseRoleAwareModelView):
     fields = [
         StringField("id", label="ID", help_text="Admin user ID"),
         StringField(
-            "username", label="Username", help_text="Administrator username", required=True
+            "username",
+            label="Username",
+            help_text="Administrator username",
+            required=True,
         ),
         StringField(
             "password",
@@ -136,15 +140,23 @@ class AdminUserView(BaseRoleAwareModelView):
             help_text="Account status (default: Active)",
             required=True,
         ),
-        LocalDateTimeField("last_login", label="Last Login", help_text="Last login time"),
+        DateTimeField("last_login", label="Last Login", help_text="Last login time"),
         "login_count",
         "created_by",
-        LocalDateTimeField("created_at", label="Created At", help_text="Account creation time"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("created_at", label="Created At", help_text="Account creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
     fields_default_sort = [("created_at", True)]
     searchable_fields = ["username"]
-    sortable_fields = ["id", "username", "role", "status", "created_at", "updated_at", "last_login"]
+    sortable_fields = [
+        "id",
+        "username",
+        "role",
+        "status",
+        "created_at",
+        "updated_at",
+        "last_login",
+    ]
     exclude_fields_from_list = ["password_hash", "password"]
     exclude_fields_from_detail = ["password_hash", "password"]
     exclude_fields_from_create = [
@@ -227,7 +239,7 @@ class AdminOperationLogView(ModelView):
         "operation_desc",
         "ip_address",
         "user_agent",
-        LocalDateTimeField("created_at", label="Created At", help_text="Operation time"),
+        DateTimeField("created_at", label="Created At", help_text="Operation time"),
     ]
 
     exclude_fields_from_create = ["operation_type_display"]
@@ -263,7 +275,7 @@ class AdminLoginLogView(ModelView):
         ),
         "ip_address",
         "user_agent",
-        LocalDateTimeField("created_at", label="Created At", help_text="Login attempt time"),
+        DateTimeField("created_at", label="Created At", help_text="Login attempt time"),
     ]
 
 
@@ -275,7 +287,10 @@ admin_user_view = AdminUserView(
     AdminUser, name="Admin Users", icon="fa fa-users", identity="admin_user"
 )
 admin_operation_log_view = AdminOperationLogView(
-    AdminOperationLog, name="Operation Logs", icon="fa fa-list", identity="admin_operation_log"
+    AdminOperationLog,
+    name="Operation Logs",
+    icon="fa fa-list",
+    identity="admin_operation_log",
 )
 admin_login_log_view = AdminLoginLogView(
     AdminLoginLog, name="Login Logs", icon="fa fa-sign-in", identity="admin_login_log"

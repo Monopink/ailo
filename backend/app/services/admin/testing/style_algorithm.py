@@ -38,6 +38,14 @@ def _style_test_fail(message: str) -> NoReturn:
 V1_PARAM_SPECS = get_algorithm_param_specs(PositionMappingAlgorithm.V1.value).get(
     PositionMappingAlgorithm.V1.value, []
 )
+V1_PARAM_LABELS_ZH = {
+    "left_sensitivity": "左侧敏感度（%）",
+    "right_sensitivity": "右侧敏感度（%）",
+    "left_positive_gain": "左侧正向增益",
+    "left_negative_gain": "左侧负向增益",
+    "right_positive_gain": "右侧正向增益",
+    "right_negative_gain": "右侧负向增益",
+}
 
 
 async def run_style_score_test(  # noqa: PLR0912, PLR0915
@@ -63,14 +71,14 @@ async def run_style_score_test(  # noqa: PLR0912, PLR0915
         result = await db.execute(dims_q, {"style_id": int(style_id)})
         dims = result.fetchall()
         if not dims:
-            _style_test_fail("No dimensions configured for this style")
+            _style_test_fail("该风格未配置维度")
 
         raw_current_rel = form_data.get("current_relationship")
         if raw_current_rel:
             try:
                 current_relationship_id = int(raw_current_rel)
             except (TypeError, ValueError):
-                _style_test_fail("Invalid current_relationship value")
+                _style_test_fail("current_relationship 参数无效")
 
         dimension_results: list[dict[str, Any]] = []
         all_candidates: list[RelationshipCandidate] = []
@@ -81,7 +89,7 @@ async def run_style_score_test(  # noqa: PLR0912, PLR0915
             try:
                 algorithm = int(form_data.get(dim_algo_key, "1"))
             except (TypeError, ValueError):
-                _style_test_fail(f"Invalid algorithm for {dim.display_name}")
+                _style_test_fail(f"{dim.display_name} 的算法参数无效")
 
             params: dict[str, Any] = {}
             if algorithm == PositionMappingAlgorithm.V1.value:
@@ -91,18 +99,19 @@ async def run_style_score_test(  # noqa: PLR0912, PLR0915
                     field_key = f"{spec['name']}_{dim_name}"
                     raw_value = form_data.get(field_key)
                     if raw_value is None or str(raw_value).strip() == "":
-                        missing_fields.append(spec["label"])
+                        label = V1_PARAM_LABELS_ZH.get(spec["name"], str(spec["label"]))
+                        missing_fields.append(label)
                         continue
                     raw_params[spec["name"]] = raw_value
 
                 if missing_fields:
                     joined = ", ".join(missing_fields)
-                    _style_test_fail(f"Missing V1 parameters ({joined}) for {dim.display_name}")
+                    _style_test_fail(f"{dim.display_name} 缺少 V1 参数（{joined}）")
 
                 try:
                     params = parse_algorithm_params(PositionMappingAlgorithm.V1, raw_params)
                 except ValueError as exc:
-                    _style_test_fail(f"Invalid V1 parameters for {dim.display_name}: {exc}")
+                    _style_test_fail(f"{dim.display_name} 的 V1 参数无效：{exc}")
 
             try:
                 s_raw = form_data.get(f"score_{dim_name}")
@@ -114,7 +123,7 @@ async def run_style_score_test(  # noqa: PLR0912, PLR0915
                 score_min = float(str(smin_raw))
                 score_max = float(str(smax_raw))
             except (TypeError, ValueError):
-                _style_test_fail(f"Missing score fields for {dim.display_name}")
+                _style_test_fail(f"{dim.display_name} 缺少分数字段")
 
             try:
                 mapped = map_to_permille(score, score_min, score_max)
@@ -124,7 +133,7 @@ async def run_style_score_test(  # noqa: PLR0912, PLR0915
                     dimension=dim_name,
                     error=str(exc),
                 )
-                _style_test_fail(f"Mapping failed for {dim.display_name}")
+                _style_test_fail(f"{dim.display_name} 的分数映射失败")
 
             final_position = map_score_to_position(
                 algorithm=algorithm,

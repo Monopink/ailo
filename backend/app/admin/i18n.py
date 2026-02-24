@@ -1,0 +1,437 @@
+"""Admin i18n helpers and configuration."""
+
+from __future__ import annotations
+
+import re
+
+from starlette_admin import I18nConfig
+from starlette_admin.i18n import get_locale
+
+_PLURAL_IES_SUFFIX_LEN = 3
+_MIN_PLURAL_IES_WORD_LEN = 3
+_MIN_PLURAL_S_WORD_LEN = 1
+
+_ADMIN_TEXT_MAP: dict[str, tuple[str, str]] = {
+    "Users": ("用户", "Users"),
+    "Messages": ("消息", "Messages"),
+    "AI Configuration": ("AI 配置", "AI Configuration"),
+    "AI Runtime": ("AI 运行态", "AI Runtime"),
+    "LLM": ("大模型", "LLM"),
+    "Security": ("安全", "Security"),
+    "Authorization": ("鉴权", "Authorization"),
+    "Media": ("媒体", "Media"),
+    "App Content": ("内容", "App Content"),
+    "Statistics": ("统计", "Statistics"),
+    "System": ("系统", "System"),
+    "System Settings": ("系统设置", "System Settings"),
+    "Dashboard": ("仪表盘", "Dashboard"),
+    "Admin": ("管理端", "Admin"),
+    "Theme Switch": ("主题切换", "Theme Switch"),
+    "Theme": ("主题", "Theme"),
+    "Auto": ("跟随系统", "Auto"),
+    "Light": ("浅色", "Light"),
+    "Dark": ("深色", "Dark"),
+    "Language": ("语言", "Language"),
+    "Open user menu": ("打开用户菜单", "Open user menu"),
+    "Create": ("新建", "Create"),
+    "Edit": ("编辑", "Edit"),
+    "Detail": ("详情", "Detail"),
+    "Cancel": ("取消", "Cancel"),
+    "Save": ("保存", "Save"),
+    "Save and add another": ("保存并继续新增", "Save and add another"),
+    "Save and continue editing": ("保存并继续编辑", "Save and continue editing"),
+    "Attribute": ("属性", "Attribute"),
+    "Value": ("值", "Value"),
+    "Logout": ("退出登录", "Logout"),
+    "Dev": ("开发", "Dev"),
+    "Staging": ("预发", "Staging"),
+    "Prod": ("生产", "Prod"),
+    "Message Historys": ("消息历史", "Message Historys"),
+    "Message History": ("消息历史", "Message History"),
+    "Instance Memories": ("实例记忆", "Instance Memories"),
+    "Template Memories": ("模板记忆", "Template Memories"),
+    "Styles": ("风格", "Styles"),
+    "Personas - Active Reusable": ("人设 - 活跃可复用", "Personas - Active Reusable"),
+    "Personas - Active Single-use": ("人设 - 活跃单次", "Personas - Active Single-use"),
+    "Templates - Active Reusable": ("模板 - 活跃可复用", "Templates - Active Reusable"),
+    "Templates - Active Single-use": ("模板 - 活跃单次", "Templates - Active Single-use"),
+    "Phone Number": ("手机号", "Phone Number"),
+    "Top P": ("采样上限 P", "Top P"),
+}
+
+_WORD_MAP: dict[str, str] = {
+    "Access": "访问",
+    "Account": "账号",
+    "Ack": "确认",
+    "Admin": "管理",
+    "Active": "活跃",
+    "Activity": "活动",
+    "Actions": "操作",
+    "Action": "操作",
+    "Adjustment": "调整",
+    "Advanced": "高级",
+    "Agent": "代理",
+    "Allowed": "允许",
+    "Algorithm": "算法",
+    "Alias": "别名",
+    "All": "全部",
+    "Auth": "认证",
+    "App": "应用",
+    "Avatar": "头像",
+    "Archive": "归档",
+    "Archived": "已归档",
+    "At": "于",
+    "at": "于",
+    "Attempt": "尝试",
+    "Auto": "自动",
+    "Base": "基础",
+    "Bias": "偏置",
+    "Bio": "简介",
+    "Blocked": "已拉黑",
+    "Buffer": "缓冲",
+    "Bucket": "桶",
+    "bytes": "字节",
+    "By": "自",
+    "by": "自",
+    "Calls": "调用",
+    "Canceled": "已取消",
+    "Cache": "缓存",
+    "Category": "分类",
+    "Change": "变更",
+    "Chat": "聊天",
+    "Choice": "选择",
+    "Client": "客户端",
+    "Code": "代码",
+    "Completed": "完成",
+    "Completion": "完成",
+    "Config": "配置",
+    "Console": "控制台",
+    "Consecutive": "连续",
+    "Confirmed": "已确认",
+    "Contact": "联系人",
+    "Contacts": "联系人",
+    "Content": "内容",
+    "Context": "上下文",
+    "Conversation": "会话",
+    "Count": "数量",
+    "Creation": "创建",
+    "Custom": "自定义",
+    "Created": "创建",
+    "Current": "当前",
+    "Daily": "日",
+    "Date": "日期",
+    "Data": "数据",
+    "Deadline": "截止时间",
+    "Default": "默认",
+    "Delay": "延迟",
+    "Deleted": "已删除",
+    "Delivery": "投递",
+    "Description": "描述",
+    "Detail": "详情",
+    "Device": "设备",
+    "Dimensions": "维度",
+    "Dispatched": "已派发",
+    "Dispatch": "分发",
+    "Dimension": "维度",
+    "Direction": "方向",
+    "Disabled": "禁用",
+    "Display": "显示",
+    "Entries": "条目",
+    "Email": "邮箱",
+    "Address": "地址",
+    "Enable": "启用",
+    "End": "结束",
+    "Duration": "时长",
+    "Edit": "编辑",
+    "Enabled": "启用",
+    "Endpoint": "端点",
+    "Environment": "环境",
+    "Error": "错误",
+    "Example": "示例",
+    "Exposure": "曝光",
+    "Expires": "过期",
+    "Extra": "额外",
+    "Failed": "失败",
+    "Failure": "失败",
+    "Field": "字段",
+    "File": "文件",
+    "Files": "文件",
+    "First": "首个",
+    "Followup": "追问",
+    "Form": "表单",
+    "From": "来源",
+    "Fragment": "片段",
+    "Frequency": "频率",
+    "Gender": "性别",
+    "Group": "分组",
+    "Hash": "哈希",
+    "Headers": "请求头",
+    "Hit": "命中",
+    "History": "历史",
+    "IDs": "ID",
+    "ID": "ID",
+    "Importance": "重要性",
+    "IP": "IP",
+    "Inbound": "入站",
+    "Info": "信息",
+    "Ingress": "入口",
+    "Initial": "初始",
+    "Instance": "实例",
+    "Instances": "实例",
+    "Interrupted": "中断",
+    "Inventory": "清单",
+    "Item": "项",
+    "Items": "项",
+    "JSON": "JSON",
+    "Key": "键",
+    "Kind": "类型",
+    "Last": "最近",
+    "Lease": "租约",
+    "Level": "等级",
+    "Limit": "限制",
+    "List": "列表",
+    "Locked": "已锁定",
+    "Login": "登录",
+    "Log": "日志",
+    "Logs": "日志",
+    "Macro": "宏",
+    "Mapping": "映射",
+    "Mappings": "映射",
+    "Max": "最大",
+    "Memory": "记忆",
+    "Media": "媒体",
+    "Message": "消息",
+    "Messages": "消息",
+    "Metadata": "元数据",
+    "Micro": "微",
+    "Min": "最小",
+    "Mode": "模式",
+    "Model": "模型",
+    "Modified": "已修改",
+    "Monthly": "月",
+    "Month": "月",
+    "Msg": "消息",
+    "Muted": "已静音",
+    "Name": "名称",
+    "Number": "号码",
+    "New": "新增",
+    "Next": "下一次",
+    "Nickname": "昵称",
+    "No": "无",
+    "Notification": "通知",
+    "Object": "对象",
+    "Old": "旧",
+    "Operation": "操作",
+    "Order": "顺序",
+    "Original": "原始",
+    "Override": "覆盖",
+    "Outbox": "出箱",
+    "Outbound": "出站",
+    "Owner": "拥有者",
+    "Parallel": "并行",
+    "Parameters": "参数",
+    "Params": "参数",
+    "Password": "密码",
+    "Penalty": "惩罚",
+    "Pending": "待处理",
+    "Persona": "人设",
+    "Personas": "人设",
+    "Personalities": "人格",
+    "Personality": "人格",
+    "Phone": "手机号",
+    "Pinned": "置顶",
+    "Placeholder": "占位符",
+    "Placeholders": "占位符",
+    "Platform": "平台",
+    "Position": "位置",
+    "Presence": "在线状态",
+    "Priority": "优先级",
+    "Probability": "概率",
+    "Profile": "资料",
+    "Prompt": "提示词",
+    "Provider": "提供方",
+    "Public": "公开",
+    "Pull": "拉取",
+    "Qiao": "Qiao",
+    "Query": "查询",
+    "Queue": "队列",
+    "Reason": "原因",
+    "Reasoning": "推理",
+    "Records": "记录",
+    "Reply": "回复",
+    "Record": "记录",
+    "Refreshed": "刷新",
+    "Refresh": "刷新",
+    "Region": "地域",
+    "Relationships": "关系",
+    "Request": "请求",
+    "request": "请求",
+    "Requests": "请求",
+    "Required": "必填",
+    "Response": "响应",
+    "Reusable": "可复用",
+    "Review": "审核",
+    "Reviewer": "审核者",
+    "Revoked": "已撤销",
+    "Risk": "风险",
+    "Restriction": "限制",
+    "Relationship": "关系",
+    "Result": "结果",
+    "Retry": "重试",
+    "Role": "角色",
+    "Runtime": "运行态",
+    "Save": "保存",
+    "Schema": "结构",
+    "Score": "分数",
+    "Search": "搜索",
+    "seconds": "秒",
+    "Seen": "已看到",
+    "Single": "单次",
+    "Security": "安全",
+    "Sent": "发送",
+    "Server": "服务端",
+    "Settings": "设置",
+    "Size": "大小",
+    "Source": "来源",
+    "Square": "广场",
+    "Start": "开始",
+    "State": "状态",
+    "Status": "状态",
+    "Storage": "存储",
+    "Style": "风格",
+    "Strategy": "策略",
+    "Stats": "统计",
+    "Stop": "停止",
+    "Subscriptions": "订阅",
+    "Supports": "支持",
+    "Streaming": "流式",
+    "Suspension": "封禁",
+    "System": "系统",
+    "Tags": "标签",
+    "Template": "模板",
+    "Templates": "模板",
+    "Temperature": "温度",
+    "Test": "测试",
+    "test": "测试",
+    "Text": "文本",
+    "Thinking": "思考",
+    "Time": "时间",
+    "Timezone": "时区",
+    "Timer": "定时器",
+    "Timeout": "超时",
+    "To": "目标",
+    "Token": "令牌",
+    "Tokens": "令牌",
+    "Top": "最高",
+    "Tools": "工具",
+    "Tool": "工具",
+    "Total": "总",
+    "Turn": "轮次",
+    "Type": "类型",
+    "Types": "类型",
+    "UID": "UID",
+    "UnionID": "UnionID",
+    "Updated": "更新",
+    "Uploaded": "上传",
+    "Uploader": "上传者",
+    "User": "用户",
+    "Username": "用户名",
+    "Users": "用户",
+    "Value": "值",
+    "Values": "值",
+    "Variable": "变量",
+    "Verification": "验证",
+    "Verify": "校验",
+    "Version": "版本",
+    "Verified": "已验证",
+    "Violation": "违规",
+    "Violations": "违规",
+    "Wake": "唤醒",
+    "Warning": "警告",
+    "Week": "周",
+    "Weekly": "周",
+    "Typing": "输入",
+    "Speed": "速度",
+    "Notes": "说明",
+    "Remark": "备注",
+    "Sequences": "序列",
+    "Severity": "严重性",
+    "Target": "目标",
+    "Window": "窗口",
+}
+
+
+def admin_text(text: str) -> str:
+    """Resolve admin text by current locale without mixed-language output."""
+    zh, en = _ADMIN_TEXT_MAP.get(text, ("", text))
+    locale = get_locale() or ""
+    if locale.startswith("en"):
+        return en
+    if zh:
+        return zh
+    return _auto_translate(text)
+
+
+def _auto_translate(text: str) -> str:
+    """Apply lightweight token-based translation for unknown labels."""
+    if not text or not isinstance(text, str):
+        return text
+    if any("\u4e00" <= ch <= "\u9fff" for ch in text):
+        return text
+
+    segments = re.findall(r"[A-Za-z]+|\d+|[^A-Za-z\d]+", text)
+    translated_parts: list[str] = []
+    for segment in segments:
+        if segment.isalpha():
+            translated_parts.append(_translate_word(segment))
+        else:
+            translated_parts.append(segment)
+
+    result = "".join(translated_parts)
+    return re.sub(r"(?<=[\u4e00-\u9fff])\s+(?=[\u4e00-\u9fff])", "", result)
+
+
+def _translate_word(word: str) -> str:
+    """Translate alpha token and handle common plural forms."""
+    translated = _WORD_MAP.get(word) or _WORD_MAP.get(word.lower())
+    if translated:
+        return translated
+
+    if word.endswith("ies") and len(word) > _MIN_PLURAL_IES_WORD_LEN:
+        singular = word[:-_PLURAL_IES_SUFFIX_LEN] + "y"
+        translated = _WORD_MAP.get(singular)
+        if translated:
+            return translated
+
+    if word.endswith("s") and len(word) > _MIN_PLURAL_S_WORD_LEN:
+        singular = word[:-1]
+        translated = _WORD_MAP.get(singular)
+        if translated:
+            return translated
+
+    return word
+
+
+def translate_labels(value: object) -> object:
+    """Recursively translate `label` fields in model/view payloads."""
+    if isinstance(value, dict):
+        translated: dict[object, object] = {}
+        for key, item in value.items():
+            if key == "label" and isinstance(item, str):
+                translated[key] = admin_text(item)
+            else:
+                translated[key] = translate_labels(item)
+        return translated
+    if isinstance(value, list):
+        return [translate_labels(item) for item in value]
+    return value
+
+
+def build_i18n_config() -> I18nConfig:
+    """Build i18n config for admin interface."""
+    return I18nConfig(
+        default_locale="zh_Hant",
+        language_cookie_name="language",
+        language_header_name="Accept-Language",
+        language_switcher=["zh_Hant", "en"],
+    )

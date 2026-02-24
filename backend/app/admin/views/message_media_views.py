@@ -8,6 +8,7 @@ from typing import Any, ClassVar, SupportsInt, cast
 from starlette.requests import Request
 from starlette_admin import (
     BooleanField,
+    DateTimeField,
     HasOne,
     IntegerField,
     JSONField,
@@ -18,7 +19,6 @@ from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 from starlette_admin.fields import BaseField
 
-from app.admin.fields import LocalDateTimeField
 from app.admin.views.base import IntegerEnumField
 from app.enums import (
     FileStatus,
@@ -121,13 +121,13 @@ class MessageHistoryView(ModelView):
                 label="Client Message ID",
                 help_text="Client-generated message ID",
             ),
-            LocalDateTimeField(
+            DateTimeField(
                 "client_sent_at",
                 label="Client Sent At",
                 help_text="Client-provided timestamp (optional)",
                 required=False,
             ),
-            LocalDateTimeField(
+            DateTimeField(
                 "sent_at",
                 label="Sent At",
                 help_text="Server-side event timestamp",
@@ -177,7 +177,11 @@ class MessageHistoryView(ModelView):
             ),
             TextAreaField("content", label="Content", help_text="Message content"),
             "message_metadata",
-            "created_at",
+            DateTimeField(
+                "created_at",
+                label="Created At",
+                help_text="Creation time",
+            ),
         ],
     )
 
@@ -276,7 +280,7 @@ class MediaFileView(ModelView):
                 label="Uploader Qiao ID",
                 help_text="External ID of uploader",
             ),
-            LocalDateTimeField(
+            DateTimeField(
                 "confirmed_at",
                 label="Confirmed At",
                 help_text="Upload confirmation time",
@@ -289,8 +293,8 @@ class MediaFileView(ModelView):
                 required=False,
             ),
             IntegerEnumField("status", enum=FileStatus, label="Status", help_text="File status"),
-            LocalDateTimeField("created_at", label="Created At", help_text="File creation time"),
-            LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+            DateTimeField("created_at", label="Created At", help_text="File creation time"),
+            DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
         ],
     )
 
@@ -354,7 +358,7 @@ class MessageDeliveryView(ModelView):
                 label="Status",
                 help_text="Delivery status",
             ),
-            LocalDateTimeField(
+            DateTimeField(
                 "dispatched_at",
                 label="Dispatched At",
                 help_text="Provider dispatched time",
@@ -372,8 +376,8 @@ class MessageDeliveryView(ModelView):
                 help_text="Failure detail (nullable)",
                 required=False,
             ),
-            LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
-            LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+            DateTimeField("created_at", label="Created At", help_text="Creation time"),
+            DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
         ],
     )
 
@@ -441,8 +445,8 @@ class NotificationPushHistoryView(ModelView):
                 label="Error Message",
                 help_text="Error details if failed",
             ),
-            LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
-            LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+            DateTimeField("created_at", label="Created At", help_text="Creation time"),
+            DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
         ],
     )
 
@@ -493,26 +497,26 @@ class MessageDeviceView(ModelView):
                 help_text="Latest acknowledged msg_id_server",
                 required=False,
             ),
-            LocalDateTimeField(
+            DateTimeField(
                 "last_acked_msg_sent_at",
                 label="Last Ack Sent At",
                 help_text="Latest acknowledged message sent_at",
                 required=False,
             ),
-            LocalDateTimeField(
+            DateTimeField(
                 "last_pull_at",
                 label="Last Pull At",
                 help_text="Latest offline pull timestamp",
                 required=False,
             ),
-            LocalDateTimeField(
+            DateTimeField(
                 "last_seen_at",
                 label="Last Seen At",
                 help_text="Last seen timestamp",
                 required=False,
             ),
-            LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
-            LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+            DateTimeField("created_at", label="Created At", help_text="Creation time"),
+            DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
         ],
     )
 
@@ -559,20 +563,20 @@ class MessageEndpointView(ModelView):
                 help_text="web/miniprogram/ios/android",
                 required=False,
             ),
-            LocalDateTimeField(
+            DateTimeField(
                 "lease_expires_at",
                 label="Lease Expires At",
                 help_text="Lease expiry time",
                 required=False,
             ),
-            LocalDateTimeField(
+            DateTimeField(
                 "last_seen_at",
                 label="Last Seen At",
                 help_text="Last seen timestamp",
                 required=False,
             ),
-            LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
-            LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+            DateTimeField("created_at", label="Created At", help_text="Creation time"),
+            DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
         ],
     )
 
@@ -630,13 +634,13 @@ class MessageDispatchOutboxView(ModelView):
                 label="Attempt Count",
                 help_text="Retry attempts count",
             ),
-            LocalDateTimeField(
+            DateTimeField(
                 "next_retry_at",
                 label="Next Retry At",
                 help_text="Next retry schedule time",
                 required=False,
             ),
-            LocalDateTimeField(
+            DateTimeField(
                 "locked_at",
                 label="Locked At",
                 help_text="Current worker lock time",
@@ -654,8 +658,8 @@ class MessageDispatchOutboxView(ModelView):
                 help_text="Last failure detail",
                 required=False,
             ),
-            LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
-            LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+            DateTimeField("created_at", label="Created At", help_text="Creation time"),
+            DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
         ],
     )
 

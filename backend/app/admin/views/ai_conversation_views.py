@@ -7,10 +7,9 @@ This module contains Starlette-Admin views for AI conversation management
 from typing import Any, ClassVar
 
 from starlette.requests import Request
-from starlette_admin import IntegerField, JSONField, StringField, TextAreaField
+from starlette_admin import DateTimeField, IntegerField, JSONField, StringField, TextAreaField
 from starlette_admin.contrib.sqla import ModelView
 
-from app.admin.fields import LocalDateTimeField
 from app.admin.views.base import IntegerEnumField
 from app.enums import AIMessageBufferState
 from app.models.ai.instance import (
@@ -103,7 +102,11 @@ class AIMessageBufferView(ModelView):
     fields: ClassVar[list[object]] = [
         StringField("id", label="Buffer ID", help_text="Internal buffer ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
-        StringField("instance_qiao_id", label="Instance Qiao ID", help_text="Instance external ID"),
+        StringField(
+            "instance_qiao_id",
+            label="Instance Qiao ID",
+            help_text="Instance external ID",
+        ),
         IntegerEnumField(
             "aggregate_state",
             enum=AIMessageBufferState,
@@ -141,18 +144,22 @@ class AIMessageBufferView(ModelView):
             help_text="Last client message ID within buffer",
         ),
         IntegerField(
-            "message_count", label="Message Count", help_text="Number of messages in buffer"
+            "message_count",
+            label="Message Count",
+            help_text="Number of messages in buffer",
         ),
         StringField(
             "last_msg_time_ms",
             label="Last Message Time (ms)",
             help_text="Timestamp of last message appended to buffer",
         ),
-        LocalDateTimeField(
-            "locked_at", label="Locked At", help_text="Timestamp when buffer entered LOCKED state"
+        DateTimeField(
+            "locked_at",
+            label="Locked At",
+            help_text="Timestamp when buffer entered LOCKED state",
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Buffer creation time"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("created_at", label="Created At", help_text="Buffer creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
 
@@ -205,7 +212,11 @@ class AIConversationItemView(ModelView):
     fields: ClassVar[list[object]] = [
         StringField("id", label="Item ID", help_text="Internal conversation item ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
-        StringField("instance_qiao_id", label="Instance Qiao ID", help_text="Instance external ID"),
+        StringField(
+            "instance_qiao_id",
+            label="Instance Qiao ID",
+            help_text="Instance external ID",
+        ),
         StringField("role", label="Role", help_text="Message role: system/user/assistant"),
         StringField("message_type", label="Message Type", help_text="text/image/audio"),
         TextAreaField(
@@ -213,7 +224,11 @@ class AIConversationItemView(ModelView):
             label="Text Content",
             help_text="Stored text message content (for text messages)",
         ),
-        StringField("media_url", label="Media URL", help_text="Media URL for image/audio messages"),
+        StringField(
+            "media_url",
+            label="Media URL",
+            help_text="Media URL for image/audio messages",
+        ),
         JSONField(
             "media_metadata",
             label="Media Metadata",
@@ -225,7 +240,9 @@ class AIConversationItemView(ModelView):
             help_text="Client message IDs merged into this row",
         ),
         StringField(
-            "buffer_id", label="Buffer ID", help_text="Associated buffer ID (user role only)"
+            "buffer_id",
+            label="Buffer ID",
+            help_text="Associated buffer ID (user role only)",
         ),
         IntegerEnumField(
             "is_excluded_from_context",
@@ -233,7 +250,7 @@ class AIConversationItemView(ModelView):
             label="Context Status",
             help_text="Whether this item is included in LLM context",
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Item creation time"),
+        DateTimeField("created_at", label="Created At", help_text="Item creation time"),
     ]
 
 
@@ -310,7 +327,11 @@ class AIConversationItemArchiveView(ModelView):
     fields: ClassVar[list[object]] = [
         StringField("id", label="Item ID", help_text="Internal conversation item ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
-        StringField("instance_qiao_id", label="Instance Qiao ID", help_text="Instance external ID"),
+        StringField(
+            "instance_qiao_id",
+            label="Instance Qiao ID",
+            help_text="Instance external ID",
+        ),
         StringField("role", label="Role", help_text="Message role: system/user/assistant"),
         StringField("message_type", label="Message Type", help_text="text/image/audio"),
         TextAreaField(
@@ -318,7 +339,11 @@ class AIConversationItemArchiveView(ModelView):
             label="Text Content",
             help_text="Stored text content (if applicable)",
         ),
-        StringField("media_url", label="Media URL", help_text="Media URL for image/audio messages"),
+        StringField(
+            "media_url",
+            label="Media URL",
+            help_text="Media URL for image/audio messages",
+        ),
         JSONField(
             "media_metadata",
             label="Media Metadata",
@@ -330,7 +355,9 @@ class AIConversationItemArchiveView(ModelView):
             help_text="Client message IDs merged into this row",
         ),
         StringField(
-            "buffer_id", label="Buffer ID", help_text="Associated buffer ID (user role only)"
+            "buffer_id",
+            label="Buffer ID",
+            help_text="Associated buffer ID (user role only)",
         ),
         IntegerEnumField(
             "is_excluded_from_context",
@@ -338,8 +365,8 @@ class AIConversationItemArchiveView(ModelView):
             label="Context Status",
             help_text="Whether this item is included in LLM context",
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Original creation time"),
-        LocalDateTimeField("archived_at", label="Archived At", help_text="Archive timestamp"),
+        DateTimeField("created_at", label="Created At", help_text="Original creation time"),
+        DateTimeField("archived_at", label="Archived At", help_text="Archive timestamp"),
     ]
 
 
@@ -402,13 +429,13 @@ class AIConversationStateView(ModelView):
             label="Pending Messages",
             help_text='Pending messages structure: {"outgoing": [...], "total_pending": N}',
         ),
-        LocalDateTimeField(
+        DateTimeField(
             "interrupted_at",
             label="Interrupted At",
             help_text="Timestamp when the last interruption occurred",
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="State creation time"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("created_at", label="Created At", help_text="State creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
 
@@ -465,8 +492,8 @@ class AIConversationRuntimeView(ModelView):
             label="Active Turn Version",
             help_text="Active processing turn version",
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Runtime row creation time"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("created_at", label="Created At", help_text="Runtime row creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
 

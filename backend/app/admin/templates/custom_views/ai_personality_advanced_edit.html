@@ -385,6 +385,61 @@ const SYSTEM_PLACEHOLDERS = [
     this.validatePrompt();
   },
 
+  escapeHtml(value) {
+    const str = value === null || value === undefined ? '' : String(value);
+    return str
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  },
+
+  validateDimensions() {
+    if (this.state.dimensions.length === 0) {
+      return '请先加载dimension信息';
+    }
+    for (let i = 0; i < this.state.dimensions.length; i += 1) {
+      const dim = this.state.dimensions[i];
+      if (!Number.isFinite(dim.min) || !Number.isFinite(dim.max)) {
+        return `维度 ${dim.name} 的 min/max 必须是数字`;
+      }
+      if (Number(dim.min) >= Number(dim.max)) {
+        return `维度 ${dim.name} 需要满足 min < max`;
+      }
+    }
+    return null;
+  },
+
+  validateCustomFields() {
+    const reserved = new Set([
+      'should_block',
+      'should_reply',
+      'attack_detected',
+      'should_update_memory',
+      'memory_operations',
+      'followup_messages',
+      'outgoing_messages',
+      'score'
+    ]);
+    const seen = new Set();
+    for (let i = 0; i < this.state.customFields.length; i += 1) {
+      const field = this.state.customFields[i];
+      if (!field || typeof field.name !== 'string' || field.name.trim() === '') {
+        return `第 ${i + 1} 个自定义字段名称不能为空`;
+      }
+      const name = field.name.trim();
+      if (reserved.has(name)) {
+        return `自定义字段 ${name} 与系统字段冲突`;
+      }
+      if (seen.has(name)) {
+        return `自定义字段重复: ${name}`;
+      }
+      seen.add(name);
+    }
+    return null;
+  },
+
   async loadPlaceholders() {
     const response = await fetch(`/admin-api/ai/ai-personality/${PERSONALITY_ID}/placeholders`);
     this.state.placeholders = await response.json();
@@ -469,12 +524,15 @@ const SYSTEM_PLACEHOLDERS = [
       this.state.dimensions = dimensionNames.map(name => {
         const dbDim = dimMap[name];
         const exists = !!dbDim;
+        const dimSchema = schema.properties.score.properties[name] || {};
+        const minValue = dimSchema.minimum;
+        const maxValue = dimSchema.maximum;
         return {
           name,
           display_name: dbDim?.display_name || '',
           description: dbDim?.description || '',
-          min: schema.properties.score.properties[name].minimum || 0,
-          max: schema.properties.score.properties[name].maximum || 1000,
+          min: Number.isFinite(Number(minValue)) ? Number(minValue) : null,
+          max: Number.isFinite(Number(maxValue)) ? Number(maxValue) : null,
           exists: exists
         };
       });
@@ -520,7 +578,7 @@ const SYSTEM_PLACEHOLDERS = [
     }
 
     // Prefer cache to avoid duplicate requests
-    let dims = await this.fetchDimensionsForStyle(styleId);
+    const dims = await this.fetchDimensionsForStyle(styleId);
     this.state.dimensions = (dims || []).map(d => ({...d, min: 0, max: 1000, exists: true}));
 
     this.renderDimensions();
@@ -549,9 +607,9 @@ const SYSTEM_PLACEHOLDERS = [
       const tableHtml = '<div class="table-responsive"><table class="table align-middle">'
         + '<thead><tr><th>Name</th><th>Display Name</th><th>Description</th></tr></thead><tbody>'
         + dims.map(d => '<tr>'
-          + '<td><code>' + (d.name || '') + '</code></td>'
-          + '<td>' + (d.display_name || '-') + '</td>'
-          + '<td>' + (d.description || '-') + '</td>'
+          + '<td><code>' + this.escapeHtml(d.name || '') + '</code></td>'
+          + '<td>' + this.escapeHtml(d.display_name || '-') + '</td>'
+          + '<td>' + this.escapeHtml(d.description || '-') + '</td>'
           + '</tr>').join('')
         + '</tbody></table></div>';
       container.innerHTML = tableHtml;
@@ -571,27 +629,56 @@ const SYSTEM_PLACEHOLDERS = [
     const missingDimensions = this.state.dimensions.filter(d => !d.exists);
     let warningHtml = '';
     if (missingDimensions.length > 0) {
-      const missingNames = missingDimensions.map(d => '<code>' + d.name + '</code>').join(', ');
+      const missingNames = missingDimensions.map(d => '<code>' + this.escapeHtml(d.name) + '</code>').join(', ');
       warningHtml = '<div class="alert alert-danger d-flex align-items-center mb-3 py-1"><i class="fas fa-exclamation-triangle"></i><span><strong>警告:</strong> 以下维度在系统中不存在: ' + missingNames + '</span></div>';
     }
 
-    const tableHtml = '<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Name</th><th>Display Name</th><th>Description</th></tr></thead><tbody>' +
-      this.state.dimensions.map(d => {
+    const tableHtml = '<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Name</th><th>Display Name</th><th>Description</th><th>Score Min</th><th>Score Max</th></tr></thead><tbody>' +
+      this.state.dimensions.map((d, idx) => {
         const rowClass = d.exists ? '' : ' class="table-danger"';
-        return '<tr' + rowClass + '><td><code>' + d.name + '</code></td><td>' + (d.display_name || '-') + '</td><td>' + (d.description || '-') + '</td></tr>';
+        const minValue = Number.isFinite(d.min) ? d.min : '';
+        const maxValue = Number.isFinite(d.max) ? d.max : '';
+        return '<tr' + rowClass + '>'
+          + '<td><code>' + this.escapeHtml(d.name) + '</code></td>'
+          + '<td>' + this.escapeHtml(d.display_name || '-') + '</td>'
+          + '<td>' + this.escapeHtml(d.description || '-') + '</td>'
+          + '<td><input type="number" class="form-control dimension-min" data-index="' + idx + '" value="' + this.escapeHtml(minValue) + '"></td>'
+          + '<td><input type="number" class="form-control dimension-max" data-index="' + idx + '" value="' + this.escapeHtml(maxValue) + '"></td>'
+          + '</tr>';
       }).join('') +
       '</tbody></table></div>';
 
     container.innerHTML = warningHtml + tableHtml;
+    container.querySelectorAll('.dimension-min').forEach((input) => {
+      input.addEventListener('input', (event) => {
+        const index = Number.parseInt(event.target.dataset.index, 10);
+        const dim = this.state.dimensions[index];
+        if (!dim) return;
+        const value = Number(event.target.value);
+        dim.min = Number.isFinite(value) ? value : null;
+      });
+    });
+    container.querySelectorAll('.dimension-max').forEach((input) => {
+      input.addEventListener('input', (event) => {
+        const index = Number.parseInt(event.target.dataset.index, 10);
+        const dim = this.state.dimensions[index];
+        if (!dim) return;
+        const value = Number(event.target.value);
+        dim.max = Number.isFinite(value) ? value : null;
+      });
+    });
   },
 
   renderSystemPlaceholders() {
     const container = document.getElementById('system-placeholders');
     container.innerHTML = SYSTEM_PLACEHOLDERS.map(p =>
-      `<button type="button" class="badge rounded-pill text-bg-primary placeholder-badge placeholder-btn" data-base="text-bg-primary" data-key="${p.key}" title="${p.title}" onclick="app.insertPlaceholder('${p.key}')">
-        <i class="fas fa-plus me-1"></i>${p.key}
+      `<button type="button" class="badge rounded-pill text-bg-primary placeholder-badge placeholder-btn" data-base="text-bg-primary" data-key="${encodeURIComponent(p.key)}" title="${this.escapeHtml(p.title)}">
+        <i class="fas fa-plus me-1"></i>${this.escapeHtml(p.key)}
       </button>`
     ).join('');
+    container.querySelectorAll('.placeholder-btn').forEach((button) => {
+      button.addEventListener('click', () => this.insertPlaceholder(decodeURIComponent(button.dataset.key || '')));
+    });
   },
 
   renderScorePlaceholders() {
@@ -602,10 +689,13 @@ const SYSTEM_PLACEHOLDERS = [
     }
 
     container.innerHTML = this.state.dimensions.map(d =>
-      `<button type="button" class="badge rounded-pill text-bg-success placeholder-badge placeholder-btn" data-base="text-bg-success" data-key="score:${d.name}" title="${d.display_name || d.name} 分数" onclick="app.insertPlaceholder('score:${d.name}')">
-        <i class="fas fa-plus me-1"></i>score:${d.name}
+      `<button type="button" class="badge rounded-pill text-bg-success placeholder-badge placeholder-btn" data-base="text-bg-success" data-key="${encodeURIComponent('score:' + d.name)}" title="${this.escapeHtml((d.display_name || d.name) + ' 分数')}">
+        <i class="fas fa-plus me-1"></i>score:${this.escapeHtml(d.name)}
       </button>`
     ).join('');
+    container.querySelectorAll('.placeholder-btn').forEach((button) => {
+      button.addEventListener('click', () => this.insertPlaceholder(decodeURIComponent(button.dataset.key || '')));
+    });
   },
 
   renderCustomPlaceholders() {
@@ -616,10 +706,13 @@ const SYSTEM_PLACEHOLDERS = [
     }
 
     container.innerHTML = this.state.placeholders.map(p =>
-      `<button type="button" class="badge rounded-pill text-bg-secondary placeholder-badge placeholder-btn" data-base="text-bg-secondary" data-key="${p.placeholder_key}" onclick="app.insertPlaceholder('${p.placeholder_key}')">
-        <i class="fas fa-plus me-1"></i>${p.placeholder_key}
+      `<button type="button" class="badge rounded-pill text-bg-secondary placeholder-badge placeholder-btn" data-base="text-bg-secondary" data-key="${encodeURIComponent(p.placeholder_key)}">
+        <i class="fas fa-plus me-1"></i>${this.escapeHtml(p.placeholder_key)}
       </button>`
     ).join('');
+    container.querySelectorAll('.placeholder-btn').forEach((button) => {
+      button.addEventListener('click', () => this.insertPlaceholder(decodeURIComponent(button.dataset.key || '')));
+    });
   },
 
   renderPlaceholdersList() {
@@ -632,9 +725,9 @@ const SYSTEM_PLACEHOLDERS = [
     container.innerHTML = '<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Key</th><th>Display Name</th><th>Description</th><th>Required</th><th>Actions</th></tr></thead><tbody>' +
       this.state.placeholders.map(p => `
         <tr>
-          <td><code>${p.placeholder_key}</code></td>
-          <td>${p.display_name || '-'}</td>
-          <td>${p.description || '-'}</td>
+          <td><code>${this.escapeHtml(p.placeholder_key)}</code></td>
+          <td>${this.escapeHtml(p.display_name || '-')}</td>
+          <td>${this.escapeHtml(p.description || '-')}</td>
           <td>${p.is_required ? '<i class="fas fa-check text-success"></i>' : '-'}</td>
           <td>
             <button class="btn btn-outline-primary" onclick="app.editPlaceholder(${p.id})"><i class="fas fa-edit"></i></button>
@@ -646,6 +739,7 @@ const SYSTEM_PLACEHOLDERS = [
   },
 
   insertPlaceholder(key) {
+    if (typeof key !== 'string' || key.trim() === '') return;
     const editor = document.getElementById('prompt-editor');
     const placeholder = '{{' + key + '}}';
     editor.focus();
@@ -711,19 +805,19 @@ const SYSTEM_PLACEHOLDERS = [
     const container = document.getElementById('placeholder-warnings');
     const parts = [];
     if (invalidScoreFormat.length > 0) {
-      parts.push(`<div class="alert alert-warning d-flex align-items-center mb-2 py-1"><i class="fas fa-exclamation-triangle"></i><span><strong>格式错误的分数placeholder:</strong> ${invalidScoreFormat.map(k => `<code>{{${k}}}</code>`).join(', ')}</span></div>`);
+      parts.push(`<div class="alert alert-warning d-flex align-items-center mb-2 py-1"><i class="fas fa-exclamation-triangle"></i><span><strong>格式错误的分数placeholder:</strong> ${invalidScoreFormat.map(k => `<code>{{${this.escapeHtml(k)}}}</code>`).join(', ')}</span></div>`);
     }
     if (invalidScoreDim.length > 0) {
-      parts.push(`<div class="alert alert-warning d-flex align-items-center mb-2 py-1"><i class="fas fa-exclamation-triangle"></i><span><strong>不存在的分数placeholder:</strong> ${invalidScoreDim.map(k => `<code>{{${k}}}</code>`).join(', ')}</span></div>`);
+      parts.push(`<div class="alert alert-warning d-flex align-items-center mb-2 py-1"><i class="fas fa-exclamation-triangle"></i><span><strong>不存在的分数placeholder:</strong> ${invalidScoreDim.map(k => `<code>{{${this.escapeHtml(k)}}}</code>`).join(', ')}</span></div>`);
     }
     if (unknown.length > 0) {
-      parts.push(`<div class="alert alert-warning d-flex align-items-center mb-0 py-1"><i class="fas fa-exclamation-triangle"></i><span><strong>未知placeholder:</strong> ${unknown.map(k => `<code>{{${k}}}</code>`).join(', ')}</span></div>`);
+      parts.push(`<div class="alert alert-warning d-flex align-items-center mb-0 py-1"><i class="fas fa-exclamation-triangle"></i><span><strong>未知placeholder:</strong> ${unknown.map(k => `<code>{{${this.escapeHtml(k)}}}</code>`).join(', ')}</span></div>`);
     }
     container.innerHTML = parts.join('');
 
     // Update badge states: 0=colored + plus, 1=fade + check, >1=red + warn
     document.querySelectorAll('.placeholder-btn').forEach(btn => {
-      const key = btn.dataset.key;
+      const key = decodeURIComponent(btn.dataset.key || '');
       const count = used[key] || 0;
       const icon = btn.querySelector('i');
 
@@ -845,11 +939,11 @@ const SYSTEM_PLACEHOLDERS = [
 
     // System fields
     const systemFields = [
-      {name: 'should_block', type: 'boolean', required: true},
+      {name: 'should_block', type: 'boolean', required: false},
       {name: 'should_reply', type: 'boolean', required: true},
       {name: 'attack_detected', type: 'boolean', required: true},
       {name: 'should_update_memory', type: 'boolean', required: true},
-      {name: 'memory_operations', type: 'array', required: true},
+      {name: 'memory_operations', type: 'object', required: true},
       {name: 'followup_messages', type: 'array', required: false},
       {name: 'outgoing_messages', type: 'array', required: false}
     ];
@@ -859,9 +953,9 @@ const SYSTEM_PLACEHOLDERS = [
       const schemaDesc = INITIAL_SCHEMA?.properties?.[f.name]?.description || '- N/A -';
       rows.push(`<tr>
         <td><span class="badge text-bg-primary">系统</span></td>
-        <td><code>${f.name}</code></td>
-        <td>${f.type}</td>
-        <td>${schemaDesc}</td>
+        <td><code>${this.escapeHtml(f.name)}</code></td>
+        <td>${this.escapeHtml(f.type)}</td>
+        <td>${this.escapeHtml(schemaDesc)}</td>
         <td>${f.required ? '<i class="fas fa-check text-success"></i>' : '-'}</td>
         <td><span class="text-muted">-</span></td>
       </tr>`);
@@ -873,9 +967,9 @@ const SYSTEM_PLACEHOLDERS = [
       const schemaDesc = INITIAL_SCHEMA?.properties?.score?.properties?.[d.name]?.description || '- N/A -';
       rows.push(`<tr>
         <td><span class="badge text-bg-success">分数</span></td>
-        <td><code>score.${d.name}</code></td>
+        <td><code>score.${this.escapeHtml(d.name)}</code></td>
         <td>integer</td>
-        <td>${schemaDesc}</td>
+        <td>${this.escapeHtml(schemaDesc)}</td>
         <td><i class="fas fa-check text-success"></i></td>
         <td><span class="text-muted">-</span></td>
       </tr>`);
@@ -886,9 +980,9 @@ const SYSTEM_PLACEHOLDERS = [
       const requiredIcon = f.required ? '<i class="fas fa-check text-success"></i>' : '-';
       rows.push(`<tr>
         <td><span class="badge text-bg-secondary">自定义</span></td>
-        <td><code>${f.name}</code></td>
-        <td>${f.type}</td>
-        <td>${f.description || '-'}</td>
+        <td><code>${this.escapeHtml(f.name)}</code></td>
+        <td>${this.escapeHtml(f.type)}</td>
+        <td>${this.escapeHtml(f.description || '-')}</td>
         <td>${requiredIcon}</td>
         <td>
           <button class="btn btn-outline-primary" onclick="app.editSchemaField(${idx})"><i class="fas fa-edit"></i></button>
@@ -953,6 +1047,23 @@ const SYSTEM_PLACEHOLDERS = [
       description: document.getElementById('modal-field-description').value.trim(),
       required: document.getElementById('modal-field-required').checked
     };
+
+    const existingIndex = this.state.customFields.findIndex((item, idx) => item.name === name && String(idx) !== String(key));
+    if (existingIndex !== -1) {
+      alert('字段名重复');
+      return;
+    }
+
+    const reserved = new Set(['should_block', 'should_reply', 'attack_detected', 'should_update_memory', 'memory_operations', 'followup_messages', 'outgoing_messages', 'score']);
+    if (reserved.has(name)) {
+      alert('字段名与系统字段冲突');
+      return;
+    }
+
+    if ((name === 'current_state' || name === 'internal_thoughts') && data.type !== 'string') {
+      alert(`${name} 必须使用 string 类型`);
+      return;
+    }
 
     if (key !== '') {
       this.state.customFields[parseInt(key)] = data;
@@ -1028,8 +1139,15 @@ const SYSTEM_PLACEHOLDERS = [
       return;
     }
 
-    if (this.state.dimensions.length === 0) {
-      alert('请先加载dimension信息');
+    const dimensionError = this.validateDimensions();
+    if (dimensionError) {
+      alert(dimensionError);
+      return;
+    }
+
+    const customFieldError = this.validateCustomFields();
+    if (customFieldError) {
+      alert(customFieldError);
       return;
     }
 
@@ -1037,8 +1155,9 @@ const SYSTEM_PLACEHOLDERS = [
     const schema_config = {
       dimensions: this.state.dimensions.map(d => ({
         name: d.name,
-        min: d.min || 0,
-        max: d.max || 1000
+        min: Number(d.min),
+        max: Number(d.max),
+        description: (d.description || '').trim()
       })),
       custom_fields: this.state.customFields
     };

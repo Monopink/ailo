@@ -23,6 +23,49 @@ logger = get_logger(__name__)
 # Initialize templates with relative path
 templates = Jinja2Templates(directory="app/admin/templates", auto_reload=True)
 
+_V1_PARAM_I18N: dict[str, tuple[str, str]] = {
+    "left_sensitivity": ("左侧敏感度（%）", "初始位置左侧区间敏感度（-100 到 100）。"),
+    "right_sensitivity": ("右侧敏感度（%）", "初始位置右侧区间敏感度（-100 到 100）。"),
+    "left_positive_gain": ("左侧正向增益", "左侧敏感度 ≥ 0 时使用的对数增益。"),
+    "left_negative_gain": ("左侧负向增益", "左侧敏感度 < 0 时使用的对数增益。"),
+    "right_positive_gain": ("右侧正向增益", "右侧敏感度 ≥ 0 时使用的对数增益。"),
+    "right_negative_gain": ("右侧负向增益", "右侧敏感度 < 0 时使用的对数增益。"),
+}
+_ALGORITHM_NONE = 1
+_ALGORITHM_V1 = 2
+
+
+def _localize_algorithm_info() -> dict[int, JSONDict]:
+    """Build localized algorithm metadata for style-test page."""
+    algorithm_info: dict[int, JSONDict] = {
+        _ALGORITHM_NONE: get_algorithm_info(_ALGORITHM_NONE),
+        _ALGORITHM_V1: get_algorithm_info(_ALGORITHM_V1),
+    }
+
+    if _ALGORITHM_NONE in algorithm_info:
+        algorithm_info[_ALGORITHM_NONE]["name"] = "无偏移（直接映射）"
+    if _ALGORITHM_V1 in algorithm_info:
+        algorithm_info[_ALGORITHM_V1]["name"] = "V1（非线性映射）"
+    return algorithm_info
+
+
+def _localize_algorithm_param_specs() -> dict[int, list[JSONDict]]:
+    """Build localized algorithm parameter specs for style-test page."""
+    raw_specs = get_algorithm_param_specs()
+    localized: dict[int, list[JSONDict]] = {}
+    for algorithm_id, specs in raw_specs.items():
+        localized_specs: list[JSONDict] = []
+        for spec in specs:
+            spec_name = spec["name"]
+            localized_spec: JSONDict = dict(spec)
+            if spec_name in _V1_PARAM_I18N:
+                label, description = _V1_PARAM_I18N[spec_name]
+                localized_spec["label"] = label
+                localized_spec["description"] = description
+            localized_specs.append(localized_spec)
+        localized[int(algorithm_id)] = localized_specs
+    return localized
+
 
 class AIStyleTestView(CustomView):
     """AI Score Algorithm Test interface."""
@@ -50,12 +93,9 @@ class AIStyleTestView(CustomView):
                     "custom_views/ai_style_test.html",
                     {
                         "request": request,
-                        "algorithm_info": {
-                            1: get_algorithm_info(1),
-                            2: get_algorithm_info(2),
-                        },
-                        "algorithm_param_specs": get_algorithm_param_specs(),
-                        "error": f"Invalid style_id: {style_id_raw}",
+                        "algorithm_info": _localize_algorithm_info(),
+                        "algorithm_param_specs": _localize_algorithm_param_specs(),
+                        "error": f"无效的 style_id: {style_id_raw}",
                         "selected_style_id": None,
                         "relationships": [],
                         "dimensions": [],
@@ -76,7 +116,7 @@ class AIStyleTestView(CustomView):
             context = {
                 "request": request,
                 "algorithm_info": {},
-                "algorithm_param_specs": get_algorithm_param_specs(),
+                "algorithm_param_specs": _localize_algorithm_param_specs(),
                 "test_result": None,
                 "error": None,
                 "selected_style_id": style_id,
@@ -87,10 +127,7 @@ class AIStyleTestView(CustomView):
             }
 
             # Get algorithm information from services layer
-            context["algorithm_info"] = {
-                1: get_algorithm_info(1),
-                2: get_algorithm_info(2),
-            }
+            context["algorithm_info"] = _localize_algorithm_info()
 
             # Get database session
             session_factory = get_sessionmaker()
@@ -183,7 +220,7 @@ class AIStyleTestView(CustomView):
                     logger.error("invalid_style_id", style_id=style_id, error=str(e))
                     context["dimensions"] = []
                     context["relationships"] = []
-                    context["error"] = f"Invalid style_id: {style_id}"
+                    context["error"] = f"无效的 style_id: {style_id}"
 
                 # Handle POST requests
                 if request.method == "POST":
@@ -205,11 +242,8 @@ class AIStyleTestView(CustomView):
                 "custom_views/ai_style_test.html",
                 {
                     "request": request,
-                    "algorithm_info": {
-                        1: get_algorithm_info(1),
-                        2: get_algorithm_info(2),
-                    },
-                    "error": f"Failed to render score test interface: {e!s}",
+                    "algorithm_info": _localize_algorithm_info(),
+                    "error": f"渲染分数测试页面失败: {e!s}",
                     "dimension_relationship_mappings": [],
                 },
             )
@@ -221,16 +255,16 @@ class AIStyleTestView(CustomView):
             async with session_factory() as db:
                 fd = dict(form_data)
                 result = await run_style_score_test(db, style_id=int(style_id), form_data=fd)
-                result["algorithm_info"] = {1: get_algorithm_info(1), 2: get_algorithm_info(2)}
+                result["algorithm_info"] = _localize_algorithm_info()
                 return result
         except Exception as e:
             logger.error("ai_style_test_failed", error=str(e))
-            return {"success": False, "message": f"Algorithm test failed: {e!s}"}
+            return {"success": False, "message": f"算法测试失败: {e!s}"}
 
 
 # Create view instance
 ai_style_test_view = AIStyleTestView(
-    label="Style Test",
+    label="风格测试",
     icon="",
     path="/ai_style/test/{id:int}",
     methods=["GET", "POST"],

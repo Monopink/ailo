@@ -9,6 +9,7 @@ from sqlalchemy import select
 from starlette.requests import Request
 from starlette_admin import (
     BooleanField,
+    DateTimeField,
     EnumField,
     FloatField,
     HasOne,
@@ -20,7 +21,6 @@ from starlette_admin.actions import link_row_action, row_action
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 
-from app.admin.fields import LocalDateTimeField
 from app.admin.views.base import IntegerEnumField
 from app.core.database import get_sessionmaker
 from app.models.llm import LLMConfig, LLMProvider, LLMTestLog
@@ -86,7 +86,10 @@ class LLMProviderView(ModelView):
         ),
         StringField("base_url", label="Base URL", help_text="API base URL", required=False),
         StringField(
-            "default_model", label="Default Model", help_text="Default model name", required=False
+            "default_model",
+            label="Default Model",
+            help_text="Default model name",
+            required=False,
         ),
         StringField(
             "supports_streaming_display",
@@ -103,8 +106,8 @@ class LLMProviderView(ModelView):
             label="Supports Thinking",
             help_text="Supports thinking mode",
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Provider creation time"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("created_at", label="Created At", help_text="Provider creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
     async def validate(self, request: Request, data: dict[str, Any]) -> None:
@@ -231,7 +234,15 @@ class LLMConfigView(ModelView):
 
     fields_default_sort = [("name", False)]
     searchable_fields = ["name", "model_name"]
-    sortable_fields = ["id", "name", "model_name", "status", "priority", "created_at", "updated_at"]
+    sortable_fields = [
+        "id",
+        "name",
+        "model_name",
+        "status",
+        "priority",
+        "created_at",
+        "updated_at",
+    ]
 
     fields = [
         StringField("id", label="ID", help_text="Internal config ID"),
@@ -249,7 +260,11 @@ class LLMConfigView(ModelView):
             required=True,
         ),
         StringField("model_name", label="Model Name", help_text="Specific model name (optional)"),
-        FloatField("temperature", label="Temperature", help_text="Temperature parameter (0.0-2.0)"),
+        FloatField(
+            "temperature",
+            label="Temperature",
+            help_text="Temperature parameter (0.0-2.0)",
+        ),
         IntegerField("max_tokens", label="Max Tokens", help_text="Maximum tokens"),
         IntegerField(
             "timeout_seconds",
@@ -269,7 +284,10 @@ class LLMConfigView(ModelView):
             required=False,
         ),
         FloatField(
-            "top_p", label="Top P", help_text="Nucleus sampling threshold (0.0-1.0)", required=False
+            "top_p",
+            label="Top P",
+            help_text="Nucleus sampling threshold (0.0-1.0)",
+            required=False,
         ),
         FloatField(
             "frequency_penalty",
@@ -365,10 +383,8 @@ class LLMConfigView(ModelView):
             label="Extra Parameters",
             help_text='Provider-specific parameters (e.g., max_completion_tokens, service_tier). Example: {"max_completion_tokens": 32000}',
         ),
-        LocalDateTimeField(
-            "created_at", label="Created At", help_text="Configuration creation time"
-        ),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("created_at", label="Created At", help_text="Configuration creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
     row_actions = ["view", "edit", "test_config", "test_json_schema"]
@@ -574,14 +590,18 @@ class LLMTestLogView(ModelView):
         ),
         IntegerField("prompt_tokens", label="Prompt Tokens", help_text="Number of prompt tokens"),
         IntegerField(
-            "completion_tokens", label="Completion Tokens", help_text="Number of completion tokens"
+            "completion_tokens",
+            label="Completion Tokens",
+            help_text="Number of completion tokens",
         ),
         IntegerField("total_tokens", label="Total Tokens", help_text="Total tokens used"),
         StringField(
-            "reasoning_content", label="Reasoning Content", help_text="Thinking/reasoning content"
+            "reasoning_content",
+            label="Reasoning Content",
+            help_text="Thinking/reasoning content",
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Test execution time"),
-        LocalDateTimeField("completed_at", label="Completed At", help_text="Test completion time"),
+        DateTimeField("created_at", label="Created At", help_text="Test execution time"),
+        DateTimeField("completed_at", label="Completed At", help_text="Test completion time"),
     ]
 
 

@@ -9,10 +9,9 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
-from starlette_admin import IntegerField, StringField, TextAreaField
+from starlette_admin import DateTimeField, IntegerField, StringField, TextAreaField
 from starlette_admin.contrib.sqla import ModelView
 
-from app.admin.fields import LocalDateTimeField
 from app.models.ai.template import AIPersona, AITemplate, AIType
 
 
@@ -192,8 +191,8 @@ class AITypeView(ModelView):
             label="Templates - Active Single-use",
             help_text="Active + Single-use templates",
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Creation timestamp"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update timestamp"),
+        DateTimeField("created_at", label="Created At", help_text="Creation timestamp"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update timestamp"),
     ]
 
     def can_delete(self, request: Request) -> bool:

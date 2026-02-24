@@ -6,12 +6,11 @@ This module contains Starlette-Admin views for managing user tokens and login re
 from typing import Any, ClassVar
 
 from starlette.requests import Request
-from starlette_admin import HasOne, JSONField, StringField, TextAreaField
+from starlette_admin import DateTimeField, HasOne, JSONField, StringField, TextAreaField
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 from starlette_admin.fields import BaseField
 
-from app.admin.fields import LocalDateTimeField
 from app.admin.views.base import IntegerEnumField
 
 # Import enums
@@ -80,7 +79,10 @@ class UserTokenView(ModelView):
         "refresh_token_hash",
         "token_metadata",
     ]
-    exclude_fields_from_detail: ClassVar[list[str]] = ["access_token", "refresh_token_hash"]
+    exclude_fields_from_detail: ClassVar[list[str]] = [
+        "access_token",
+        "refresh_token_hash",
+    ]
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("last_activity_at", True)]
     searchable_fields: ClassVar[list[str]] = ["user_qiao_id", "device_id", "ip_address"]
@@ -106,7 +108,11 @@ class UserTokenView(ModelView):
         ),
         StringField("user_id", label="User ID", help_text="User snowflake ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external identifier"),
-        StringField("access_token", label="Access Token", help_text="JWT access token (sensitive)"),
+        StringField(
+            "access_token",
+            label="Access Token",
+            help_text="JWT access token (sensitive)",
+        ),
         IntegerEnumField(
             "device_type",
             enum=DeviceType,
@@ -114,11 +120,17 @@ class UserTokenView(ModelView):
             help_text="Type of device used for login",
         ),
         StringField("device_id", label="Device ID", help_text="Unique device identifier"),
-        JSONField("platform_info", label="Platform Info", help_text="Platform information (JSONB)"),
+        JSONField(
+            "platform_info",
+            label="Platform Info",
+            help_text="Platform information (JSONB)",
+        ),
         StringField("ip_address", label="IP Address", help_text="Login IP address"),
         TextAreaField("user_agent", label="User Agent", help_text="Browser/device user agent"),
-        LocalDateTimeField(
-            "access_expires_at", label="Access Expires At", help_text="Access token expiration time"
+        DateTimeField(
+            "access_expires_at",
+            label="Access Expires At",
+            help_text="Access token expiration time",
         ),
         IntegerEnumField(
             "status",
@@ -126,20 +138,22 @@ class UserTokenView(ModelView):
             label="Status",
             help_text="Token status (editable for revocation)",
         ),
-        LocalDateTimeField(
-            "access_revoked_at", label="Access Revoked At", help_text="Access token revocation time"
+        DateTimeField(
+            "access_revoked_at",
+            label="Access Revoked At",
+            help_text="Access token revocation time",
         ),
         StringField(
             "refresh_token_hash",
             label="Refresh Token Hash",
             help_text="Refresh token hash (sensitive)",
         ),
-        LocalDateTimeField(
+        DateTimeField(
             "refresh_expires_at",
             label="Refresh Expires At",
             help_text="Refresh token expiration time",
         ),
-        LocalDateTimeField(
+        DateTimeField(
             "refresh_revoked_at",
             label="Refresh Revoked At",
             help_text="Refresh token revocation time (editable)",
@@ -149,11 +163,13 @@ class UserTokenView(ModelView):
             label="Token Metadata",
             help_text="Additional metadata (refresh counters, etc.)",
         ),
-        LocalDateTimeField(
-            "last_activity_at", label="Last Activity", help_text="Last activity timestamp"
+        DateTimeField(
+            "last_activity_at",
+            label="Last Activity",
+            help_text="Last activity timestamp",
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Token creation time"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("created_at", label="Created At", help_text="Token creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
     async def validate(self, request: Request, data: dict[str, Any]) -> None:
@@ -213,7 +229,7 @@ class LoginRecordView(ModelView):
         ),
         StringField("user_id", label="User ID", help_text="User snowflake ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external identifier"),
-        LocalDateTimeField("login_time", label="Login Time", help_text="Time of login attempt"),
+        DateTimeField("login_time", label="Login Time", help_text="Time of login attempt"),
         IntegerEnumField(
             "login_type",
             enum=LoginType,
@@ -241,7 +257,7 @@ class LoginRecordView(ModelView):
             label="User Token ID",
             help_text="Associated user_tokens.id (null for failed attempts)",
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Record creation time"),
+        DateTimeField("created_at", label="Created At", help_text="Record creation time"),
     ]
 
 
@@ -304,7 +320,12 @@ class UserAuthView(ModelView):
     exclude_fields_from_list: ClassVar[list[str]] = ["user_id", "user_qiao_id"]
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["user_qiao_id", "provider_uid", "unionid", "app_id"]
+    searchable_fields: ClassVar[list[str]] = [
+        "user_qiao_id",
+        "provider_uid",
+        "unionid",
+        "app_id",
+    ]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "user_qiao_id",
@@ -326,10 +347,15 @@ class UserAuthView(ModelView):
         StringField("user_id", label="User ID", help_text="User snowflake ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external identifier"),
         IntegerEnumField(
-            "auth_type", enum=AuthType, label="Auth Type", help_text="Third-party platform type"
+            "auth_type",
+            enum=AuthType,
+            label="Auth Type",
+            help_text="Third-party platform type",
         ),
         StringField(
-            "provider_uid", label="Provider UID", help_text="Platform user unique ID (openid/sub)"
+            "provider_uid",
+            label="Provider UID",
+            help_text="Platform user unique ID (openid/sub)",
         ),
         StringField("unionid", label="UnionID", help_text="WeChat unionid (optional)"),
         StringField("app_id", label="App ID", help_text="Platform app identifier"),
@@ -340,11 +366,13 @@ class UserAuthView(ModelView):
             help_text="Binding status (editable for unbinding)",
         ),
         TextAreaField("extra_data", label="Extra Data", help_text="Additional information (JSONB)"),
-        LocalDateTimeField(
-            "revoked_at", label="Revoked At", help_text="Unbind time (auto-filled on revoke)"
+        DateTimeField(
+            "revoked_at",
+            label="Revoked At",
+            help_text="Unbind time (auto-filled on revoke)",
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Binding creation time"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("created_at", label="Created At", help_text="Binding creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
 

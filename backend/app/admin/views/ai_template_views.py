@@ -7,21 +7,37 @@ from collections.abc import MutableMapping, Sequence
 from typing import ClassVar
 
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
-from starlette_admin import HasOne, IntegerField, JSONField, StringField, TextAreaField
+from starlette_admin import (
+    DateTimeField,
+    HasOne,
+    IntegerField,
+    JSONField,
+    StringField,
+    TextAreaField,
+)
 from starlette_admin._types import RequestAction
 from starlette_admin.actions import link_row_action
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 from starlette_admin.fields import BaseField, RelationField
 
-from app.admin.fields import LocalDateTimeField
 from app.admin.views.base import IntegerEnumField
-from app.enums import AIPersonaStatus, AITemplateStatus, Gender, ProfileOwnerType, ReusableStatus
+from app.enums import (
+    AIPersonaStatus,
+    AITemplateStatus,
+    Gender,
+    ProfileOwnerType,
+    ReusableStatus,
+)
 from app.models.ai.memory import AITemplateMemory
+from app.models.ai.personality import AIPersonality
+from app.models.ai.style import AIDimension, AIStyleDimension
 from app.models.ai.template import AIPersona, AITemplate
 from app.models.base import generate_qiao_id
 from app.models.profile import Profile
+from app.services.ai.response_schema import validate_style_personality_contract
 from app.services.security.username import (
     USERNAME_HELP_TEXT,
     UsernameValidationConfigError,
@@ -95,6 +111,14 @@ class AITemplateView(ModelView):
         if errors:
             raise FormValidationError(errors)
 
+        contract_error = await self._validate_template_contract(
+            _request.state.session,
+            style_id=getattr(obj, "style_id", None),
+            personality_id=getattr(obj, "personality_id", None),
+        )
+        if contract_error is not None:
+            raise FormValidationError({"personality": contract_error})
+
     async def before_edit(self, _request: Request, _data: FormData, obj: AITemplate) -> None:
         """Auto-fill foreign keys before editing template."""
         if hasattr(obj, "ai_type") and obj.ai_type is not None:
@@ -121,6 +145,48 @@ class AITemplateView(ModelView):
 
         if errors:
             raise FormValidationError(errors)
+
+        contract_error = await self._validate_template_contract(
+            _request.state.session,
+            style_id=getattr(obj, "style_id", None),
+            personality_id=getattr(obj, "personality_id", None),
+        )
+        if contract_error is not None:
+            raise FormValidationError({"personality": contract_error})
+
+    @staticmethod
+    async def _validate_template_contract(
+        session: AsyncSession,
+        *,
+        style_id: int | None,
+        personality_id: int | None,
+    ) -> str | None:
+        """Validate style/personality score-schema contract before save."""
+        if style_id is None or personality_id is None:
+            return None
+
+        style_result = await session.execute(
+            select(AIDimension.name)
+            .join(AIStyleDimension, AIStyleDimension.dimension_id == AIDimension.id)
+            .where(AIStyleDimension.style_id == style_id)
+            .order_by(AIDimension.name)
+        )
+        style_dimension_names = [row[0] for row in style_result.all() if isinstance(row[0], str)]
+        if not style_dimension_names:
+            return "Selected style has no dimensions"
+
+        personality_result = await session.execute(
+            select(AIPersonality.json_schema).where(AIPersonality.id == personality_id)
+        )
+        personality_schema = personality_result.scalar_one_or_none()
+        if personality_schema is None:
+            return "Selected personality not found"
+
+        try:
+            validate_style_personality_contract(style_dimension_names, personality_schema)
+        except (TypeError, ValueError) as exc:
+            return f"Style/personality contract mismatch: {exc!s}"
+        return None
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
     searchable_fields: ClassVar[list[str]] = []
@@ -226,8 +292,8 @@ class AITemplateView(ModelView):
             help_text="Active templates can be used",
             required=True,
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("created_at", label="Created At", help_text="Creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
     def get_fields_list(
@@ -424,8 +490,8 @@ class AIPersonaView(ModelView):
             help_text="Persona lifecycle status",
             required=True,
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Creation timestamp"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update timestamp"),
+        DateTimeField("created_at", label="Created At", help_text="Creation timestamp"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update timestamp"),
     ]
 
     async def before_create(self, request: Request, _data: FormData, obj: AIPersona) -> None:
@@ -495,7 +561,11 @@ class AITemplateMemoryView(ModelView):
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("display_order", True)]
     searchable_fields: ClassVar[list[str]] = ["content"]
-    sortable_fields: ClassVar[list[str]] = ["template_id", "display_order", "importance"]
+    sortable_fields: ClassVar[list[str]] = [
+        "template_id",
+        "display_order",
+        "importance",
+    ]
 
     fields: ClassVar[list[object]] = [
         StringField("id", label="ID"),
@@ -536,8 +606,8 @@ class AITemplateMemoryView(ModelView):
             help_text="记忆内容（建议一句话）",
             required=True,
         ),
-        LocalDateTimeField("created_at", label="Created At"),
-        LocalDateTimeField("updated_at", label="Updated At"),
+        DateTimeField("created_at", label="Created At"),
+        DateTimeField("updated_at", label="Updated At"),
     ]
 
     async def before_create(

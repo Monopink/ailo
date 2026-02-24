@@ -10,13 +10,14 @@ from typing import Any, cast
 
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
-from starlette_admin import CustomView, DropDown
+from starlette_admin import CustomView, DropDown, TimezoneConfig
 from starlette_admin.contrib.sqla import Admin
 
 from app.core.config import Settings, get_settings
 from app.core.database import get_engine
 
 from .auth import CustomAuthProvider
+from .i18n import admin_text, build_i18n_config, translate_labels
 from .views import (
     admin_login_log_view,
     admin_operation_log_view,
@@ -103,7 +104,9 @@ def _configure_template_env(admin_instance: Admin, settings: Settings) -> None:
     admin_instance.templates.env.filters["tojson"] = lambda data: json.dumps(
         data, default=str, ensure_ascii=False
     )
+    admin_instance.templates.env.filters["admin_translate_labels"] = translate_labels
     admin_instance.templates.env.globals["settings"] = settings
+    admin_instance.templates.env.globals["admin_text"] = admin_text
     try:
         admin_instance.templates.env.auto_reload = True
         cache = getattr(admin_instance.templates.env, "cache", None)
@@ -326,6 +329,13 @@ def _create_admin(settings: Settings) -> Admin:
         title="Qiao Dashboard",
         base_url="/qiao-dash",
         debug=settings.DEBUG,
+        i18n_config=build_i18n_config(),
+        timezone_config=TimezoneConfig(
+            default_timezone="Asia/Shanghai",
+            timezone_cookie_name="timezone",
+            database_timezone="UTC",
+            use_user_locale_timezone=True,
+        ),
         auth_provider=CustomAuthProvider(),
         templates_dir=str(Path(__file__).parent / "templates"),
         statics_dir=str(Path(__file__).parent / "static"),

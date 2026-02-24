@@ -1,5 +1,7 @@
 <!DOCTYPE html>
-<html lang="{{ get_locale() }}"{% set _mode = request.cookies.get('qiao_admin_theme', 'auto') %}{% if _mode in ['light','dark'] %} data-bs-theme="{{ _mode }}"{% endif %}>
+{% set _locale = get_locale() %}
+{% set _html_lang = 'zh' if _locale.startswith('zh') else _locale|replace('_', '-') %}
+<html lang="{{ _html_lang }}"{% set _mode = request.cookies.get('qiao_admin_theme', 'auto') %}{% if _mode in ['light','dark'] %} data-bs-theme="{{ _mode }}"{% endif %}>
 
 <head>
     <meta charset="UTF-8">
@@ -112,28 +114,32 @@
                     '  <line x1="9" y1="16" x2="9" y2="20"></line>' +
                     '  <line x1="15" y1="16" x2="15" y2="20"></line>' +
                     '</svg>';
+                var themeLabel = {{ admin_text("Theme") | tojson | safe }};
+                var autoLabel = {{ admin_text("Auto") | tojson | safe }};
+                var lightLabel = {{ admin_text("Light") | tojson | safe }};
+                var darkLabel = {{ admin_text("Dark") | tojson | safe }};
                 var cookieMode = '{{ _mode }}';
                 var currentTheme = (document.documentElement.getAttribute('data-bs-theme') || 'light');
                 var triggerIcon = (cookieMode === 'auto') ? iconMonitor : (currentTheme === 'dark' ? iconMoon : iconSun);
                 if (isButton) {
                     return (
-                        '<div class="nav-item dropdown theme-dropdown">' +
-                        '  <button type="button" class="btn dropdown-toggle" data-bs-toggle="dropdown" aria-label="Theme">' + triggerIcon + '</button>' +
+                        '<div class="nav-item dropdown me-2 theme-dropdown">' +
+                        '  <button type="button" class="btn dropdown-toggle" data-bs-toggle="dropdown" aria-label="' + themeLabel + '">' + triggerIcon + '</button>' +
                         '  <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow p-1">' +
-                        '    <a href="/qiao-dash/theme/auto" class="dropdown-item d-flex align-items-center gap-2 py-1 px-2">' + iconMonitor + '<span>Auto</span></a>' +
-                        '    <a href="/qiao-dash/theme/light" class="dropdown-item d-flex align-items-center gap-2 py-1 px-2">' + iconSun + '<span>Light</span></a>' +
-                        '    <a href="/qiao-dash/theme/dark" class="dropdown-item d-flex align-items-center gap-2 py-1 px-2">' + iconMoon + '<span>Dark</span></a>' +
+                        '    <a href="/qiao-dash/theme/auto" class="dropdown-item d-flex align-items-center gap-2 py-1 px-2">' + iconMonitor + '<span>' + autoLabel + '</span></a>' +
+                        '    <a href="/qiao-dash/theme/light" class="dropdown-item d-flex align-items-center gap-2 py-1 px-2">' + iconSun + '<span>' + lightLabel + '</span></a>' +
+                        '    <a href="/qiao-dash/theme/dark" class="dropdown-item d-flex align-items-center gap-2 py-1 px-2">' + iconMoon + '<span>' + darkLabel + '</span></a>' +
                         '  </div>' +
                         '</div>'
                     );
                 } else {
                     return (
-                        '<div class="nav-item dropdown ms-3 theme-dropdown">' +
-                        '  <a href="#" class="nav-link" data-bs-toggle="dropdown" title="Theme" aria-label="Theme">' + triggerIcon + '</a>' +
+                        '<div class="nav-item dropdown ms-3 me-2 theme-dropdown">' +
+                        '  <a href="#" class="nav-link" data-bs-toggle="dropdown" title="' + themeLabel + '" aria-label="' + themeLabel + '">' + triggerIcon + '</a>' +
                         '  <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow p-1">' +
-                        '    <a href="/qiao-dash/theme/auto" class="dropdown-item d-flex align-items-center gap-2 py-1 px-2">' + iconMonitor + '<span>Auto</span></a>' +
-                        '    <a href="/qiao-dash/theme/light" class="dropdown-item d-flex align-items-center gap-2 py-1 px-2">' + iconSun + '<span>Light</span></a>' +
-                        '    <a href="/qiao-dash/theme/dark" class="dropdown-item d-flex align-items-center gap-2 py-1 px-2">' + iconMoon + '<span>Dark</span></a>' +
+                        '    <a href="/qiao-dash/theme/auto" class="dropdown-item d-flex align-items-center gap-2 py-1 px-2">' + iconMonitor + '<span>' + autoLabel + '</span></a>' +
+                        '    <a href="/qiao-dash/theme/light" class="dropdown-item d-flex align-items-center gap-2 py-1 px-2">' + iconSun + '<span>' + lightLabel + '</span></a>' +
+                        '    <a href="/qiao-dash/theme/dark" class="dropdown-item d-flex align-items-center gap-2 py-1 px-2">' + iconMoon + '<span>' + darkLabel + '</span></a>' +
                         '  </div>' +
                         '</div>'
                     );

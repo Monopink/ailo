@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.crud.ai.instance_dimension import get_by_instance
+from app.exceptions import AIServiceError
 from app.models.ai.instance import AIInstance
 from app.models.ai.style import AIDimension, AIStyleDimension
 from app.services.ai.queries import get_instance_context
@@ -22,15 +23,16 @@ from app.services.ai.relationship_scoring import (
     update_relationship_positions,
 )
 from app.services.ai.relationship_selection import collect_candidates, select_final_relationship
+from app.services.ai.response_schema import build_response_schema
 from app.services.ai.utils.position_mapping import map_score_to_position
 from app.services.ai.utils.score_mapping import map_to_permille
-from app.type_defs import JSONValue, RelationshipCandidate
+from app.type_defs import RelationshipCandidate
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-async def generate_relationship_for_instance(
+async def generate_relationship_for_instance(  # noqa: PLR0911, PLR0912, PLR0915
     db: AsyncSession,
     *,
     instance_id: int,
@@ -79,15 +81,30 @@ async def generate_relationship_for_instance(
     if not style_dims:
         return {"success": False, "message": "No dimensions configured for this style"}
 
-    # Read JSON Schema for mapping ranges from personality
-    json_schema_raw = instance.personality.json_schema
-    json_schema_props = (
-        json_schema_raw.get("properties") if isinstance(json_schema_raw, dict) else {}
+    try:
+        runtime_schema = build_response_schema(context)
+    except AIServiceError as exc:
+        logger.error(
+            "instance_generate_schema_contract_invalid",
+            instance_id=instance_id,
+            error=str(exc),
+        )
+        return {"success": False, "message": str(exc)}
+    except Exception as exc:
+        logger.error(
+            "instance_generate_schema_build_failed",
+            instance_id=instance_id,
+            error=str(exc),
+        )
+        return {"success": False, "message": "Failed to build runtime schema"}
+
+    score_props = (
+        runtime_schema.get("properties", {}).get("score", {}).get("properties", {})
+        if isinstance(runtime_schema, dict)
+        else {}
     )
-    score_props_raw = json_schema_props.get("score") if isinstance(json_schema_props, dict) else {}
-    score_props = score_props_raw.get("properties") if isinstance(score_props_raw, dict) else {}
-    if not isinstance(score_props, dict):
-        score_props = {}
+    if not isinstance(score_props, dict) or not score_props:
+        return {"success": False, "message": "Runtime score schema is invalid"}
 
     # Read current instance dimensions
     char_scores = await get_by_instance(db, instance_id)
@@ -139,11 +156,28 @@ async def generate_relationship_for_instance(
         if not params:
             params = base.get("position_mapping_params", {}) or {} if base else {}
 
-        # Map using JSON Schema ranges (fallback 0..1000)
+        # Map using runtime schema ranges generated from style+personality contract.
         dim_schema_raw = score_props.get(dim.name) if isinstance(score_props, dict) else {}
         dim_schema = dim_schema_raw if isinstance(dim_schema_raw, dict) else {}
-        min_v = _coerce_numeric_bound(dim_schema.get("minimum"), 0.0)
-        max_v = _coerce_numeric_bound(dim_schema.get("maximum"), 1000.0)
+        min_v = dim_schema.get("minimum")
+        max_v = dim_schema.get("maximum")
+        if isinstance(min_v, bool) or not isinstance(min_v, int | float):
+            return {
+                "success": False,
+                "message": f"Invalid score minimum for dimension {dim.display_name}",
+            }
+        if isinstance(max_v, bool) or not isinstance(max_v, int | float):
+            return {
+                "success": False,
+                "message": f"Invalid score maximum for dimension {dim.display_name}",
+            }
+        min_v = float(min_v)
+        max_v = float(max_v)
+        if min_v >= max_v:
+            return {
+                "success": False,
+                "message": f"Invalid score range for dimension {dim.display_name}",
+            }
         try:
             mapped = map_to_permille(score, float(min_v), float(max_v))
         except Exception as e:
@@ -233,15 +267,3 @@ async def generate_relationship_for_instance(
         "selected_relationship": selected,
         "selection_reason": reason,
     }
-
-
-def _coerce_numeric_bound(value: JSONValue | None, default: float) -> float:
-    """Convert JSON value into a floating-point bound."""
-    if isinstance(value, int | float):
-        return float(value)
-    if isinstance(value, str):
-        try:
-            return float(value)
-        except ValueError:
-            return default
-    return default

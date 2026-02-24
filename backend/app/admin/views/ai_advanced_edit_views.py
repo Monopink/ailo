@@ -130,9 +130,23 @@ class InstanceAdvancedEditView(CustomView):
         score_props = schema.get("properties", {}).get("score", {}).get("properties", {})
         compiled: dict[str, dict[str, int]] = {}
         for dim_name, dim_schema in score_props.items():
+            if not isinstance(dim_name, str) or not dim_name:
+                continue
+            if not isinstance(dim_schema, dict):
+                continue
+            min_raw = dim_schema.get("minimum")
+            max_raw = dim_schema.get("maximum")
+            if isinstance(min_raw, bool) or not isinstance(min_raw, int | float):
+                continue
+            if isinstance(max_raw, bool) or not isinstance(max_raw, int | float):
+                continue
+            min_value = int(min_raw)
+            max_value = int(max_raw)
+            if min_value >= max_value:
+                continue
             compiled[dim_name] = {
-                "min": int(dim_schema.get("minimum", 0) or 0),
-                "max": int(dim_schema.get("maximum", 1000) or 1000),
+                "min": min_value,
+                "max": max_value,
             }
         return compiled
 

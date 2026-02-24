@@ -6,12 +6,11 @@ This module contains Starlette-Admin views for AI personality system.
 from typing import Any, ClassVar
 
 from starlette.requests import Request
-from starlette_admin import HasOne, StringField, TextAreaField
+from starlette_admin import DateTimeField, HasOne, StringField, TextAreaField
 from starlette_admin.actions import link_row_action
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.fields import JSONField
 
-from app.admin.fields import LocalDateTimeField
 from app.admin.views.base import IntegerEnumField
 from app.enums import AIPersonalityStatus, RequiredStatus
 from app.models.ai.personality import AIPersonality, AIPersonalityPlaceholder
@@ -73,7 +72,9 @@ class AIPersonalityView(ModelView):
             required=True,
         ),
         JSONField(
-            "json_schema", label="JSON Schema", help_text="JSON schema for AI response validation"
+            "json_schema",
+            label="JSON Schema",
+            help_text="JSON schema for AI response validation",
         ),
         IntegerEnumField(
             "status",
@@ -82,8 +83,8 @@ class AIPersonalityView(ModelView):
             help_text="Active personalities can be used",
             required=True,
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Creation time"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("created_at", label="Created At", help_text="Creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
 
@@ -147,8 +148,8 @@ class AIPersonalityPlaceholderView(ModelView):
             label="Required",
             help_text="Whether this placeholder must be filled",
         ),
-        LocalDateTimeField("created_at", label="Created At"),
-        LocalDateTimeField("updated_at", label="Updated At"),
+        DateTimeField("created_at", label="Created At"),
+        DateTimeField("updated_at", label="Updated At"),
     ]
 
 

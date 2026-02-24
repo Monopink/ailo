@@ -7,15 +7,15 @@
 {% block navbar %}
   {% set env = settings.ENVIRONMENT.lower() %}
   {% if env in ['development', 'dev'] %}
-    {% set env_label = 'Dev' %}
+    {% set env_label = admin_text('Dev') %}
     {% set env_color = 'secondary' %}
     {% set env_icon = 'code' %}
   {% elif env in ['staging', 'stage'] %}
-    {% set env_label = 'Staging' %}
+    {% set env_label = admin_text('Staging') %}
     {% set env_color = 'warning' %}
     {% set env_icon = 'flask' %}
   {% elif env in ['production', 'prod'] %}
-    {% set env_label = 'Prod' %}
+    {% set env_label = admin_text('Prod') %}
     {% set env_color = 'primary' %}
     {% set env_icon = 'server' %}
   {% else %}
@@ -36,14 +36,27 @@
         </div>
       </div>
       <div class="navbar-nav flex-row order-md-last">
+        {% if i18n_config.language_switcher %}
+        <div class="nav-item dropdown me-2">
+          <button type="button" class="btn dropdown-toggle" data-bs-toggle="dropdown" aria-label="{{ admin_text('Language') }}">
+            {% set current_lang = get_locale() %}
+            <i class="fa fa-language me-1"></i>{{ "中文" if current_lang == "zh_Hant" else "English" }}
+          </button>
+          <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+            {% for lang in i18n_config.language_switcher %}
+            <a href="#" class="dropdown-item language-switcher-item" data-lang="{{ lang }}" data-cookie-name="{{ i18n_config.language_cookie_name }}">{{ "中文" if lang == "zh_Hant" else "English" }}</a>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
         {% if current_user %}
         <div class="nav-item dropdown">
-          <a href="#" class="nav-link px-2" data-bs-toggle="dropdown" aria-label="Open user menu">
+          <a href="#" class="nav-link px-2" data-bs-toggle="dropdown" aria-label="{{ admin_text('Open user menu') }}">
             <i class="fa fa-user fa-lg"></i>
           </a>
           <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
             <span class="dropdown-header">{{ current_user.username }}</span>
-            <a href="{{ url_for(__name__ ~ ':logout') }}" class="dropdown-item">Logout</a>
+            <a href="{{ url_for(__name__ ~ ':logout') }}" class="dropdown-item">{{ admin_text("Logout") }}</a>
           </div>
         </div>
         {% endif %}

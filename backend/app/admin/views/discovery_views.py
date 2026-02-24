@@ -7,11 +7,10 @@ from typing import Any
 
 from sqlalchemy.exc import IntegrityError
 from starlette.requests import Request
-from starlette_admin import HasOne, StringField
+from starlette_admin import DateTimeField, HasOne, StringField
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 
-from app.admin.fields import LocalDateTimeField
 from app.admin.views.base import IntegerEnumField
 from app.enums import ExposureStrategy, SquareCategory, SquareEntryStatus
 from app.models.discovery import SquareTypeEntry
@@ -38,8 +37,18 @@ class _AITypeDisplayNameField(StringField):
 class SquareTypeEntryView(ModelView):
     """Manage square_type_entries records."""
 
-    exclude_fields_from_create = ["id", "created_at", "updated_at", "ai_type_display_name"]
-    exclude_fields_from_edit = ["id", "created_at", "updated_at", "ai_type_display_name"]
+    exclude_fields_from_create = [
+        "id",
+        "created_at",
+        "updated_at",
+        "ai_type_display_name",
+    ]
+    exclude_fields_from_edit = [
+        "id",
+        "created_at",
+        "updated_at",
+        "ai_type_display_name",
+    ]
     exclude_fields_from_list = []
 
     fields_default_sort = [("created_at", True)]
@@ -84,8 +93,8 @@ class SquareTypeEntryView(ModelView):
             help_text="Only active entries are surfaced to clients",
             required=True,
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Creation timestamp"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update timestamp"),
+        DateTimeField("created_at", label="Created At", help_text="Creation timestamp"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update timestamp"),
     ]
 
     async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:

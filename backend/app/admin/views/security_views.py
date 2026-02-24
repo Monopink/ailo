@@ -6,15 +6,20 @@ This module contains Starlette-Admin views for managing user security logs and s
 from typing import Any
 
 from starlette.requests import Request
-from starlette_admin import IntegerField, StringField, TextAreaField
+from starlette_admin import DateTimeField, IntegerField, StringField, TextAreaField
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 
-from app.admin.fields import LocalDateTimeField
 from app.admin.views.base import IntegerEnumField
 
 # Import enums
-from app.enums import AutoAction, ManualReviewStatus, RiskLevel, SeverityLevel, ViolationType
+from app.enums import (
+    AutoAction,
+    ManualReviewStatus,
+    RiskLevel,
+    SeverityLevel,
+    ViolationType,
+)
 
 # Import security models
 from app.models.security import UserRiskStats, UserViolationLog
@@ -56,9 +61,15 @@ class UserViolationLogView(ModelView):
         StringField("user_id", label="User ID", help_text="User snowflake ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external identifier"),
         StringField(
-            "instance_id", label="Instance ID", help_text="AI instance snowflake ID (if applicable)"
+            "instance_id",
+            label="Instance ID",
+            help_text="AI instance snowflake ID (if applicable)",
         ),
-        StringField("instance_qiao_id", label="Instance Qiao ID", help_text="AI instance qiao ID"),
+        StringField(
+            "instance_qiao_id",
+            label="Instance Qiao ID",
+            help_text="AI instance qiao ID",
+        ),
         IntegerEnumField(
             "violation_type",
             enum=ViolationType,
@@ -72,7 +83,9 @@ class UserViolationLogView(ModelView):
             help_text="Severity level of the violation",
         ),
         TextAreaField(
-            "original_message", label="Original Message", help_text="User's original message"
+            "original_message",
+            label="Original Message",
+            help_text="User's original message",
         ),
         IntegerEnumField(
             "auto_action_taken",
@@ -92,10 +105,8 @@ class UserViolationLogView(ModelView):
             help_text="Admin snowflake ID who reviewed this record",
         ),
         TextAreaField("review_notes", label="Review Notes", help_text="Manual review notes"),
-        LocalDateTimeField(
-            "created_at", label="Created At", help_text="When violation was detected"
-        ),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("created_at", label="Created At", help_text="When violation was detected"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
 
@@ -131,11 +142,15 @@ class UserRiskStatsView(ModelView):
         StringField("user_id", label="User ID", help_text="User snowflake ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external identifier"),
         IntegerField(
-            "total_violations", label="Total Violations", help_text="Total violation count"
+            "total_violations",
+            label="Total Violations",
+            help_text="Total violation count",
         ),
         "violation_by_type",
-        LocalDateTimeField(
-            "last_violation_at", label="Last Violation", help_text="Time of last violation"
+        DateTimeField(
+            "last_violation_at",
+            label="Last Violation",
+            help_text="Time of last violation",
         ),
         IntegerEnumField(
             "current_risk_level",
@@ -148,20 +163,28 @@ class UserRiskStatsView(ModelView):
             label="Consecutive Violations",
             help_text="Consecutive violations (resets after 7 days)",
         ),
-        IntegerField("warning_count", label="Warning Count", help_text="Number of warnings issued"),
+        IntegerField(
+            "warning_count",
+            label="Warning Count",
+            help_text="Number of warnings issued",
+        ),
         IntegerField(
             "restriction_count",
             label="Restriction Count",
             help_text="Number of restrictions applied",
         ),
         IntegerField(
-            "suspension_count", label="Suspension Count", help_text="Number of suspensions applied"
+            "suspension_count",
+            label="Suspension Count",
+            help_text="Number of suspensions applied",
         ),
-        LocalDateTimeField(
-            "last_action_at", label="Last Action", help_text="Time of last administrative action"
+        DateTimeField(
+            "last_action_at",
+            label="Last Action",
+            help_text="Time of last administrative action",
         ),
-        LocalDateTimeField("created_at", label="Created At", help_text="Record creation time"),
-        LocalDateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+        DateTimeField("created_at", label="Created At", help_text="Record creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
     async def validate(self, request: Request, data: dict[str, Any]) -> None:
@@ -184,7 +207,10 @@ user_violation_log_view = UserViolationLogView(
 )
 
 user_risk_stats_view = UserRiskStatsView(
-    UserRiskStats, name="User Risk Stats", icon="fa fa-shield", identity="user_risk_stats"
+    UserRiskStats,
+    name="User Risk Stats",
+    icon="fa fa-shield",
+    identity="user_risk_stats",
 )
 
 # Export security views

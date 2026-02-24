@@ -33,9 +33,9 @@ case "$ENV" in
 			\i /docker-entrypoint-initdb.d/02_required_data_prod.sql
 EOSQL
         ;;
-    test)
+    staging|stage|test)
         psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-			\i /docker-entrypoint-initdb.d/02_required_data_test.sql
+			\i /docker-entrypoint-initdb.d/02_required_data_staging.sql
 EOSQL
         ;;
     dev|development|*)

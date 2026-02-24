@@ -1,241 +1,115 @@
-# Deployment Scripts
+# 部署参考
 
-This directory contains simplified scripts for deploying and managing the application in the staging environment.
+## 首次部署
 
-## Scripts Overview
-
-### Local Scripts (Run on Development Machine)
-
-#### pack-for-windows.ps1
-Windows PowerShell script to pack the project for deployment.
+### 1) 本地打包（Windows）
 
 ```powershell
-# Pack project
-.\pack-for-windows.ps1
+powershell.exe -ExecutionPolicy Bypass -File "deployment\scripts\pack-for-windows.ps1"
 ```
 
-Creates a timestamped deployment package (e.g., `ailo-staging-deploy-20241218-143022.tar.gz`) in the project root.
+### 2) 上传产物
 
-#### pack-and-upload.sh
-Linux/Mac script to pack, upload, and optionally deploy to the server.
+上传 `ailo-staging-deploy-YYYYMMDD-HHMMSS.tar.gz` 到服务器 `/home/ubuntu/`。
+
+### 3) 服务器初始化（仅首次）
 
 ```bash
-# Full deployment (pack + upload + deploy)
-./pack-and-upload.sh --host YOUR_SERVER_IP
-
-# Pack only (for manual upload)
-./pack-and-upload.sh --pack-only
-
-# Upload existing package
-./pack-and-upload.sh --upload-only --host YOUR_SERVER_IP
-
-# Deploy with Docker rebuild
-./pack-and-upload.sh --host YOUR_SERVER_IP --rebuild
-```
-
-### Server Scripts (Run on Server)
-
-#### setup.sh
-Initial server setup (run once on new server).
-
-```bash
-# SSH to server
-ssh ubuntu@YOUR_SERVER_IP
-
-# Run setup
-cd /opt/ailo-staging/ailo/deployment/scripts
-chmod +x setup.sh
-./setup.sh
-```
-
-This script:
-- Creates `/opt/ailo-staging` directory structure
-- Installs docker-compose and required tools
-- Configures Docker permissions
-- Cleans up old containers
-
-#### deploy.sh
-All-in-one deployment and management script.
-
-```bash
-# Start services
-./deploy.sh start
-
-# Stop services
-./deploy.sh stop
-
-# Restart services
-./deploy.sh restart
-
-# Update services (with automatic backup)
-./deploy.sh update
-
-# Update with Docker image rebuild
-./deploy.sh update --rebuild
-
-# View logs (all services)
-./deploy.sh logs
-
-# View logs (specific service)
-./deploy.sh logs backend_staging
-
-# Check service status
-./deploy.sh status
-
-# Check service health
-./deploy.sh health
-
-# Manual backup (code + database)
-./deploy.sh backup
-```
-
-## Quick Start
-
-### First Time Deployment
-
-**1. On local Windows machine:**
-```powershell
-cd deployment\scripts
-.\pack-for-windows.ps1
-```
-
-**2. Upload via xftp:**
-- Upload `ailo-staging-deploy-YYYYMMDD-HHMMSS.tar.gz` to `/home/ubuntu/`
-
-**3. On server:**
-```bash
-# SSH to server
-ssh ubuntu@YOUR_SERVER_IP
-
-# Extract package
-cd ~
-tar -xzf ailo-staging-deploy-*.tar.gz
-
-# Run initial setup
+ssh ubuntu@ark3.qiaoqiaoai.cn
+cd /home/ubuntu
+tar -xzf ailo-staging-deploy-YYYYMMDD-HHMMSS.tar.gz
 cd ailo/deployment/scripts
 chmod +x setup.sh
 ./setup.sh
+```
 
-# Log out and back in (for Docker group permissions)
-exit
-ssh ubuntu@YOUR_SERVER_IP
+重新登录后执行：
 
-# Move to deployment directory
+```bash
+ssh ubuntu@ark3.qiaoqiaoai.cn
 sudo mkdir -p /opt/ailo-staging
 sudo chown -R ubuntu:ubuntu /opt/ailo-staging
-mv ~/ailo /opt/ailo-staging/
-
-# Start services
+mv /home/ubuntu/ailo /opt/ailo-staging/
 cd /opt/ailo-staging/ailo/deployment/scripts
 chmod +x *.sh
 ./deploy.sh start
 ```
 
-### Subsequent Updates
+## 常规更新
 
-**On local machine:**
+先把 `ailo-staging-deploy-YYYYMMDD-HHMMSS.tar.gz` 上传到服务器 `/home/ubuntu/`，然后执行：
+
 ```bash
-cd deployment/scripts
-./pack-and-upload.sh --host YOUR_SERVER_IP
+ssh ubuntu@ark3.qiaoqiaoai.cn
+cd /opt/ailo-staging/ailo/deployment/scripts
+sudo ./deploy.sh deploy --package /home/ubuntu/ailo-staging-deploy-YYYYMMDD-HHMMSS.tar.gz
 ```
 
-Or manually:
-1. Pack with `pack-for-windows.ps1` (Windows) or `pack-and-upload.sh --pack-only` (Linux/Mac)
-2. Upload package to server via xftp
-3. SSH to server and run: `cd /opt/ailo-staging/ailo/deployment/scripts && ./deploy.sh update`
+`deploy --package` 包含代码备份、数据库备份、解压新包、替换代码目录、镜像重建、容器启动、数据库迁移。
 
-## Common Tasks
+## deploy.sh 命令
 
-### View Real-time Logs
 ```bash
-# All services
+cd /opt/ailo-staging/ailo/deployment/scripts
+
+./deploy.sh start
+./deploy.sh stop
+./deploy.sh restart
+./deploy.sh deploy --package /home/ubuntu/ailo-staging-deploy-YYYYMMDD-HHMMSS.tar.gz
+./deploy.sh update
+./deploy.sh update --rebuild
 ./deploy.sh logs
-
-# Specific service
 ./deploy.sh logs backend_staging
-./deploy.sh logs postgres_staging
-./deploy.sh logs nginx_staging
-```
-
-### Check System Status
-```bash
-# Service status and resource usage
 ./deploy.sh status
-
-# Health check
 ./deploy.sh health
-```
-
-### Backup
-```bash
-# Manual backup (code + database)
 ./deploy.sh backup
 ```
 
-Backups are stored in `/opt/ailo-staging/backups/`:
-- Code backups: Last 3 versions
-- Database backups: Last 7 days
+## 环境变量必填项
 
-Automatic backups are created during `./deploy.sh update`.
+`/opt/ailo-staging/ailo/deployment/.env.staging` 必须包含：
 
-## Troubleshooting
+- `WECHAT_APP_ID`
+- `WECHAT_APP_SECRET`
 
-### Permission Denied
+## 发布后验证
+
 ```bash
-chmod +x *.sh
+cd /opt/ailo-staging/ailo/deployment/scripts
+./deploy.sh status
+./deploy.sh health
+docker ps
 ```
 
-### Docker Permission Issues
-```bash
-# Add user to docker group
-sudo usermod -aG docker $USER
+- 管理后台：`https://ark3.qiaoqiaoai.cn/qiao-dash/`
+- API：`https://ark3.qiaoqiaoai.cn/api/`
 
-# Log out and log back in for changes to take effect
-exit
+## 回滚参考
+
+### 代码回滚
+
+```bash
+ls -lht /opt/ailo-staging/backups/code/ | head -5
+cd /opt/ailo-staging
+mv ailo ailo.failed.$(date +%Y%m%d-%H%M%S)
+mkdir -p ailo
+tar -xzf /opt/ailo-staging/backups/code/backup-YYYYMMDD-HHMMSS.tar.gz -C ailo
+cd /opt/ailo-staging/ailo/deployment/scripts
+./deploy.sh update --rebuild
 ```
 
-### Services Not Starting
+### 数据库回滚
+
 ```bash
-# Check logs for errors
-./deploy.sh logs
-
-# Check container status
-docker ps -a
-
-# Check Docker Compose configuration
-cd /opt/ailo-staging/ailo/deployment
-docker-compose -f docker-compose.staging.yml config
-
-# Restart services
-./deploy.sh restart
+ls -lht /opt/ailo-staging/backups/database/ | head -5
+gunzip -c /opt/ailo-staging/backups/database/db-YYYYMMDD-HHMMSS.sql.gz | docker exec -i postgres psql -U ailo_user ailo
 ```
 
-### Database Connection Issues
-```bash
-# Check PostgreSQL container
-./deploy.sh logs postgres_staging
+## 关键路径与名称
 
-# Check environment variables
-cat /opt/ailo-staging/ailo/deployment/.env.staging
-```
-
-## File Locations
-
-- **Project:** `/opt/ailo-staging/ailo/`
-- **Docker Compose:** `/opt/ailo-staging/ailo/deployment/docker-compose.staging.yml`
-- **Environment:** `/opt/ailo-staging/ailo/deployment/.env.staging`
-- **Backups:** `/opt/ailo-staging/backups/`
-- **Scripts:** `/opt/ailo-staging/ailo/deployment/scripts/`
-
-## Notes
-
-- All scripts use color-coded output for better readability
-- Scripts are hardcoded for staging environment only
-- Backups are automatically created during updates
-- No backward compatibility with old test environment
-- Database migrations run automatically during updates
-
-## See Also
-
-- [Deployment Guide](../docs/deployment-guide.md)
-- [Quick Deployment Guide](../docs/quick-deployment-guide.md)
+- 项目路径：`/opt/ailo-staging/ailo/`
+- 部署脚本：`/opt/ailo-staging/ailo/deployment/scripts/`
+- 环境文件：`/opt/ailo-staging/ailo/deployment/.env.staging`
+- 备份目录：`/opt/ailo-staging/backups/`
+- 日志服务名：`backend_staging`、`nginx_staging`、`postgres_staging`
+- 容器名：`backend`、`nginx`、`postgres`

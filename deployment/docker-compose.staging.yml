@@ -29,7 +29,7 @@ services:
   backend_staging:
     build:
       context: ../backend
-      dockerfile: app/Dockerfile.staging
+      dockerfile: Dockerfile.staging
     container_name: backend
     env_file:
       - .env.staging

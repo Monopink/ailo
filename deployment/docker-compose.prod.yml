@@ -58,7 +58,7 @@ services:
     container_name: backend
     build:
       context: ../backend
-      dockerfile: app/Dockerfile.prod
+      dockerfile: Dockerfile.prod
     env_file:
       - .env.prod
     environment:

@@ -11,6 +11,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
 from app.exceptions.error_codes import build_error_code
+from app.utils.client_ip import ClientIPResolutionError, get_client_ip
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -64,11 +65,27 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
         requests = getattr(request.app.state, "api_rate_limit_requests", 100)
         window_seconds = getattr(request.app.state, "api_rate_limit_window_seconds", 60)
 
-        # Get client IP (default to unknown if client info not available)
-        if request.client is None:
-            ip = "unknown"
-        else:
-            ip = request.client.host
+        try:
+            ip = get_client_ip(request)
+        except ClientIPResolutionError as exc:
+            logger.warning(
+                "api_rate_limit_client_ip_invalid",
+                reason=exc.reason,
+                detail=str(exc),
+                path=request.url.path,
+            )
+            request_id = self._get_or_create_request_id(request)
+            message = "请求来源无效"
+            error_code = build_error_code(path=request.url.path, status_code=400, detail=message)
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error_code": error_code,
+                    "message": message,
+                    "request_id": request_id,
+                },
+                headers={REQUEST_ID_HEADER: request_id},
+            )
 
         # Check rate limit
         now = time.time()

@@ -1,7 +1,9 @@
 from functools import lru_cache
+from ipaddress import ip_network
 from pathlib import Path
+from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -67,6 +69,9 @@ class Settings(BaseSettings):
     BCRYPT_ROUNDS: int
     CORS_ORIGINS: list[str]
     ALLOWED_HOSTS: list[str]
+    CLIENT_IP_MODE: Literal["peer", "trusted_header"] = "trusted_header"
+    CLIENT_IP_HEADER: str = "X-Client-IP"
+    TRUSTED_PROXY_CIDRS: list[str] = Field(default_factory=list)
 
     # LeanCloud settings (only sensitive master key in env)
     LEANCLOUD_MASTER_KEY: str
@@ -126,6 +131,39 @@ class Settings(BaseSettings):
             parts = [item.strip() for item in value.split(",")]
             return [item for item in parts if item]
         return value
+
+    @field_validator("TRUSTED_PROXY_CIDRS", mode="before")
+    @classmethod
+    def _split_trusted_proxy_cidrs(cls, value: str | list[str] | None) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            parts = [item.strip() for item in value.split(",")]
+            return [item for item in parts if item]
+        return value
+
+    @field_validator("TRUSTED_PROXY_CIDRS")
+    @classmethod
+    def _validate_trusted_proxy_cidrs(cls, value: list[str]) -> list[str]:
+        for item in value:
+            if item == "*":
+                raise ValueError("TRUSTED_PROXY_CIDRS cannot include wildcard '*'")
+            ip_network(item, strict=False)
+        return value
+
+    @model_validator(mode="after")
+    def _validate_client_ip_security(self) -> "Settings":
+        if self.CLIENT_IP_MODE == "trusted_header" and not self.TRUSTED_PROXY_CIDRS:
+            raise ValueError("TRUSTED_PROXY_CIDRS must be configured in trusted_header mode")
+        return self
+
+    @field_validator("CLIENT_IP_HEADER")
+    @classmethod
+    def _validate_client_ip_header(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("CLIENT_IP_HEADER must be configured")
+        return normalized
 
     @field_validator("MEDIA_PUBLIC_BASE_URL", mode="before")
     @classmethod

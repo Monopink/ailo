@@ -7,6 +7,7 @@ from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.admin import AdminLoginLog, AdminOperationLog
+from app.utils.client_ip import get_client_ip
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -47,9 +48,7 @@ async def create_operation_log(
 
         # Extract IP and user agent from request if available
         if request:
-            log_data["ip_address"] = (
-                getattr(request.client, "host", None) if request.client else None
-            )
+            log_data["ip_address"] = get_client_ip(request)
             log_data["user_agent"] = request.headers.get("user-agent", "")
 
         # Create log entry
@@ -104,9 +103,7 @@ async def create_login_log(
 
         # Extract IP and user agent from request if available
         if request:
-            log_data["ip_address"] = (
-                getattr(request.client, "host", None) if request.client else None
-            )
+            log_data["ip_address"] = get_client_ip(request)
             log_data["user_agent"] = request.headers.get("user-agent", "")
 
         # Create log entry

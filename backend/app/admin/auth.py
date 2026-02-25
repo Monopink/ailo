@@ -21,6 +21,7 @@ from app.services.security.auth_tracker import (
 from app.services.security.captcha.factory import create_captcha_provider
 from app.services.system_config import get_config_str
 from app.utils.admin_logs import create_login_log
+from app.utils.client_ip import ClientIPResolutionError, get_client_ip
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -44,7 +45,25 @@ class CustomAuthProvider(AuthProvider):
         """Render the custom login template."""
         session_factory = get_sessionmaker()
         async with session_factory() as db:
-            client_ip = request.client.host if request.client else "unknown"
+            try:
+                client_ip = get_client_ip(request)
+            except ClientIPResolutionError as exc:
+                logger.warning(
+                    "admin_login_form_client_ip_invalid",
+                    reason=exc.reason,
+                    detail=str(exc),
+                )
+                return templates.TemplateResponse(
+                    "login.html",
+                    {
+                        "request": request,
+                        "admin": admin,
+                        "show_captcha": False,
+                        "turnstile_site_key": "",
+                        "error": "Invalid request source",
+                    },
+                    status_code=400,
+                )
             turnstile_site_key = await get_config_str(
                 db,
                 key="admin_turnstile_site_key",
@@ -70,7 +89,7 @@ class CustomAuthProvider(AuthProvider):
         session_factory = get_sessionmaker()
         async with session_factory() as db:
             try:
-                client_ip = request.client.host if request.client else "unknown"
+                client_ip = get_client_ip(request)
                 form_data = await request.form()
                 username = str(form_data.get("username", ""))
                 password = str(form_data.get("password", ""))
@@ -94,6 +113,13 @@ class CustomAuthProvider(AuthProvider):
                 # All validations passed - complete login
                 return await self._complete_login(username, client_ip, request, admin, db)
 
+            except ClientIPResolutionError as exc:
+                logger.warning(
+                    "admin_login_client_ip_invalid",
+                    reason=exc.reason,
+                    detail=str(exc),
+                )
+                return self._create_login_failure_response(request, admin)
             except Exception as e:
                 logger.error("admin_login_unexpected_error", error=str(e), exc_info=True)
                 return self._create_login_failure_response(request, admin)

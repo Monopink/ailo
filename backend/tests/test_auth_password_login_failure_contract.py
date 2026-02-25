@@ -20,7 +20,7 @@ def _build_request() -> Request:
         "type": "http",
         "method": "POST",
         "path": "/api/v1/auth/login",
-        "headers": [],
+        "headers": [(b"x-client-ip", b"203.0.113.10")],
         "client": ("127.0.0.1", 12345),
     }
     return Request(scope)

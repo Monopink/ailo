@@ -16,6 +16,7 @@ from app.models.user import User
 from app.services.security.auth_tracker import should_require_captcha
 from app.services.security.captcha.factory import create_captcha_provider
 from app.services.security.rate_limiter import check_message_rate_limit, check_rate_limit
+from app.utils.client_ip import ClientIPResolutionError, get_client_ip
 from app.utils.logging import get_logger
 
 __all__ = [
@@ -50,6 +51,21 @@ def _protective_denial_detail(
         camouflage_message=camouflage_message,
         metadata=detail_metadata,
     )
+
+
+def _resolve_client_ip(request: Request) -> str:
+    """Resolve client IP from trusted proxy context for security dependencies."""
+    try:
+        return get_client_ip(request)
+    except ClientIPResolutionError as exc:
+        logger.warning("dependency_client_ip_invalid", reason=exc.reason, detail=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=_protective_denial_detail(
+                reason="INVALID_CLIENT_IP_DEP",
+                camouflage_message="操作异常",
+            ),
+        ) from exc
 
 
 async def verify_admin_session(request: Request) -> dict[str, Any]:
@@ -128,7 +144,7 @@ async def require_auth_rate_limit(
         raise ValueError(f"Unsupported auth_type for require_auth_rate_limit: {auth_type}")
 
     async def dependency(request: Request, db: DBSession) -> None:
-        ip = request.client.host if request.client else "unknown"
+        ip = _resolve_client_ip(request)
         allowed, error_code, retry_after = await check_rate_limit(ip, f"{auth_type}_auth", db)
 
         if not allowed:
@@ -225,7 +241,7 @@ async def require_captcha_if_needed(
     """
 
     async def dependency(request: Request, db: DBSession) -> None:
-        ip = request.client.host if request.client else "unknown"
+        ip = _resolve_client_ip(request)
 
         # Check if CAPTCHA is required
         if await should_require_captcha(ip, f"{auth_type}_auth", db):

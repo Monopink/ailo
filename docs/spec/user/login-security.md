@@ -85,10 +85,11 @@
 
 顺序：
 
-1) 构造 `auth_identifier`
-2) 若处于 lockout：返回保护性拒绝同态（对外复用普通失败三元组：`HTTP 400` + `error_code` + `message=登录失败，请稍后再试`），真实原因仅写日志（含 `retry_after`）
-3) 进行双窗口 rate limit：超限返回保护性拒绝同态（对外复用普通失败三元组：`HTTP 400` + `error_code` + `message=登录失败，请稍后再试`），真实原因仅写日志（含 `retry_after`）
-4) 校验密码：
+1) 按 `CLIENT_IP_MODE` 解析并校验 `client_ip`
+2) 构造 `auth_identifier`
+3) 若处于 lockout：返回保护性拒绝同态（对外复用普通失败三元组：`HTTP 400` + `error_code` + `message=登录失败，请稍后再试`），真实原因仅写日志（含 `retry_after`）
+4) 进行双窗口 rate limit：超限返回保护性拒绝同态（对外复用普通失败三元组：`HTTP 400` + `error_code` + `message=登录失败，请稍后再试`），真实原因仅写日志（含 `retry_after`）
+5) 校验密码：
    - 凭证无效（账号不存在 / 密码错误）：记录一次 failure（计入 `failure_window`），返回 400 + `账号或密码错误`
    - 账号状态非 ACTIVE：记录一次 failure（计入 `failure_window`），返回 400 + `账号已被禁用`
    - 成功：清空 failure 记录，继续签发 token

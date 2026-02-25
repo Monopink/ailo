@@ -31,9 +31,11 @@
 ### 输入约束
 
 - `score` 对象必须覆盖且仅覆盖当前 style 的全部维度名。
+- `score` 对象维度集合来源于当前 style。
 - 每个维度必须具备合法 `minimum` / `maximum`，且 `minimum != maximum`。
+- `minimum` / `maximum` 来源于 personality schema 的 `score.properties.<dimension_name>`。
 - 维度分数必须是整数。
-- 任一约束失败：终止本轮关系更新，保持当前关系状态不变。
+- 任一约束失败：报错并终止本轮处理。
 
 ### 计算顺序
 
@@ -160,6 +162,6 @@ position = initial_position + (1000 - initial_position) * offset_ratio
 
 ## 错误边界
 
-- 配置错误（缺参、类型错误、范围错误）：终止本轮关系更新。
+- 配置错误（缺参、类型错误、范围错误）：报错并终止本轮处理。
 - 映射错误（无候选、优先级并列、无匹配关系）：返回空关系结果，不更新状态。
 - 数据异常（`relationship_counts > limit_count`）：记录错误并剔除该候选，继续处理其余候选。

@@ -35,7 +35,7 @@ LLM 请求参数允许多层覆盖，优先级从高到低：
   ↓
 接收完整响应
   ↓
-按 response_format 做 JSON Schema 校验
+按运行时响应 Schema 做 JSON Schema 校验
   ↓
 进入响应处理
 ```
@@ -73,10 +73,12 @@ LLM 响应的字段语义、处理顺序和跨模块归属见本文档的“系�
 
 ## Schema 约束
 
-- Schema 来源：`llm_configs.response_format`。
+- 运行时响应 Schema 来源：`response_schema.build_response_schema(context)`。
 - 规范版本：JSON Schema Draft 2020-12。
-- `score` 维度在运行时由 style 维度动态展开（维度名来自 `ai_style_dimensions`）。
+- `score` 维度集合来自 style 维度（维度名来自 `ai_style_dimensions`）。
+- `score` 各维度 `minimum` / `maximum` 来源于 `ai_personalities.json_schema.properties.score.properties`。
 - 可扩展字段允许存在，但系统仅处理已登记字段；未知字段忽略。
+- style 与 personality 组合必须满足维度契约匹配；不匹配时报错并终止调用。
 
 ## 系统识别字段
 
@@ -84,12 +86,14 @@ LLM 响应的字段语义、处理顺序和跨模块归属见本文档的“系�
 
 - 类型：string
 - 语义：角色当前状态补充
+- 出现条件：管理员在 personality schema 中启用该字段时出现
 - 处理：当前不落库，保留为扩展位
 
 ### internal_thoughts
 
 - 类型：string
 - 语义：回复前内部思考
+- 出现条件：管理员在 personality schema 中启用该字段时出现
 - 处理：不参与业务状态更新
 
 ### attack_detected

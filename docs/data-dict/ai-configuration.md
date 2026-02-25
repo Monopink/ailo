@@ -83,7 +83,7 @@ AI人格表，定义 AI 实例的人格特征和提示词模板。
 id -- 自增ID
 display_name -- 显示名称
 prompt -- 人格提示词模板
-json_schema -- JSON模式定义
+json_schema -- JSON Schema 定义
 status -- 状态：1=active, 2=inactive
 created_at
 updated_at
@@ -95,7 +95,7 @@ AI人格占位符表，定义人格模板中的占位符。是一种声明，在
 
 ```txt
 id -- 自增ID
-personality_id -- 关联ai_personalities.id，NULL表示公共数据
+personality_id -- 关联ai_personalities.id
 placeholder_key -- 占位符键名
 display_name -- 显示名称
 description -- 描述说明

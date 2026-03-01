@@ -19,7 +19,6 @@ async def copy_template_memories_to_instance(
     instance: AIInstance,
 ) -> int:
     """Copy template memories into an instance-scoped memory table."""
-
     try:
         result = await db.execute(
             select(AITemplateMemory)
@@ -64,5 +63,6 @@ async def copy_template_memories_to_instance(
             error=str(exc),
             template_id=template_id,
             instance_id=getattr(instance, "id", None),
+            exc_info=True,
         )
-        return 0
+        raise

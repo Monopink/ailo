@@ -29,9 +29,9 @@
 ```
 orchestrators
   -> relationship_scoring
-  -> conversation_memory
-  -> ai_core
-  -> repositories
+  -> queries
+  -> memory
+  -> crud
   -> models
 ```
 

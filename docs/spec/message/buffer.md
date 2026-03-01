@@ -204,7 +204,7 @@
 1. Buffer 通过 finalize 校验后，进入响应处理与发送：
    - 安全副作用：attack_detected、should_block（always-on）
    - 消息发送：send_ai_messages_with_typing
-   - 会话副作用：memory_operations、score（首条发送门槛达成后执行）
+   - 会话副作用：memory_operations、score（首条发送门槛达成后独立执行）
 
 2. 消息发送过程中：
    - 每发送一条消息，立即独立插入到 ai_conversation_items

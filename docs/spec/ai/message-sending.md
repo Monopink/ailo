@@ -53,7 +53,7 @@
 
 `finalize_buffer_if_locked(... -> COMPLETE)` 与以上三项在同一事务提交。
 
-会话副作用（`memory_operations`、`score`）在门槛达成后执行。
+会话副作用（`memory_operations`、`score`）在门槛达成后执行，且两项独立提交。
 
 ### pending_messages 语义
 
@@ -145,6 +145,12 @@
 - 不写 `pending_messages`
 
 详见：`docs/spec/message/failure-handling.md`
+
+### 会话副作用失败
+
+- 会话副作用在独立事务边界内回滚失败项
+- 已发送消息事实保持不变
+- 失败项记录日志用于后续排查
 
 ## 打字速度计算
 

@@ -191,45 +191,111 @@ async def _send_and_apply_post_send_effects(
     if not should_apply_memory and not score_updates:
         return
 
+    if should_apply_memory:
+        await _apply_memory_side_effect(
+            session_factory=session_factory,
+            user_qiao_id=user_qiao_id,
+            instance_qiao_id=instance_qiao_id,
+            task_turn_version=task_turn_version,
+            instance_context=instance_context,
+            memory_ops_payload=memory_ops_payload,
+            user_message_item_id=user_message_item_id,
+        )
+
+    if score_updates:
+        await _apply_score_side_effect(
+            session_factory=session_factory,
+            user_qiao_id=user_qiao_id,
+            instance_qiao_id=instance_qiao_id,
+            task_turn_version=task_turn_version,
+            instance_context=instance_context,
+            score_updates=score_updates,
+        )
+
+
+async def _apply_memory_side_effect(
+    *,
+    session_factory: async_sessionmaker[AsyncSession],
+    user_qiao_id: str,
+    instance_qiao_id: str,
+    task_turn_version: int,
+    instance_context: InstanceContext,
+    memory_ops_payload: JSONDict,
+    user_message_item_id: int | None,
+) -> None:
     async with session_factory() as db:
         try:
-            if should_apply_memory:
-                await process_memory_operations(
-                    db,
-                    instance_context,
-                    memory_ops_payload,
-                    source_message_id=user_message_item_id,
-                )
-
-            if score_updates:
-                await update_instance_relationship_scores(
-                    db, instance_context["instance_id"], score_updates
-                )
-
-                latest_scores = await get_instance_relationship_scores(
-                    db, instance_context["instance_id"]
-                )
-                if latest_scores:
-                    rel = await determine_relationship_type(db, instance_context, latest_scores)
-                    if rel and rel.get("relationship"):
-                        relationship = rel["relationship"]
-                        display_name = getattr(
-                            relationship, "display_name", getattr(relationship, "name", "")
-                        )
-                        await set_instance_current_relationship(
-                            db, instance_context["instance_id"], relationship.id, display_name
-                        )
-
+            await process_memory_operations(
+                db,
+                instance_context,
+                memory_ops_payload,
+                source_message_id=user_message_item_id,
+            )
             await db.commit()
             logger.info(
-                "conversation_side_effects_applied_after_send",
+                "conversation_memory_side_effect_applied_after_send",
                 user_qiao_id=user_qiao_id,
                 instance_qiao_id=instance_qiao_id,
                 task_turn_version=task_turn_version,
             )
-        except Exception:
+        except Exception as exc:
             await db.rollback()
-            raise
+            logger.error(
+                "conversation_memory_side_effect_failed_after_send",
+                error=str(exc),
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+                task_turn_version=task_turn_version,
+                exc_info=True,
+            )
+
+
+async def _apply_score_side_effect(
+    *,
+    session_factory: async_sessionmaker[AsyncSession],
+    user_qiao_id: str,
+    instance_qiao_id: str,
+    task_turn_version: int,
+    instance_context: InstanceContext,
+    score_updates: dict[str, int],
+) -> None:
+    async with session_factory() as db:
+        try:
+            await update_instance_relationship_scores(
+                db, instance_context["instance_id"], score_updates
+            )
+
+            latest_scores = await get_instance_relationship_scores(
+                db, instance_context["instance_id"]
+            )
+            if latest_scores:
+                rel = await determine_relationship_type(db, instance_context, latest_scores)
+                if rel and rel.get("relationship"):
+                    relationship = rel["relationship"]
+                    display_name = getattr(
+                        relationship, "display_name", getattr(relationship, "name", "")
+                    )
+                    await set_instance_current_relationship(
+                        db, instance_context["instance_id"], relationship.id, display_name
+                    )
+
+            await db.commit()
+            logger.info(
+                "conversation_score_side_effect_applied_after_send",
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+                task_turn_version=task_turn_version,
+            )
+        except Exception as exc:
+            await db.rollback()
+            logger.error(
+                "conversation_score_side_effect_failed_after_send",
+                error=str(exc),
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+                task_turn_version=task_turn_version,
+                exc_info=True,
+            )
 
 
 async def _resolve_typing_speed_seconds_per_word(db: AsyncSession, instance_id: int) -> float:

@@ -24,8 +24,8 @@
   -> 构建 Prompt
   -> 调用 LLM + Schema 校验
   -> 响应处理
-  -> 关系更新（可选）
   -> 消息发送（可选）
+  -> 会话副作用（可选）
   -> Provider 投递
 ```
 
@@ -94,20 +94,13 @@
 ### 阶段 8：响应处理
 
 - 安全副作用始终生效：`attack_detected -> should_block`。
-- 会话副作用受首条发送门槛控制：`memory_operations -> score`。
+- 安全副作用失败时终止发送路径。
 - `attack_detected=true` 时必须标记本轮用户消息为上下文排除。
 - `should_reply=false` 时不得发送 `outgoing_messages` 与 `followup_messages`。
 
 详见：[`llm-interaction.md`](llm-interaction.md#处理顺序)
 
-### 阶段 9：关系更新（可选）
-
-- 仅在响应包含 `score` 时执行关系计算。
-- 不满足关系系统输入约束时，必须报错并终止本轮处理。
-
-详见：[`relationship-system.md`](relationship-system.md)
-
-### 阶段 10：消息发送与投递（可选）
+### 阶段 9：消息发送与投递（可选）
 
 - `should_reply=true` 时，按顺序发送 `outgoing_messages`，再按延迟发送 `followup_messages`。
 - 发送过程中仅 `CONTENT_INPUT` 可触发抢占流程。
@@ -116,6 +109,15 @@
 - Provider 投递失败走统一失败处理链路，不改变消息事实定义。
 
 详见：[`message-sending.md`](message-sending.md)、[`../message/failure-handling.md`](../message/failure-handling.md)
+
+### 阶段 10：会话副作用（可选）
+
+- 会话副作用受首条发送门槛控制：`memory_operations`、`score`。
+- 仅在响应包含 `score` 时执行关系计算。
+- `memory_operations` 与 `score` 独立执行并独立提交。
+- 单项副作用失败仅结束该项副作用处理并记录日志。
+
+详见：[`llm-interaction.md`](llm-interaction.md#处理顺序)、[`relationship-system.md`](relationship-system.md)
 
 ## 全局失败边界
 

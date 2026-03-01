@@ -8,7 +8,7 @@
 - 实例记忆：`docs/data-dict/ai-conversation.md#ai_instance_memories`
 
 模板表用于静态种子数据，实例创建时按 `display_order` 拷贝到 `ai_instance_memories`，并补全 user/instance 字段。运行期的所有记忆都存放在实例表中。 `ai_instance_memories` 强制使用唯一的（instance_id，content）对，这样重复的文本就不会出现在同一个 instance 中。
-所有实例创建路径（`create_instance_from_persona` 与 `create_instance_with_relations`）都会调用 `copy_template_memories_to_instance` helper，保证以 `display_order` 顺序将模板记忆落库。
+实例创建入口通过 `copy_template_memories_to_instance` helper 以 `display_order` 顺序落库模板记忆。模板记忆复制异常时，实例创建事务回滚。
 
 ## 记忆类型与寿命
 

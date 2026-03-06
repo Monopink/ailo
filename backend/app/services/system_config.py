@@ -84,6 +84,11 @@ class SystemConfigService:
 
         # Missing configuration
         if required:
+            logger.warning("system_config_missing_retry_reload", key=key)
+            await SystemConfigService.reload_cache(db)
+            if key in _config_state["cache"]:
+                logger.info("system_config_loaded_after_reload", key=key)
+                return _config_state["cache"][key]
             logger.error("system_config_missing", key=key)
             raise MissingConfigurationError(config_key=key)
 

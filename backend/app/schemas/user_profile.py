@@ -41,3 +41,9 @@ class UserProfileUpdateRequest(BaseModel):
     )
     bio: str | None = Field(None, max_length=120, description="Personal bio/description")
     region: str | None = Field(None, max_length=100, description="Location/region")
+
+
+class UsernameCheckResponse(BaseModel):
+    """Username availability check response schema."""
+
+    available: bool = Field(..., description="Whether username can be used now")

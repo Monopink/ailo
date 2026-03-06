@@ -77,6 +77,15 @@ def _extract_user_message(detail: object | None, status_code: int) -> str:
     return "请求失败，请稍后再试"
 
 
+def _extract_user_reason(detail: object | None) -> str | None:
+    if not isinstance(detail, dict):
+        return None
+    reason = detail.get("reason")
+    if isinstance(reason, str) and reason.strip():
+        return reason.strip()
+    return None
+
+
 def _is_admin_api_path(path: str) -> bool:
     return path == ADMIN_API_PREFIX or path.startswith(f"{ADMIN_API_PREFIX}/")
 
@@ -171,6 +180,7 @@ def create_error_response(
     status_code: int,
     error_code: int,
     message: str,
+    reason: str | None = None,
     headers: Mapping[str, str] | None = None,
 ) -> JSONResponse:
     """Create unified error response payload."""
@@ -178,11 +188,15 @@ def create_error_response(
     response_headers = dict(headers or {})
     response_headers[REQUEST_ID_HEADER] = request_id
 
-    return JSONResponse(
-        status_code=status_code,
-        content={"error_code": error_code, "message": message, "request_id": request_id},
-        headers=response_headers,
-    )
+    payload: dict[str, object] = {
+        "error_code": error_code,
+        "message": message,
+        "request_id": request_id,
+    }
+    if reason is not None:
+        payload["reason"] = reason
+
+    return JSONResponse(status_code=status_code, content=payload, headers=response_headers)
 
 
 def create_admin_error_response(
@@ -277,6 +291,7 @@ def _build_response(
         status_code=status_code,
         error_code=error_code,
         message=message,
+        reason=None if _is_system_status(status_code) else _extract_user_reason(detail),
         headers=headers,
     )
 

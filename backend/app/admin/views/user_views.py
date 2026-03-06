@@ -242,6 +242,10 @@ class UserView(BaseRoleAwareModelView):
         """
         password = data.pop("password", None)
 
+        username_value = data.get("username")
+        if obj.username is not None and (username_value is None or username_value == ""):
+            raise FormValidationError({"username": "Username cannot be cleared once set"})
+
         # Only update password if a new one is provided
         if isinstance(password, str) and password:
             obj.password_hash = get_password_hash(password)

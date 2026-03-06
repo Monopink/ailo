@@ -69,6 +69,7 @@
 {
   "error_code": 11010001,
   "message": "验证码错误，请重新输入",
+  "reason": "VERIFICATION_CODE_INVALID",
   "request_id": "req_20260218_abc123"
 }
 ~~~
@@ -77,6 +78,7 @@
 
 - error_code：8 位数字（SSMMEEEE）
 - message：用户可读文案
+- reason：可选的机器可读原因码（仅在需要前端细分处理的业务错误返回）
 - request_id：请求追踪 ID（响应体与 X-Request-ID 响应头一致）
 
 WebSocket `error` 帧（`type=error`）使用同一字段：
@@ -88,6 +90,7 @@ WebSocket `error` 帧（`type=error`）使用同一字段：
   "payload": {
     "error_code": 24031001,
     "message": "请求参数错误",
+    "reason": "REQUEST_VALIDATION_ERROR",
     "request_id": "req_20260218_abc123"
   }
 }
@@ -143,7 +146,7 @@ WebSocket `error` 帧（`type=error`）使用同一字段：
 |----|----|--------|----------|------|
 | 11 | 01 | auth | /api/v1/auth | active |
 | 12 | 01 | account_security | /api/v1/user/email、/api/v1/user/phone、/api/v1/user/verify | active |
-| 13 | 01 | users | /api/v1/user/profile、/api/v1/user/account | active |
+| 13 | 01 | users | /api/v1/user/profile、/api/v1/user/account、/api/v1/user/username/check | active |
 | 21 | 01 | contacts | /api/v1/contacts | active |
 | 21 | 02 | contact_requests | /api/v1/contact-requests | active |
 | 22 | 01 | discovery | /api/v1/discovery | active |

@@ -28,6 +28,9 @@ RATE_LIMIT_REQUEST_KEYS: dict[str, str] = {
     "sms": "sms_rate_limit_requests",
     "message_short": "message_rate_limit_short_requests",
     "message_long": "message_rate_limit_long_requests",
+    "username_check_short": "username_check_rate_limit_short_requests",
+    "username_check_long": "username_check_rate_limit_long_requests",
+    "username_submit": "username_submit_rate_limit_requests",
     "square": "square_rate_limit_requests",
     "media_upload": "media_upload_rate_limit_requests",
 }
@@ -39,6 +42,9 @@ RATE_LIMIT_WINDOW_KEYS: dict[str, tuple[str, int]] = {
     "sms": ("sms_rate_limit_window_seconds", 1),
     "message_short": ("message_rate_limit_short_window_seconds", 1),
     "message_long": ("message_rate_limit_long_window_seconds", 1),
+    "username_check_short": ("username_check_rate_limit_short_window_seconds", 1),
+    "username_check_long": ("username_check_rate_limit_long_window_seconds", 1),
+    "username_submit": ("username_submit_rate_limit_window_seconds", 1),
     "square": ("square_rate_limit_window_seconds", 1),
     "media_upload": ("media_upload_rate_limit_window_seconds", 1),
 }
@@ -50,6 +56,9 @@ RATE_LIMIT_WHITELIST_KEYS: dict[str, str | None] = {
     "sms": "sms_whitelist",
     "message_short": None,
     "message_long": None,
+    "username_check_short": None,
+    "username_check_long": None,
+    "username_submit": None,
     "square": None,
     "media_upload": None,
 }
@@ -226,6 +235,32 @@ async def check_password_login_rate_limit(
     allowed, _error, retry = await check_rate_limit(identifier, "auth_password_long", db)
     if not allowed:
         return False, "PASSWORD_LOGIN_RATE_LIMIT_LONG", retry
+
+    return True, None, None
+
+
+async def check_username_check_rate_limit(
+    identifier: str, db: AsyncSession
+) -> tuple[bool, str | None, int | None]:
+    """Check username availability-check rate limit with dual constraints."""
+    allowed, _error, retry = await check_rate_limit(identifier, "username_check_short", db)
+    if not allowed:
+        return False, "USERNAME_CHECK_RATE_LIMIT_SHORT", retry
+
+    allowed, _error, retry = await check_rate_limit(identifier, "username_check_long", db)
+    if not allowed:
+        return False, "USERNAME_CHECK_RATE_LIMIT_LONG", retry
+
+    return True, None, None
+
+
+async def check_username_submit_rate_limit(
+    identifier: str, db: AsyncSession
+) -> tuple[bool, str | None, int | None]:
+    """Check username submit rate limit for first-set attempts."""
+    allowed, _error, retry = await check_rate_limit(identifier, "username_submit", db)
+    if not allowed:
+        return False, "USERNAME_SUBMIT_RATE_LIMIT", retry
 
     return True, None, None
 

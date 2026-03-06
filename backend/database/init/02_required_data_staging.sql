@@ -98,6 +98,14 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('auth_password_failure_window_seconds', '1800', '1800', 2, 'Password login failure counting window in seconds', 'security', NULL),
 ('auth_password_lockout_duration_seconds', '900', '900', 2, 'Password login lockout duration in seconds', 'security', NULL),
 
+-- Username rate limit configuration
+('username_check_rate_limit_short_requests', '5', '5', 2, 'Username check short-window requests (per user)', 'rate_limit', NULL),
+('username_check_rate_limit_short_window_seconds', '10', '10', 2, 'Username check short window in seconds', 'rate_limit', NULL),
+('username_check_rate_limit_long_requests', '20', '20', 2, 'Username check long-window requests (per user)', 'rate_limit', NULL),
+('username_check_rate_limit_long_window_seconds', '60', '60', 2, 'Username check long window in seconds', 'rate_limit', NULL),
+('username_submit_rate_limit_requests', '3', '3', 2, 'Username submit requests (per user)', 'rate_limit', NULL),
+('username_submit_rate_limit_window_seconds', '60', '60', 2, 'Username submit window in seconds', 'rate_limit', NULL),
+
 -- SMS rate limit configuration
 ('sms_rate_limit_requests', '1', '1', 2, 'SMS requests per window', 'rate_limit', NULL),
 ('sms_rate_limit_window_seconds', '60', '60', 2, 'SMS window in seconds', 'rate_limit', NULL),

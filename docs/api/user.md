@@ -3,6 +3,7 @@
 ## 接口列表
 
 - [获取用户资料](#获取用户资料) - `GET /api/v1/user/profile`
+- [校验敲敲号](#校验敲敲号) - `GET /api/v1/user/username/check`
 - [更新用户资料](#更新用户资料) - `PUT /api/v1/user/profile`
 - [获取账户信息](#获取账户信息) - `GET /api/v1/user/account`
 - [获取用户设置](#获取用户设置) - `GET /api/v1/user/settings`
@@ -38,7 +39,7 @@
 **字段说明**:
 
 - `qiao_id` (string) - 系统内部ID，注册时生成，不可修改
-- `username` (string) - 用户可自定义，注册时默认复制qiao_id，可修改
+- `username` (string, nullable) - 用户敲敲号，未设置时为 `null`；首次设置成功后不可修改
 - `nickname` (string) - 昵称
 - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
 - `avatar_url` (string) - 动态生成的头像 CDN URL，基于后台存储的 `avatar_file_id`
@@ -50,6 +51,55 @@
 - 只返回用户资料信息（profiles表内容）+ username字段
 - 不包括账户安全信息（手机号、邮箱等）
 - region由前端维护列表，后端只验证长度
+
+---
+
+## 校验敲敲号
+
+### 基本信息
+
+- **路径**: `GET /api/v1/user/username/check`
+- **认证**: Bearer Token（必需）
+
+### 请求参数
+
+- `username` (query, string, 必填)
+  - 校验规则见 `docs/spec/user/username.md`
+
+### 成功响应 (200)
+
+```json
+{
+  "available": true
+}
+```
+
+### 错误响应
+
+用户侧统一错误结构见 `docs/api/error-codes.md`，本接口业务错误会额外返回 `reason`：
+
+```json
+{
+  "error_code": 13011001,
+  "message": "敲敲号必须以字母开头",
+  "reason": "USERNAME_MUST_START_WITH_LETTER",
+  "request_id": "req_xxx"
+}
+```
+
+常见 `reason`：
+
+- `USERNAME_EMPTY`
+- `USERNAME_LEADING_OR_TRAILING_SPACES`
+- `USERNAME_TOO_SHORT`
+- `USERNAME_TOO_LONG`
+- `USERNAME_MUST_START_WITH_LETTER`
+- `USERNAME_INVALID_CHARACTERS`
+- `USERNAME_RESERVED`
+- `USERNAME_ALREADY_USED`
+- `USERNAME_CHECK_RATE_LIMIT_SHORT`
+- `USERNAME_CHECK_RATE_LIMIT_LONG`
+- `USERNAME_LOCKED`
 
 ---
 
@@ -76,9 +126,8 @@
 **字段说明**:
 
 - `username` (string, 可选)
-  - 用户自定义ID
-  - 3-20个字符
-  - 需要检查唯一性
+  - 用户敲敲号（仅 `users.username` 为空时允许设置）
+  - 校验规则见 `docs/spec/user/username.md`
 
 - `nickname` (string, 可选)
   - 昵称
@@ -120,21 +169,36 @@
 
 ### 错误响应
 
-**400 Bad Request**:
+用户侧统一错误结构见 `docs/api/error-codes.md`。当本接口涉及 `username` 失败时，响应会额外返回 `reason` 字段，例如：
 
-- `"用户名已被使用"` - username重复
-- `"用户名格式错误"` - username不符合要求
-- `"昵称格式错误"` - nickname不符合要求
+```json
+{
+  "error_code": 13014003,
+  "message": "敲敲号不可修改",
+  "reason": "USERNAME_LOCKED",
+  "request_id": "req_xxx"
+}
+```
 
-**500 Internal Server Error**:
+`username` 相关常见 `reason`：
 
-- `"系统错误（error_code）"` - 服务器内部错误
+- `USERNAME_EMPTY`
+- `USERNAME_LEADING_OR_TRAILING_SPACES`
+- `USERNAME_TOO_SHORT`
+- `USERNAME_TOO_LONG`
+- `USERNAME_MUST_START_WITH_LETTER`
+- `USERNAME_INVALID_CHARACTERS`
+- `USERNAME_RESERVED`
+- `USERNAME_ALREADY_USED`
+- `USERNAME_LOCKED`
+- `USERNAME_SUBMIT_RATE_LIMIT`
 
 ### 业务说明
 
 - **Setup 场景**：首次登录创建的账号会带有 `needs_profile_setup=true`，客户端必须在此接口提交昵称、头像、gender 等信息；当后端成功写入时会原子性地清除该标记。
 - 所有字段可选，支持部分更新，前端只需传递发生变化的字段即可。
-- username需要检查唯一性，不满足规则会返回 400。
+- username 仅允许首次设置；已设置后提交 `username` 一律拒绝。
+- username 校验规则见 `docs/spec/user/username.md`，不满足规则会返回 400。
 - avatar_url 在响应中始终由后端根据 `avatar_file_id` 生成，客户端只需要维护 `avatar_file_id` 并在上传成功后重新调用本接口即可获取最终展示 URL。
 
 ---
@@ -165,7 +229,7 @@
 **字段说明**:
 
 - `qiao_id` (string) - 系统内部ID
-- `username` (string) - 用户名，用于登录
+- `username` (string, nullable) - 用户名，用于登录；未设置时为 `null`
 - `phone` (string) - 手机号（脱敏显示）
 - `email` (string, nullable) - 邮箱（脱敏显示），未绑定时为null
 - `has_password` (boolean) - 是否设置了密码

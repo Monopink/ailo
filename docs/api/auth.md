@@ -400,7 +400,7 @@
 
 - 登录成功后，客户端使用 `access_token` 访问需要认证的 API。
 - `device_id` 必须稳定持久化；Web 客户端使用 `localStorage`。
-- username 规则见 `docs/spec/auth/username.md`。
+- username 规则见 `docs/spec/user/username.md`。
 
 ### 安全约束
 

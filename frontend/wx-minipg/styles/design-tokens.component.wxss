@@ -10,45 +10,42 @@
  * Technical Specs:
  * - Screen width: 750rpx (iPhone 6 as base)
  * - Spacing base: 8rpx (all spacing must be multiples of 8)
- * - Primary color: #07C160 (WeChat Green)
+ * - Primary color: #E5FF00 (Brand Yellow)
  *
  * IMPORTANT: All page styles MUST reference these variables.
  * DO NOT hardcode any color, spacing, font-size, or border-radius values.
  */
 
-page,
 .theme-scope {
   /* ========================================
      Color System - Gentle & Muted Palette
      ======================================== */
 
-  /* Primary Colors - WeChat Green with softer variations */
-  --color-primary: #07c160; /* WeChat green - primary actions */
-  --color-primary-light: #38cd7f; /* Softer light green - message bubble (me) */
-  --color-primary-lighter: #e8f8f0; /* Very light green - subtle backgrounds */
-  --color-primary-dark: #06ad56; /* Dark green - pressed state */
+  /* Primary Colors - Brand Yellow with interaction shades */
+  --color-primary: #e5ff00; /* Brand yellow - primary actions */
+  --color-primary-light: #f1ff80; /* Soft yellow - light emphasis backgrounds */
+  --color-primary-lighter: #fbffd6; /* Very light yellow - subtle backgrounds */
+  --color-primary-dark: #bfd400; /* Dark yellow-green - pressed state */
 
   /* Accent Colors - Subtle and warm */
   --color-accent: #ffc300; /* Warm yellow - highlights */
   --color-accent-light: #fff4d9; /* Very light yellow - subtle highlights */
 
   /* Neutral Colors - Background (iOS-inspired layering) */
-  --color-bg-primary: #f7f7f7; /* Default page background (light gray) */
+  --color-bg-primary: #fafafa; /* Default page background (light gray) */
   --color-bg-page: var(--color-bg-primary); /* Page layout background */
-  --color-bg-muted: #f7f7f7; /* Muted gray surface (toolbars, chat bubbles) */
+  --color-bg-muted: #f5f5f5; /* Foreground gray surface on white pages */
   --color-bg-secondary: #ffffff; /* Elevated surface (cards, navbar, tabbar) */
   --color-bg-tertiary: #fafafa; /* Tertiary background (subtle distinction) */
   --color-bg-white: #ffffff; /* Pure white for special pages */
-  --color-bg-input: #f8f8f8; /* Input field background (very light gray) */
-  --color-bg-input-surface: #ffffff; /* Input surface background */
+  --color-bg-input: #eeeeee; /* Input field background on white pages */
   --color-bg-hover: #f0f0f0; /* Hover state background */
   --color-bg-disabled: #f5f5f5; /* Disabled state background */
   --color-bg-mask: rgba(0, 0, 0, 0.4); /* Modal mask overlay (softer) */
   /* Single source of truth for glass surfaces used by navbar/tabbar/fixed footers. */
   --color-navbar-glass-bg-base: rgba(247, 247, 247, 0.68);
   --color-navbar-glass-bg: var(--color-navbar-glass-bg-base); /* Glass navbar background */
-  --color-tabbar-glass-bg-base: transparent;
-  --color-tabbar-glass-bg: var(--color-tabbar-glass-bg-base); /* Glass tabbar background */
+  --color-tabbar-glass-bg: transparent; /* Glass tabbar background */
   --color-mask-solid: #000000; /* Mask solid color */
   --color-glass-card-bg: rgba(255, 255, 255, 0.8); /* Glass card background */
   --color-glass-card-border: rgba(255, 255, 255, 0.5); /* Glass card border */
@@ -63,21 +60,19 @@ page,
   --color-text-placeholder: #b0b0b0; /* Placeholder text (slightly darker than quaternary) */
   --color-text-disabled: #c0c0c0; /* Disabled text */
   --color-text-inverse: #ffffff; /* Text on dark background */
+  --color-text-on-brand: #1a1a1a; /* Text on brand surfaces */
 
   /* Neutral Colors - Border (subtle and soft) */
   --color-border-base: #e8e8e8; /* Base border color (very light) */
   --color-border-light: #f0f0f0; /* Light border color (barely visible) */
-  --color-border-dark: #d0d0d0; /* Dark border color (more visible) */
   --color-separator: rgba(0, 0, 0, 0.06); /* iOS-style separator (ultra-subtle) */
 
   /* Status Colors - Muted for gentleness */
-  --color-success: #07c160; /* Success state (same as primary) */
+  --color-success: #07c160; /* Success state */
   --color-warning: #ff9500; /* Warning state (iOS orange) */
   --color-error: #ff3b30; /* Error/danger state (iOS red) */
-  --color-info: #007aff; /* Info state (iOS blue) */
 
   /* Special Colors */
-  --color-unread: #ff3b30; /* Unread badge (iOS red) */
   --color-link: #007aff; /* Link text (iOS blue) */
 
   /* Gender Badge Colors */
@@ -96,6 +91,32 @@ page,
   --square-entry-card-title-color: rgba(255, 255, 255, 0.98);
   --square-entry-card-desc-color: rgba(255, 255, 255, 0.88);
 
+  /* Tag Tone Palette - hash mapped, semantic-independent */
+  --color-tag-tone-1: #4e79ff;
+  --color-tag-tone-1-light: #e4ecff;
+  --color-tag-tone-2: #1f9dff;
+  --color-tag-tone-2-light: #dff1ff;
+  --color-tag-tone-3: #00b8d9;
+  --color-tag-tone-3-light: #ddf7fb;
+  --color-tag-tone-4: #36c86e;
+  --color-tag-tone-4-light: #dff7e8;
+  --color-tag-tone-5: #79c943;
+  --color-tag-tone-5-light: #eaf7dc;
+  --color-tag-tone-6: #f0b429;
+  --color-tag-tone-6-light: #fff2d9;
+  --color-tag-tone-7: #ff8b3d;
+  --color-tag-tone-7-light: #ffe7d8;
+  --color-tag-tone-8: #ff6b8f;
+  --color-tag-tone-8-light: #ffe3ec;
+  --color-tag-tone-9: #e06cff;
+  --color-tag-tone-9-light: #f8e3ff;
+  --color-tag-tone-10: #9d7bff;
+  --color-tag-tone-10-light: #ede7ff;
+  --color-tag-tone-11: #6b8dff;
+  --color-tag-tone-11-light: #e6edff;
+  --color-tag-tone-12: #22b6a8;
+  --color-tag-tone-12-light: #dcf6f3;
+
   /* ========================================
      Spacing System - Generous & Breathable
      ======================================== */
@@ -110,14 +131,8 @@ page,
 
   /* Semantic spacing - Page level */
   --padding-page: 32rpx; /* Page horizontal padding */
-  --padding-section: 24rpx; /* Section spacing within page */
-  --gap-section: 32rpx; /* Gap between major sections */
-
   /* Semantic spacing - Component level */
   --padding-card: 32rpx; /* Card padding */
-  --padding-cell: 32rpx; /* Cell/list item padding */
-  --padding-button: 16rpx; /* Button horizontal padding */
-  --gap-list-item: 0rpx; /* Gap between list items (iOS style - no gap) */
 
   /* ========================================
      Typography System
@@ -142,22 +157,24 @@ page,
   --font-size-nav-title: var(--font-size-base);
   --font-size-list-primary: var(--font-size-md);
   --font-size-list-secondary: var(--font-size-sm);
+  --font-size-list-tag: 26rpx;
   --line-height-list-primary: var(--line-height-base);
   --line-height-list-secondary: var(--line-height-base);
+  --line-height-list-tag: 44rpx;
 
   /* List Layout (Semantic) */
   --space-list-vertical: var(--space-md);
   --space-list-horizontal: var(--padding-page);
   --space-list-avatar-gap: var(--space-lg);
+  --space-list-tag-gap: calc(var(--space-xs) + 2rpx);
+  --space-list-tag-horizontal: calc(var(--space-xs) + 5rpx);
   --size-list-right-meta: calc(var(--space-xxl) + var(--space-xl) + var(--space-sm));
 
   /* Letter Spacing */
-  --letter-spacing-sm: 1rpx; /* Subtle spacing */
   --letter-spacing-md: 2rpx; /* Medium spacing */
   --letter-spacing-lg: 6rpx; /* Display spacing */
 
   /* Font Weights */
-  --font-weight-normal: 400; /* Normal weight */
   --font-weight-medium: 500; /* Medium weight */
   --font-weight-semibold: 600; /* Semibold weight */
   --font-weight-bold: 700; /* Bold weight */
@@ -176,10 +193,7 @@ page,
 
   /* Semantic radius - Component specific (all unified to 24rpx) */
   --radius-card: 24rpx; /* Card border radius - matches --td-radius-large */
-  --radius-button: 24rpx; /* Button border radius - unified */
-  --radius-input: 24rpx; /* Input field border radius - unified */
   --radius-bubble: 20rpx; /* Message bubble border radius - special case */
-  --radius-avatar: 12rpx; /* Avatar border radius (rounded square) */
 
   /* ========================================
      Shadow System - Subtle & Soft
@@ -193,30 +207,23 @@ page,
 
   /* Semantic shadows - Component specific */
   --shadow-card: 0 2rpx 12rpx rgba(0, 0, 0, 0.05); /* Card shadow (very subtle) */
-  --shadow-card-hover: 0 4rpx 20rpx rgba(0, 0, 0, 0.08); /* Card hover shadow */
-  --shadow-button: 0 2rpx 8rpx rgba(0, 0, 0, 0.06); /* Button shadow (optional) */
   --shadow-glass-card: 0 8rpx 32rpx rgba(0, 0, 0, 0.08); /* Glass card shadow */
 
   /* Text Shadows */
-  --text-shadow-brand-soft: 0 4rpx 16rpx rgba(7, 193, 96, 0.2);
-  --text-shadow-brand-strong: 0 4rpx 24rpx rgba(7, 193, 96, 0.4);
+  --text-shadow-brand-soft: 0 4rpx 16rpx rgba(229, 255, 0, 0.3);
+  --text-shadow-brand-strong: 0 4rpx 24rpx rgba(229, 255, 0, 0.5);
 
   /* ========================================
      Size System
      ======================================== */
 
   /* Avatar Sizes */
-  --avatar-xs: 48rpx; /* Extra small avatar */
   --avatar-sm: 64rpx; /* Small avatar */
-  --avatar-md: 96rpx; /* Medium avatar (default) */
-  --avatar-lg: 100rpx; /* Large avatar */
-  --avatar-xl: 128rpx; /* Extra large avatar */
 
   /* Icon Sizes */
   --icon-xs: 32rpx; /* Extra small icon */
   --icon-sm: 40rpx; /* Small icon */
   --icon-md: 48rpx; /* Medium icon (default) */
-  --icon-lg: 64rpx; /* Large icon */
   --icon-xl: 80rpx; /* Extra large icon */
 
   /* Button Heights */
@@ -225,13 +232,9 @@ page,
   --button-height-lg: 104rpx; /* Large button */
 
   /* Input Heights */
-  --input-height-sm: 56rpx; /* Small input */
   --input-height-md: 72rpx; /* Medium input (default) */
-  --input-height-lg: 88rpx; /* Large input */
 
   /* Badge Sizes */
-  --badge-size-sm: 16rpx; /* Small badge dot */
-  --badge-size-md: 32rpx; /* Medium badge with number */
   --badge-size-lg: 40rpx; /* Large badge */
 
   /* TabBar Sizes */
@@ -245,26 +248,13 @@ page,
   --message-bubble-max-width: 480rpx; /* Message bubble max width */
 
   /* Typing Indicator */
-  --typing-dot-size: 12rpx; /* Typing indicator dot size */
-  --typing-indicator-min-width: 80rpx; /* Typing indicator minimum width */
-
   /* Navbar Layout */
-  --navbar-height: 88rpx; /* Navbar height */
-  --navbar-side-width: 88rpx; /* Navbar side width */
-  --navbar-title-size: 30rpx; /* Navbar title font size */
 
   /* Chat Layout */
-  --chat-navbar-height: var(--navbar-height); /* Chat custom navbar height */
-  --chat-navbar-side-width: var(--navbar-side-width); /* Chat navbar side width */
   --chat-footer-height: 100rpx; /* Chat footer height */
   --chat-input-height: 64rpx; /* Chat input minimum height */
   --emoji-panel-height: 480rpx; /* Emoji panel height */
   --emoji-item-size: 80rpx; /* Emoji item size */
-
-  /* Border Widths */
-  --border-width-thin: 1rpx; /* Thin border (default) */
-  --border-width-medium: 2rpx; /* Medium border (avatar, focus states) */
-  --border-width-thick: 3rpx; /* Thick border (emphasis) */
 
   /* ========================================
      Animation System
@@ -272,36 +262,15 @@ page,
 
   /* Transition Durations */
   --duration-fast: 150ms; /* Fast transition - hover effects */
-  --duration-base: 300ms; /* Base transition - most animations */
-  --duration-slow: 500ms; /* Slow transition - page transitions */
-
   /* Easing Functions */
-  --ease-in: cubic-bezier(0.4, 0, 1, 1); /* Ease in */
   --ease-out: cubic-bezier(0, 0, 0.2, 1); /* Ease out */
-  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1); /* Ease in-out (default) */
-  --ease-sharp: cubic-bezier(0.4, 0, 0.6, 1); /* Sharp easing */
 
   /* ========================================
      Z-Index System
      ======================================== */
 
-  --z-index-base: 1; /* Base level */
-  --z-index-dropdown: 10; /* Dropdown menus */
-  --z-index-sticky: 100; /* Sticky elements */
   --z-index-navbar: 500; /* Custom navbar (floating) */
   --z-index-fixed: 500; /* Fixed elements (navbar, tabbar) */
-  --z-index-modal-backdrop: 1000; /* Modal backdrop */
-  --z-index-modal: 1001; /* Modal content */
-  --z-index-popover: 1010; /* Popover, tooltip */
-  --z-index-toast: 1100; /* Toast notifications */
-
-  /* ========================================
-     Opacity System
-     ======================================== */
-
-  --opacity-disabled: 0.4; /* Disabled state */
-  --opacity-hover: 0.8; /* Hover state */
-  --opacity-pressed: 0.6; /* Pressed state */
 
   /* ========================================
      Effects
@@ -316,8 +285,6 @@ page,
 
   --safe-area-inset-top: env(safe-area-inset-top);
   --safe-area-inset-bottom: env(safe-area-inset-bottom);
-  --safe-area-inset-left: env(safe-area-inset-left);
-  --safe-area-inset-right: env(safe-area-inset-right);
 }
 
 /**
@@ -333,13 +300,12 @@ page,
  * automatically switch when the system theme changes.
  */
 @media (prefers-color-scheme: dark) {
-  page,
   .theme-scope {
-    /* Primary Colors - Slightly brighter for dark backgrounds */
-    --color-primary: #0bbf68;
-    --color-primary-light: #2ad17a;
-    --color-primary-lighter: #1a3d2a;
-    --color-primary-dark: #0a9f56;
+    /* Primary Colors */
+    --color-primary: #c6dc00;
+    --color-primary-light: #d9e95a;
+    --color-primary-lighter: #4c5620;
+    --color-primary-dark: #a5b800;
 
     /* Accent Colors */
     --color-accent: #ffc300;
@@ -348,20 +314,18 @@ page,
     /* Background - True black with subtle elevation */
     --color-bg-primary: #000000; /* Default page background (OLED black) */
     --color-bg-page: var(--color-bg-primary); /* Page layout background */
-    --color-bg-muted: #1c1c1e; /* Muted gray surface (iOS dark elevated) */
+    --color-bg-muted: #2a2b2f; /* Foreground gray surface */
     --color-bg-secondary: #1c1c1e; /* Elevated surface (iOS dark) */
     --color-bg-tertiary: #2c2c2e; /* More elevated surface */
     --color-bg-white: #000000; /* Light-mode white mapped to dark background */
-    --color-bg-input: #1c1c1e; /* Input background */
-    --color-bg-input-surface: #2c2c2e; /* Input surface background */
+    --color-bg-input: #2a2b2f; /* Input background */
     --color-bg-hover: #2c2c2e; /* Hover state */
     --color-bg-disabled: #1c1c1e; /* Disabled state */
     --color-bg-mask: rgba(0, 0, 0, 0.6); /* Modal mask */
     /* In dark mode, make glass surfaces slightly lighter (while staying translucent). */
     --color-navbar-glass-bg-base: rgba(72, 72, 74, 0.55);
     --color-navbar-glass-bg: var(--color-navbar-glass-bg-base);
-    --color-tabbar-glass-bg-base: transparent;
-    --color-tabbar-glass-bg: var(--color-tabbar-glass-bg-base);
+    --color-tabbar-glass-bg: transparent;
     --color-glass-card-bg: rgba(30, 30, 30, 0.8);
     --color-glass-card-border: rgba(255, 255, 255, 0.1);
     --color-overlay-strong: rgba(255, 255, 255, 0.85);
@@ -375,21 +339,19 @@ page,
     --color-text-placeholder: #757575; /* Placeholder */
     --color-text-disabled: #636366; /* Disabled */
     --color-text-inverse: #000000; /* Text on light background */
+    --color-text-on-brand: #1a1a1a; /* Text on brand surfaces */
 
     /* Border - Subtle in dark mode */
     --color-border-base: #38383a; /* Base border (iOS) */
     --color-border-light: #2c2c2e; /* Light border */
-    --color-border-dark: #48484a; /* Dark border */
     --color-separator: rgba(84, 84, 88, 0.6); /* iOS separator */
 
     /* Status Colors - Slightly muted */
     --color-success: #0bbf68;
     --color-warning: #ff9f0a; /* iOS orange */
     --color-error: #ff453a; /* iOS red */
-    --color-info: #0a84ff; /* iOS blue */
 
     /* Special Colors */
-    --color-unread: #ff453a;
     --color-link: #0a84ff;
 
     /* Gender Badge Colors - slightly adjusted for dark mode */
@@ -408,158 +370,42 @@ page,
     --square-entry-card-title-color: rgba(255, 255, 255, 0.98);
     --square-entry-card-desc-color: rgba(255, 255, 255, 0.9);
 
+    /* Tag Tone Palette - dark mode */
+    --color-tag-tone-1: #8aa0ff;
+    --color-tag-tone-1-light: #2b3459;
+    --color-tag-tone-2: #66baff;
+    --color-tag-tone-2-light: #223a52;
+    --color-tag-tone-3: #48d0eb;
+    --color-tag-tone-3-light: #1f444d;
+    --color-tag-tone-4: #5fd78d;
+    --color-tag-tone-4-light: #214735;
+    --color-tag-tone-5: #9fdc6a;
+    --color-tag-tone-5-light: #314724;
+    --color-tag-tone-6: #f9c85a;
+    --color-tag-tone-6-light: #4c3c1d;
+    --color-tag-tone-7: #ffa66e;
+    --color-tag-tone-7-light: #4f3022;
+    --color-tag-tone-8: #ff8dab;
+    --color-tag-tone-8-light: #4d2834;
+    --color-tag-tone-9: #ec94ff;
+    --color-tag-tone-9-light: #493052;
+    --color-tag-tone-10: #b59cff;
+    --color-tag-tone-10-light: #3a3351;
+    --color-tag-tone-11: #8ca6ff;
+    --color-tag-tone-11-light: #2d3555;
+    --color-tag-tone-12: #64d3c7;
+    --color-tag-tone-12-light: #214b47;
+
     /* Shadows - More prominent in dark mode */
     --shadow-xs: 0 1rpx 4rpx rgba(0, 0, 0, 0.3);
     --shadow-sm: 0 2rpx 8rpx rgba(0, 0, 0, 0.4);
     --shadow-md: 0 4rpx 16rpx rgba(0, 0, 0, 0.5);
     --shadow-lg: 0 8rpx 32rpx rgba(0, 0, 0, 0.6);
     --shadow-card: 0 2rpx 12rpx rgba(0, 0, 0, 0.4);
-    --shadow-card-hover: 0 4rpx 20rpx rgba(0, 0, 0, 0.5);
-    --shadow-button: 0 2rpx 8rpx rgba(0, 0, 0, 0.4);
     --shadow-glass-card: 0 8rpx 32rpx rgba(0, 0, 0, 0.5);
 
     /* Text Shadows */
-    --text-shadow-brand-soft: 0 4rpx 16rpx rgba(11, 191, 104, 0.3);
-    --text-shadow-brand-strong: 0 4rpx 24rpx rgba(11, 191, 104, 0.5);
+    --text-shadow-brand-soft: 0 4rpx 16rpx rgba(198, 220, 0, 0.3);
+    --text-shadow-brand-strong: 0 4rpx 24rpx rgba(198, 220, 0, 0.5);
   }
 }
-
-/* ========================================
-   Standard Layout Classes - Shared Across Pages
-   ======================================== */
-
-/**
- * Info Page Hero Layout
- * Used in: contact-info, stranger-info, profile pages
- * Purpose: Horizontal layout with avatar + content
- */
-.info-hero {
-  display: flex;
-  align-items: center;
-  gap: var(--space-lg);
-}
-
-.info-hero__content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  min-width: 0; /* Allow text truncation */
-}
-
-.info-hero__name {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  flex-wrap: wrap;
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-normal);
-  color: var(--color-text-primary);
-}
-
-.info-hero__subtitle {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-}
-
-/**
- * Page Actions Layout
- * Used in: All pages with action buttons
- * Purpose: Standard button container with consistent spacing
- */
-.page-actions {
-  margin-top: var(--space-xxl);
-  padding: 0 var(--padding-page);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-
-.page-actions--fixed {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: var(--space-md) var(--padding-page);
-  padding-bottom: calc(var(--space-md) + env(safe-area-inset-bottom));
-  background-color: var(--color-bg-secondary);
-  box-shadow: 0 -2rpx 8rpx rgba(0, 0, 0, 0.06);
-}
-
-.page-actions__secondary {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-
-/**
- * Text Utility Classes
- * Purpose: Common text styles without creating custom classes
- */
-.text-primary {
-  font-size: var(--font-size-base);
-  color: var(--color-text-primary);
-  line-height: var(--line-height-base);
-}
-
-.text-secondary {
-  font-size: var(--font-size-base);
-  color: var(--color-text-secondary);
-  line-height: var(--line-height-base);
-}
-
-.text-tertiary {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-tertiary);
-  line-height: var(--line-height-base);
-}
-
-/**
- * Tag Container Layout
- * Used in: Pages with tag lists
- * Purpose: Horizontal scrollable tag container
- */
-.tags-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm);
-  padding: var(--space-md) var(--padding-page);
-}
-
-/* ========================================
-   Usage Examples (DO NOT USE IN PRODUCTION)
-   ======================================== */
-
-/*
-Example 1: Info Page Hero
-<ui-card padding="medium" shadow="{{false}}">
-  <view class="info-hero">
-    <ui-avatar src="{{avatar}}" size="xlarge" />
-    <view class="info-hero__content">
-      <view class="info-hero__name">
-        <text>{{name}}</text>
-        <gender-badge gender="{{gender}}" />
-      </view>
-      <text class="info-hero__subtitle">敲敲号：{{qiaoId}}</text>
-    </view>
-  </view>
-</ui-card>
-
-Example 2: Page Actions (Inline)
-<view class="page-actions">
-  <ui-button type="primary" block>发送消息</ui-button>
-  <view class="page-actions__secondary">
-    <ui-button type="secondary" block>清空聊天记录</ui-button>
-  </view>
-</view>
-
-Example 3: Page Actions (Fixed Bottom)
-<view class="page-actions--fixed">
-  <ui-button type="primary" block>添加联系人</ui-button>
-</view>
-
-Example 4: Text with utility classes
-<ui-card padding="medium">
-  <text class="text-secondary">{{bio}}</text>
-</ui-card>
-*/

@@ -126,16 +126,16 @@ export const APP_CONFIG: AppConfig = {
   brandName: '敲敲',
 
   // Max nickname length
-  maxNicknameLength: 10,
+  maxNicknameLength: 24,
 
   // Max bio length
-  maxBioLength: 70,
+  maxBioLength: 120,
 
   // Default avatar CDN URL (override per environment if backend provides specific asset)
   defaultAvatarUrl: '',
 
   // Client identification for backend headers
-  clientId: 'wxminipg',
+  clientId: 'mini-program',
   appVersion: '1.0.0',
 };
 
@@ -177,8 +177,8 @@ export const UI_CONFIG: UiConfig = {
 
   // Input max length
   inputMaxLength: {
-    nickname: 10,
-    bio: 70,
+    nickname: 24,
+    bio: 120,
     message: 49,
     verifyMessage: 100,
   },
@@ -203,10 +203,10 @@ export const VALIDATION_RULES: ValidationRules = {
 
   // Nickname length
   nicknameMinLength: 1,
-  nicknameMaxLength: 10,
+  nicknameMaxLength: 24,
 
   // Bio length
-  bioMaxLength: 70,
+  bioMaxLength: 120,
 
   // Message length
   messageMaxLength: 49,

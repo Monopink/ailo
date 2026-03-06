@@ -1,22 +1,22 @@
 <page-layout
-  style="--color-bg-page: var(--color-bg-white); --color-bg-footer-fixed: var(--color-navbar-glass-bg-base); --footer-glass-blur: var(--navbar-glass-blur); --color-navbar-glass-bg: {{navbarSolid ? 'var(--color-navbar-glass-bg-base)' : 'transparent'}};"
-  isLoading="{{pageLayoutData.isLoading}}"
-  hasError="{{pageLayoutData.hasError}}"
-  errorMessage="{{pageLayoutData.errorMessage}}"
-  isEmpty="{{pageLayoutData.isEmpty}}"
+  style="--color-bg-page: var(--color-bg-white); --color-bg-footer-fixed: var(--color-bg-muted); --footer-glass-blur: 0rpx; --color-navbar-glass-bg: {{navbarSolid ? 'var(--color-navbar-glass-bg-base)' : 'transparent'}};"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   hasFooter="{{pageLayoutData.hasFooter}}"
   fixedFooter="{{true}}"
   disableScroll="{{true}}"
   headerSolidMode="manual"
-  headerSolid="{{false}}"
-  bind:retry="onRetry">
+  headerSolid="{{false}}">
   <!-- Custom Navbar -->
   <view slot="header" class="chat-page__header {{navbarSolid ? 'chat-page__header--solid' : ''}}">
     <t-navbar left-arrow="{{true}}">
-      <view slot="title" class="chat-navbar__title-wrap" bindtap="onNavbarTitleClick">
-        <text class="chat-navbar__title navbar-title">{{navbarTitle}}</text>
-        <text wx:if="{{isContactTyping}}" class="chat-navbar__subtitle">对方正在输入...</text>
+      <view slot="title" class="navbar-title chat-navbar__title" bindtap="onNavbarTitleClick">
+        <text wx:if="{{isContactTyping}}" class="chat-navbar__title-text chat-navbar__typing-text">
+          对方正在输入...
+        </text>
+        <text wx:else class="chat-navbar__title-text">{{navbarTitle}}</text>
       </view>
     </t-navbar>
   </view>

@@ -1,43 +1,56 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
-
-interface ContactRequest {
-  id: string;
-  nickname: string;
-  avatar: string;
-  message: string;
-  gender?: number | null;
-}
+import {
+  createContactRequestsPageService,
+  type ContactRequestItem,
+} from '../../services/pages/contact-requests-service';
 
 interface ContactRequestsPageData {
   pageLayoutData: PageLayoutData;
-  requests: ContactRequest[];
+  requests: ContactRequestItem[];
 }
 
 interface ContactRequestsPageCustom {
+  contactRequestsPageService: ReturnType<typeof createContactRequestsPageService>;
+  onUnload(): void;
   loadRequests(): void;
   handleApprove(event: WechatMiniprogram.TouchEvent): void;
   handleReject(event: WechatMiniprogram.TouchEvent): void;
-  onRetry(): void;
 }
 
 Page<ContactRequestsPageData, ContactRequestsPageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
-      isEmpty: true,
+      screenModel: {
+        screenState: 'ready',
+        contentVariant: 'empty',
+        refreshState: 'idle',
+      },
       emptyMessage: '暂无新的联系人申请',
     }),
     requests: [],
   },
 
+  contactRequestsPageService: null as unknown as ReturnType<
+    typeof createContactRequestsPageService
+  >,
+
   onLoad() {
+    this.contactRequestsPageService = createContactRequestsPageService();
     this.loadRequests();
   },
 
+  onUnload() {
+    this.contactRequestsPageService.dispose();
+  },
+
   loadRequests() {
-    // API 尚未接入，保持空列表并展示统一空状态。
+    const result = this.contactRequestsPageService.load(this.data.requests);
+    if (result === null) {
+      return;
+    }
     this.setData({
-      'pageLayoutData.isLoading': false,
-      'pageLayoutData.isEmpty': this.data.requests.length === 0,
+      requests: result.requests,
+      'pageLayoutData.screenModel': result.screenModel,
     });
   },
 
@@ -57,9 +70,5 @@ Page<ContactRequestsPageData, ContactRequestsPageCustom>({
       title: '已拒绝该请求',
       icon: 'none',
     });
-  },
-
-  onRetry() {
-    this.loadRequests();
   },
 });

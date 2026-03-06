@@ -2,25 +2,30 @@ import { createPageLayoutData, type PageLayoutData } from '../../templates/page-
 import { getLogger } from '../../utils/logger';
 
 const logger = getLogger('About');
+const USER_AGREEMENT_PAGE_KEY = 'user_agreement';
+const PRIVACY_POLICY_PAGE_KEY = 'privacy_policy';
+const CONTACT_US_PAGE_KEY = 'contact_us';
 
 interface AboutPageData extends Record<string, unknown> {
   pageLayoutData: PageLayoutData;
-  version: string;
 }
 
 interface AboutPageCustom {
   navigateToUserAgreement(): void;
   navigateToPrivacyPolicy(): void;
-  onRetry(): void;
+  navigateToContactUs(): void;
 }
 
 Page<AboutPageData, AboutPageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
-      isLoading: false,
+      screenModel: {
+        screenState: 'ready',
+        contentVariant: 'data',
+        refreshState: 'idle',
+      },
       hasFooter: false,
     }),
-    version: '1.0.0',
   },
 
   onLoad() {
@@ -28,22 +33,20 @@ Page<AboutPageData, AboutPageCustom>({
   },
 
   navigateToUserAgreement() {
-    // TODO: Navigate to user agreement page
-    void wx.showToast({
-      title: '功能开发中',
-      icon: 'none',
+    void wx.navigateTo({
+      url: `/pages/app-page/app-page?pageKey=${USER_AGREEMENT_PAGE_KEY}`,
     });
   },
 
   navigateToPrivacyPolicy() {
-    // TODO: Navigate to privacy policy page
-    void wx.showToast({
-      title: '功能开发中',
-      icon: 'none',
+    void wx.navigateTo({
+      url: `/pages/app-page/app-page?pageKey=${PRIVACY_POLICY_PAGE_KEY}`,
     });
   },
 
-  onRetry() {
-    // No retry needed for about page
+  navigateToContactUs() {
+    void wx.navigateTo({
+      url: `/pages/app-page/app-page?pageKey=${CONTACT_US_PAGE_KEY}`,
+    });
   },
 });

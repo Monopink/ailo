@@ -1,48 +1,31 @@
 <page-layout
-  isLoading="{{pageLayoutData.isLoading}}"
-  hasError="{{pageLayoutData.hasError}}"
-  errorMessage="{{pageLayoutData.errorMessage}}"
-  isEmpty="{{pageLayoutData.isEmpty}}"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
-  hasFooter="{{pageLayoutData.hasFooter}}"
-  bind:retry="onRetry">
+  hasFooter="{{pageLayoutData.hasFooter}}">
   <t-navbar slot="header" left-arrow="{{true}}">
     <view slot="title" class="navbar-title">账号与安全</view>
   </t-navbar>
   <view slot="content" class="account-security card-container">
-    <view wx:if="{{!pageLayoutData.isLoading}}">
-      <!-- Account info card -->
-      <view class="card-wrapper">
-        <t-cell-group theme="card">
-          <t-cell
-            title="手机号"
-            note="{{phoneMasked}}"
-            hover="{{false}}"
-          />
-        </t-cell-group>
-        <view class="account-security__cta">
-          <t-button
-            size="small"
-            variant="outline"
-            block
-            open-type="getPhoneNumber"
-            loading="{{phoneReauthLoading}}"
-            bindgetphonenumber="handlePhoneReauthorize">
-            重新授权手机号
-          </t-button>
-        </view>
-      </view>
+    <!-- Account info card -->
+    <view class="card-wrapper">
+      <t-cell-group theme="card">
+        <t-cell
+          title="手机号"
+          note="{{phoneMasked}}"
+          hover="{{false}}"
+        />
+      </t-cell-group>
+    </view>
 
-      <!-- Logout action card -->
-      <view class="card-wrapper">
-        <t-cell-group theme="card">
-          <t-cell
-            title="退出登录"
-            arrow
-            hover
-            bindtap="handleLogout" />
-        </t-cell-group>
-      </view>
+    <!-- Logout action card -->
+    <view class="card-wrapper">
+      <t-cell-group theme="card">
+        <t-cell hover bindtap="handleLogout">
+          <text slot="title" class="account-security__danger-title">退出登录</text>
+        </t-cell>
+      </t-cell-group>
     </view>
   </view>
 </page-layout>

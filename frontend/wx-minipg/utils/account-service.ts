@@ -46,12 +46,26 @@ class AccountService {
 
   private static formatPhone(value?: string | null): string {
     if (!isNonEmptyString(value)) {
-      return '未绑定';
+      return '';
     }
-    if (value.length >= 7) {
-      return `${value.slice(0, 3)}****${value.slice(value.length - 4)}`;
+    const normalized = value.trim();
+
+    const chinaRawMatch = normalized.match(/^\+86\s*(\d{11})$/);
+    if (chinaRawMatch !== null) {
+      const phone = chinaRawMatch[1];
+      return `+86 ${phone.slice(0, 3)}******${phone.slice(-2)}`;
     }
-    return value;
+
+    const chinaMaskedMatch = normalized.match(/^\+86\s*(\d{3}\*{6}\d{2})$/);
+    if (chinaMaskedMatch !== null) {
+      return `+86 ${chinaMaskedMatch[1]}`;
+    }
+
+    if (/^\d{11}$/.test(normalized)) {
+      return `${normalized.slice(0, 3)}******${normalized.slice(-2)}`;
+    }
+
+    return normalized;
   }
 }
 

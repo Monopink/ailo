@@ -1,11 +1,20 @@
 import { requestValidated } from './api';
-import { AccountInfo, AccountInfoSchema, UserProfile, UserProfileSchema } from './schemas';
+import {
+  AccountInfo,
+  AccountInfoSchema,
+  UserProfile,
+  UserProfileSchema,
+  UsernameCheckResponse,
+  UsernameCheckResponseSchema,
+} from './schemas';
 
 export type UserProfileResponse = UserProfile;
 export type AccountInfoResponse = AccountInfo;
+export type UsernameAvailabilityResponse = UsernameCheckResponse;
 
 const PROFILE_ENDPOINT = '/user/profile';
 const ACCOUNT_ENDPOINT = '/user/account';
+const USERNAME_CHECK_ENDPOINT = '/user/username/check';
 
 export async function fetchCurrentUserProfile(): Promise<UserProfileResponse> {
   return await requestValidated(UserProfileSchema, {
@@ -28,6 +37,16 @@ export async function updateCurrentUserProfile(
     url: PROFILE_ENDPOINT,
     method: 'PUT',
     data: payload,
+  });
+}
+
+export async function checkUsernameAvailability(
+  username: string
+): Promise<UsernameAvailabilityResponse> {
+  const query = encodeURIComponent(username);
+  return await requestValidated(UsernameCheckResponseSchema, {
+    url: `${USERNAME_CHECK_ENDPOINT}?username=${query}`,
+    method: 'GET',
   });
 }
 

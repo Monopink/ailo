@@ -1,77 +1,93 @@
 <page-layout
-  isLoading="{{pageLayoutData.isLoading}}"
-  hasError="{{pageLayoutData.hasError}}"
-  errorMessage="{{pageLayoutData.errorMessage}}"
-  isEmpty="{{pageLayoutData.isEmpty}}"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
-  hasFooter="{{pageLayoutData.hasFooter}}"
-  bind:retry="onRetry">
+  hasFooter="{{pageLayoutData.hasFooter}}">
   <t-navbar slot="header" left-arrow="{{true}}">
     <view slot="title" class="navbar-title">完善资料</view>
   </t-navbar>
-  <view slot="content" class="setup-page">
+  <view slot="content" class="setup-page card-container">
     <view class="setup-avatar" bindtap="handleChooseAvatar" hover-class="setup-avatar--active">
-      <t-avatar
-        image="{{avatarUrl}}"
-        size="112rpx"
-        shape="circle"
-      />
-      <text class="setup-avatar__hint">
-        {{uploadingAvatar ? '上传中…' : avatarFileId ? '点击更换头像' : '点击上传头像'}}
-      </text>
+      <view class="setup-avatar__image-wrap">
+        <t-avatar
+          image="{{avatarUrl}}"
+          size="112rpx"
+          shape="circle"
+        />
+        <view class="setup-avatar__edit-badge">
+          <t-icon name="edit-1" size="var(--icon-xs)" color="var(--color-text-primary)" />
+        </view>
+      </view>
     </view>
 
     <!-- Basic info group -->
-    <view class="setup-group">
-      <t-cell title="昵称 *">
-        <input
-          slot="note"
-          class="setup-input"
-          placeholder="请输入昵称"
-          bindinput="onNicknameInput"
-          value="{{nickname}}"
-          maxlength="{{maxNicknameLength}}" />
-      </t-cell>
+    <view class="card-wrapper">
+      <t-cell-group theme="card">
+        <t-cell
+          title="昵称 *"
+          t-class-title="profile-cell__title">
+          <input
+            slot="note"
+            class="setup-input"
+            placeholder="请输入昵称"
+            bindinput="onNicknameInput"
+            value="{{nickname}}"
+            maxlength="{{maxNicknameLength}}" />
+        </t-cell>
 
-      <t-cell title="性别" arrow hover>
         <picker
-          slot="note"
           mode="selector"
           range="{{genderOptions}}"
           range-key="label"
           value="{{genderIndex}}"
           bindchange="onGenderChange">
-          <view class="setup-picker">
-            {{genderIndex >= 0 ? genderOptions[genderIndex].label : '请选择性别'}}
-          </view>
+          <t-cell
+            title="性别"
+            t-class-title="profile-cell__title"
+            arrow
+            hover>
+            <text wx:if="{{genderIndex >= 0}}" slot="note" class="profile-cell__note">
+              {{genderOptions[genderIndex].label}}
+            </text>
+            <text wx:else slot="note" class="profile-cell__note">请选择性别</text>
+          </t-cell>
         </picker>
-      </t-cell>
+      </t-cell-group>
     </view>
 
     <!-- Additional info group -->
-    <view class="setup-group">
-      <t-cell title="个人简介">
-        <textarea
-          slot="note"
-          class="setup-textarea"
-          placeholder="请输入个人简介"
-          bindinput="onBioInput"
-          value="{{bio}}"
-          maxlength="{{maxBioLength}}"
-          auto-height />
-      </t-cell>
-
-      <t-cell title="地区" arrow hover>
+    <view class="card-wrapper">
+      <t-cell-group theme="card">
         <picker
-          slot="note"
           mode="region"
           value="{{regionValue}}"
           bindchange="onRegionChange">
-          <view class="setup-picker">
-            {{regionDisplay}}
-          </view>
+          <t-cell
+            title="地区"
+            t-class-title="profile-cell__title"
+            arrow
+            hover>
+            <text wx:if="{{regionDisplay !== ''}}" slot="note" class="profile-cell__note">
+              {{regionDisplay}}
+            </text>
+            <text wx:else slot="note" class="profile-cell__note">请选择地区</text>
+          </t-cell>
         </picker>
-      </t-cell>
+
+        <t-cell
+          title="个性签名"
+          t-class-title="profile-cell__title">
+          <textarea
+            slot="description"
+            class="setup-textarea"
+            placeholder="请输入个性签名"
+            bindinput="onBioInput"
+            value="{{bio}}"
+            maxlength="{{maxBioLength}}"
+            auto-height />
+        </t-cell>
+      </t-cell-group>
     </view>
   </view>
 

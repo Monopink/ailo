@@ -45,6 +45,7 @@ export interface ApiError extends Error {
   status?: number;
   data?: unknown;
   errorCode?: string | number;
+  reason?: string;
   retryAfter?: string | number | null;
 }
 
@@ -53,13 +54,18 @@ type WxCallbackResult = WechatMiniprogram.GeneralCallbackResult & { errMsg?: str
 
 type ApiResponseDetail = {
   message?: string;
+  reason?: string;
+  error_code?: string | number;
   error?: string | number;
+  code?: string | number;
   retry_after?: string | number;
 };
 
 type ApiResponseEnvelope<T = unknown> = {
   detail?: ApiResponseDetail;
   message?: string;
+  reason?: string;
+  error_code?: string | number;
   error?: string | number;
   code?: string | number;
 } & T;
@@ -168,6 +174,66 @@ const resolveDetail = (detail: unknown, data: unknown): ApiResponseDetail | unde
   return undefined;
 };
 
+const toDataRecord = (data: unknown): Record<string, unknown> | undefined => {
+  if (typeof data !== 'object' || data === null) {
+    return undefined;
+  }
+  return data as Record<string, unknown>;
+};
+
+const resolveApiErrorCode = (
+  detail: ApiResponseDetail | undefined,
+  dataRecord: Record<string, unknown> | undefined
+): string | number | undefined => {
+  if (detail?.error_code !== undefined) {
+    return detail.error_code;
+  }
+  if (detail?.error !== undefined) {
+    return detail.error;
+  }
+  if (detail?.code !== undefined) {
+    return detail.code;
+  }
+  if (typeof dataRecord?.error_code === 'string' || typeof dataRecord?.error_code === 'number') {
+    return dataRecord.error_code;
+  }
+  if (typeof dataRecord?.error === 'string' || typeof dataRecord?.error === 'number') {
+    return dataRecord.error;
+  }
+  if (typeof dataRecord?.code === 'string' || typeof dataRecord?.code === 'number') {
+    return dataRecord.code;
+  }
+  return undefined;
+};
+
+const resolveApiReason = (
+  detail: ApiResponseDetail | undefined,
+  dataRecord: Record<string, unknown> | undefined
+): string | undefined => {
+  if (typeof detail?.reason === 'string') {
+    return detail.reason;
+  }
+  if (typeof dataRecord?.reason === 'string') {
+    return dataRecord.reason;
+  }
+  return undefined;
+};
+
+const resolveRetryAfter = (
+  detail: ApiResponseDetail | undefined,
+  header: Record<string, unknown> | WechatMiniprogram.IAnyObject | undefined
+): string | number | undefined => {
+  if (detail?.retry_after !== undefined) {
+    return detail.retry_after;
+  }
+  const headers = toHeaderRecord(header);
+  const retryValue = headers?.['Retry-After'] ?? headers?.['retry-after'];
+  if (typeof retryValue === 'string') {
+    return retryValue;
+  }
+  return undefined;
+};
+
 const toApiError = (
   message: string,
   response: {
@@ -184,27 +250,10 @@ const toApiError = (
   }
   error.data = response.data;
   const detail = resolveDetail(response.detail, response.data);
-  const dataRecord =
-    typeof response.data === 'object' && response.data !== null
-      ? (response.data as Record<string, unknown>)
-      : undefined;
-  if (detail?.error !== undefined) {
-    error.errorCode = detail.error;
-  } else if (typeof dataRecord?.error === 'string' || typeof dataRecord?.error === 'number') {
-    error.errorCode = dataRecord.error;
-  } else if (typeof dataRecord?.code === 'string' || typeof dataRecord?.code === 'number') {
-    error.errorCode = dataRecord.code;
-  }
-  if (detail?.retry_after !== undefined) {
-    error.retryAfter = detail.retry_after;
-  }
-  if (error.retryAfter === undefined || error.retryAfter === null) {
-    const headers = toHeaderRecord(response.header);
-    const retryValue = headers?.['Retry-After'] ?? headers?.['retry-after'];
-    if (typeof retryValue === 'string') {
-      error.retryAfter = retryValue;
-    }
-  }
+  const dataRecord = toDataRecord(response.data);
+  error.errorCode = resolveApiErrorCode(detail, dataRecord);
+  error.reason = resolveApiReason(detail, dataRecord);
+  error.retryAfter = resolveRetryAfter(detail, response.header);
   return error;
 };
 
@@ -314,7 +363,7 @@ export async function request<
     headers['Content-Type'] = 'application/json';
   }
 
-  headers['X-Client'] = 'wxminipg';
+  headers['X-Client'] = 'mini-program';
   logger.debug('API request', { method, url, data });
 
   try {
@@ -486,7 +535,7 @@ export async function uploadFile<T extends WxResponseData = WechatMiniprogram.IA
     typeof value === 'object' && value !== null && 'data' in value;
 
   const performUpload = async (_retry = false): Promise<T> => {
-    const header: Record<string, string> = { 'X-Client': 'wxminipg' };
+    const header: Record<string, string> = { 'X-Client': 'mini-program' };
     if (auth) {
       const token = getToken();
       if (isNonEmptyString(token)) {

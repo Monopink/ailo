@@ -1,5 +1,5 @@
 @import '/styles/tdesign-theme.wxss';
-@import '/styles/design-tokens.wxss';
+@import '/styles/design-tokens.global.wxss';
 
 page {
   background-color: var(--color-bg-white);
@@ -25,29 +25,21 @@ page {
 }
 
 /* Chat Navbar Title */
-.chat-navbar__title-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+.chat-navbar__title {
   min-width: 0;
+  max-width: 100%;
 }
 
-.chat-navbar__title {
-  font-size: var(--navbar-title-size);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-primary);
-  line-height: var(--line-height-base);
+.chat-navbar__title-text {
+  display: block;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.chat-navbar__subtitle {
-  font-size: var(--font-size-sm);
+.chat-navbar__typing-text {
   color: var(--color-text-placeholder);
-  line-height: var(--line-height-base);
 }
 
 /* Messages Scroll View */
@@ -146,12 +138,12 @@ page {
 
 .msg-bubble-me {
   background-color: var(--color-primary-light);
-  color: var(--color-text-inverse);
+  color: var(--color-text-on-brand);
   border-radius: var(--radius-bubble) var(--radius-xs) var(--radius-bubble) var(--radius-bubble);
 }
 
 .msg-bubble-other {
-  background-color: var(--color-bg-input);
+  background-color: var(--color-bg-muted);
   color: var(--color-text-primary);
   border-radius: var(--radius-xs) var(--radius-bubble) var(--radius-bubble) var(--radius-bubble);
 }
@@ -168,7 +160,7 @@ page {
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
-  background-color: transparent;
+  background-color: var(--color-bg-muted);
   box-sizing: border-box;
   width: 100%;
 }
@@ -201,8 +193,8 @@ page {
   min-height: var(--chat-input-height);
   padding: 0 var(--space-md);
   border-radius: var(--radius-sm);
-  background-color: var(--color-glass-card-bg);
-  border: 1rpx solid var(--color-glass-card-border);
+  background-color: var(--color-bg-white);
+  border: 1rpx solid var(--color-border-base);
 }
 
 .chat-footer__input {
@@ -245,7 +237,7 @@ page {
 }
 
 .chat-footer__send-icon--active {
-  /* White icon for active state - will use a different base64 SVG */
+  /* Active icon uses a dedicated dark glyph for brand-yellow button background */
 }
 
 /* Scroll Anchor */

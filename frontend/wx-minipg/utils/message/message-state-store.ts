@@ -58,12 +58,21 @@ class MessageStateStore {
     };
   }
 
+  getStateSnapshot(): MessageStoreState {
+    return {
+      convId: this.state.convId,
+      messages: [...this.state.messages],
+      isTyping: this.state.isTyping,
+    };
+  }
+
   async setConversation(convId: string): Promise<void> {
     if (!isNonEmptyString(convId)) {
       this.clearConversation();
       return;
     }
     if (this.state.convId === convId) {
+      await this.reloadMessages(convId);
       return;
     }
     this.state = { ...this.state, convId, messages: [], isTyping: false };

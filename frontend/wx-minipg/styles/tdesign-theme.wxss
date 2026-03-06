@@ -87,6 +87,8 @@ page {
   --td-bg-color-component-hover: var(--color-bg-hover);
   --td-bg-color-component-active: var(--color-bg-hover);
   --td-bg-color-component-disabled: var(--color-bg-disabled);
+  --td-avatar-bg-color: var(--color-bg-tertiary);
+  --td-avatar-content-color: var(--color-text-tertiary);
 
   /* ========================================
      Text Colors - Mapped from design tokens
@@ -98,6 +100,7 @@ page {
   --td-text-color-disabled: var(--color-text-disabled);
   --td-text-color-anti: var(--color-text-inverse);
   --td-text-color-brand: var(--color-primary);
+  --td-button-primary-color: var(--color-text-on-brand);
 
   /* ========================================
      Border Colors - Mapped from design tokens
@@ -150,6 +153,8 @@ page {
     --td-bg-color-component-hover: var(--color-bg-hover);
     --td-bg-color-component-active: var(--color-bg-hover);
     --td-bg-color-component-disabled: var(--color-bg-disabled);
+    --td-avatar-bg-color: var(--color-bg-tertiary);
+    --td-avatar-content-color: var(--color-text-tertiary);
 
     /* Text colors */
     --td-text-color-primary: var(--color-text-primary);
@@ -180,6 +185,8 @@ page[theme='dark'] {
   --td-bg-color-component-hover: var(--color-bg-hover);
   --td-bg-color-component-active: var(--color-bg-hover);
   --td-bg-color-component-disabled: var(--color-bg-disabled);
+  --td-avatar-bg-color: var(--color-bg-tertiary);
+  --td-avatar-content-color: var(--color-text-tertiary);
 
   --td-text-color-primary: var(--color-text-primary);
   --td-text-color-secondary: var(--color-text-secondary);

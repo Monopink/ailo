@@ -5,6 +5,9 @@
 
 import { VALIDATION_RULES } from './config';
 import { isNonEmptyString } from './guards';
+import { PROFILE_BIO_RULE, PROFILE_NICKNAME_RULE, validateTextLimit } from './text-limit';
+
+const WHITESPACE_REGEX = /\s/u;
 
 export interface ValidationResult {
   valid: boolean;
@@ -59,8 +62,13 @@ export function validateNickname(nickname: string | null | undefined): Validatio
     return { valid: false, message: `昵称至少${VALIDATION_RULES.nicknameMinLength}个字符` };
   }
 
-  if (nickname.length > VALIDATION_RULES.nicknameMaxLength) {
-    return { valid: false, message: `昵称最多${VALIDATION_RULES.nicknameMaxLength}个字符` };
+  if (WHITESPACE_REGEX.test(nickname)) {
+    return { valid: false, message: '昵称不能包含空格' };
+  }
+
+  const result = validateTextLimit(nickname, PROFILE_NICKNAME_RULE);
+  if (!result.valid) {
+    return { valid: false, message: result.message };
   }
 
   return { valid: true };
@@ -76,8 +84,9 @@ export function validateBio(bio: string | null | undefined): ValidationResult {
     return { valid: true }; // Bio is optional
   }
 
-  if (bio.length > VALIDATION_RULES.bioMaxLength) {
-    return { valid: false, message: `个人简介最多${VALIDATION_RULES.bioMaxLength}个字符` };
+  const result = validateTextLimit(bio, PROFILE_BIO_RULE);
+  if (!result.valid) {
+    return { valid: false, message: result.message };
   }
 
   return { valid: true };

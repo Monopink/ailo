@@ -1,10 +1,9 @@
 @import '/styles/tdesign-theme.wxss';
-@import '/styles/design-tokens.wxss';
+@import '/styles/design-tokens.global.wxss';
 
 /* Profile Page */
 .profile {
   background-color: var(--color-bg-primary);
-  padding-top: calc(var(--space-xxl) + var(--space-lg) + var(--safe-area-inset-top));
 }
 
 /* Header Section - Avatar and Name */
@@ -23,21 +22,56 @@
   display: flex;
   align-items: center;
   gap: var(--space-xs);
+  margin-top: var(--space-xs);
+  min-height: calc(var(--font-size-xl) * 1.4);
   margin-bottom: var(--space-xs);
 }
 
 .profile__name {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  min-width: 1rpx;
   color: var(--color-text-primary);
 }
 
 .profile__qiao-id {
   font-size: var(--font-size-sm);
+  line-height: 1.5;
+  min-height: calc(var(--font-size-sm) * 1.5);
   color: var(--color-text-secondary);
 }
 
 /* Cards Section */
 .profile__cards {
   margin-top: var(--space-md);
+}
+
+.profile__menu-left {
+  width: calc(var(--font-size-lg) + var(--space-xs) + var(--space-md));
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.profile__menu-icon-wrap {
+  width: calc(var(--font-size-lg) + var(--space-xs));
+  height: calc(var(--font-size-lg) + var(--space-xs));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile__menu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.profile__menu-title {
+  display: flex;
+  align-items: center;
+  min-height: calc(var(--font-size-lg) + var(--space-xs));
 }

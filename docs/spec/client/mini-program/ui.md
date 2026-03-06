@@ -12,9 +12,44 @@
 
 ## 页面结构
 
-- 页面优先使用 `page-layout` 作为根容器
+- 页面使用 `page-layout` 作为根容器
 - 导航栏放在 `page-layout` 的 `header` slot
 - 固定区（如输入栏）必须处理安全区
+
+## 页面状态与提示
+
+- 页面状态使用 `screenModel` 传递，包含 `screenState`、`contentVariant`、`refreshState`
+- `page-layout` 提供页面结构与滚动容器
+- 鉴权失效场景使用 modal，用户确认后跳转登录页
+- toast 用于动作反馈，以及白屏场景的一次性加载失败提示
+
+## `page-layout` 状态契约
+
+- `screenState`: `booting` / `ready`
+- `contentVariant`: `data` / `empty` / `blank`
+- `refreshState`: `idle` / `refreshing` / `degraded`
+
+## 失败展示规则
+
+- 有可降级内容时保留内容并标记 `refreshState=degraded`
+- 有可降级内容的失败场景不显示 toast
+- 无可降级内容时页面显示 `ready + blank`
+- 白屏场景可显示一次简短 toast
+- 一级页面在白屏失败场景必须执行有上限自动重试
+- `legal-document` 失败保持白屏静默
+
+## 统一空状态组件
+
+- 业务空状态使用统一组件
+- 空状态仅允许在 `ready` 状态的内容区展示
+- 空状态禁止接管整页，禁止替换 header、footer、输入区等结构
+- 错误场景禁止使用空状态表达
+- 图标使用语义化预设，尺寸固定为 `48rpx`
+- 动作按钮为可选配置
+
+## 局部加载占位
+
+- 用于局部模块短暂加载占位
 
 ## 设计令牌与暗色模式
 

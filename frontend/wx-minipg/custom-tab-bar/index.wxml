@@ -6,7 +6,10 @@
     bindtap="onTabChange"
     data-index="{{index}}"
   >
-    <t-icon class="tab-icon" name="{{active === index ? item.activeIcon : item.icon}}" />
+    <t-icon
+      class="tab-icon"
+      name="{{active === index ? item.activeIcon : item.icon}}"
+      size="{{item.iconSize}}" />
     <text class="tab-text">{{item.text}}</text>
   </view>
 </view>

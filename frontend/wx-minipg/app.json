@@ -9,13 +9,14 @@
     "pages/chat/chat",
     "pages/profile/profile",
     "pages/profile-detail/profile-detail",
-    "pages/profile-edit/profile-edit",
+    "pages/field-edit/field-edit",
     "pages/account-security/account-security",
     "pages/contact-info/contact-info",
     "pages/contact-requests/contact-requests",
     "pages/stranger-info/stranger-info",
     "pages/avatar-cropper/avatar-cropper",
-    "pages/about/about"
+    "pages/about/about",
+    "pages/app-page/app-page"
   ],
   "window": {
     "backgroundTextStyle": "@bgTxtStyle",

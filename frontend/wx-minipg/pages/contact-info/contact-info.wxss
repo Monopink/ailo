@@ -1,5 +1,7 @@
 @import '/styles/tdesign-theme.wxss';
-@import '/styles/design-tokens.wxss';
+@import '/styles/design-tokens.global.wxss';
+@import '/styles/profile-cells.wxss';
+@import '/styles/tag-tone.wxss';
 
 /* Contact Info Page */
 .contact-info {
@@ -14,25 +16,100 @@
   padding: var(--space-xl) var(--space-md) var(--space-lg);
 }
 
-.contact-info__avatar {
+.contact-info__avatar-zone {
+  position: relative;
+  width: 142rpx;
+  height: 128rpx;
   margin-bottom: var(--space-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.contact-info__avatar-zone--active {
+  opacity: 0.82;
+}
+
+.contact-info__avatar-stack {
+  width: 142rpx;
+  height: 128rpx;
+  position: relative;
+}
+
+.contact-info__avatar-single {
+  width: 128rpx;
+  height: 128rpx;
+  position: relative;
+}
+
+.contact-info__avatar {
+  display: block;
+}
+
+.contact-info__avatar-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 128rpx;
+  height: 128rpx;
+}
+
+.contact-info__avatar-layer--front {
+  z-index: 2;
+}
+
+.contact-info__avatar-layer--back {
+  left: 35rpx;
+  z-index: 1;
+  opacity: 0.75;
+}
+
+.contact-info__avatar-edit-badge {
+  position: absolute;
+  right: calc(var(--space-xs) * -1);
+  bottom: calc(var(--space-xs) * -1);
+  width: calc(var(--icon-xs) + var(--space-sm));
+  height: calc(var(--icon-xs) + var(--space-sm));
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-separator);
+  background-color: var(--color-bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  box-shadow: var(--shadow-xs);
+  z-index: 3;
 }
 
 .contact-info__name-row {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
+  margin-top: var(--space-xs);
+  min-height: calc(var(--font-size-xl) * 1.4);
   margin-bottom: var(--space-xs);
 }
 
 .contact-info__name {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  min-width: 1rpx;
   color: var(--color-text-primary);
 }
 
 .contact-info__qiao-id {
   font-size: var(--font-size-sm);
+  line-height: 1.5;
+  min-height: calc(var(--font-size-sm) * 1.5);
+  color: var(--color-text-secondary);
+}
+
+.contact-info__nickname {
+  display: block;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  min-height: calc(var(--font-size-sm) * 1.5);
   color: var(--color-text-secondary);
 }
 
@@ -41,9 +118,6 @@
   margin-top: var(--space-md);
 }
 
-/* Tags */
-.contact-info__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xs);
+.contact-info__danger-title {
+  color: var(--color-error);
 }

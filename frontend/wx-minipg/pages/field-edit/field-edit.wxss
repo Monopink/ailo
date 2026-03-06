@@ -1,0 +1,129 @@
+@import '/styles/tdesign-theme.wxss';
+@import '/styles/design-tokens.global.wxss';
+@import '/styles/tag-tone.wxss';
+
+.field-edit {
+  background-color: var(--color-bg-primary);
+  height: 100%;
+}
+
+.field-edit__body {
+  min-height: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.field-edit__editor-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+}
+
+.field-edit__editor-content {
+  width: 100%;
+}
+
+.field-edit__editor-wrap .card-wrapper:first-child {
+  margin-top: 0;
+}
+
+.field-edit__field-center {
+  margin-right: 0;
+}
+
+.field-edit__field-title {
+  display: none;
+}
+
+.field-edit__field-description {
+  margin-top: 0;
+}
+
+.field-edit__input,
+.field-edit__textarea,
+.field-edit__tag-input {
+  display: block;
+  width: 100%;
+  margin-top: 0;
+  padding: 0;
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+  background-color: transparent;
+  border: none;
+  line-height: var(--line-height-base);
+  box-sizing: border-box;
+}
+
+.field-edit__input {
+  height: calc(var(--font-size-base) * var(--line-height-base));
+}
+
+.field-edit__textarea {
+  min-height: 240rpx;
+}
+
+.field-edit__input::placeholder,
+.field-edit__textarea::placeholder,
+.field-edit__tag-input::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+.field-edit__meta {
+  margin-top: var(--space-sm);
+  padding: 0 var(--padding-page);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.field-edit__hint-text {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  line-height: var(--line-height-loose);
+}
+
+.field-edit__counter {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+.field-edit__picker-note {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+}
+
+.field-edit__tags-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.field-edit__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.field-edit__tag-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xxs);
+}
+
+.field-edit__tag-remove {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  line-height: var(--line-height-base);
+  padding: var(--space-xxs);
+}
+
+.field-edit__actions {
+  margin-top: auto;
+  padding: var(--space-xl) var(--padding-page) var(--space-md);
+  padding-bottom: calc(var(--space-md) + env(safe-area-inset-bottom));
+}

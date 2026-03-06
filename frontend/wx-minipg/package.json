@@ -100,7 +100,8 @@
     "overrides": [
       {
         "files": [
-          "styles/design-tokens.wxss",
+          "styles/design-tokens.global.wxss",
+          "styles/design-tokens.component.wxss",
           "styles/tdesign-theme.wxss"
         ],
         "rules": {

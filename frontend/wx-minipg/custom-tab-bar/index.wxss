@@ -30,7 +30,7 @@
 }
 
 .tab-text {
-  color: var(--color-text-tertiary);
+  color: #999999;
   font-size: var(--tabbar-text-size);
   margin-top: var(--tabbar-text-gap);
   font-weight: 400;
@@ -38,10 +38,24 @@
 }
 
 .tab-item.active .tab-text {
-  color: var(--color-primary);
+  color: #5f5f66;
   font-weight: 500;
 }
 
 .tab-item.active .tab-icon {
-  color: var(--color-primary);
+  color: #5f5f66;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tab-text {
+    color: #a8a8b0;
+  }
+
+  .tab-item.active .tab-text {
+    color: #c6c6cc;
+  }
+
+  .tab-item.active .tab-icon {
+    color: #c6c6cc;
+  }
 }

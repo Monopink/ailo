@@ -1,11 +1,11 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
-import { initTabBar } from '../../utils/tab-bar';
 import {
   SQUARE_CATEGORY,
   SQUARE_ENTRY_CARDS,
   type SquareCategory,
   type SquareEntryCard,
 } from '../../utils/constants/square';
+import { initTabBar } from '../../utils/tab-bar';
 
 const SQUARE_CATEGORY_VALUES = new Set<number>(Object.values(SQUARE_CATEGORY));
 
@@ -48,7 +48,14 @@ interface SquareEntryPageCustom {
 
 Page<SquareEntryPageData, SquareEntryPageCustom>({
   data: {
-    pageLayoutData: createPageLayoutData(),
+    pageLayoutData: createPageLayoutData({
+      screenModel: {
+        screenState: 'ready',
+        contentVariant: 'data',
+        refreshState: 'idle',
+      },
+      hasFooter: false,
+    }),
     entryCards: SQUARE_ENTRY_CARDS,
   },
 

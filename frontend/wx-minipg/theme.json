@@ -1,13 +1,19 @@
 {
   "light": {
-    "navBgColor": "#f7f7f7",
+    "navBgColor": "#fafafa",
     "navTxtStyle": "black",
     "bgColor": "#ffffff",
     "bgTxtStyle": "dark",
     "tabFontColor": "#999999",
-    "tabSelectedColor": "#07c160",
-    "tabBgColor": "#f7f7f7",
-    "tabBorderStyle": "black"
+    "tabSelectedColor": "#e5ff00",
+    "tabBgColor": "#fafafa",
+    "tabBorderStyle": "black",
+    "tabIconChat": "/assets/icons/chat.svg",
+    "tabIconChatSelected": "/assets/icons/chat-fill.svg",
+    "tabIconDiscover": "/assets/icons/discovery.svg",
+    "tabIconDiscoverSelected": "/assets/icons/discovery-fill.svg",
+    "tabIconProfile": "/assets/icons/profile.svg",
+    "tabIconProfileSelected": "/assets/icons/profile-fill.svg"
   },
   "dark": {
     "navBgColor": "#1c1c1e",
@@ -15,8 +21,14 @@
     "bgColor": "#000000",
     "bgTxtStyle": "light",
     "tabFontColor": "#8e8e93",
-    "tabSelectedColor": "#0bbf68",
+    "tabSelectedColor": "#c6dc00",
     "tabBgColor": "#1c1c1e",
-    "tabBorderStyle": "white"
+    "tabBorderStyle": "white",
+    "tabIconChat": "/assets/icons/chat-dark.svg",
+    "tabIconChatSelected": "/assets/icons/chat-fill-dark.svg",
+    "tabIconDiscover": "/assets/icons/discovery-dark.svg",
+    "tabIconDiscoverSelected": "/assets/icons/discovery-fill-dark.svg",
+    "tabIconProfile": "/assets/icons/profile-dark.svg",
+    "tabIconProfileSelected": "/assets/icons/profile-fill-dark.svg"
   }
 }

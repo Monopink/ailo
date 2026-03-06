@@ -1,11 +1,9 @@
 <page-layout
-  isLoading="{{pageLayoutData.isLoading}}"
-  hasError="{{pageLayoutData.hasError}}"
-  errorMessage="{{pageLayoutData.errorMessage}}"
-  isEmpty="{{pageLayoutData.isEmpty}}"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
-  hasFooter="{{pageLayoutData.hasFooter}}"
-  bind:retry="onRetry">
+  hasFooter="{{pageLayoutData.hasFooter}}">
   <t-navbar slot="header" left-arrow="{{true}}">
     <view slot="title" class="navbar-title">联系人申请</view>
   </t-navbar>

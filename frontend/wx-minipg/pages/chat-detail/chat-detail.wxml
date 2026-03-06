@@ -1,11 +1,9 @@
 <page-layout
-  isLoading="{{pageLayoutData.isLoading}}"
-  hasError="{{pageLayoutData.hasError}}"
-  errorMessage="{{pageLayoutData.errorMessage}}"
-  isEmpty="{{pageLayoutData.isEmpty}}"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
-  hasFooter="{{pageLayoutData.hasFooter}}"
-  bind:retry="onRetry">
+  hasFooter="{{pageLayoutData.hasFooter}}">
   <t-navbar slot="header" left-arrow="{{true}}">
     <view slot="title" class="navbar-title">聊天详情</view>
   </t-navbar>
@@ -43,12 +41,6 @@
 
     <!-- Settings group -->
     <view wx:if="{{contact}}" class="chat-detail__group">
-      <t-cell title="置顶聊天">
-        <t-switch slot="note" value="{{isPinned}}" bindchange="onPinnedChange" />
-      </t-cell>
-      <t-cell title="消息免打扰">
-        <t-switch slot="note" value="{{isMuted}}" bindchange="onMutedChange" />
-      </t-cell>
       <t-cell title="聊天背景">
         <text slot="note" class="chat-detail__muted-text">暂未开放</text>
       </t-cell>

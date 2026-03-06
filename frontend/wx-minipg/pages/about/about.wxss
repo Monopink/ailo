@@ -1,5 +1,5 @@
 @import '/styles/tdesign-theme.wxss';
-@import '/styles/design-tokens.wxss';
+@import '/styles/design-tokens.global.wxss';
 
 .about {
   display: flex;
@@ -8,31 +8,13 @@
   background-color: var(--color-bg-primary);
 }
 
-/* Logo icon for app info cell */
-.about__logo {
-  width: 96rpx;
-  height: 96rpx;
-  border-radius: var(--radius-md);
-  background-color: var(--color-primary);
+.about__footer {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.about__logo-text {
-  font-size: 40rpx;
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text-inverse);
-}
-
-/* Footer */
-.about__footer {
-  flex: 1;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: var(--space-xxl) var(--padding-page);
-  padding-bottom: calc(var(--space-xxl) + var(--safe-area-inset-bottom));
+  margin-top: auto;
+  padding-top: var(--space-lg);
+  padding-bottom: var(--safe-area-inset-bottom);
 }
 
 .about__copyright {

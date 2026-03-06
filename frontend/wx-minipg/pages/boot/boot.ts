@@ -32,7 +32,11 @@ type RouteOptions = Record<string, string | undefined>;
 Page<BootPageData, BootPageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
-      isLoading: false,
+      screenModel: {
+        screenState: 'ready',
+        contentVariant: 'data',
+        refreshState: 'idle',
+      },
       hasFooter: false,
       emptyMessage: '',
     }),

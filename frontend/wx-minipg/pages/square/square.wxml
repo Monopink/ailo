@@ -1,12 +1,10 @@
 <page-layout
   style="--color-bg-page: var(--color-bg-white); --color-bg-header-solid: var(--color-bg-white);"
-  isLoading="{{pageLayoutData.isLoading}}"
-  hasError="{{pageLayoutData.hasError}}"
-  errorMessage="{{pageLayoutData.errorMessage}}"
-  isEmpty="{{pageLayoutData.isEmpty}}"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
-  hasFooter="{{pageLayoutData.hasFooter}}"
-  bind:retry="onRetry">
+  hasFooter="{{pageLayoutData.hasFooter}}">
   <!-- Category tabs - always visible in header -->
   <view slot="header" class="square-header">
     <t-navbar left-arrow="{{true}}">
@@ -27,7 +25,7 @@
   </view>
 
   <view slot="empty" class="square-page__empty">
-    <t-empty description="{{pageLayoutData.emptyMessage}}" />
+    <text class="square-page__empty-text">{{pageLayoutData.emptyMessage}}</text>
   </view>
 
   <!-- Contact list -->

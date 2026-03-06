@@ -1,18 +1,44 @@
 @import '/styles/tdesign-theme.wxss';
-@import '/styles/design-tokens.wxss';
+@import '/styles/design-tokens.global.wxss';
+@import '/styles/profile-cells.wxss';
 
 /* Profile Detail Page */
 .profile-detail {
   background-color: var(--color-bg-primary);
 }
 
-.profile-detail__avatar-slot {
+.profile-detail__avatar {
+  padding: var(--space-lg) 0 var(--space-md);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--space-sm);
 }
 
-.profile-detail__avatar-hint {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
+.profile-detail__avatar--active {
+  opacity: 0.8;
+}
+
+.profile-detail__avatar-image-wrap {
+  position: relative;
+}
+
+.profile-detail__avatar-edit-badge {
+  position: absolute;
+  right: calc(var(--space-xs) * -1);
+  bottom: calc(var(--space-xs) * -1);
+  width: calc(var(--icon-xs) + var(--space-sm));
+  height: calc(var(--icon-xs) + var(--space-sm));
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-separator);
+  background-color: var(--color-bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  box-shadow: var(--shadow-xs);
+}
+
+.profile-detail__cell-center {
+  display: flex;
+  align-items: center;
 }

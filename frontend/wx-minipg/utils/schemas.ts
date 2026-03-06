@@ -31,6 +31,7 @@ export const MessageTypeSchema = z.nativeEnum(MESSAGE_TYPE);
 export type MessageType = z.infer<typeof MessageTypeSchema>;
 
 export const ContactProfileSchema = z.object({
+  username: z.string().optional().nullable(),
   nickname: z.string().optional().nullable(),
   avatar_url: z.string().optional().nullable(),
   gender: z.number().optional().nullable(),
@@ -38,14 +39,6 @@ export const ContactProfileSchema = z.object({
   region: z.string().optional().nullable(),
 });
 export type ContactProfile = z.infer<typeof ContactProfileSchema>;
-
-export const ConversationResponseSchema = z.object({
-  conversation_id: z.string(),
-  im_conv_id: z.string(),
-  contact_qiao_id: z.string(),
-  profile: ContactProfileSchema,
-});
-export type ConversationResponse = z.infer<typeof ConversationResponseSchema>;
 
 export const UserProfileSchema = z.object({
   qiao_id: z.string(),
@@ -57,6 +50,11 @@ export const UserProfileSchema = z.object({
   region: z.string().nullable(),
 });
 export type UserProfile = z.infer<typeof UserProfileSchema>;
+
+export const UsernameCheckResponseSchema = z.object({
+  available: z.boolean(),
+});
+export type UsernameCheckResponse = z.infer<typeof UsernameCheckResponseSchema>;
 
 export const AccountInfoSchema = z.object({
   phone: z.string().optional(),
@@ -104,7 +102,15 @@ export const StoredContactSchema = z.object({
   contact_qiao_id: z.string().optional(),
   im_conv_id: z.string().optional(),
   alias: z.string().optional().nullable(),
+  remark: z.string().optional().nullable(),
+  avatar_url: z.string().optional().nullable(),
+  remark_avatar_url: z.string().optional().nullable(),
+  original_avatar_url: z.string().optional().nullable(),
+  avatar_display_mode: z.union([z.literal(1), z.literal(2)]).optional(),
   tags: z.array(z.string()).optional(),
+  last_message_content: z.string().optional().nullable(),
+  last_message: z.string().optional().nullable(),
+  last_message_time: z.union([z.number(), z.string()]).optional().nullable(),
   is_pinned: z.boolean().optional(),
   is_muted: z.boolean().optional(),
   is_blocked: z.boolean().optional(),
@@ -264,10 +270,33 @@ export const SquareApiResponseSchema = z.object({
 });
 export type SquareApiResponse = z.infer<typeof SquareApiResponseSchema>;
 
+export const StrangerProfileResponseSchema = z.object({
+  qiao_id: z.string(),
+  username: z.string().optional().nullable(),
+  nickname: z.string().optional().nullable(),
+  avatar_url: z.string().optional().nullable(),
+  gender: z.number().optional().nullable(),
+  category: z.number().optional().nullable(),
+  bio: z.string().optional().nullable(),
+  region: z.string().optional().nullable(),
+});
+export type StrangerProfileResponse = z.infer<typeof StrangerProfileResponseSchema>;
+
 export const PhoneRefreshResponseSchema = z.object({
   phone: z.string(),
 });
 export type PhoneRefreshResponse = z.infer<typeof PhoneRefreshResponseSchema>;
+
+export const AppPageSchema = z.object({
+  page_key: z.string(),
+  page_category: z.number().int(),
+  title: z.string(),
+  locale: z.string(),
+  content_rendered_format: z.literal('html'),
+  content_rendered: z.string(),
+  updated_at: z.string().datetime(),
+});
+export type AppPage = z.infer<typeof AppPageSchema>;
 
 // ============================================================================
 // Helper Functions

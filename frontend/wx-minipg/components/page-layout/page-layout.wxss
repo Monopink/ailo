@@ -53,6 +53,21 @@
   overflow-y: auto;
 }
 
+.page-layout__empty,
+.page-layout__blank {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  padding: var(--space-xxl) var(--padding-page);
+  box-sizing: border-box;
+}
+
+.page-layout__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* ========================================
    Footer Actions - Inline (Modern & Clean)
    ======================================== */
@@ -83,18 +98,4 @@
   padding-bottom: var(--safe-area-inset-bottom);
   box-sizing: border-box;
   z-index: var(--z-index-fixed);
-}
-
-/* ========================================
-   State Containers (Loading, Error, Empty)
-   ======================================== */
-
-.page-layout__state {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-xxl);
-  text-align: center;
 }

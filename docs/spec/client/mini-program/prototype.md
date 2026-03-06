@@ -47,6 +47,16 @@
 - “发现有趣的 AI 伙伴”示例卡片与功能列表来自 `frontend/wx-minipg/constants/login-content.ts`
 - 静态内容客户端维护，加载中不展示错误占位
 
+## 协议入口与展示
+
+- 登录页展示“用户协议”入口，跳转协议详情页。
+- 关于页展示“用户协议”“隐私政策”“联系我们（公众号）”入口：
+  - 用户协议：`page_key=user_agreement`
+  - 隐私政策：`page_key=privacy_policy`
+  - 联系我们：`page_key=contact_us`
+- 协议详情页为通用页面，按 `page_key` 拉取并使用 `content_rendered` 渲染，渲染格式固定 `html`。
+- 协议内容读取请求必须携带 `X-Client=mini-program`。
+
 ## 资料设置差异
 
 - 小程序内置 6-12 个默认头像供选择

@@ -1,0 +1,35 @@
+@import '/styles/design-tokens.global.wxss';
+
+.profile-cell__center {
+  margin-right: 0;
+}
+
+.profile-cell__title {
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.profile-cell__note {
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  color: var(--color-text-tertiary);
+}
+
+.profile-cell__description {
+  display: block;
+  margin-top: var(--space-sm);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  color: var(--color-text-tertiary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.profile-cell__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+}

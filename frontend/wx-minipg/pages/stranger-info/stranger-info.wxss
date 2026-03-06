@@ -1,10 +1,22 @@
 @import '/styles/tdesign-theme.wxss';
-@import '/styles/design-tokens.wxss';
+@import '/styles/design-tokens.global.wxss';
+@import '/styles/profile-cells.wxss';
 
 /* Stranger Info Page */
 .stranger-info {
   background-color: var(--color-bg-primary);
-  padding-bottom: calc(88rpx + var(--space-md) * 2 + env(safe-area-inset-bottom));
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.stranger-info__body {
+  min-height: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
 /* Header Section - Avatar and Name */
@@ -23,6 +35,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-xs);
+  margin-top: var(--space-xs);
   margin-bottom: var(--space-xs);
 }
 
@@ -30,6 +43,12 @@
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-primary);
+}
+
+.stranger-info__qiao-id {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xs);
 }
 
 .stranger-info__category {
@@ -42,11 +61,8 @@
   margin-top: var(--space-md);
 }
 
-/* Login Tip */
-.stranger-info__tip {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-tertiary);
-  text-align: center;
-  margin-top: var(--space-lg);
-  padding: 0 var(--padding-page);
+.stranger-info__actions {
+  margin-top: auto;
+  padding: var(--space-xl) var(--padding-page) var(--space-md);
+  padding-bottom: calc(var(--space-md) + env(safe-area-inset-bottom));
 }

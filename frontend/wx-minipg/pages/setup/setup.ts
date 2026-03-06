@@ -1,16 +1,19 @@
 import authService from '../../utils/auth-service';
-import { APP_CONFIG } from '../../utils/config';
 import { getAvatarUrl } from '../../utils/avatar';
 import { completeAvatarUpload } from '../../utils/avatar-uploader';
 import logger from '../../utils/logger';
 import { formatRegion } from '../../utils/format';
-import { fetchCurrentUserProfile, updateCurrentUserProfile } from '../../utils/profile';
+import { classifyError } from '../../utils/error-classifier';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { GENDER_OPTIONS, type GenderOption, type GenderValue } from '../../utils/constants/user';
 import type { StoredAuthUser } from '../../utils/storage';
+import { createSetupPageService } from '../../services/pages/setup-service';
+import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
+import { PROFILE_BIO_RULE, PROFILE_NICKNAME_RULE, validateTextLimit } from '../../utils/text-limit';
 
 const MIN_NICKNAME_LENGTH = 2;
 const PROVINCE_ADMIN_DIVISIONS = new Set(['省直辖县级行政区划', '自治区直辖县级行政区划']);
+const WHITESPACE_REGEX = /\s/u;
 const MUNICIPALITY_COUNTY_LABEL = '县';
 
 type RegionValue = [] | [string] | [string, string];
@@ -41,8 +44,10 @@ interface SetupPageData {
 }
 
 interface SetupPageCustom {
+  setupPageService: ReturnType<typeof createSetupPageService>;
   loadProfile(): Promise<void>;
   ensureProfileRequired(): boolean;
+  onUnload(): void;
   onNicknameInput(event: InputEvent): void;
   onGenderChange(event: WechatMiniprogram.PickerChange): void;
   onBioInput(event: InputEvent): void;
@@ -50,8 +55,19 @@ interface SetupPageCustom {
   handleChooseAvatar(): Promise<void>;
   handleSubmit(): Promise<void>;
   handleCancel(): void;
-  onRetry(): void;
 }
+
+const buildScreenModelPayload = (
+  screenState: 'booting' | 'ready',
+  contentVariant: 'data' | 'empty' | 'blank',
+  refreshState: 'idle' | 'refreshing' | 'degraded'
+): Record<string, unknown> => ({
+  'pageLayoutData.screenModel': {
+    screenState,
+    contentVariant,
+    refreshState,
+  },
+});
 
 const normalizeRegionSelection = (
   regionArray: [string, string, string]
@@ -72,45 +88,18 @@ const normalizeRegionSelection = (
   return { regionValue, regionDisplay };
 };
 
-const buildProfilePayload = (data: SetupPageData, nickname: string): Record<string, unknown> => {
-  const payload: Record<string, unknown> = {
-    nickname,
-  };
-
-  if (data.gender !== null) {
-    payload.gender = data.gender;
-  }
-
-  const trimmedBio = data.bio.trim();
-  if (trimmedBio !== '') {
-    payload.bio = trimmedBio;
-  }
-
-  if (data.regionDisplay !== '') {
-    payload.region = data.regionDisplay;
-  }
-
-  if (data.avatarFileId !== '') {
-    payload.avatar_file_id = data.avatarFileId;
-  }
-
-  return payload;
-};
-
 const mapProfileToStoredUser = (profile: { qiao_id: string }): StoredAuthUser => ({
   qiao_id: profile.qiao_id,
 });
 
-const resolveGenderIndex = (value: GenderValue | null): number => {
-  if (value === null) {
-    return -1;
-  }
-  return GENDER_OPTIONS.findIndex((option) => option.value === value);
-};
-
 Page<SetupPageData, SetupPageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
+      screenModel: {
+        screenState: 'ready',
+        contentVariant: 'data',
+        refreshState: 'idle',
+      },
       hasFooter: true,
     }),
     nickname: '',
@@ -123,13 +112,16 @@ Page<SetupPageData, SetupPageCustom>({
     bio: '',
     regionValue: [],
     regionDisplay: '',
-    maxNicknameLength: APP_CONFIG.maxNicknameLength,
-    maxBioLength: APP_CONFIG.maxBioLength,
+    maxNicknameLength: PROFILE_NICKNAME_RULE.displayWidthLimit,
+    maxBioLength: PROFILE_BIO_RULE.graphemeLimit,
     loading: false,
   },
 
+  setupPageService: null as unknown as ReturnType<typeof createSetupPageService>,
+
   async onLoad() {
     logger.info('Profile setup page loaded');
+    this.setupPageService = createSetupPageService();
     if (!this.ensureProfileRequired()) {
       return;
     }
@@ -138,6 +130,10 @@ Page<SetupPageData, SetupPageCustom>({
 
   onShow() {
     void this.ensureProfileRequired();
+  },
+
+  onUnload() {
+    this.setupPageService.dispose();
   },
 
   ensureProfileRequired() {
@@ -159,30 +155,33 @@ Page<SetupPageData, SetupPageCustom>({
       return;
     }
 
-    this.setData({ 'pageLayoutData.isLoading': true, 'pageLayoutData.hasError': false });
+    this.setData(buildScreenModelPayload('ready', 'data', 'refreshing'));
 
     try {
       logger.debug('Fetching user profile for setup');
-      const profile = await fetchCurrentUserProfile();
-      logger.debug('Profile fetched successfully', { profile });
-
-      const gender = typeof profile.gender === 'number' ? (profile.gender as GenderValue) : null;
-      const avatarUrl = getAvatarUrl(profile.avatar_url ?? '');
-      const genderIndex = resolveGenderIndex(gender);
+      const snapshot = await this.setupPageService.loadProfile();
+      if (snapshot === null) {
+        return;
+      }
+      logger.debug('Profile fetched successfully');
 
       this.setData({
-        nickname: profile.nickname ?? '',
-        avatarUrl,
-        gender,
-        genderIndex,
-        bio: profile.bio ?? '',
-        regionDisplay: profile.region ?? '',
+        nickname: snapshot.nickname,
+        avatarUrl: snapshot.avatarUrl,
+        gender: snapshot.gender,
+        genderIndex: snapshot.genderIndex,
+        bio: snapshot.bio,
+        regionDisplay: snapshot.regionDisplay,
         regionValue: [],
-        'pageLayoutData.isLoading': false,
-        'pageLayoutData.hasError': false,
-        'pageLayoutData.isEmpty': false,
+        ...buildScreenModelPayload('ready', 'data', 'idle'),
       });
     } catch (error) {
+      const semantics = classifyError(error);
+      if (semantics.reason === 'auth-invalid') {
+        await showAuthExpiredModalAndRelogin();
+        return;
+      }
+
       // Enhanced error logging
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorName = error instanceof Error ? error.name : 'Unknown';
@@ -196,15 +195,9 @@ Page<SetupPageData, SetupPageCustom>({
       });
 
       this.setData({
-        'pageLayoutData.isLoading': false,
-        'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': '加载失败，请稍后重试',
+        ...buildScreenModelPayload('ready', 'data', 'degraded'),
       });
     }
-  },
-
-  onRetry() {
-    void this.loadProfile();
   },
 
   onNicknameInput(event) {
@@ -272,25 +265,54 @@ Page<SetupPageData, SetupPageCustom>({
     const trimmedNickname = this.data.nickname.trim();
 
     if (trimmedNickname === '' || trimmedNickname.length < MIN_NICKNAME_LENGTH) {
-      this.setData({
-        'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': '请输入昵称(至少2个字符)',
+      void wx.showToast({
+        title: '请输入昵称',
+        icon: 'none',
       });
       return;
     }
 
-    if (trimmedNickname.length > this.data.maxNicknameLength) {
-      this.setData({
-        'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': `昵称不能超过${this.data.maxNicknameLength}个字符`,
+    if (WHITESPACE_REGEX.test(trimmedNickname)) {
+      void wx.showToast({
+        title: '昵称不能包含空格',
+        icon: 'none',
       });
       return;
+    }
+
+    const nicknameValidation = validateTextLimit(trimmedNickname, PROFILE_NICKNAME_RULE);
+    if (!nicknameValidation.valid) {
+      void wx.showToast({
+        title: nicknameValidation.message ?? '昵称格式不正确',
+        icon: 'none',
+      });
+      return;
+    }
+
+    const trimmedBio = this.data.bio.trim();
+    if (trimmedBio !== '') {
+      const bioValidation = validateTextLimit(trimmedBio, PROFILE_BIO_RULE);
+      if (!bioValidation.valid) {
+        void wx.showToast({
+          title: bioValidation.message ?? '个性签名格式不正确',
+          icon: 'none',
+        });
+        return;
+      }
     }
 
     try {
-      this.setData({ loading: true, 'pageLayoutData.hasError': false });
-      const payload = buildProfilePayload(this.data, trimmedNickname);
-      const updatedProfile = await updateCurrentUserProfile(payload);
+      this.setData({ loading: true, ...buildScreenModelPayload('ready', 'data', 'refreshing') });
+      const updatedProfile = await this.setupPageService.submitProfile({
+        nickname: trimmedNickname,
+        gender: this.data.gender,
+        bio: this.data.bio,
+        regionDisplay: this.data.regionDisplay,
+        avatarFileId: this.data.avatarFileId,
+      });
+      if (updatedProfile === null) {
+        return;
+      }
       const storedUser = mapProfileToStoredUser(updatedProfile);
       await authService.updateUserInfo(storedUser);
       authService.setNeedsProfileSetup(false);
@@ -307,13 +329,20 @@ Page<SetupPageData, SetupPageCustom>({
           logger.warn('Init message service after setup failed', { error })
         );
 
+      this.setData(buildScreenModelPayload('ready', 'data', 'idle'));
       void wx.switchTab({ url: '/pages/index/index' });
     } catch (error) {
+      const semantics = classifyError(error);
+      if (semantics.reason === 'auth-invalid') {
+        await showAuthExpiredModalAndRelogin();
+        return;
+      }
+
       logger.error('Update profile failed', { error });
-      this.setData({
-        'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage':
-          (error as Error).message !== '' ? (error as Error).message : '提交失败，请稍后重试',
+      this.setData(buildScreenModelPayload('ready', 'data', 'degraded'));
+      void wx.showToast({
+        title: (error as Error).message !== '' ? (error as Error).message : '提交失败，请稍后重试',
+        icon: 'none',
       });
     } finally {
       this.setData({ loading: false });
@@ -323,7 +352,7 @@ Page<SetupPageData, SetupPageCustom>({
   handleCancel() {
     wx.showModal({
       title: '退出登录',
-      content: '确定要退出并返回登录页吗？',
+      content: '确定要退出吗？',
       success: async (res) => {
         if (!res.confirm) {
           return;

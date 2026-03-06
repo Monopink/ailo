@@ -1,16 +1,14 @@
 <page-layout
-  isLoading="{{pageLayoutData.isLoading}}"
-  hasError="{{pageLayoutData.hasError}}"
-  errorMessage="{{pageLayoutData.errorMessage}}"
-  isEmpty="{{pageLayoutData.isEmpty}}"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
-  hasFooter="{{pageLayoutData.hasFooter}}"
-  bind:retry="onRetry">
+  hasFooter="{{pageLayoutData.hasFooter}}">
   <t-navbar slot="header" left-arrow="{{true}}">
     <view slot="title" class="navbar-title"></view>
   </t-navbar>
   <view slot="content" class="stranger-info">
-    <view wx:if="{{profile}}">
+    <view wx:if="{{profile}}" class="stranger-info__body">
       <!-- Header Section - Avatar and Name -->
       <view class="stranger-info__header">
         <t-avatar
@@ -24,6 +22,9 @@
           <gender-badge wx:if="{{profile.gender}}" gender="{{profile.gender}}" />
         </view>
 
+        <text wx:if="{{profile.username}}" class="stranger-info__qiao-id">
+          敲敲号：{{profile.username}}
+        </text>
         <text wx:if="{{profile.categoryText}}" class="stranger-info__category">{{profile.categoryText}}</text>
       </view>
 
@@ -32,31 +33,34 @@
         <!-- Bio Card -->
         <view wx:if="{{profile.bioText}}" class="card-wrapper">
           <t-cell-group theme="card">
-            <t-cell title="个性签名" note="{{profile.bioText}}" />
+            <t-cell
+              title="个性签名"
+              t-class-title="profile-cell__title"
+              t-class-center="profile-cell__center">
+              <text slot="description" class="profile-cell__description">{{profile.bioText}}</text>
+            </t-cell>
           </t-cell-group>
         </view>
 
         <!-- Region Card -->
         <view wx:if="{{profile.regionText}}" class="card-wrapper">
           <t-cell-group theme="card">
-            <t-cell title="地区" note="{{profile.regionText}}" />
+            <t-cell
+              title="地区"
+              t-class-title="profile-cell__title">
+              <text slot="note" class="profile-cell__note">{{profile.regionText}}</text>
+            </t-cell>
           </t-cell-group>
         </view>
+      </view>
 
-        <!-- Login Tip -->
-        <view wx:if="{{!isLoggedIn}}" class="stranger-info__tip">
-          登录后才能发送联系人申请
-        </view>
-
-        <!-- Actions - Fixed bottom -->
-        <view class="page-actions--fixed">
-          <t-button
-            theme="primary"
-            block
-            bindtap="handleAddContact">
-            添加联系人
-          </t-button>
-        </view>
+      <view class="stranger-info__actions">
+        <t-button
+          theme="primary"
+          block
+          bindtap="handleAddContact">
+          添加联系人
+        </t-button>
       </view>
     </view>
   </view>

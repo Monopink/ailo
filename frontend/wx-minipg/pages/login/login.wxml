@@ -1,12 +1,10 @@
 <page-layout
-  isLoading="{{pageLayoutData.isLoading}}"
-  hasError="{{pageLayoutData.hasError}}"
-  errorMessage="{{pageLayoutData.errorMessage}}"
-  isEmpty="{{pageLayoutData.isEmpty}}"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   hasFooter="{{false}}"
-  disableScroll="{{true}}"
-  bind:retry="onRetry">
+  disableScroll="{{true}}">
   <view slot="content" class="login-page">
     <!-- Animated background gradient - Full screen -->
     <view class="login-bg"></view>

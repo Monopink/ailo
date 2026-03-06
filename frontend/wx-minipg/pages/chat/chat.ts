@@ -9,10 +9,15 @@ import { getUserFriendlyError } from '../../utils/error-messages';
 import { getLogger } from '../../utils/logger';
 import profileService from '../../utils/profile-service';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
+import {
+  createChatPageService,
+  type ChatHeaderViewModel,
+  type ChatPageService,
+} from '../../services/pages/chat-service';
 import { MESSAGE_STATUS, MESSAGE_TYPE, type MessageType } from '../../utils/constants/message';
 import {
   addMessage,
-  getContactByConvId,
+  getConversationReadState,
   getUserInfo,
   removeMessage,
   removeLatestChatInfoMessage,
@@ -26,6 +31,8 @@ import { isNonEmptyString, firstNonEmptyString } from '../../utils/guards';
 import { normalizeError } from '../../utils/errors';
 import unreadStore from '../../utils/message/unread-store';
 import viewStore from '../../utils/message/view-store';
+import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
+import { type ScreenModel } from '../../services/pages/page-state';
 
 const logger = getLogger('Chat');
 
@@ -34,6 +41,15 @@ type MessageStatus = (typeof MESSAGE_STATUS)[keyof typeof MESSAGE_STATUS];
 type ChatMessage = MessageViewModel;
 type MessageRowRect = { id?: string; bottom?: number };
 type MessageListQueryResult = { containerTop: number; rows: MessageRowRect[] };
+type ConversationReadMarker = {
+  last_read_sent_time: number;
+  last_read_msg_id?: string;
+};
+type InitialScrollPlan = {
+  isAtBottom: boolean;
+  scrollIntoView: string;
+  scrollAnchorKey?: number;
+};
 
 interface ChatPageData {
   pageLayoutData: PageLayoutData;
@@ -65,11 +81,16 @@ type InputEvent = WechatMiniprogram.CustomEvent<{ value: string }>;
 type ScrollEvent = WechatMiniprogram.CustomEvent<{ scrollTop: number; scrollHeight: number }>;
 
 interface ChatPageCustom {
+  chatService: ChatPageService;
   unsubscribeConversationStore: (() => void) | null;
   messageStoreSubscription: (() => void) | null;
   errorSubscription: (() => void) | null;
   _sendRetried: boolean;
   _retryRefreshed: boolean;
+  applyScreenModel(screenModel: ScreenModel): void;
+  applyChatHeaderPatch(patch: Partial<ChatHeaderViewModel>): void;
+  handleAuthInvalid(): Promise<void>;
+  refreshChatHeader(): Promise<void>;
   handleMessageServiceError(error: Error): void;
   updateMessagesState(
     messages: ChatMessage[],
@@ -85,7 +106,6 @@ interface ChatPageCustom {
   refreshConversationChannel(): Promise<string>;
   handleInfoMessageAction(message: ChatMessage): void;
   loadMessages(): Promise<void>;
-  onRetry(): void;
   onInputChange(event: InputEvent): void;
   onInputFocus(): void;
   onInputBlur(): void;
@@ -93,6 +113,23 @@ interface ChatPageCustom {
   onCompositionEnd(event: InputEvent): void;
   onMessageScroll(event: ScrollEvent): void;
   syncNavbarSolidFromScrollOffset(): void;
+  validateSendPreconditions(content: string): Promise<boolean>;
+  appendOptimisticTextMessage(
+    clientMsgId: string,
+    fromQiaoId: string,
+    content: string
+  ): Promise<void>;
+  sendTextMessage(
+    messageService: Ailo.MessageService,
+    clientMsgId: string,
+    fromQiaoId: string,
+    content: string
+  ): Promise<void>;
+  retrySendAfterConversationRefresh(
+    messageService: Ailo.MessageService,
+    clientMsgId: string,
+    content: string
+  ): Promise<boolean>;
   onSendMessage(): Promise<void>;
   onNavbarTitleClick(): void;
   onRetryMessage(event: WechatMiniprogram.BaseEvent): Promise<void>;
@@ -101,8 +138,12 @@ interface ChatPageCustom {
   onEmojiSelect(event: WechatMiniprogram.BaseEvent): void;
   updateMessageListMetrics(): void;
   scrollToBottom(): void;
-  restoreViewState(messages: ChatMessage[]): Promise<void>;
+  resolveInitialScrollPlan(messages: ChatMessage[]): Promise<InitialScrollPlan>;
   persistViewState(): Promise<void>;
+  schedulePersistViewState(): void;
+  clearPersistViewStateTimer(): void;
+  flushPersistViewState(): void;
+  activateConversation(): Promise<void>;
   getFirstVisibleMessageId(): Promise<string | null>;
   retryMessageAfterConversationNotFound(
     msgIdValue: string,
@@ -113,6 +154,8 @@ interface ChatPageCustom {
   refreshUserAvatar(forceRefresh?: boolean): Promise<void>;
   _pendingViewRestore: boolean;
   _initialScrollHandled: boolean;
+  _persistViewStateTimer: number | null;
+  _pendingMessageState: MessageStoreState | null;
 }
 
 const showToast = (
@@ -129,6 +172,7 @@ const calcBottomThreshold = (viewHeight: number): number =>
   Math.max(80, Math.min(160, Math.round(viewHeight * 0.2)));
 
 const NAVBAR_SOLID_THRESHOLD = 12;
+const VIEW_STATE_PERSIST_THROTTLE_MS = 400;
 
 const isUnknownArray = (value: unknown): value is unknown[] => Array.isArray(value);
 
@@ -173,11 +217,54 @@ const parseMessageListQueryResults = (results: unknown): MessageListQueryResult 
   return { containerTop, rows: normalizedRows };
 };
 
+const resolveFirstUnreadMessageId = (
+  messages: ChatMessage[],
+  marker: ConversationReadMarker | null
+): string | null => {
+  if (marker === null) {
+    return null;
+  }
+
+  const timelineMessages = messages.filter(
+    (message) => !message.isInfoMessage && !message.from_me && isNonEmptyString(message.msg_id)
+  );
+  if (timelineMessages.length === 0) {
+    return null;
+  }
+
+  const lastReadMsgId = marker.last_read_msg_id;
+  if (isNonEmptyString(lastReadMsgId)) {
+    const lastReadIndex = timelineMessages.findIndex((message) => message.msg_id === lastReadMsgId);
+    if (lastReadIndex >= 0 && lastReadIndex + 1 < timelineMessages.length) {
+      return timelineMessages[lastReadIndex + 1].msg_id;
+    }
+  }
+
+  const lastReadSentTime = marker.last_read_sent_time;
+  if (!Number.isFinite(lastReadSentTime)) {
+    return null;
+  }
+  const firstUnread = timelineMessages.find((message) => {
+    if (typeof message.sent_time !== 'number' || !Number.isFinite(message.sent_time)) {
+      return false;
+    }
+    return message.sent_time > lastReadSentTime;
+  });
+  return firstUnread?.msg_id ?? null;
+};
+
+const buildPageLayoutScreenModelPayload = (screenModel: ScreenModel): Record<string, unknown> => ({
+  'pageLayoutData.screenModel': screenModel,
+});
+
 Page<ChatPageData, ChatPageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
-      isLoading: true,
-      emptyMessage: '开始和对方聊天吧～',
+      screenModel: {
+        screenState: 'booting',
+        contentVariant: 'blank',
+        refreshState: 'idle',
+      },
       hasFooter: true,
     }),
     convId: '',
@@ -231,6 +318,7 @@ Page<ChatPageData, ChatPageCustom>({
     scrollAnchorKey: 0,
   },
 
+  chatService: null as unknown as ChatPageService,
   unsubscribeConversationStore: null,
   messageStoreSubscription: null,
   errorSubscription: null,
@@ -238,6 +326,68 @@ Page<ChatPageData, ChatPageCustom>({
   _retryRefreshed: false,
   _pendingViewRestore: false,
   _initialScrollHandled: false,
+  _persistViewStateTimer: null,
+  _pendingMessageState: null,
+
+  applyScreenModel(screenModel: ScreenModel) {
+    this.setData(buildPageLayoutScreenModelPayload(screenModel));
+  },
+
+  applyChatHeaderPatch(patch: Partial<ChatHeaderViewModel>) {
+    const payload: Record<string, unknown> = {};
+    if (patch.contactName !== undefined) {
+      payload.contactName = patch.contactName;
+      payload.navbarTitle = patch.contactName;
+    }
+    if (patch.navbarTitle !== undefined) {
+      payload.navbarTitle = patch.navbarTitle;
+    }
+    if (patch.contactAvatar !== undefined) {
+      payload.contactAvatar = patch.contactAvatar;
+    }
+    if (patch.contactQiaoId !== undefined) {
+      payload.contactQiaoId = patch.contactQiaoId;
+    }
+    if (patch.imConvId !== undefined) {
+      payload.imConvId = patch.imConvId;
+    }
+    if (Object.keys(payload).length > 0) {
+      this.setData(payload);
+    }
+  },
+
+  async handleAuthInvalid() {
+    await showAuthExpiredModalAndRelogin();
+  },
+
+  async activateConversation() {
+    const convId = this.data.convId;
+    if (!isNonEmptyString(convId)) {
+      return;
+    }
+    try {
+      await unreadStore.setActiveConversation(convId);
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      logger.warn('Set active conversation failed', { convId, error: err.message });
+    }
+  },
+
+  async refreshChatHeader() {
+    const convId = this.data.convId;
+    if (!isNonEmptyString(convId)) {
+      return;
+    }
+    const result = await this.chatService.refresh(convId);
+    if (result === null) {
+      return;
+    }
+    this.applyScreenModel(result.screenModel);
+    this.applyChatHeaderPatch(result.headerPatch);
+    if (result.authInvalid) {
+      await this.handleAuthInvalid();
+    }
+  },
 
   updateMessagesState(
     messages,
@@ -249,7 +399,6 @@ Page<ChatPageData, ChatPageCustom>({
   ) {
     const payload: Record<string, unknown> = {
       messages,
-      'pageLayoutData.isEmpty': messages.length === 0,
     };
     if (options.scrollIntoView !== undefined) {
       payload['pageLayoutData.contentScrollIntoView'] = options.scrollIntoView;
@@ -269,7 +418,7 @@ Page<ChatPageData, ChatPageCustom>({
       return;
     }
     if (this._pendingViewRestore) {
-      this.updateMessagesState(state.messages, { isContactTyping: state.isTyping });
+      this._pendingMessageState = state;
       return;
     }
     const hasMessages = state.messages.length > 0;
@@ -317,7 +466,14 @@ Page<ChatPageData, ChatPageCustom>({
   onNavbarTitleClick() {
     const convId = this.data.convId;
     if (isNonEmptyString(convId)) {
-      void wx.navigateTo({ url: `/pages/contact-info/contact-info?id=${convId}` });
+      void wx.navigateTo({
+        url: `/pages/contact-info/contact-info?id=${convId}`,
+        events: {
+          contactAvatarUpdated: () => {
+            void this.refreshChatHeader();
+          },
+        },
+      });
     }
   },
 
@@ -354,6 +510,32 @@ Page<ChatPageData, ChatPageCustom>({
     });
   },
 
+  clearPersistViewStateTimer() {
+    if (this._persistViewStateTimer === null) {
+      return;
+    }
+    clearTimeout(this._persistViewStateTimer);
+    this._persistViewStateTimer = null;
+  },
+
+  schedulePersistViewState() {
+    if (this._pendingViewRestore) {
+      return;
+    }
+    if (this._persistViewStateTimer !== null) {
+      return;
+    }
+    this._persistViewStateTimer = setTimeout(() => {
+      this._persistViewStateTimer = null;
+      void this.persistViewState();
+    }, VIEW_STATE_PERSIST_THROTTLE_MS);
+  },
+
+  flushPersistViewState() {
+    this.clearPersistViewStateTimer();
+    void this.persistViewState();
+  },
+
   syncNavbarSolidFromScrollOffset() {
     const query = wx.createSelectorQuery();
     query.select('.chat-page__messages').scrollOffset((result) => {
@@ -370,51 +552,53 @@ Page<ChatPageData, ChatPageCustom>({
     query.exec();
   },
 
-  async restoreViewState(messages: ChatMessage[]) {
+  async resolveInitialScrollPlan(messages: ChatMessage[]): Promise<InitialScrollPlan> {
     const convId = this.data.convId;
-    if (!isNonEmptyString(convId)) {
-      return;
-    }
-    const stored = await viewStore.get(convId);
-    const hasMessages = messages.length > 0;
-    const shouldDisableAnimation = !this._initialScrollHandled;
-
-    // Case 1: No stored state, or explicitly at bottom, or no messages -> scroll to bottom
-    if (stored === null || stored.isAtBottom || !hasMessages) {
-      this.scrollToBottom();
-      return;
-    }
-
-    // Case 2: Has stored anchor, check if it exists in current messages
-    const targetId = stored.lastViewedMsgId;
-    const hasTarget =
-      isNonEmptyString(targetId) &&
-      messages.some((message) => message.msg_id === targetId && !message.isInfoMessage);
-
-    if (!hasTarget) {
-      // Anchor not found, fallback to bottom
-      this.scrollToBottom();
-      return;
-    }
-
-    // Case 3: Anchor found, scroll to it
-    const payload: Record<string, unknown> = {
-      isAtBottom: false,
-      'pageLayoutData.contentScrollIntoView': `msg-${targetId}`,
+    const nextAnchorKey = this.data.scrollAnchorKey + 1;
+    const bottomPlan: InitialScrollPlan = {
+      isAtBottom: true,
+      scrollIntoView: `scroll-anchor-${nextAnchorKey}`,
+      scrollAnchorKey: nextAnchorKey,
     };
-    if (shouldDisableAnimation) {
-      payload['pageLayoutData.contentScrollWithAnimation'] = false;
+    if (!isNonEmptyString(convId) || messages.length === 0) {
+      return bottomPlan;
     }
-    this.setData(payload);
-    wx.nextTick(() => {
-      this.syncNavbarSolidFromScrollOffset();
-    });
-    if (shouldDisableAnimation) {
-      this._initialScrollHandled = true;
-      wx.nextTick(() => {
-        this.setData({ 'pageLayoutData.contentScrollWithAnimation': true });
+
+    try {
+      const readState = await getConversationReadState();
+      const marker = (readState[convId] as ConversationReadMarker | undefined) ?? null;
+      const unreadTargetId = resolveFirstUnreadMessageId(messages, marker);
+      const hasUnreadTarget =
+        isNonEmptyString(unreadTargetId) &&
+        messages.some((message) => message.msg_id === unreadTargetId && !message.isInfoMessage);
+      if (hasUnreadTarget) {
+        return {
+          isAtBottom: false,
+          scrollIntoView: `msg-${unreadTargetId}`,
+        };
+      }
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      logger.warn('Read unread marker failed, fallback to stored anchor', {
+        convId,
+        error: err.message,
       });
     }
+
+    const stored = await viewStore.get(convId);
+    if (stored !== null && !stored.isAtBottom && isNonEmptyString(stored.lastViewedMsgId)) {
+      const hasStoredAnchor = messages.some(
+        (message) => message.msg_id === stored.lastViewedMsgId && !message.isInfoMessage
+      );
+      if (hasStoredAnchor) {
+        return {
+          isAtBottom: false,
+          scrollIntoView: `msg-${stored.lastViewedMsgId}`,
+        };
+      }
+    }
+
+    return bottomPlan;
   },
 
   async getFirstVisibleMessageId(): Promise<string | null> {
@@ -462,7 +646,7 @@ Page<ChatPageData, ChatPageCustom>({
       });
       const anchorId = await this.getFirstVisibleMessageId();
       if (!isNonEmptyString(anchorId)) {
-        await viewStore.set(convId, { isAtBottom: true });
+        // Keep previous anchor when current viewport cannot be resolved.
         return;
       }
       await viewStore.set(convId, {
@@ -552,21 +736,25 @@ Page<ChatPageData, ChatPageCustom>({
   },
 
   async onLoad(options: Record<string, string | undefined>) {
+    // Recreate service per page lifecycle to avoid reusing a disposed instance.
+    this.chatService = createChatPageService();
     const convId = options.id ?? '';
     if (!isNonEmptyString(convId)) {
       this.setData({
-        'pageLayoutData.isLoading': false,
-        'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': '参数错误',
+        'pageLayoutData.hasFooter': false,
       });
-      showToast('参数错误');
-      void wx.navigateBack();
+      this.applyScreenModel({
+        screenState: 'ready',
+        contentVariant: 'blank',
+        refreshState: 'idle',
+      });
       return;
     }
 
     this.setData({ convId });
     this._pendingViewRestore = true;
     this._initialScrollHandled = false;
+    this._pendingMessageState = null;
     this.messageStoreSubscription = messageStateStore.subscribe((state) => {
       this.handleMessageStateUpdate(state);
     });
@@ -581,43 +769,28 @@ Page<ChatPageData, ChatPageCustom>({
     });
 
     try {
-      const userInfo = await getUserInfo();
-      if (!isNonEmptyString(userInfo?.qiao_id)) {
-        throw new Error('User info missing');
-      }
-      await this.refreshUserAvatar();
-
-      const contact = await getContactByConvId(convId);
-      if (contact === null) {
-        logger.error('Contact not found', { convId });
-        this.setData({
-          'pageLayoutData.isLoading': false,
-          'pageLayoutData.hasError': true,
-          'pageLayoutData.errorMessage': '联系人不存在',
+      const bootstrap = await this.chatService.bootstrap(convId);
+      if (bootstrap === null) {
+        logger.warn('Chat bootstrap returned null, fallback to ready state', { convId });
+        this.applyScreenModel({
+          screenState: 'ready',
+          contentVariant: 'data',
+          refreshState: 'degraded',
         });
-        showToast('联系人不存在');
         return;
       }
+      this.applyChatHeaderPatch(bootstrap.header);
 
-      const viewModel = await getChatContactViewModel(convId);
-      const contactName = firstNonEmptyString(viewModel.displayName, '') ?? '';
-      this.setData({
-        contactName,
-        navbarTitle: contactName,
-        contactAvatar: viewModel.displayAvatar,
-        contactQiaoId: viewModel.contactQiaoId,
-        imConvId: viewModel.imConvId,
-      });
-
+      void this.refreshUserAvatar();
       await this.loadMessages();
+      void this.refreshChatHeader();
     } catch (error: unknown) {
       const err = normalizeError(error);
       logger.error('Failed to load chat page', { error: err.message });
-      showToast('加载失败');
-      this.setData({
-        'pageLayoutData.isLoading': false,
-        'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': isNonEmptyString(err.message) ? err.message : '加载失败',
+      this.applyScreenModel({
+        screenState: 'ready',
+        contentVariant: 'data',
+        refreshState: 'degraded',
       });
     }
   },
@@ -627,28 +800,28 @@ Page<ChatPageData, ChatPageCustom>({
     if (!isNonEmptyString(convId)) {
       return;
     }
-    void (async () => {
-      try {
-        await unreadStore.setActiveConversation(convId);
-      } catch (error: unknown) {
-        const err = normalizeError(error);
-        logger.warn('Set active conversation failed', { error: err.message });
-      }
-    })();
 
+    if (this._pendingViewRestore) {
+      return;
+    }
+
+    void this.activateConversation();
+    void this.refreshChatHeader();
+    void this.loadMessages();
     void this.refreshUserAvatar();
   },
 
   onHide() {
-    void this.persistViewState();
+    this.flushPersistViewState();
     unreadStore.clearActiveConversation(this.data.convId);
   },
 
   onUnload() {
-    void this.persistViewState();
-    profileService.cancelRetries();
+    this.flushPersistViewState();
     unreadStore.clearActiveConversation(this.data.convId);
     typingManager.cleanup(this.data.convId);
+    this.chatService.dispose();
+    this.clearPersistViewStateTimer();
 
     if (this.unsubscribeConversationStore !== null) {
       this.unsubscribeConversationStore();
@@ -662,40 +835,91 @@ Page<ChatPageData, ChatPageCustom>({
       this.errorSubscription();
       this.errorSubscription = null;
     }
+    this._pendingMessageState = null;
     messageStateStore.clearConversation();
   },
 
   async loadMessages() {
+    const currentScreenModel = this.data.pageLayoutData.screenModel;
+    const shouldRestoreInitialView = this._pendingViewRestore;
     try {
-      this.setData({
-        'pageLayoutData.isLoading': true,
-        'pageLayoutData.hasError': false,
-        'pageLayoutData.errorMessage': '',
-      });
-      await messageStateStore.setConversation(this.data.convId);
-      this.setData({
-        'pageLayoutData.isLoading': false,
-      });
-      if (this._pendingViewRestore) {
-        this._pendingViewRestore = false;
-        wx.nextTick(() => {
-          void this.restoreViewState(this.data.messages);
+      if (!shouldRestoreInitialView) {
+        this.applyScreenModel({
+          ...currentScreenModel,
+          screenState: 'ready',
+          contentVariant: 'data',
+          refreshState: 'refreshing',
         });
       }
+      await messageStateStore.setConversation(this.data.convId);
+      if (shouldRestoreInitialView) {
+        const currentState = messageStateStore.getStateSnapshot();
+        const initialState =
+          currentState.convId === this.data.convId
+            ? currentState
+            : { convId: this.data.convId, messages: [] as ChatMessage[], isTyping: false };
+        const scrollPlan = await this.resolveInitialScrollPlan(initialState.messages);
+        const initialPayload: Record<string, unknown> = {
+          messages: initialState.messages,
+          isContactTyping: initialState.isTyping,
+          isAtBottom: scrollPlan.isAtBottom,
+          'pageLayoutData.screenModel': {
+            screenState: 'ready',
+            contentVariant: 'data',
+            refreshState: 'idle',
+          },
+          'pageLayoutData.contentScrollIntoView': scrollPlan.scrollIntoView,
+          'pageLayoutData.contentScrollWithAnimation': false,
+        };
+        if (scrollPlan.scrollAnchorKey !== undefined) {
+          initialPayload.scrollAnchorKey = scrollPlan.scrollAnchorKey;
+        }
+        await new Promise<void>((resolve) => {
+          this.setData(initialPayload, resolve);
+        });
+        this._pendingViewRestore = false;
+        this._initialScrollHandled = true;
+        this.setData({ 'pageLayoutData.contentScrollWithAnimation': true });
+
+        const bufferedState = this._pendingMessageState;
+        this._pendingMessageState = null;
+        const isBufferedStateUnchanged =
+          bufferedState !== null &&
+          bufferedState.messages.length === initialState.messages.length &&
+          bufferedState.isTyping === initialState.isTyping &&
+          bufferedState.messages[bufferedState.messages.length - 1]?.msg_id ===
+            initialState.messages[initialState.messages.length - 1]?.msg_id;
+        if (
+          bufferedState !== null &&
+          bufferedState.convId === this.data.convId &&
+          !isBufferedStateUnchanged
+        ) {
+          this.handleMessageStateUpdate(bufferedState);
+        }
+
+        void this.activateConversation();
+        return;
+      }
+      this.applyScreenModel({
+        ...this.data.pageLayoutData.screenModel,
+        screenState: 'ready',
+        contentVariant: 'data',
+        refreshState: 'idle',
+      });
     } catch (error: unknown) {
       const err = normalizeError(error);
       logger.error('Failed to load messages', { error: err.message });
-      showToast('加载消息失败');
-      this.setData({
-        'pageLayoutData.isLoading': false,
-        'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': isNonEmptyString(err.message) ? err.message : '加载消息失败',
+      if (this._pendingViewRestore) {
+        this._pendingViewRestore = false;
+      }
+      this._pendingMessageState = null;
+      this.applyScreenModel({
+        ...this.data.pageLayoutData.screenModel,
+        screenState: 'ready',
+        contentVariant: 'data',
+        refreshState: 'degraded',
       });
     }
-  },
-
-  onRetry() {
-    void this.loadMessages();
   },
 
   /**
@@ -783,11 +1007,15 @@ Page<ChatPageData, ChatPageCustom>({
     if (Object.keys(payload).length > 0) {
       this.setData(payload);
     }
+    this.schedulePersistViewState();
   },
 
   updateMessageListMetrics() {
     const query = wx.createSelectorQuery();
     query.select('.chat-page__messages').boundingClientRect((rect) => {
+      if (typeof rect.height !== 'number' || !Number.isFinite(rect.height)) {
+        return;
+      }
       const height = Math.max(0, Math.round(rect.height));
       if (height > 0 && height !== this.data.messageListHeight) {
         this.setData({ messageListHeight: height });
@@ -951,15 +1179,13 @@ Page<ChatPageData, ChatPageCustom>({
     messageStateStore.updateMessageStatus(messageId, status);
   },
 
-  async onSendMessage() {
-    const content = this.data.inputText.trim();
+  async validateSendPreconditions(content: string): Promise<boolean> {
     if (content.length === 0) {
-      return;
+      return false;
     }
-
     if (content.length > this.data.maxMessageLength) {
       showToast(`消息长度不能超过${this.data.maxMessageLength}字`);
-      return;
+      return false;
     }
 
     const currentImConvId = await conversationStore.getImConvId();
@@ -971,6 +1197,99 @@ Page<ChatPageData, ChatPageCustom>({
         imConvId: this.data.imConvId,
       });
       await this.showErrorMessage('CONVERSATION_NOT_FOUND');
+      return false;
+    }
+
+    return true;
+  },
+
+  async appendOptimisticTextMessage(
+    clientMsgId: string,
+    fromQiaoId: string,
+    content: string
+  ): Promise<void> {
+    const optimisticMsg: StoredMessage = {
+      msg_id: clientMsgId,
+      msg_id_server: null,
+      msg_id_client: clientMsgId,
+      from_qiao_id: fromQiaoId,
+      to_qiao_id: this.data.contactQiaoId,
+      conv_id: this.data.convId,
+      content,
+      message_type: MESSAGE_TYPE.TEXT,
+      supports_typing: true,
+      sent_time: Date.now(),
+      status: MESSAGE_STATUS.SENDING,
+    };
+
+    await messageStateStore.addOptimisticMessage(optimisticMsg);
+    this.setData({
+      inputText: '',
+      prevInputValue: '',
+    });
+    await addMessage(this.data.convId, optimisticMsg);
+  },
+
+  async sendTextMessage(
+    messageService: Ailo.MessageService,
+    clientMsgId: string,
+    fromQiaoId: string,
+    content: string
+  ): Promise<void> {
+    await messageService.sendMessage({
+      client_msg_id: clientMsgId,
+      from_qiao_id: fromQiaoId,
+      to_qiao_id: this.data.contactQiaoId,
+      conv_id: this.data.convId,
+      content,
+      message_type: MESSAGE_TYPE.TEXT,
+      supports_typing: true,
+    });
+  },
+
+  async retrySendAfterConversationRefresh(
+    messageService: Ailo.MessageService,
+    clientMsgId: string,
+    content: string
+  ): Promise<boolean> {
+    if (this._sendRetried) {
+      return false;
+    }
+
+    this._sendRetried = true;
+    logger.info('Conversation not found, refreshing contact info and retrying', {
+      convId: this.data.convId,
+      oldImConvId: this.data.imConvId,
+    });
+
+    try {
+      const refreshedImConvId = await this.refreshConversationChannel();
+      const nextImConvId = firstNonEmptyString(refreshedImConvId, this.data.imConvId) ?? '';
+      logger.info('Contact info refreshed, retrying send', { newImConvId: nextImConvId });
+
+      const userInfo = await getUserInfo();
+      if (!isNonEmptyString(userInfo?.qiao_id)) {
+        throw new Error('User info missing');
+      }
+
+      await this.sendTextMessage(messageService, clientMsgId, userInfo.qiao_id, content);
+      logger.info('Message sent successfully after refresh', { msg_id: clientMsgId });
+      return true;
+    } catch (retryError: unknown) {
+      const retryErr = normalizeError(retryError);
+      logger.error('Retry send failed after refresh', {
+        error: retryErr.message,
+        errorType: retryError instanceof Error ? retryError.constructor.name : 'Unknown',
+      });
+      return false;
+    } finally {
+      this._sendRetried = false;
+    }
+  },
+
+  async onSendMessage() {
+    const content = this.data.inputText.trim();
+    if (!(await this.validateSendPreconditions(content))) {
       return;
     }
 
@@ -986,78 +1305,20 @@ Page<ChatPageData, ChatPageCustom>({
       }
 
       clientMsgId = buildClientMessageId();
-      const optimisticMsg: StoredMessage = {
-        msg_id: clientMsgId,
-        msg_id_server: null,
-        msg_id_client: clientMsgId,
-        from_qiao_id: userInfo.qiao_id,
-        to_qiao_id: this.data.contactQiaoId,
-        conv_id: this.data.convId,
-        content,
-        message_type: MESSAGE_TYPE.TEXT,
-        supports_typing: true,
-        sent_time: Date.now(),
-        status: MESSAGE_STATUS.SENDING,
-      };
-
-      await messageStateStore.addOptimisticMessage(optimisticMsg);
-      this.setData({
-        inputText: '',
-        prevInputValue: '',
-      });
-
-      await addMessage(this.data.convId, optimisticMsg);
-
-      await messageService.sendMessage({
-        client_msg_id: clientMsgId,
-        from_qiao_id: userInfo.qiao_id,
-        to_qiao_id: this.data.contactQiaoId,
-        conv_id: this.data.convId,
-        content,
-        message_type: MESSAGE_TYPE.TEXT,
-        supports_typing: true,
-      });
+      await this.appendOptimisticTextMessage(clientMsgId, userInfo.qiao_id, content);
+      await this.sendTextMessage(messageService, clientMsgId, userInfo.qiao_id, content);
     } catch (error: unknown) {
       const err = normalizeError(error);
       logger.error('Failed to send message', { error: err.message });
 
-      if (err.message === 'CONVERSATION_NOT_FOUND' && !this._sendRetried) {
-        this._sendRetried = true;
-        logger.info('Conversation not found, refreshing contact info and retrying', {
-          convId: this.data.convId,
-          oldImConvId: this.data.imConvId,
-        });
-
-        try {
-          const refreshedImConvId = await this.refreshConversationChannel();
-          const nextImConvId = firstNonEmptyString(refreshedImConvId, this.data.imConvId) ?? '';
-          logger.info('Contact info refreshed, retrying send', { newImConvId: nextImConvId });
-
-          const userInfo = await getUserInfo();
-          if (!isNonEmptyString(userInfo?.qiao_id)) {
-            throw new Error('User info missing');
-          }
-
-          await messageService.sendMessage({
-            client_msg_id: clientMsgId,
-            from_qiao_id: userInfo.qiao_id,
-            to_qiao_id: this.data.contactQiaoId,
-            conv_id: this.data.convId,
-            content,
-            message_type: MESSAGE_TYPE.TEXT,
-            supports_typing: true,
-          });
-
-          this._sendRetried = false;
-          logger.info('Message sent successfully after refresh', { msg_id: clientMsgId });
+      if (err.message === 'CONVERSATION_NOT_FOUND') {
+        const retried = await this.retrySendAfterConversationRefresh(
+          messageService,
+          clientMsgId,
+          content
+        );
+        if (retried) {
           return;
-        } catch (retryError) {
-          const retryErr = normalizeError(retryError);
-          logger.error('Retry send failed after refresh', {
-            error: retryErr.message,
-            errorType: retryError instanceof Error ? retryError.constructor.name : 'Unknown',
-          });
-          this._sendRetried = false;
         }
       }
 

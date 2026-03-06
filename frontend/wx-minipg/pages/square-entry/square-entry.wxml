@@ -1,9 +1,8 @@
 <page-layout
   style="--color-bg-page: var(--color-bg-white); --color-bg-header-solid: var(--color-bg-white); --color-navbar-glass-bg: transparent;"
-  isLoading="{{pageLayoutData.isLoading}}"
-  hasError="{{pageLayoutData.hasError}}"
-  errorMessage="{{pageLayoutData.errorMessage}}"
-  isEmpty="{{pageLayoutData.isEmpty}}"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   hasFooter="{{pageLayoutData.hasFooter}}">
   <view slot="header">

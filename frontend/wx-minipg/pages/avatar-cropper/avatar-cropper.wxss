@@ -1,5 +1,5 @@
 @import '/styles/tdesign-theme.wxss';
-@import '/styles/design-tokens.wxss';
+@import '/styles/design-tokens.global.wxss';
 
 .avatar-cropper {
   min-height: 100vh;
@@ -26,20 +26,12 @@
 
 .avatar-cropper__movable {
   position: absolute;
+  left: 0;
+  top: 0;
 }
 
 .avatar-cropper__image {
   display: block;
-}
-
-.avatar-cropper__mask {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: var(--color-bg-mask);
-  pointer-events: none;
 }
 
 .avatar-cropper__frame {
@@ -48,8 +40,11 @@
   left: 0;
   right: 0;
   bottom: 0;
+  border-radius: 50%;
   border: 2rpx solid var(--color-overlay-strong);
-  box-shadow: inset 0 0 0 2rpx var(--color-overlay-muted);
+  box-shadow:
+    0 0 0 2000rpx var(--color-bg-mask),
+    inset 0 0 0 2rpx var(--color-overlay-muted);
   pointer-events: none;
 }
 

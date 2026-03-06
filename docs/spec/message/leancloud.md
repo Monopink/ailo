@@ -28,8 +28,6 @@ LeanCloud 作为消息传输层，与系统解耦，便于未来替换。
 - 客户端启动时通过 `/api/v1/lc-im/config` 获取
 - 可随时变更，客户端应在重连时主动拉取
 - `im_conv_id` 的权威来源是 `/api/v1/lc-im/config`
-- `/api/v1/contacts/{conversation_id}/conversation` 返回的 `im_conv_id` 视为兼容字段（用于跨 Provider 对齐），LeanCloud 发送链路不以该字段作为主配置源
-- 若两者不一致，客户端应记录告警并优先使用 `/api/v1/lc-im/config`，随后触发配置刷新
 
 ## Webhook 处理
 

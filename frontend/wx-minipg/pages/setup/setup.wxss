@@ -1,24 +1,9 @@
 @import '/styles/tdesign-theme.wxss';
-@import '/styles/design-tokens.wxss';
+@import '/styles/design-tokens.global.wxss';
+@import '/styles/profile-cells.wxss';
 
 .setup-page {
   background-color: var(--color-bg-primary);
-}
-
-/* Group - iOS style */
-.setup-group {
-  background-color: var(--color-bg-secondary);
-  margin-top: var(--space-md);
-  overflow: hidden;
-}
-
-.setup-group__header {
-  padding: var(--space-md) var(--padding-page) var(--space-xs);
-}
-
-.setup-group__title {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-tertiary);
 }
 
 /* Avatar selection */
@@ -27,37 +12,60 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-xs);
 }
 
 .setup-avatar--active {
   opacity: 0.8;
 }
 
-.setup-avatar__hint {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+.setup-avatar__image-wrap {
+  position: relative;
+}
+
+.setup-avatar__edit-badge {
+  position: absolute;
+  right: calc(var(--space-xs) * -1);
+  bottom: calc(var(--space-xs) * -1);
+  width: calc(var(--icon-xs) + var(--space-sm));
+  height: calc(var(--icon-xs) + var(--space-sm));
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-separator);
+  background-color: var(--color-bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  box-shadow: var(--shadow-xs);
 }
 
 /* Input fields */
 .setup-input {
   min-width: 320rpx;
   font-size: var(--font-size-base);
-  color: var(--color-text-primary);
+  color: var(--color-text-secondary);
   text-align: right;
 }
 
-.setup-picker {
-  font-size: var(--font-size-base);
-  color: var(--color-text-secondary);
+.setup-input::placeholder {
+  color: var(--color-text-placeholder);
 }
 
 .setup-textarea {
+  display: block;
   width: 100%;
-  min-height: 200rpx;
+  min-height: 240rpx;
+  margin-top: var(--space-sm);
+  padding: 0;
   font-size: var(--font-size-base);
-  color: var(--color-text-primary);
+  color: var(--color-text-secondary);
+  background-color: transparent;
+  border: none;
   line-height: var(--line-height-base);
+  box-sizing: border-box;
+}
+
+.setup-textarea::placeholder {
+  color: var(--color-text-placeholder);
 }
 
 /* Footer */
@@ -65,5 +73,4 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
-  padding: var(--space-md) var(--padding-page) calc(var(--space-md) + var(--safe-area-inset-bottom));
 }

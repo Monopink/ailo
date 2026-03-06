@@ -5,7 +5,7 @@
 @import '/styles/tdesign-theme.wxss';
 
 /* Import shared design tokens for custom components */
-@import '/styles/design-tokens.wxss';
+@import '/styles/design-tokens.global.wxss';
 
 /* Override TDesign TabBar colors globally */
 page {

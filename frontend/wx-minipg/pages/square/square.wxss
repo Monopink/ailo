@@ -1,8 +1,24 @@
 @import '/styles/tdesign-theme.wxss';
-@import '/styles/design-tokens.wxss';
+@import '/styles/design-tokens.global.wxss';
 
 .square-page {
   background-color: var(--color-bg-white);
+}
+
+.square-page__empty {
+  width: 100%;
+  min-height: 320rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl) var(--padding-page);
+  box-sizing: border-box;
+}
+
+.square-page__empty-text {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
 }
 
 /* Header - Always visible */
@@ -35,28 +51,33 @@
 }
 
 .square-tabs__item--active {
-  color: var(--color-text-inverse);
+  color: var(--color-text-on-brand);
   background-color: var(--color-primary);
   font-weight: var(--font-weight-medium);
 }
 
 .square-tabs__item--friend.square-tabs__item--active {
+  color: var(--color-text-inverse);
   background: var(--square-entry-card-friend-gradient);
 }
 
 .square-tabs__item--love.square-tabs__item--active {
+  color: var(--color-text-inverse);
   background: var(--square-entry-card-love-gradient);
 }
 
 .square-tabs__item--talk.square-tabs__item--active {
+  color: var(--color-text-inverse);
   background: var(--square-entry-card-talk-gradient);
 }
 
 .square-tabs__item--bestie.square-tabs__item--active {
+  color: var(--color-text-inverse);
   background: var(--square-entry-card-bestie-gradient);
 }
 
 .square-tabs__item--hobby.square-tabs__item--active {
+  color: var(--color-text-inverse);
   background: var(--square-entry-card-hobby-gradient);
 }
 

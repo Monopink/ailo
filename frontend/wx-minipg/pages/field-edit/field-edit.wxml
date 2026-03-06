@@ -1,0 +1,113 @@
+<page-layout
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{false}}">
+  <t-navbar slot="header" left-arrow="{{true}}">
+    <view slot="title" class="navbar-title">{{navbarTitle}}</view>
+  </t-navbar>
+  <view slot="content" class="field-edit">
+    <view class="field-edit__body">
+      <view class="field-edit__editor-wrap card-container">
+        <view wx:if="{{fieldType === 'text'}}" class="field-edit__editor-content">
+          <view class="card-wrapper">
+            <t-cell-group theme="card">
+              <t-cell
+                t-class-title="field-edit__field-title"
+                t-class-description="field-edit__field-description"
+                t-class-center="field-edit__field-center">
+                <view wx:if="{{isTagEditor}}" slot="description" class="field-edit__tags-editor">
+                  <view class="field-edit__tags" wx:if="{{tags.length > 0}}">
+                    <view
+                      class="field-edit__tag-item"
+                      wx:for="{{tags}}"
+                      wx:key="index"
+                      wx:for-item="tag"
+                      wx:for-index="index">
+                      <t-tag
+                        class="field-edit__tag {{tagToneClasses[index]}}"
+                        shape="round"
+                        theme="primary"
+                        variant="light"
+                        size="small">{{tag}}</t-tag>
+                      <text class="field-edit__tag-remove" data-index="{{index}}" bindtap="onRemoveTag">×</text>
+                    </view>
+                  </view>
+
+                  <input
+                    class="field-edit__tag-input"
+                    type="text"
+                    placeholder="{{placeholder}}"
+                    value="{{tagDraft}}"
+                    maxlength="{{maxLength}}"
+                    bindinput="onTagInput"
+                    bindconfirm="onTagConfirm"
+                    bindblur="onTagBlur"
+                    confirm-type="done" />
+                </view>
+
+                <textarea
+                  wx:elif="{{isMultiline}}"
+                  slot="description"
+                  class="field-edit__textarea"
+                  placeholder="{{placeholder}}"
+                  value="{{value}}"
+                  maxlength="{{maxLength}}"
+                  auto-height
+                  bindinput="onInput" />
+                <input
+                  wx:else
+                  slot="description"
+                  class="field-edit__input"
+                  type="text"
+                  placeholder="{{placeholder}}"
+                  value="{{value}}"
+                  maxlength="{{maxLength}}"
+                  bindinput="onInput" />
+              </t-cell>
+            </t-cell-group>
+          </view>
+
+          <view class="field-edit__meta" wx:if="{{maxLength > 0 && !isTagEditor}}">
+            <view class="field-edit__hint" wx:if="{{hint}}">
+              <text class="field-edit__hint-text">{{hint}}</text>
+            </view>
+            <text class="field-edit__counter">{{valueLength}}/{{maxLength}}</text>
+          </view>
+        </view>
+
+        <view wx:elif="{{fieldType === 'gender'}}" class="field-edit__editor-content">
+          <view class="card-wrapper">
+            <t-cell-group theme="card">
+              <picker mode="selector" range="{{genderOptions}}" value="{{genderIndex}}" bindchange="onGenderChange">
+                <t-cell t-class-note="field-edit__picker-note" note="{{genderOptions[genderIndex]}}" arrow hover />
+              </picker>
+            </t-cell-group>
+          </view>
+        </view>
+
+        <view wx:elif="{{fieldType === 'region'}}" class="field-edit__editor-content">
+          <view class="card-wrapper">
+            <t-cell-group theme="card">
+              <picker mode="region" value="{{regionValue}}" bindchange="onRegionChange">
+                <t-cell t-class-note="field-edit__picker-note" note="{{regionDisplay}}" arrow hover />
+              </picker>
+            </t-cell-group>
+          </view>
+        </view>
+      </view>
+
+      <view class="field-edit__actions">
+        <t-button
+          theme="primary"
+          block
+          loading="{{saving}}"
+          disabled="{{saving || fieldType === ''}}"
+          bindtap="handleSave">
+          {{submitButtonText}}
+        </t-button>
+      </view>
+    </view>
+  </view>
+</page-layout>

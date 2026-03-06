@@ -1,5 +1,5 @@
 @import '/styles/tdesign-theme.wxss';
-@import '/styles/design-tokens.wxss';
+@import '/styles/design-tokens.global.wxss';
 
 /* ========================================
    Login Page - Full Screen, No Scroll

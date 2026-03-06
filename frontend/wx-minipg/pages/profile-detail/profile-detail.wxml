@@ -1,80 +1,97 @@
 <page-layout
-  isLoading="{{pageLayoutData.isLoading}}"
-  hasError="{{pageLayoutData.hasError}}"
-  errorMessage="{{pageLayoutData.errorMessage}}"
-  isEmpty="{{pageLayoutData.isEmpty}}"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
-  hasFooter="{{pageLayoutData.hasFooter}}"
-  bind:retry="onRetry">
+  hasFooter="{{pageLayoutData.hasFooter}}">
   <t-navbar slot="header" left-arrow="{{true}}">
-    <view slot="title" class="navbar-title">详细资料</view>
+    <view slot="title" class="navbar-title">我的资料</view>
   </t-navbar>
   <view slot="content" class="profile-detail card-container">
+    <view
+      class="profile-detail__avatar"
+      bindtap="editAvatar"
+      hover-class="profile-detail__avatar--active">
+      <view class="profile-detail__avatar-image-wrap">
+        <t-avatar
+          image="{{profile ? profile.displayAvatar : ''}}"
+          size="112rpx"
+          shape="circle"
+        />
+        <view class="profile-detail__avatar-edit-badge">
+          <t-icon name="edit-1" size="var(--icon-xs)" color="var(--color-text-primary)" />
+        </view>
+      </view>
+    </view>
+
     <!-- Info groups - Using t-cell-group with card theme -->
-    <view wx:if="{{profile}}" class="card-wrapper">
+    <view class="card-wrapper">
       <t-cell-group theme="card">
         <t-cell
-          title="头像"
-          arrow
-          hover
-          bindtap="editAvatar">
-          <view slot="note" class="profile-detail__avatar-slot">
-            <t-avatar
-              image="{{profile.displayAvatar}}"
-              size="large"
-            />
-            <text class="profile-detail__avatar-hint">
-              {{avatarHint}}
-            </text>
-          </view>
-        </t-cell>
-
-        <t-cell
-          title="昵称"
-          note="{{profile.nickname}}"
-          arrow
-          hover
-          bindtap="editNickname"
-        />
-
-        <t-cell
           title="敲敲号"
-          note="{{profile.displayUsername}}"
-          arrow
-          hover
-          bindtap="editUsername"
-        />
-
-        <t-cell
-          title="手机号"
-          note="{{phoneMasked}}"
-          arrow
-          hover
-          bindtap="editPhone"
-        />
+          t-class-title="profile-cell__title"
+          t-class-center="profile-detail__cell-center"
+          arrow="{{profile ? !profile.displayUsername : true}}"
+          hover="{{profile ? !profile.displayUsername : true}}"
+          bindtap="editUsername">
+          <text slot="note" class="profile-cell__note">{{profile ? profile.displayUsername : ''}}</text>
+        </t-cell>
       </t-cell-group>
     </view>
 
-    <view wx:if="{{profile}}" class="card-wrapper">
+    <view class="card-wrapper">
       <t-cell-group theme="card">
         <t-cell
-          title="性别"
-          note="{{genderText}}"
+          title="昵称"
+          t-class-title="profile-cell__title"
+          t-class-center="profile-detail__cell-center"
           arrow
           hover
-          bindtap="editGender"
-        />
+          bindtap="editNickname">
+          <text slot="note" class="profile-cell__note">{{profile ? profile.nickname : ''}}</text>
+        </t-cell>
+
+        <picker
+          mode="selector"
+          range="{{genderOptions}}"
+          range-key="label"
+          value="{{genderIndex}}"
+          bindchange="onGenderChange">
+          <t-cell
+            title="性别"
+            t-class-title="profile-cell__title"
+            t-class-center="profile-detail__cell-center"
+            arrow
+            hover>
+            <text slot="note" class="profile-cell__note">{{profile ? genderText : ''}}</text>
+          </t-cell>
+        </picker>
+      </t-cell-group>
+    </view>
+
+    <view class="card-wrapper">
+      <t-cell-group theme="card">
+        <picker
+          mode="region"
+          value="{{regionValue}}"
+          bindchange="onRegionChange">
+          <t-cell
+            title="地区"
+            t-class-title="profile-cell__title"
+            t-class-center="profile-detail__cell-center"
+            arrow
+            hover>
+            <text slot="note" class="profile-cell__note">{{profile && profile.region ? profile.region : ''}}</text>
+          </t-cell>
+        </picker>
 
         <t-cell
-          title="地区"
-          note="{{profile.region}}"
+          title="个性签名"
+          t-class-title="profile-cell__title"
           arrow
           hover
-          bindtap="editRegion"
-        />
-
-        <t-cell title="个性签名" arrow hover bindtap="editBio">
-          <text slot="note" style="max-width: 320rpx; font-size: var(--font-size-base); color: var(--color-text-secondary); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{profile.bio}}</text>
+          bindtap="editBio">
+          <text wx:if="{{profile && profile.bio}}" slot="description" class="profile-cell__description">{{profile.bio}}</text>
         </t-cell>
       </t-cell-group>
     </view>

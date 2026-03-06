@@ -1,220 +1,273 @@
+import {
+  createStrangerInfoPageService,
+  type StrangerEntryPayload,
+  type StrangerInfoPageService,
+  type StrangerProfileView,
+} from '../../services/pages/stranger-info-service';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
-import { get } from '../../utils/api';
-import { getAvatarUrl } from '../../utils/avatar';
-import { getLogger } from '../../utils/logger';
 import { promptContactRequestMessage, sendContactRequest } from '../../utils/contact-request';
+import { normalizeError } from '../../utils/errors';
+import { classifyError } from '../../utils/error-classifier';
 import { isNonEmptyString } from '../../utils/guards';
+import { getLogger } from '../../utils/logger';
+import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
+import { type ScreenModel } from '../../services/pages/page-state';
 
 const logger = getLogger('StrangerInfo');
-
-const GENDER_SYMBOL_MAP: Record<number, string> = {
-  1: '♂',
-  2: '♀',
-  3: '⚧',
-};
-
-const CATEGORY_TEXT_MAP: Record<string, string> = {
-  '1': '交友',
-  '2': '恋爱',
-  '3': '倾诉',
-  '4': '闺蜜',
-  '5': '同好',
-};
-
-type GenderKey = keyof typeof GENDER_SYMBOL_MAP;
-type CategoryKey = keyof typeof CATEGORY_TEXT_MAP;
-
-const isGenderKey = (value: unknown): value is GenderKey =>
-  typeof value === 'number' && value in GENDER_SYMBOL_MAP;
-
-const isCategoryKey = (value: unknown): value is CategoryKey =>
-  typeof value === 'string' && value in CATEGORY_TEXT_MAP;
-
-interface StrangerProfileResponse {
-  qiao_id: string;
-  nickname?: string;
-  avatar_url?: string;
-  gender?: number;
-  category?: string;
-  bio?: string;
-  region?: string;
-}
-
-interface StrangerProfileView {
-  qiaoId: string;
-  avatarUrl: string;
-  displayName: string;
-  gender: number;
-  genderText: string;
-  genderType: 'success' | 'danger' | 'default';
-  categoryText: string;
-  regionText: string;
-  bioText: string;
-}
 
 interface StrangerInfoPageData {
   qiaoId: string;
   profile: StrangerProfileView | null;
   pageLayoutData: PageLayoutData;
-  isLoggedIn: boolean;
 }
 
 interface StrangerInfoPageCustom {
+  strangerInfoService: StrangerInfoPageService;
+  _hasEntryRenderData: boolean;
+  normalizeEntryPayload(raw: unknown, expectedQiaoId: string): StrangerEntryPayload | null;
+  consumeEntryPayload(expectedQiaoId: string): Promise<StrangerEntryPayload | null>;
+  applyScreenModel(screenModel: ScreenModel): void;
   loadProfile(): Promise<void>;
   handleAddContact(): Promise<void>;
   sendContactRequest(message: string): Promise<void>;
-  onRetry(): void;
 }
-
-interface ApiError {
-  statusCode?: number;
-  data?: {
-    detail?: string;
-    [key: string]: unknown;
-  };
-  message?: string;
-}
-
-const isApiError = (error: unknown): error is ApiError =>
-  typeof error === 'object' && error !== null;
-
-const getGenderText = (gender?: number): string => {
-  if (!isGenderKey(gender)) {
-    return '';
-  }
-  return GENDER_SYMBOL_MAP[gender];
-};
-
-const getCategoryText = (category?: string): string => {
-  if (!isCategoryKey(category)) {
-    return '';
-  }
-  return CATEGORY_TEXT_MAP[category];
-};
-
-const normalizeProfile = (profile: StrangerProfileResponse): StrangerProfileView => {
-  const displayName = profile.nickname ?? '';
-  const genderText = getGenderText(profile.gender);
-  const resolvedGender = isGenderKey(profile.gender) ? profile.gender : 0;
-  let genderType: 'success' | 'danger' | 'default' = 'default';
-  if (resolvedGender === 1) {
-    genderType = 'success';
-  } else if (resolvedGender === 2) {
-    genderType = 'danger';
-  }
-  return {
-    qiaoId: profile.qiao_id,
-    avatarUrl: getAvatarUrl(profile.avatar_url),
-    displayName,
-    gender: resolvedGender,
-    genderText,
-    genderType,
-    categoryText: getCategoryText(profile.category),
-    regionText: isNonEmptyString(profile.region) ? profile.region : '',
-    bioText: isNonEmptyString(profile.bio) ? profile.bio : '',
-  };
-};
-
-const getErrorMessage = (error: unknown, fallback: string): string => {
-  if (isApiError(error) && typeof error.data?.detail === 'string') {
-    return error.data.detail;
-  }
-  if (error instanceof Error && isNonEmptyString(error.message)) {
-    return error.message;
-  }
-  return fallback;
-};
 
 interface StrangerInfoLoadOptions extends Record<string, string | undefined> {
   id?: string;
 }
+
+const buildPageLayoutScreenModelPayload = (screenModel: ScreenModel): Record<string, unknown> => ({
+  'pageLayoutData.screenModel': screenModel,
+});
+
+const toEntryRecord = (raw: unknown): Record<string, unknown> | null => {
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed !== null && typeof parsed === 'object') {
+        return parsed as Record<string, unknown>;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+  if (raw === null || typeof raw !== 'object') {
+    return null;
+  }
+  return raw as Record<string, unknown>;
+};
+
+const resolveEntryQiaoId = (record: Record<string, unknown>): string => {
+  if (typeof record.qiaoId === 'string') {
+    return record.qiaoId;
+  }
+  if (typeof record.qiao_id === 'string') {
+    return record.qiao_id;
+  }
+  return '';
+};
+
+const pickString = (record: Record<string, unknown>, key: string): string | undefined => {
+  const value = record[key];
+  return typeof value === 'string' ? value : undefined;
+};
+
+const pickCategory = (record: Record<string, unknown>): string | number | null | undefined => {
+  if (typeof record.category === 'string' || typeof record.category === 'number') {
+    return record.category;
+  }
+  if (record.category === null) {
+    return null;
+  }
+  return undefined;
+};
+
+const hasRenderableEntryPayload = (payload: StrangerEntryPayload | null): boolean => {
+  if (payload === null) {
+    return false;
+  }
+  if (isNonEmptyString(payload.nickname)) {
+    return true;
+  }
+  if (isNonEmptyString(payload.avatarUrl)) {
+    return true;
+  }
+  if (isNonEmptyString(payload.bio)) {
+    return true;
+  }
+  if (isNonEmptyString(payload.region)) {
+    return true;
+  }
+  if (typeof payload.gender === 'number' && payload.gender > 0) {
+    return true;
+  }
+  if (typeof payload.category === 'number' && payload.category > 0) {
+    return true;
+  }
+  if (typeof payload.category === 'string' && payload.category.trim().length > 0) {
+    return true;
+  }
+  return false;
+};
 
 Page<StrangerInfoPageData, StrangerInfoPageCustom>({
   data: {
     qiaoId: '',
     profile: null,
     pageLayoutData: createPageLayoutData({
-      isLoading: true,
-      emptyMessage: '暂无用户信息',
-      hasFooter: true,
+      screenModel: {
+        screenState: 'booting',
+        contentVariant: 'blank',
+        refreshState: 'idle',
+      },
+      hasFooter: false,
     }),
-    isLoggedIn: false,
+  },
+
+  strangerInfoService: null as unknown as StrangerInfoPageService,
+  _hasEntryRenderData: false,
+
+  normalizeEntryPayload(raw: unknown, expectedQiaoId: string): StrangerEntryPayload | null {
+    const record = toEntryRecord(raw);
+    if (record === null) {
+      return null;
+    }
+    const qiaoIdCandidate = resolveEntryQiaoId(record);
+    if (!isNonEmptyString(qiaoIdCandidate) || qiaoIdCandidate !== expectedQiaoId) {
+      return null;
+    }
+
+    const payload: StrangerEntryPayload = {
+      qiaoId: qiaoIdCandidate,
+    };
+
+    payload.nickname = pickString(record, 'nickname');
+    payload.username = pickString(record, 'username');
+    payload.avatarUrl = pickString(record, 'avatarUrl') ?? pickString(record, 'avatar_url');
+    if (typeof record.gender === 'number' || record.gender === null) {
+      payload.gender = record.gender;
+    }
+    payload.category = pickCategory(record);
+    payload.bio = pickString(record, 'bio');
+    payload.region = pickString(record, 'region');
+    return payload;
+  },
+
+  async consumeEntryPayload(expectedQiaoId: string): Promise<StrangerEntryPayload | null> {
+    const pageInstance = this as unknown as {
+      getOpenerEventChannel?: () => WechatMiniprogram.EventChannel;
+    };
+    const eventChannel =
+      typeof pageInstance.getOpenerEventChannel === 'function'
+        ? pageInstance.getOpenerEventChannel()
+        : null;
+    if (eventChannel === null) {
+      return null;
+    }
+
+    return await new Promise((resolve) => {
+      let resolved = false;
+      const finalize = (payload: StrangerEntryPayload | null): void => {
+        if (resolved) {
+          return;
+        }
+        resolved = true;
+        resolve(payload);
+      };
+      eventChannel.once('stranger-entry', (rawPayload) => {
+        finalize(this.normalizeEntryPayload(rawPayload, expectedQiaoId));
+      });
+      setTimeout(() => {
+        finalize(null);
+      }, 120);
+    });
+  },
+
+  applyScreenModel(screenModel: ScreenModel) {
+    this.setData(buildPageLayoutScreenModelPayload(screenModel));
   },
 
   async onLoad(options: StrangerInfoLoadOptions) {
+    // Recreate service per page lifecycle to avoid reusing a disposed instance.
+    this.strangerInfoService = createStrangerInfoPageService();
     const qiaoId = options.id;
 
     if (!isNonEmptyString(qiaoId)) {
-      void wx.showToast({
-        title: '参数错误',
-        icon: 'none',
+      this.applyScreenModel({
+        screenState: 'ready',
+        contentVariant: 'blank',
+        refreshState: 'idle',
       });
-      void wx.navigateBack();
       return;
     }
 
-    const token = wx.getStorageSync<string | null>('auth_token');
+    const entryPayload = await this.consumeEntryPayload(qiaoId);
+    this._hasEntryRenderData = hasRenderableEntryPayload(entryPayload);
 
     this.setData({
       qiaoId,
-      isLoggedIn: Boolean(token),
     });
 
-    await this.loadProfile();
+    const bootstrapResult = await this.strangerInfoService.bootstrap(qiaoId, entryPayload);
+    if (bootstrapResult === null) {
+      return;
+    }
+    this.setData({
+      profile: bootstrapResult.profile,
+      ...buildPageLayoutScreenModelPayload(bootstrapResult.screenModel),
+    });
+
+    void this.loadProfile();
+  },
+
+  onUnload() {
+    this.strangerInfoService.dispose();
   },
 
   async loadProfile() {
-    try {
-      this.setData({
-        'pageLayoutData.isLoading': true,
-        'pageLayoutData.hasError': false,
-        'pageLayoutData.errorMessage': '',
-      });
-      const profile = await get<StrangerProfileResponse>(`/discovery/profile/${this.data.qiaoId}`);
-
-      this.setData({
-        profile: normalizeProfile(profile),
-        'pageLayoutData.isLoading': false,
-        'pageLayoutData.isEmpty': false,
-      });
-
-      logger.info('Stranger profile loaded', { qiao_id: this.data.qiaoId });
-    } catch (error) {
-      logger.error('Failed to load stranger profile', { error });
-      this.setData({
-        'pageLayoutData.isLoading': false,
-        'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': getErrorMessage(error, '加载失败'),
-      });
-
-      void wx.showToast({
-        title: getErrorMessage(error, '加载失败'),
-        icon: 'none',
-      });
-
-      if (isApiError(error) && error.statusCode === 404) {
-        setTimeout(() => {
-          void wx.navigateBack();
-        }, 1500);
-      }
-    }
-  },
-
-  async handleAddContact() {
-    if (!this.data.isLoggedIn) {
-      void wx.showModal({
-        title: '提示',
-        content: '登录后才能发送联系人申请，是否前往登录？',
-        confirmText: '去登录',
-        success: (res) => {
-          if (res.confirm) {
-            void wx.navigateTo({ url: '/pages/login/login' });
-          }
-        },
+    const { qiaoId, profile } = this.data;
+    if (!isNonEmptyString(qiaoId) || profile === null) {
+      this.applyScreenModel({
+        screenState: 'ready',
+        contentVariant: 'data',
+        refreshState: 'degraded',
       });
       return;
     }
 
+    this.applyScreenModel({
+      ...this.data.pageLayoutData.screenModel,
+      screenState: 'ready',
+      contentVariant: 'data',
+      refreshState: 'refreshing',
+    });
+
+    const result = await this.strangerInfoService.refresh(qiaoId, profile);
+    if (result === null) {
+      return;
+    }
+
+    this.applyScreenModel(result.screenModel);
+    if (result.profile !== null) {
+      this.setData({ profile: result.profile });
+    }
+    if (result.authInvalid) {
+      await showAuthExpiredModalAndRelogin();
+      return;
+    }
+    if (!this._hasEntryRenderData && result.profile === null) {
+      this.applyScreenModel({
+        screenState: 'ready',
+        contentVariant: 'data',
+        refreshState: 'degraded',
+      });
+    }
+
+    logger.info('Stranger profile loaded', { qiao_id: qiaoId });
+  },
+
+  async handleAddContact() {
     const message = await promptContactRequestMessage();
     if (message === null) {
       return;
@@ -243,18 +296,21 @@ Page<StrangerInfoPageData, StrangerInfoPageCustom>({
       setTimeout(() => {
         void wx.navigateBack();
       }, 1500);
-    } catch (error) {
+    } catch (error: unknown) {
       void wx.hideLoading();
-      logger.error('Failed to send contact request', { error });
+      const semantics = classifyError(error);
+      if (semantics.reason === 'auth-invalid') {
+        await showAuthExpiredModalAndRelogin();
+        return;
+      }
+
+      const err = normalizeError(error);
+      logger.error('Failed to send contact request', { error: err.message });
 
       void wx.showToast({
-        title: getErrorMessage(error, '发送失败'),
+        title: isNonEmptyString(err.message) ? err.message : '发送失败',
         icon: 'none',
       });
     }
-  },
-
-  onRetry() {
-    void this.loadProfile();
   },
 });

@@ -2,8 +2,27 @@
  * Page Layout Component
  *
  * Standard page structure component for all pages.
- * Handles loading, error, and empty states automatically.
+ * State source of truth is screenModel contract.
  */
+
+const VALID_SCREEN_STATES = new Set(['booting', 'ready']);
+const VALID_CONTENT_VARIANTS = new Set(['data', 'empty', 'blank']);
+const VALID_REFRESH_STATES = new Set(['idle', 'refreshing', 'degraded']);
+
+const reportInvalidScreenModel = (input: {
+  screenState: string;
+  contentVariant: string;
+  refreshState: string;
+}): void => {
+  if (
+    VALID_SCREEN_STATES.has(input.screenState) &&
+    VALID_CONTENT_VARIANTS.has(input.contentVariant) &&
+    VALID_REFRESH_STATES.has(input.refreshState)
+  ) {
+    return;
+  }
+  console.error('[page-layout] invalid screen model', input);
+};
 
 Component({
   options: {
@@ -11,23 +30,23 @@ Component({
   },
 
   properties: {
-    isLoading: {
-      type: Boolean,
-      value: false,
-    },
-    hasError: {
-      type: Boolean,
-      value: false,
-    },
-    errorMessage: {
+    screenState: {
       type: String,
       value: '',
     },
-    isEmpty: {
-      type: Boolean,
-      value: false,
+    contentVariant: {
+      type: String,
+      value: '',
+    },
+    refreshState: {
+      type: String,
+      value: '',
     },
     emptyMessage: {
+      type: String,
+      value: '',
+    },
+    emptyActionText: {
       type: String,
       value: '',
     },
@@ -69,20 +88,34 @@ Component({
     isHeaderSolid: false,
   },
 
+  lifetimes: {
+    attached() {
+      this.validateScreenModel();
+    },
+  },
+
   observers: {
     'headerSolidMode,headerSolid'(headerSolidMode: string, headerSolid: boolean) {
       if (headerSolidMode === 'manual') {
         this.setData({ isHeaderSolid: headerSolid });
       }
     },
+    'screenState,contentVariant,refreshState'() {
+      this.validateScreenModel();
+    },
   },
 
   methods: {
-    /**
-     * Handle retry button click in error state
-     */
-    onRetryClick() {
-      this.triggerEvent('retry');
+    validateScreenModel() {
+      reportInvalidScreenModel({
+        screenState: this.properties.screenState,
+        contentVariant: this.properties.contentVariant,
+        refreshState: this.properties.refreshState,
+      });
+    },
+
+    onEmptyAction() {
+      this.triggerEvent('emptyaction');
     },
 
     onContentScroll(event: WechatMiniprogram.ScrollViewScroll) {

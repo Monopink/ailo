@@ -9,6 +9,7 @@
     >
       <movable-view
         class="avatar-cropper__movable"
+        style="width: {{displayWidth}}px; height: {{displayHeight}}px"
         direction="all"
         x="{{x}}"
         y="{{y}}"
@@ -23,11 +24,10 @@
         <image
           src="{{imagePath}}"
           class="avatar-cropper__image"
-          style="width: {{displayWidth}}px; height: {{displayHeight}}px"
+          style="width: 100%; height: 100%"
           mode="aspectFit"
         />
       </movable-view>
-      <view class="avatar-cropper__mask" />
       <view class="avatar-cropper__frame" />
     </movable-area>
 
@@ -53,5 +53,6 @@
     </t-button>
   </view>
 
-  <canvas canvas-id="cropCanvas" class="avatar-cropper__canvas"></canvas>
+  <canvas id="cropCanvas2d" type="2d" class="avatar-cropper__canvas"></canvas>
+  <canvas canvas-id="cropCanvasLegacy" class="avatar-cropper__canvas"></canvas>
 </view>

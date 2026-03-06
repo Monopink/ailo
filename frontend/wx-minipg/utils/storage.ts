@@ -217,6 +217,7 @@ const wxGetStorageInfo = async (): Promise<WechatMiniprogram.GetStorageInfoSucce
 export interface LatestRenderableMessage {
   content: string;
   sent_time: number | string | null;
+  from_qiao_id: string | null;
 }
 
 export interface LocalSettings {
@@ -386,30 +387,48 @@ export async function getMessages(convId: string): Promise<StoredMessages> {
 export async function getLatestRenderableMessage(
   convId: string
 ): Promise<LatestRenderableMessage | null> {
+  const latestMessages = await getLatestTwoRenderableMessages(convId);
+  return latestMessages.length > 0 ? latestMessages[0] : null;
+}
+
+const shouldSkipRenderableMessage = (message: StoredMessage): boolean => {
+  const type = typeof message.message_type === 'number' ? message.message_type : MESSAGE_TYPE.TEXT;
+  return (
+    type === MESSAGE_TYPE.CHAT_INFO ||
+    type === MESSAGE_TYPE.TYPING_START ||
+    type === MESSAGE_TYPE.TYPING_END ||
+    type === MESSAGE_TYPE.NOTIFICATION
+  );
+};
+
+const toLatestRenderableMessage = (message: StoredMessage): LatestRenderableMessage => {
+  const messageContent = isNonEmptyString(message.content) ? message.content : undefined;
+  const messageText = isNonEmptyString(message.text) ? message.text : undefined;
+  return {
+    content: firstNonEmptyString(messageContent, messageText) ?? '',
+    sent_time: message.sent_time ?? message.created_at ?? message.timestamp ?? null,
+    from_qiao_id: isNonEmptyString(message.from_qiao_id) ? message.from_qiao_id : null,
+  };
+};
+
+export async function getLatestTwoRenderableMessages(
+  convId: string
+): Promise<LatestRenderableMessage[]> {
   const messages = await getMessages(convId);
+  const latestMessages: LatestRenderableMessage[] = [];
+
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i];
-
-    const type =
-      typeof message.message_type === 'number' ? message.message_type : MESSAGE_TYPE.TEXT;
-    if (
-      type === MESSAGE_TYPE.CHAT_INFO ||
-      type === MESSAGE_TYPE.TYPING_START ||
-      type === MESSAGE_TYPE.TYPING_END ||
-      type === MESSAGE_TYPE.NOTIFICATION
-    ) {
+    if (shouldSkipRenderableMessage(message)) {
       continue;
     }
-
-    const messageContent = isNonEmptyString(message.content) ? message.content : undefined;
-    const messageText = isNonEmptyString(message.text) ? message.text : undefined;
-    const content = firstNonEmptyString(messageContent, messageText) ?? '';
-    return {
-      content,
-      sent_time: message.sent_time ?? message.created_at ?? message.timestamp ?? null,
-    };
+    latestMessages.push(toLatestRenderableMessage(message));
+    if (latestMessages.length === 2) {
+      return latestMessages;
+    }
   }
-  return null;
+
+  return latestMessages;
 }
 
 export interface LatestMessageMeta {
@@ -751,6 +770,7 @@ export default {
   normalizeContactsPayload,
   getContacts,
   getLatestRenderableMessage,
+  getLatestTwoRenderableMessages,
   getLatestMessageMeta,
   saveUserInfo,
   getUserInfo,

@@ -1,4 +1,4 @@
-@import '/styles/design-tokens.wxss';
+@import '/styles/design-tokens.component.wxss';
 
 .ui-gender-badge {
   font-size: var(--font-size-lg);

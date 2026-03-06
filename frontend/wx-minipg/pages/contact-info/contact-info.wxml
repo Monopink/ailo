@@ -1,11 +1,9 @@
 <page-layout
-  isLoading="{{pageLayoutData.isLoading}}"
-  hasError="{{pageLayoutData.hasError}}"
-  errorMessage="{{pageLayoutData.errorMessage}}"
-  isEmpty="{{pageLayoutData.isEmpty}}"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
-  hasFooter="{{pageLayoutData.hasFooter}}"
-  bind:retry="refreshContactInfo">
+  hasFooter="{{pageLayoutData.hasFooter}}">
   <t-navbar slot="header" left-arrow="{{true}}">
     <view slot="title" class="navbar-title">联系人详情</view>
   </t-navbar>
@@ -13,18 +11,50 @@
     <view wx:if="{{contact}}">
       <!-- Header Section - Avatar and Name -->
       <view class="contact-info__header">
-        <t-avatar
-          image="{{contact.displayAvatar}}"
-          size="128rpx"
-          shape="circle"
-          class="contact-info__avatar" />
+        <view
+          class="contact-info__avatar-zone"
+          bindtap="onAvatarTap"
+          hover-class="contact-info__avatar-zone--active">
+          <view wx:if="{{showAvatarStack}}" class="contact-info__avatar-stack">
+            <view class="contact-info__avatar-layer contact-info__avatar-layer--back">
+              <t-avatar
+                image="{{avatarBackUrl}}"
+                size="128rpx"
+                shape="circle"
+                class="contact-info__avatar" />
+            </view>
+            <view class="contact-info__avatar-layer contact-info__avatar-layer--front">
+              <t-avatar
+                image="{{avatarFrontUrl}}"
+                size="128rpx"
+                shape="circle"
+                class="contact-info__avatar" />
+              <view class="contact-info__avatar-edit-badge">
+                <t-icon name="edit-1" size="var(--icon-xs)" color="var(--color-text-primary)" />
+              </view>
+            </view>
+          </view>
+          <view wx:else class="contact-info__avatar-single">
+            <view class="contact-info__avatar-layer contact-info__avatar-layer--front">
+              <t-avatar
+                image="{{avatarFrontUrl}}"
+                size="128rpx"
+                shape="circle"
+                class="contact-info__avatar" />
+              <view class="contact-info__avatar-edit-badge">
+                <t-icon name="edit-1" size="var(--icon-xs)" color="var(--color-text-primary)" />
+              </view>
+            </view>
+          </view>
+        </view>
 
         <view class="contact-info__name-row">
-          <text class="contact-info__name">{{contact.alias || contact.profile.nickname}}</text>
+          <text class="contact-info__name">{{displayName}}</text>
           <gender-badge wx:if="{{contact.gender}}" gender="{{contact.gender}}" />
         </view>
 
-        <text class="contact-info__qiao-id">敲敲号：{{contact.contact_qiao_id}}</text>
+        <text wx:if="{{usernameDisplay !== ''}}" class="contact-info__qiao-id">敲敲号：{{usernameDisplay}}</text>
+        <text wx:if="{{aliasDisplay !== '' && nicknameDisplay !== ''}}" class="contact-info__nickname">昵称：{{nicknameDisplay}}</text>
       </view>
 
       <!-- Cards Section -->
@@ -32,59 +62,70 @@
         <!-- Bio Card -->
         <view wx:if="{{contact.bio}}" class="card-wrapper">
           <t-cell-group theme="card">
-            <t-cell title="个性签名" note="{{contact.bio}}" />
+            <t-cell
+              title="个性签名"
+              t-class-title="profile-cell__title"
+              t-class-center="profile-cell__center">
+              <text slot="description" class="profile-cell__description">{{contact.bio}}</text>
+            </t-cell>
           </t-cell-group>
         </view>
 
-        <!-- Tags Card -->
-        <view wx:if="{{contact.tags && contact.tags.length}}" class="card-wrapper">
+        <!-- Contact Settings Card -->
+        <view class="card-wrapper">
           <t-cell-group theme="card">
-            <t-cell title="标签">
-              <view slot="note" class="contact-info__tags">
+            <t-cell
+              title="备注"
+              t-class-title="profile-cell__title"
+              arrow
+              hover
+              bindtap="editAlias">
+              <text wx:if="{{aliasDisplay !== ''}}" slot="note" class="profile-cell__note">{{aliasDisplay}}</text>
+            </t-cell>
+            <t-cell
+              title="描述"
+              t-class-title="profile-cell__title"
+              arrow
+              hover
+              bindtap="editRemark">
+              <text wx:if="{{hasRemark}}" slot="description" class="profile-cell__description">{{remarkDisplay}}</text>
+            </t-cell>
+            <t-cell
+              title="标签"
+              t-class-title="profile-cell__title"
+              arrow
+              hover
+              bindtap="editTags">
+              <view wx:if="{{hasTags}}" slot="description" class="profile-cell__tags">
                 <t-tag
-                  wx:for="{{contact.tags}}"
-                  wx:key="*this"
+                  wx:for="{{tagsList}}"
+                  wx:for-item="tag"
+                  wx:for-index="index"
+                  wx:key="index"
+                  class="profile-cell__tag {{tagsToneClasses[index]}}"
                   size="small"
-                  variant="outline">
-                  {{item}}
-                </t-tag>
+                  theme="primary"
+                  shape="round"
+                  variant="light">{{tag}}</t-tag>
               </view>
             </t-cell>
           </t-cell-group>
         </view>
 
-        <!-- Settings Card -->
+        <!-- Danger actions -->
         <view class="card-wrapper">
           <t-cell-group theme="card">
-            <t-cell title="备注和标签" arrow hover bindtap="editRemarkAndTags" />
-          </t-cell-group>
-        </view>
-
-        <!-- Preferences Card -->
-        <view class="card-wrapper">
-          <t-cell-group theme="card">
-            <t-cell title="置顶聊天">
-              <t-switch slot="note" value="{{isPinned}}" bindchange="onPinnedChange" />
-            </t-cell>
-            <t-cell title="消息免打扰">
-              <t-switch slot="note" value="{{isMuted}}" bindchange="onMutedChange" />
+            <t-cell hover bindtap="clearChatHistory">
+              <text slot="title" class="contact-info__danger-title">清空聊天记录</text>
             </t-cell>
           </t-cell-group>
         </view>
-
-        <!-- Actions section -->
-        <view class="page-actions">
-          <t-button theme="primary" block bindtap="goToChat">
-            发送消息
-          </t-button>
-          <view class="page-actions__secondary">
-            <t-button variant="outline" block bindtap="clearChatHistory">
-              清空聊天记录
-            </t-button>
-            <t-button theme="danger" block bindtap="deleteContact">
-              删除联系人
-            </t-button>
-          </view>
+        <view class="card-wrapper">
+          <t-cell-group theme="card">
+            <t-cell hover bindtap="deleteContact">
+              <text slot="title" class="contact-info__danger-title">删除联系人</text>
+            </t-cell>
+          </t-cell-group>
         </view>
       </view>
     </view>

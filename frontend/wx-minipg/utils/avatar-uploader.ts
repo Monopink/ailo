@@ -91,9 +91,10 @@ const ensureLocalFilePath = (filePath: string): Promise<string> => {
 
 const resolveEnvironmentTag = (): string => {
   try {
-    const info = wx.getSystemInfoSync();
-    const platform = isNonEmptyString(info.platform) ? info.platform : 'unknown';
-    const version = (info as { version?: string }).version;
+    const deviceInfo = typeof wx.getDeviceInfo === 'function' ? wx.getDeviceInfo() : undefined;
+    const platform = isNonEmptyString(deviceInfo?.platform) ? deviceInfo.platform : 'unknown';
+    const version =
+      typeof wx.getAppBaseInfo === 'function' ? wx.getAppBaseInfo().version : undefined;
     return isNonEmptyString(version) ? `${platform}:${version}` : platform;
   } catch {
     return 'unknown';

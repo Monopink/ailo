@@ -1,74 +1,21 @@
-<!--
-  Page Layout Component
-
-  Standard page structure component for all pages.
-  Automatically handles loading, error, and empty states via TDesign components.
-
-  Usage:
-    <page-layout
-      isLoading="{{isLoading}}"
-      hasError="{{hasError}}"
-      errorMessage="{{errorMessage}}"
-      isEmpty="{{isEmpty}}"
-      emptyMessage="{{emptyMessage}}"
-      hasFooter="{{hasFooter}}"
-      contentScrollIntoView="{{contentScrollIntoView}}"
-      contentScrollWithAnimation="{{contentScrollWithAnimation}}"
-      bind:retry="onRetry">
-      <view slot="header">Optional header (always visible)</view>
-      <view slot="content">Your content here</view>
-      <view slot="footer">Optional footer actions</view>
-    </page-layout>
-
-  Properties:
-    - isLoading: boolean
-    - hasError: boolean
-    - errorMessage: string
-    - isEmpty: boolean
-    - emptyMessage: string
-    - hasFooter: boolean
-    - contentScrollIntoView: string (optional)
-    - contentScrollWithAnimation: boolean (optional, default: true)
-
-  Slots:
-    - header: Always visible content (e.g., filters, tabs, navigation)
-    - content: Main content (hidden when loading/error/empty)
-    - footer: Footer actions (optional)
-
-  Events:
-    - retry: Triggered when user clicks retry button in error state
--->
-
 <view class="page-layout">
-  <!-- Header Slot - Always visible -->
   <view class="page-layout__header {{isHeaderSolid ? 'page-layout__header--solid' : ''}}">
     <slot name="header" />
   </view>
 
-  <!-- Loading State -->
-  <view wx:if="{{isLoading}}" class="page-layout__state">
-    <t-loading theme="circular" size="48rpx" text="加载中..." />
-  </view>
+  <view wx:if="{{screenState === 'booting'}}" class="page-layout__blank" />
 
-  <!-- Error State -->
-  <view wx:elif="{{hasError}}" class="page-layout__state">
-    <t-empty
-      icon="error-circle"
-      description="{{errorMessage || '加载失败，请重试'}}"
-      action-text="重试"
-      bind:action="onRetryClick" />
-  </view>
-
-  <!-- Empty State -->
-  <view wx:elif="{{isEmpty}}" class="page-layout__state">
+  <view wx:elif="{{contentVariant === 'empty'}}" class="page-layout__empty">
     <slot name="empty">
-      <t-empty description="{{emptyMessage || '暂无内容'}}" />
+      <empty-state
+        message="{{emptyMessage}}"
+        actionText="{{emptyActionText}}"
+        bind:action="onEmptyAction" />
     </slot>
   </view>
 
-  <!-- Content with inline or fixed footer -->
   <scroll-view
-    wx:else
+    wx:elif="{{contentVariant === 'data'}}"
     class="page-layout__content"
     scroll-y="{{!disableScroll}}"
     enhanced="{{true}}"
@@ -78,14 +25,18 @@
     bindscroll="onContentScroll">
     <slot name="content" />
 
-    <!-- Footer Actions (Optional) - Inline within scrollable content (default) -->
     <view wx:if="{{hasFooter && !fixedFooter}}" class="page-layout__footer-inline">
       <slot name="footer" />
     </view>
   </scroll-view>
 
-  <!-- Fixed Footer (Optional) - For special cases like chat input -->
-  <view wx:if="{{hasFooter && fixedFooter && !isLoading && !hasError}}" class="page-layout__footer-fixed">
+  <view wx:else class="page-layout__blank">
+    <slot name="blank" />
+  </view>
+
+  <view
+    wx:if="{{hasFooter && fixedFooter && screenState === 'ready'}}"
+    class="page-layout__footer-fixed">
     <slot name="footer" />
   </view>
 </view>

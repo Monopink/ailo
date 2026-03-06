@@ -1,58 +1,28 @@
 import { requireAuth } from '../../utils/auth-guard';
-import { getAvatarUrl } from '../../utils/avatar';
 import { APP_CONFIG } from '../../utils/config';
 import { getLogger } from '../../utils/logger';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
-import {
-  getContacts,
-  getConversationUnreadCounts,
-  getConversationUnreadMarks,
-  getLatestRenderableMessage,
-  saveContacts,
-  type LatestRenderableMessage,
-  type StoredContact,
-  type StoredContacts,
-} from '../../utils/storage';
 import { MESSAGE_TYPE } from '../../utils/constants/message';
-import { formatMessageTime } from '../../utils/format';
-import { firstNonEmptyString, isNonEmptyString } from '../../utils/guards';
-import { fetchAllContactsFromApi } from '../../utils/contact-sync';
+import { isNonEmptyString } from '../../utils/guards';
 import { normalizeError } from '../../utils/errors';
-import { initTabBar } from '../../utils/tab-bar';
 import messageEventBus from '../../utils/message/event-bus';
 import unreadStore from '../../utils/message/unread-store';
 import type { ConnectionState } from '../../utils/message/adapter-types';
+import { type ScreenModel } from '../../services/pages/page-state';
+import {
+  createIndexPageService,
+  type ContactListItem,
+  type ContactSwipeAction,
+} from '../../services/pages/index-service';
+import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
+import { mapTagToneClasses } from '../../utils/tag-tone';
+import { initTabBar } from '../../utils/tab-bar';
 
 const logger = getLogger('ContactList');
 const CONNECTION_ISSUE_DELAY = 8000;
+const AUTO_RETRY_DELAYS_MS = [1200, 2600, 5200] as const;
 
-// TDesign SwipeCell action format
-interface SwipeCellAction {
-  text: string;
-  style?: string;
-}
-
-const SWIPE_CELL_VIEW_ACTION: SwipeCellAction = {
-  text: '查看联系人',
-  style: 'background-color: #999999; color: #ffffff; height: 100%;',
-};
-
-const SWIPE_CELL_UNREAD_ACTION: SwipeCellAction = {
-  text: '标为未读',
-  style: 'background-color: #07c160; color: #ffffff; height: 100%;',
-};
-
-const SWIPE_CELL_READ_ACTION: SwipeCellAction = {
-  text: '标记已读',
-  style: 'background-color: #07c160; color: #ffffff; height: 100%;',
-};
-
-const buildSwipeActions = (hasUnread: boolean): ReadonlyArray<SwipeCellAction> => [
-  SWIPE_CELL_VIEW_ACTION,
-  hasUnread ? SWIPE_CELL_READ_ACTION : SWIPE_CELL_UNREAD_ACTION,
-];
-
-type SwipeActionEvent = WechatMiniprogram.CustomEvent<SwipeCellAction>;
+type SwipeActionEvent = WechatMiniprogram.CustomEvent<ContactSwipeAction>;
 
 type AuthGuardPage = WechatMiniprogram.Page.Instance<
   Record<string, unknown>,
@@ -63,52 +33,385 @@ interface LoadOptions {
   forceReload?: boolean;
 }
 
-interface ContactWithPreview extends StoredContact {
-  _latestMessage?: LatestRenderableMessage | null;
-  unreadCount?: number;
-  unreadMarked?: boolean;
-  last_message_content?: string;
-  last_message?: string;
-  last_message_time?: number | string | null;
+interface ContactListRenderItem extends ContactListItem {
+  hasTags: boolean;
+  visibleTags: string[];
+  visibleTagToneClasses: string[];
+  hiddenTagCount: number;
+  showTwoMessagePreview: boolean;
 }
 
-interface ContactListItem extends ContactWithPreview {
-  avatarUrl: string;
-  displayName: string;
-  lastMessageTime: string;
-  lastMessage: string;
-  hasUnread: boolean;
-  unreadBadge: string;
-  unreadDot: boolean;
-  swipeActions: ReadonlyArray<SwipeCellAction>;
+const TAG_GAP_RPX = 6;
+const TAG_FALLBACK_VISIBLE_COUNT = 1;
+
+interface TagMeasureItem {
+  key: string;
+  text: string;
+  kind: 'tag' | 'overflow';
+  hiddenCount?: number;
 }
+
+interface MessageMeasureItem {
+  key: string;
+  text: string;
+}
+
+const getWindowWidthPx = (): number => {
+  if (typeof wx.getWindowInfo === 'function') {
+    return wx.getWindowInfo().windowWidth;
+  }
+  return wx.getSystemInfoSync().windowWidth;
+};
+
+const getTagMeasureKey = (tag: string): string => `tag:${tag}`;
+
+const getOverflowMeasureKey = (hiddenCount: number): string => `overflow:${hiddenCount}`;
+
+const getMessageMeasureKey = (text: string): string => `message:${text}`;
+
+const getValidTags = (tags: unknown): string[] => {
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+  return tags.filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0);
+};
+
+const buildFallbackTagLayout = (
+  tags: string[]
+): Pick<ContactListRenderItem, 'visibleTags' | 'hiddenTagCount'> => {
+  const fallbackVisible = tags.slice(0, TAG_FALLBACK_VISIBLE_COUNT);
+  return {
+    visibleTags: fallbackVisible,
+    hiddenTagCount: Math.max(0, tags.length - fallbackVisible.length),
+  };
+};
+
+const buildTagMeasureItems = (contacts: ContactListRenderItem[]): TagMeasureItem[] => {
+  const tagSet = new Set<string>();
+  let maxTagCount = 0;
+
+  contacts.forEach((contact) => {
+    const tags = getValidTags(contact.tags);
+    if (tags.length === 0) {
+      return;
+    }
+    maxTagCount = Math.max(maxTagCount, tags.length);
+    tags.forEach((tag) => tagSet.add(tag));
+  });
+
+  const tagItems = Array.from(tagSet).map<TagMeasureItem>((tag) => ({
+    key: getTagMeasureKey(tag),
+    text: tag,
+    kind: 'tag',
+  }));
+
+  const overflowItems: TagMeasureItem[] = [];
+  for (let hiddenCount = 1; hiddenCount <= maxTagCount; hiddenCount += 1) {
+    overflowItems.push({
+      key: getOverflowMeasureKey(hiddenCount),
+      text: `+${hiddenCount}`,
+      kind: 'overflow',
+      hiddenCount,
+    });
+  }
+
+  return [...tagItems, ...overflowItems];
+};
+
+const buildMessageMeasureItems = (contacts: ContactListRenderItem[]): MessageMeasureItem[] => {
+  const latestMessageSet = new Set<string>();
+  contacts.forEach((contact) => {
+    if (
+      contact.hasTags ||
+      !contact.canShowTwoMessagePreview ||
+      !isNonEmptyString(contact.lastMessage)
+    ) {
+      return;
+    }
+    latestMessageSet.add(contact.lastMessage);
+  });
+  return Array.from(latestMessageSet).map<MessageMeasureItem>((text) => ({
+    key: getMessageMeasureKey(text),
+    text,
+  }));
+};
+
+const isPositiveWidth = (value: number | undefined): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+const resolveInitialVisibleTagLayout = (
+  tags: string[],
+  maxWidthPx: number,
+  gapPx: number,
+  resolveTagWidth: (tag: string) => number | undefined
+): { visibleCount: number; usedWidthPx: number } => {
+  let visibleCount = 0;
+  let usedWidthPx = 0;
+  for (let index = 0; index < tags.length; index += 1) {
+    const tagWidthPx = resolveTagWidth(tags[index]);
+    if (!isPositiveWidth(tagWidthPx)) {
+      break;
+    }
+    const nextWidthPx = tagWidthPx + (visibleCount > 0 ? gapPx : 0);
+    if (usedWidthPx + nextWidthPx > maxWidthPx) {
+      break;
+    }
+    usedWidthPx += nextWidthPx;
+    visibleCount += 1;
+  }
+  return { visibleCount, usedWidthPx };
+};
+
+interface OverflowLayoutParams {
+  tags: string[];
+  maxWidthPx: number;
+  gapPx: number;
+  initialVisibleCount: number;
+  initialUsedWidthPx: number;
+  resolveTagWidth: (tag: string) => number | undefined;
+  resolveOverflowWidth: (hiddenCount: number) => number | undefined;
+}
+
+const resolveLayoutWithOverflow = ({
+  tags,
+  maxWidthPx,
+  gapPx,
+  initialVisibleCount,
+  initialUsedWidthPx,
+  resolveTagWidth,
+  resolveOverflowWidth,
+}: OverflowLayoutParams): Pick<ContactListRenderItem, 'visibleTags' | 'hiddenTagCount'> | null => {
+  let visibleCount = initialVisibleCount;
+  let usedWidthPx = initialUsedWidthPx;
+  let hiddenTagCount = tags.length - visibleCount;
+
+  while (hiddenTagCount > 0) {
+    const overflowWidthPx = resolveOverflowWidth(hiddenTagCount);
+    if (!isPositiveWidth(overflowWidthPx)) {
+      return null;
+    }
+    const totalWidthWithOverflow = usedWidthPx + (visibleCount > 0 ? gapPx : 0) + overflowWidthPx;
+    if (totalWidthWithOverflow <= maxWidthPx) {
+      return {
+        visibleTags: tags.slice(0, visibleCount),
+        hiddenTagCount,
+      };
+    }
+    if (visibleCount === 0) {
+      return {
+        visibleTags: [],
+        hiddenTagCount,
+      };
+    }
+
+    visibleCount -= 1;
+    hiddenTagCount = tags.length - visibleCount;
+    const removedTagWidthPx = resolveTagWidth(tags[visibleCount]);
+    const shrinkWidthPx =
+      (isPositiveWidth(removedTagWidthPx) ? removedTagWidthPx : 0) + (visibleCount > 0 ? gapPx : 0);
+    usedWidthPx = Math.max(0, usedWidthPx - shrinkWidthPx);
+  }
+
+  return {
+    visibleTags: tags.slice(0, visibleCount),
+    hiddenTagCount: 0,
+  };
+};
+
+const computeVisibleTagsByMeasuredWidths = (
+  tags: string[],
+  maxWidthPx: number,
+  gapPx: number,
+  resolveTagWidth: (tag: string) => number | undefined,
+  resolveOverflowWidth: (hiddenCount: number) => number | undefined
+): Pick<ContactListRenderItem, 'visibleTags' | 'hiddenTagCount'> => {
+  if (tags.length === 0) {
+    return { visibleTags: [], hiddenTagCount: 0 };
+  }
+
+  if (maxWidthPx <= 0) {
+    return buildFallbackTagLayout(tags);
+  }
+
+  const initialLayout = resolveInitialVisibleTagLayout(tags, maxWidthPx, gapPx, resolveTagWidth);
+  if (initialLayout.visibleCount >= tags.length) {
+    return { visibleTags: tags, hiddenTagCount: 0 };
+  }
+
+  const layoutWithOverflow = resolveLayoutWithOverflow({
+    tags,
+    maxWidthPx,
+    gapPx,
+    initialVisibleCount: initialLayout.visibleCount,
+    initialUsedWidthPx: initialLayout.usedWidthPx,
+    resolveTagWidth,
+    resolveOverflowWidth,
+  });
+  return layoutWithOverflow ?? buildFallbackTagLayout(tags);
+};
+
+const areSameStringArrays = (left: string[], right: string[]): boolean => {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((value, index) => value === right[index]);
+};
+
+const getRectWidth = (value: unknown): number | undefined => {
+  if (typeof value !== 'object' || value === null || !('width' in value)) {
+    return undefined;
+  }
+  const width = (value as { width?: unknown }).width;
+  if (typeof width !== 'number' || !Number.isFinite(width) || width <= 0) {
+    return undefined;
+  }
+  return width;
+};
+
+const getVisibleTagToneClasses = (tags: string[], visibleCount: number): string[] =>
+  mapTagToneClasses(tags).slice(0, visibleCount);
+
+const decorateContactList = (contacts: ContactListItem[]): ContactListRenderItem[] =>
+  contacts.map((contact) => {
+    const tags = getValidTags(contact.tags);
+    const tagLayout = buildFallbackTagLayout(tags);
+    return {
+      ...contact,
+      hasTags: tags.length > 0,
+      visibleTags: tagLayout.visibleTags,
+      visibleTagToneClasses: getVisibleTagToneClasses(tags, tagLayout.visibleTags.length),
+      hiddenTagCount: tagLayout.hiddenTagCount,
+      showTwoMessagePreview: false,
+    };
+  });
+
+const buildTwoMessagePreviewResetPayload = (
+  contactList: ContactListRenderItem[],
+  messageMeasureItems: MessageMeasureItem[]
+): { nextContactList: ContactListRenderItem[]; shouldUpdate: boolean } => {
+  const nextContactList = contactList.map((contact) =>
+    contact.showTwoMessagePreview ? { ...contact, showTwoMessagePreview: false } : contact
+  );
+  const hasContactListChanged = nextContactList.some(
+    (contact, index) => contact !== contactList[index]
+  );
+  return {
+    nextContactList,
+    shouldUpdate: hasContactListChanged || messageMeasureItems.length > 0,
+  };
+};
+
+interface TwoMessagePreviewLayoutParams {
+  contactList: ContactListRenderItem[];
+  candidateContactIndexes: number[];
+  noTagContactIndexes: number[];
+  messageMeasureItems: MessageMeasureItem[];
+  measureRectValues: unknown[];
+  rowRectValues: unknown[];
+  messageWidthCache: Record<string, number>;
+}
+
+const resolveTwoMessagePreviewContactList = ({
+  contactList,
+  candidateContactIndexes,
+  noTagContactIndexes,
+  messageMeasureItems,
+  measureRectValues,
+  rowRectValues,
+  messageWidthCache,
+}: TwoMessagePreviewLayoutParams): ContactListRenderItem[] => {
+  const measuredMessageWidths = new Map<string, number>();
+  messageMeasureItems.forEach((item, index) => {
+    const width = getRectWidth(measureRectValues[index]);
+    if (!isPositiveWidth(width)) {
+      return;
+    }
+    measuredMessageWidths.set(item.text, width);
+    messageWidthCache[item.text] = width;
+  });
+
+  const rowWidthByContactIndex = new Map<number, number>();
+  noTagContactIndexes.forEach((contactIndex, rowIndex) => {
+    const width = getRectWidth(rowRectValues[rowIndex]);
+    if (!isPositiveWidth(width)) {
+      return;
+    }
+    rowWidthByContactIndex.set(contactIndex, width);
+  });
+
+  const nextContactList = [...contactList];
+  candidateContactIndexes.forEach((contactIndex) => {
+    const contact = nextContactList[contactIndex];
+    if (typeof contact === 'undefined') {
+      return;
+    }
+    const latestMessageWidth =
+      measuredMessageWidths.get(contact.lastMessage) ?? messageWidthCache[contact.lastMessage];
+    const availableWidth = rowWidthByContactIndex.get(contactIndex);
+    const shouldShowTwoMessagePreview =
+      isPositiveWidth(latestMessageWidth) &&
+      isPositiveWidth(availableWidth) &&
+      latestMessageWidth <= availableWidth &&
+      isNonEmptyString(contact.secondLastMessage);
+    if (contact.showTwoMessagePreview === shouldShowTwoMessagePreview) {
+      return;
+    }
+    nextContactList[contactIndex] = {
+      ...contact,
+      showTwoMessagePreview: shouldShowTwoMessagePreview,
+    };
+  });
+
+  return nextContactList;
+};
 
 interface ContactListPageData {
   pageLayoutData: PageLayoutData;
-  contactList: ContactListItem[];
+  contactList: ContactListRenderItem[];
+  tagMeasureItems: TagMeasureItem[];
+  messageMeasureItems: MessageMeasureItem[];
   unreadTotal: number;
   showConnectionIssue: boolean;
   navbarTitle: string;
 }
 
 interface ContactListPageCustom {
+  indexPageService: ReturnType<typeof createIndexPageService>;
   _loadPromise: Promise<void> | null;
   _connectionIssueTimer: ReturnType<typeof setTimeout> | null;
   _connectionSubscription: (() => void) | null;
+  _autoRetryTimer: ReturnType<typeof setTimeout> | null;
+  _autoRetryAttempt: number;
+  _tagLayoutTimer: ReturnType<typeof setTimeout> | null;
+  _tagLayoutVersion: number;
+  _tagWidthCache: Record<string, number>;
+  _overflowWidthCache: Record<number, number>;
+  _messagePreviewTimer: ReturnType<typeof setTimeout> | null;
+  _messagePreviewVersion: number;
+  _messageWidthCache: Record<string, number>;
+  applyScreenModel(screenModel: ScreenModel): void;
   updateNavigationTitle(): void;
   bindConnectionStatus(): void;
   handleConnectionStateChange(state: ConnectionState): void;
   clearConnectionIssueTimer(): void;
+  clearAutoRetryTimer(): void;
+  clearTagLayoutTimer(): void;
+  clearMessagePreviewTimer(): void;
+  scheduleTagLayoutRefresh(): void;
+  scheduleMessagePreviewRefresh(): void;
+  refreshTagLayout(): void;
+  refreshMessagePreviewLayout(): void;
+  scheduleAutoRetryLoad(): void;
+  applyLoadedList(
+    screenModel: ScreenModel,
+    contactList: ContactListItem[],
+    unreadTotal: number
+  ): void;
   loadContactList(options?: LoadOptions): Promise<void>;
   loadContactsFromCache(): Promise<boolean>;
   refreshContactListFromAPI(): Promise<void>;
-  attachLatestMessages(
-    contacts: StoredContacts,
-    unreadCounts: Record<string, number>
-  ): Promise<ContactWithPreview[]>;
-  updateContactList(contacts: ContactWithPreview[]): void;
   updateContactPreview(convId: string): Promise<void>;
-  onRetry(): void;
+  onPullDownRefresh(): void;
   goToChat(event: WechatMiniprogram.BaseEvent): void;
   goToSquareEntry(): void;
   onSwipeActionClick(event: SwipeActionEvent): void;
@@ -153,49 +456,91 @@ const getDatasetNumber = (event: WechatMiniprogram.BaseEvent, key: string): numb
   return undefined;
 };
 
+const buildPageLayoutScreenModelPayload = (screenModel: ScreenModel): Record<string, unknown> => ({
+  'pageLayoutData.screenModel': screenModel,
+});
+
 Page<ContactListPageData, ContactListPageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
-      isLoading: true,
+      screenModel: {
+        screenState: 'ready',
+        contentVariant: 'data',
+        refreshState: 'idle',
+      },
       emptyMessage: '暂无联系人',
       hasFooter: false,
     }),
     contactList: [],
+    tagMeasureItems: [],
+    messageMeasureItems: [],
     unreadTotal: 0,
     showConnectionIssue: false,
     navbarTitle: APP_CONFIG.brandName,
   },
 
+  indexPageService: null as unknown as ReturnType<typeof createIndexPageService>,
   _loadPromise: null,
   _connectionIssueTimer: null,
   _connectionSubscription: null,
+  _autoRetryTimer: null,
+  _autoRetryAttempt: 0,
+  _tagLayoutTimer: null,
+  _tagLayoutVersion: 0,
+  _tagWidthCache: {},
+  _overflowWidthCache: {},
+  _messagePreviewTimer: null,
+  _messagePreviewVersion: 0,
+  _messageWidthCache: {},
+
+  applyScreenModel(screenModel: ScreenModel) {
+    this.setData(buildPageLayoutScreenModelPayload(screenModel));
+  },
 
   async onLoad() {
     logger.info('Contact list page loaded');
+    this.indexPageService = createIndexPageService();
+    this._autoRetryAttempt = 0;
+    this.clearAutoRetryTimer();
+    this.updateNavigationTitle();
+    this.bindConnectionStatus();
+    void this.loadContactsFromCache();
+
     const isAuth = await requireAuth(this as unknown as AuthGuardPage);
     if (!isAuth) {
       return;
     }
 
-    this.updateNavigationTitle();
-    this.bindConnectionStatus();
     void this.loadContactList();
   },
 
-  async onShow() {
-    const isAuth = await requireAuth(this as unknown as AuthGuardPage);
-    if (!isAuth) {
-      return;
-    }
-
+  onShow() {
     initTabBar(this);
-
     this.updateNavigationTitle();
-    void this.loadContactList();
+    void this.loadContactsFromCache();
+    if (this.data.pageLayoutData.screenModel.contentVariant === 'blank') {
+      void this.loadContactList();
+    }
+  },
+
+  onHide() {
+    this.clearAutoRetryTimer();
+    this.clearTagLayoutTimer();
+    this.clearMessagePreviewTimer();
+  },
+
+  onPullDownRefresh() {
+    void this.refreshContactListFromAPI().finally(() => {
+      void wx.stopPullDownRefresh();
+    });
   },
 
   onUnload() {
     this.clearConnectionIssueTimer();
+    this.clearAutoRetryTimer();
+    this.clearTagLayoutTimer();
+    this.clearMessagePreviewTimer();
+    this.indexPageService.dispose();
     if (this._connectionSubscription !== null) {
       this._connectionSubscription();
       this._connectionSubscription = null;
@@ -253,6 +598,268 @@ Page<ContactListPageData, ContactListPageCustom>({
     }
   },
 
+  clearAutoRetryTimer() {
+    if (this._autoRetryTimer !== null) {
+      clearTimeout(this._autoRetryTimer);
+      this._autoRetryTimer = null;
+    }
+  },
+
+  clearTagLayoutTimer() {
+    if (this._tagLayoutTimer !== null) {
+      clearTimeout(this._tagLayoutTimer);
+      this._tagLayoutTimer = null;
+    }
+  },
+
+  clearMessagePreviewTimer() {
+    if (this._messagePreviewTimer !== null) {
+      clearTimeout(this._messagePreviewTimer);
+      this._messagePreviewTimer = null;
+    }
+  },
+
+  scheduleTagLayoutRefresh() {
+    if (this._tagLayoutTimer !== null) {
+      return;
+    }
+    this._tagLayoutTimer = setTimeout(() => {
+      this._tagLayoutTimer = null;
+      this.refreshTagLayout();
+    }, 0);
+  },
+
+  scheduleMessagePreviewRefresh() {
+    if (this._messagePreviewTimer !== null) {
+      return;
+    }
+    this._messagePreviewTimer = setTimeout(() => {
+      this._messagePreviewTimer = null;
+      this.refreshMessagePreviewLayout();
+    }, 0);
+  },
+
+  refreshTagLayout() {
+    const taggedContactIndexes = this.data.contactList
+      .map((contact, index) => (contact.hasTags ? index : -1))
+      .filter((index) => index >= 0);
+    if (taggedContactIndexes.length === 0) {
+      if (this.data.tagMeasureItems.length > 0) {
+        this.setData({ tagMeasureItems: [] });
+      }
+      return;
+    }
+
+    const tagMeasureItems = buildTagMeasureItems(this.data.contactList);
+    this._tagLayoutVersion += 1;
+    const layoutVersion = this._tagLayoutVersion;
+
+    this.setData({ tagMeasureItems }, () => {
+      wx.nextTick(() => {
+        if (layoutVersion !== this._tagLayoutVersion) {
+          return;
+        }
+
+        wx.createSelectorQuery()
+          .in(this)
+          .selectAll('.index-tag-measure__item')
+          .boundingClientRect()
+          .selectAll('.index-cell__tags-row')
+          .boundingClientRect()
+          .exec((queryResult) => {
+            if (layoutVersion !== this._tagLayoutVersion) {
+              return;
+            }
+            const queryResultValue: unknown = queryResult;
+            if (!Array.isArray(queryResultValue) || queryResultValue.length < 2) {
+              return;
+            }
+            const measureRectValues: unknown = queryResultValue[0];
+            const rowRectValues: unknown = queryResultValue[1];
+            if (!Array.isArray(measureRectValues) || !Array.isArray(rowRectValues)) {
+              return;
+            }
+            if (measureRectValues.length === 0 || rowRectValues.length === 0) {
+              return;
+            }
+
+            const measuredTagWidths = new Map<string, number>();
+            const measuredOverflowWidths = new Map<number, number>();
+            tagMeasureItems.forEach((item, index) => {
+              const width = getRectWidth(measureRectValues[index]);
+              if (typeof width !== 'number') {
+                return;
+              }
+              if (item.kind === 'tag') {
+                measuredTagWidths.set(item.text, width);
+                this._tagWidthCache[item.text] = width;
+                return;
+              }
+              if (typeof item.hiddenCount === 'number') {
+                measuredOverflowWidths.set(item.hiddenCount, width);
+                this._overflowWidthCache[item.hiddenCount] = width;
+              }
+            });
+
+            const gapPx = (getWindowWidthPx() / 750) * TAG_GAP_RPX;
+            const nextContactList = [...this.data.contactList];
+
+            taggedContactIndexes.forEach((contactIndex, rowIndex) => {
+              const contact = nextContactList[contactIndex];
+              const tags = getValidTags(contact.tags);
+              const rowWidthPx = getRectWidth(rowRectValues[rowIndex]) ?? 0;
+              const nextLayout = computeVisibleTagsByMeasuredWidths(
+                tags,
+                rowWidthPx,
+                gapPx,
+                (tag) => measuredTagWidths.get(tag) ?? this._tagWidthCache[tag],
+                (hiddenCount) =>
+                  measuredOverflowWidths.get(hiddenCount) ?? this._overflowWidthCache[hiddenCount]
+              );
+              const nextVisibleTagToneClasses = getVisibleTagToneClasses(
+                tags,
+                nextLayout.visibleTags.length
+              );
+              if (
+                nextLayout.hiddenTagCount === contact.hiddenTagCount &&
+                areSameStringArrays(nextLayout.visibleTags, contact.visibleTags) &&
+                areSameStringArrays(nextVisibleTagToneClasses, contact.visibleTagToneClasses)
+              ) {
+                return;
+              }
+              nextContactList[contactIndex] = {
+                ...contact,
+                visibleTags: nextLayout.visibleTags,
+                visibleTagToneClasses: nextVisibleTagToneClasses,
+                hiddenTagCount: nextLayout.hiddenTagCount,
+              };
+            });
+
+            const hasChanged = nextContactList.some(
+              (contact, index) => contact !== this.data.contactList[index]
+            );
+            if (hasChanged) {
+              this.setData({ contactList: nextContactList });
+            }
+          });
+      });
+    });
+  },
+
+  refreshMessagePreviewLayout() {
+    const noTagContactIndexes = this.data.contactList
+      .map((contact, index) => (!contact.hasTags ? index : -1))
+      .filter((index) => index >= 0);
+    const candidateContactIndexes = noTagContactIndexes.filter(
+      (contactIndex) => this.data.contactList[contactIndex].canShowTwoMessagePreview
+    );
+    const resetPayload = buildTwoMessagePreviewResetPayload(
+      this.data.contactList,
+      this.data.messageMeasureItems
+    );
+
+    if (candidateContactIndexes.length === 0) {
+      if (resetPayload.shouldUpdate) {
+        this.setData({
+          contactList: resetPayload.nextContactList,
+          messageMeasureItems: [],
+        });
+      }
+      return;
+    }
+
+    const messageMeasureItems = buildMessageMeasureItems(this.data.contactList);
+    if (messageMeasureItems.length === 0) {
+      if (resetPayload.shouldUpdate) {
+        this.setData({
+          contactList: resetPayload.nextContactList,
+          messageMeasureItems: [],
+        });
+      }
+      return;
+    }
+
+    this._messagePreviewVersion += 1;
+    const layoutVersion = this._messagePreviewVersion;
+
+    this.setData({ messageMeasureItems }, () => {
+      wx.nextTick(() => {
+        if (layoutVersion !== this._messagePreviewVersion) {
+          return;
+        }
+
+        wx.createSelectorQuery()
+          .in(this)
+          .selectAll('.index-message-measure__item')
+          .boundingClientRect()
+          .selectAll('.index-cell__message-main--double')
+          .boundingClientRect()
+          .exec((queryResult) => {
+            if (layoutVersion !== this._messagePreviewVersion) {
+              return;
+            }
+            const queryResultValue: unknown = queryResult;
+            if (!Array.isArray(queryResultValue) || queryResultValue.length < 2) {
+              return;
+            }
+            const measureRectValues: unknown = queryResultValue[0];
+            const rowRectValues: unknown = queryResultValue[1];
+            if (!Array.isArray(measureRectValues) || !Array.isArray(rowRectValues)) {
+              return;
+            }
+            if (measureRectValues.length === 0 || rowRectValues.length === 0) {
+              return;
+            }
+
+            const nextContactList = resolveTwoMessagePreviewContactList({
+              contactList: this.data.contactList,
+              candidateContactIndexes,
+              noTagContactIndexes,
+              messageMeasureItems,
+              measureRectValues,
+              rowRectValues,
+              messageWidthCache: this._messageWidthCache,
+            });
+
+            const hasChanged = nextContactList.some(
+              (contact, index) => contact !== this.data.contactList[index]
+            );
+            if (hasChanged) {
+              this.setData({ contactList: nextContactList });
+            }
+          });
+      });
+    });
+  },
+
+  scheduleAutoRetryLoad() {
+    if (this._autoRetryTimer !== null) {
+      return;
+    }
+    if (this._autoRetryAttempt >= AUTO_RETRY_DELAYS_MS.length) {
+      return;
+    }
+
+    const delay = AUTO_RETRY_DELAYS_MS[this._autoRetryAttempt];
+    this._autoRetryTimer = setTimeout(() => {
+      this._autoRetryTimer = null;
+      this._autoRetryAttempt += 1;
+      void this.loadContactList({ forceReload: true });
+    }, delay);
+  },
+
+  applyLoadedList(screenModel, contactList, unreadTotal) {
+    const contactListForRender = decorateContactList(contactList);
+    this.setData({
+      contactList: contactListForRender,
+      unreadTotal,
+      ...buildPageLayoutScreenModelPayload(screenModel),
+    });
+    this.scheduleTagLayoutRefresh();
+    this.scheduleMessagePreviewRefresh();
+    this.updateNavigationTitle();
+  },
+
   updateNavigationTitle() {
     const brandName = APP_CONFIG.brandName;
     if (isNonEmptyString(brandName)) {
@@ -266,68 +873,67 @@ Page<ContactListPageData, ContactListPageCustom>({
       return this._loadPromise;
     }
 
-    const loadTask: Promise<void> = (async () => {
-      this.setData({
-        'pageLayoutData.isLoading': true,
-        'pageLayoutData.hasError': false,
-        'pageLayoutData.errorMessage': '',
-      });
-      try {
-        const remoteContacts = await fetchAllContactsFromApi();
-        const normalizedContacts = await saveContacts(remoteContacts);
-        const unreadCounts = await getConversationUnreadCounts();
-        const unreadMarks = await getConversationUnreadMarks();
-        const enrichedContacts = await this.attachLatestMessages(normalizedContacts, unreadCounts);
-        const merged = enrichedContacts.map((contact) => ({
-          ...contact,
-          unreadMarked: isNonEmptyString(contact.conversation_id)
-            ? Boolean(unreadMarks[contact.conversation_id])
-            : false,
-        }));
-        this.updateContactList(merged);
-      } catch (error: unknown) {
-        const err = normalizeError(error);
-        logger.warn('Contact list API failed, falling back to cache', { error: err.message });
-        const cacheLoaded = await this.loadContactsFromCache();
-        if (!cacheLoaded) {
-          throw err;
-        }
+    const loadTask = (async (): Promise<void> => {
+      if (!forceReload || this.data.contactList.length === 0) {
+        await this.loadContactsFromCache();
       }
+
+      const currentContentVariant = this.data.pageLayoutData.screenModel.contentVariant;
+      const hasCurrentModel = currentContentVariant !== 'blank';
+      const refreshingContentVariant = hasCurrentModel
+        ? this.data.contactList.length === 0
+          ? 'empty'
+          : 'data'
+        : 'blank';
+
+      this.applyScreenModel({
+        ...this.data.pageLayoutData.screenModel,
+        screenState: 'ready',
+        contentVariant: refreshingContentVariant,
+        refreshState: 'refreshing',
+      });
+
+      const result = await this.indexPageService.refresh({
+        contactList: this.data.contactList,
+        unreadTotal: this.data.unreadTotal,
+        currentContentVariant,
+      });
+      if (result === null) {
+        return;
+      }
+      if (result.authInvalid) {
+        await showAuthExpiredModalAndRelogin();
+        return;
+      }
+
+      if (result.screenModel.contentVariant === 'blank') {
+        this.applyScreenModel({
+          ...result.screenModel,
+          contentVariant: 'empty',
+        });
+        this.scheduleAutoRetryLoad();
+        return;
+      }
+
+      this._autoRetryAttempt = 0;
+      this.clearAutoRetryTimer();
+      this.applyLoadedList(result.screenModel, result.contactList, result.unreadTotal);
     })();
 
-    this._loadPromise = loadTask
-      .catch((error) => {
-        const err = normalizeError(error);
-        const errorMessage = isNonEmptyString(err.message) ? err.message : '加载失败，请稍后重试';
-        logger.error('Failed to load contact list', { error: err.message });
-        this.setData({
-          'pageLayoutData.isLoading': false,
-          'pageLayoutData.hasError': true,
-          'pageLayoutData.errorMessage': errorMessage,
-          'pageLayoutData.isEmpty': false,
-        });
-        showToast('加载失败');
-      })
-      .finally(() => {
-        this._loadPromise = null;
-      });
+    this._loadPromise = loadTask.finally(() => {
+      this._loadPromise = null;
+    });
 
     return this._loadPromise;
   },
 
   async loadContactsFromCache() {
     try {
-      const cachedContacts = await getContacts();
-      const unreadCounts = await getConversationUnreadCounts();
-      const unreadMarks = await getConversationUnreadMarks();
-      const enrichedContacts = await this.attachLatestMessages(cachedContacts, unreadCounts);
-      const merged = enrichedContacts.map((contact) => ({
-        ...contact,
-        unreadMarked: isNonEmptyString(contact.conversation_id)
-          ? Boolean(unreadMarks[contact.conversation_id])
-          : false,
-      }));
-      this.updateContactList(merged);
+      const result = await this.indexPageService.bootstrap();
+      if (result === null) {
+        return false;
+      }
+      this.applyLoadedList(result.screenModel, result.contactList, result.unreadTotal);
       return true;
     } catch (error: unknown) {
       const err = normalizeError(error);
@@ -368,77 +974,15 @@ Page<ContactListPageData, ContactListPageCustom>({
     if (!isNonEmptyString(convId)) {
       return;
     }
-    const unreadCounts = await getConversationUnreadCounts();
-    const unreadMarks = await getConversationUnreadMarks();
-    const unreadCount = unreadCounts[convId] ?? 0;
-    const unreadMarked = Boolean(unreadMarks[convId]);
-    const latestMessage = await getLatestRenderableMessage(convId);
-
-    const contactList = this.data.contactList.map((contact) => {
-      if (contact.conversation_id !== convId) {
-        return contact;
-      }
-      const lastMessageContent =
-        latestMessage?.content ?? contact.last_message_content ?? contact.last_message ?? '';
-      const lastMessageTimeRaw = latestMessage?.sent_time ?? contact.last_message_time ?? null;
-      return {
-        ...contact,
-        _latestMessage: latestMessage ?? contact._latestMessage ?? null,
-        lastMessage: lastMessageContent,
-        lastMessageTime: formatMessageTime(lastMessageTimeRaw),
-        unreadCount,
-        unreadMarked,
-        hasUnread: unreadCount > 0 || unreadMarked,
-        unreadBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : String(unreadCount)) : '',
-        unreadDot: unreadCount === 0 && unreadMarked,
-        swipeActions: buildSwipeActions(unreadCount > 0 || unreadMarked),
-      };
-    });
-
-    const unreadTotal = contactList.reduce((sum, contact) => sum + (contact.unreadCount ?? 0), 0);
-    this.setData({ contactList, unreadTotal });
-    this.updateNavigationTitle();
-  },
-
-  updateContactList(contacts: ContactWithPreview[]) {
-    const contactList = contacts.map((contact) => {
-      const unreadCount = contact.unreadCount ?? 0;
-      const unreadMarked = contact.unreadMarked ?? false;
-      const latestMessage = contact._latestMessage ?? null;
-      const lastMessageContent =
-        latestMessage?.content ?? contact.last_message_content ?? contact.last_message ?? '';
-      const lastMessageTimeRaw = latestMessage?.sent_time ?? contact.last_message_time ?? null;
-      const displayName = firstNonEmptyString(contact.alias, contact.profile?.nickname) ?? '';
-
-      const hasUnread = unreadCount > 0 || unreadMarked;
-      return {
-        ...contact,
-        avatarUrl: getAvatarUrl(contact.profile?.avatar_url ?? ''),
-        displayName,
-        lastMessageTime: formatMessageTime(lastMessageTimeRaw),
-        lastMessage: lastMessageContent,
-        hasUnread,
-        unreadBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : String(unreadCount)) : '',
-        unreadDot: unreadCount === 0 && unreadMarked,
-        swipeActions: buildSwipeActions(hasUnread),
-      };
-    });
-
-    const unreadTotal = contactList.reduce((sum, contact) => sum + (contact.unreadCount ?? 0), 0);
-
+    const result = await this.indexPageService.enrichContactPreview(convId, this.data.contactList);
+    const contactList = decorateContactList(result.contactList);
     this.setData({
       contactList,
-      unreadTotal,
-      'pageLayoutData.isLoading': false,
-      'pageLayoutData.isEmpty': contactList.length === 0,
-      'pageLayoutData.hasError': false,
-      'pageLayoutData.errorMessage': '',
+      unreadTotal: result.unreadTotal,
     });
+    this.scheduleTagLayoutRefresh();
+    this.scheduleMessagePreviewRefresh();
     this.updateNavigationTitle();
-  },
-
-  onRetry() {
-    void this.refreshContactListFromAPI();
   },
 
   goToChat(event) {
@@ -464,12 +1008,11 @@ Page<ContactListPageData, ContactListPageCustom>({
       return;
     }
 
-    // Determine action by text
-    if (action.text === '查看联系人') {
+    if (action.key === 'view-contact-info') {
       this.navigateToContactInfo(convId);
-    } else if (action.text === '标为未读') {
+    } else if (action.key === 'mark-as-unread') {
       this.markContactAsUnreadByIndex(contactIndex);
-    } else if (action.text === '标记已读') {
+    } else {
       this.markContactAsReadByIndex(contactIndex);
     }
   },
@@ -478,7 +1021,14 @@ Page<ContactListPageData, ContactListPageCustom>({
     if (!isNonEmptyString(convId)) {
       return;
     }
-    void wx.navigateTo({ url: `/pages/contact-info/contact-info?id=${convId}` });
+    void wx.navigateTo({
+      url: `/pages/contact-info/contact-info?id=${convId}`,
+      events: {
+        contactAvatarUpdated: () => {
+          void this.loadContactsFromCache();
+        },
+      },
+    });
   },
 
   markContactAsUnreadByIndex(index: number) {
@@ -500,32 +1050,16 @@ Page<ContactListPageData, ContactListPageCustom>({
     void (async () => {
       try {
         await unreadStore.markConversationAsUnread(convId);
-        const unreadCounts = await getConversationUnreadCounts();
-        const count = unreadCounts[convId] ?? 0;
-
-        const unreadMarks = await getConversationUnreadMarks();
-        const unreadMarked = Boolean(unreadMarks[convId]);
-
-        const hasUnread = count > 0 || unreadMarked;
-        contactList[index] = {
-          ...target,
-          unreadCount: count,
-          unreadMarked,
-          hasUnread,
-          unreadBadge: count > 0 ? (count > 99 ? '99+' : String(count)) : '',
-          unreadDot: count === 0 && unreadMarked,
-          swipeActions: buildSwipeActions(hasUnread),
-        };
-
-        const unreadTotal = contactList.reduce(
-          (sum, contact) => sum + (contact.unreadCount ?? 0),
-          0
+        const result = await this.indexPageService.refreshConversationUnreadState(
+          this.data.contactList,
+          convId
         );
 
         this.setData({
-          contactList,
-          unreadTotal,
+          contactList: result.contactList,
+          unreadTotal: result.unreadTotal,
         });
+        this.scheduleMessagePreviewRefresh();
         this.updateNavigationTitle();
         showToast('已标为未读', 'success');
       } catch (error: unknown) {
@@ -555,80 +1089,23 @@ Page<ContactListPageData, ContactListPageCustom>({
     void (async () => {
       try {
         await unreadStore.markConversationAsRead(convId);
-        const unreadCounts = await getConversationUnreadCounts();
-        const unreadMarks = await getConversationUnreadMarks();
-        const count = unreadCounts[convId] ?? 0;
-        const unreadMarked = Boolean(unreadMarks[convId]);
-        const hasUnread = count > 0 || unreadMarked;
-
-        contactList[index] = {
-          ...target,
-          unreadCount: count,
-          unreadMarked,
-          hasUnread,
-          unreadBadge: count > 0 ? (count > 99 ? '99+' : String(count)) : '',
-          unreadDot: count === 0 && unreadMarked,
-          swipeActions: buildSwipeActions(hasUnread),
-        };
-
-        const unreadTotal = contactList.reduce(
-          (sum, contact) => sum + (contact.unreadCount ?? 0),
-          0
+        const result = await this.indexPageService.refreshConversationUnreadState(
+          this.data.contactList,
+          convId
         );
 
         this.setData({
-          contactList,
-          unreadTotal,
+          contactList: result.contactList,
+          unreadTotal: result.unreadTotal,
         });
+        this.scheduleMessagePreviewRefresh();
         this.updateNavigationTitle();
-        showToast('已标记为已读', 'success');
+        showToast('已标为已读', 'success');
       } catch (error: unknown) {
         const err = normalizeError(error);
         logger.warn('Mark contact as read failed', { error: err.message });
         showToast('标记失败');
       }
     })();
-  },
-
-  async attachLatestMessages(
-    contacts: StoredContacts,
-    unreadCounts: Record<string, number>
-  ): Promise<ContactWithPreview[]> {
-    if (contacts.length === 0) {
-      return [];
-    }
-
-    const enriched = await Promise.all(
-      contacts.map(async (contact) => {
-        if (!isNonEmptyString(contact.conversation_id)) {
-          return {
-            ...contact,
-            unreadCount: 0,
-          } as ContactWithPreview;
-        }
-
-        try {
-          const latestMessage = await getLatestRenderableMessage(contact.conversation_id);
-          return {
-            ...contact,
-            _latestMessage: latestMessage,
-            unreadCount: unreadCounts[contact.conversation_id] ?? 0,
-          } as ContactWithPreview;
-        } catch (error: unknown) {
-          const err = normalizeError(error);
-          logger.warn('Failed to load latest message preview', {
-            convId: contact.conversation_id,
-            error: err.message,
-          });
-          return {
-            ...contact,
-            _latestMessage: null,
-            unreadCount: unreadCounts[contact.conversation_id] ?? 0,
-          } as ContactWithPreview;
-        }
-      })
-    );
-
-    return enriched;
   },
 });

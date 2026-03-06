@@ -1,48 +1,104 @@
 import { requestValidated } from './api';
 import { getAvatarUrl } from './avatar';
-import { getLogger } from './logger';
 import { firstNonEmptyString, isNonEmptyString } from './guards';
+import { getLogger } from './logger';
 import conversationStore from './message/conversation-store';
 import { getContacts, saveContacts } from './storage';
-import {
-  ContactProfile,
-  ConversationResponse,
-  ConversationResponseSchema,
-  StoredContact,
-} from './schemas';
+import { ContactProfile, StoredContact, StoredContactSchema } from './schemas';
 
-const buildConversationEndpoint = (convId: string): string => `/contacts/${convId}/conversation`;
+const buildContactEndpoint = (convId: string): string => `/contacts/${convId}`;
 const logger = getLogger('ContactService');
 
-async function resolveAuthoritativeImConvId(compatImConvId: string): Promise<string> {
+export interface ContactUpdatePayload {
+  alias?: string | null;
+  remark?: string | null;
+  tags?: string[];
+  avatar_file_id?: string | null;
+  avatar_display_mode?: 1 | 2;
+}
+
+const mergeOptionalText = (
+  incoming: string | null | undefined,
+  stored: string | null | undefined,
+  emptyValue: string | null
+): string | null => firstNonEmptyString(incoming ?? '', stored ?? '') ?? emptyValue;
+
+const hasOwnContactField = <K extends keyof StoredContact>(
+  contact: StoredContact,
+  field: K
+): boolean => Object.prototype.hasOwnProperty.call(contact, field);
+
+const mergeNullableContactField = (
+  existing: StoredContact | null,
+  incoming: StoredContact,
+  field: 'alias' | 'remark' | 'avatar_url' | 'remark_avatar_url' | 'original_avatar_url'
+): string | null => {
+  if (hasOwnContactField(incoming, field)) {
+    return incoming[field] ?? null;
+  }
+  return existing?.[field] ?? null;
+};
+
+const mergeContactTags = (existing: StoredContact | null, incoming: StoredContact): string[] => {
+  if (hasOwnContactField(incoming, 'tags')) {
+    return incoming.tags ?? [];
+  }
+  return existing?.tags ?? [];
+};
+
+const mergeAvatarDisplayMode = (
+  existing: StoredContact | null,
+  incoming: StoredContact
+): 1 | 2 | undefined => {
+  if (hasOwnContactField(incoming, 'avatar_display_mode')) {
+    return incoming.avatar_display_mode ?? existing?.avatar_display_mode;
+  }
+  return existing?.avatar_display_mode;
+};
+
+async function resolveAuthoritativeImConvId(): Promise<string> {
   let authoritativeImConvId = await conversationStore.getImConvId();
   if (!isNonEmptyString(authoritativeImConvId)) {
     const refreshed = await conversationStore.refresh();
     authoritativeImConvId = refreshed.im_conv_id;
   }
-
   if (!isNonEmptyString(authoritativeImConvId)) {
     throw new Error('IM_CONVERSATION_ID_MISSING');
   }
-
-  if (isNonEmptyString(compatImConvId) && compatImConvId !== authoritativeImConvId) {
-    logger.warn('im_conv_id mismatch between contacts and lc-im config', {
-      compatImConvId,
-      authoritativeImConvId,
-    });
-    try {
-      const refreshed = await conversationStore.refresh();
-      if (isNonEmptyString(refreshed.im_conv_id)) {
-        authoritativeImConvId = refreshed.im_conv_id;
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      logger.warn('Failed to refresh authoritative im_conv_id after mismatch', { message });
-    }
-  }
-
   return authoritativeImConvId;
 }
+
+const mergeContactProfile = (
+  stored: ContactProfile | null | undefined,
+  incoming: ContactProfile | null | undefined
+): ContactProfile => ({
+  nickname: mergeOptionalText(incoming?.nickname, stored?.nickname, ''),
+  avatar_url: mergeOptionalText(incoming?.avatar_url, stored?.avatar_url, ''),
+  gender: incoming?.gender ?? stored?.gender ?? null,
+  bio: mergeOptionalText(incoming?.bio, stored?.bio, null),
+  region: mergeOptionalText(incoming?.region, stored?.region, null),
+  username: mergeOptionalText(incoming?.username, stored?.username, null),
+});
+
+const mergeStoredContact = (
+  existing: StoredContact | null,
+  incoming: StoredContact
+): StoredContact => ({
+  ...(existing ?? {}),
+  ...incoming,
+  conversation_id: incoming.conversation_id,
+  contact_qiao_id: incoming.contact_qiao_id ?? existing?.contact_qiao_id,
+  im_conv_id: incoming.im_conv_id ?? existing?.im_conv_id,
+  // Respect explicit null/empty values from API responses.
+  alias: mergeNullableContactField(existing, incoming, 'alias'),
+  remark: mergeNullableContactField(existing, incoming, 'remark'),
+  tags: mergeContactTags(existing, incoming),
+  avatar_url: mergeNullableContactField(existing, incoming, 'avatar_url'),
+  remark_avatar_url: mergeNullableContactField(existing, incoming, 'remark_avatar_url'),
+  original_avatar_url: mergeNullableContactField(existing, incoming, 'original_avatar_url'),
+  avatar_display_mode: mergeAvatarDisplayMode(existing, incoming),
+  profile: mergeContactProfile(existing?.profile ?? null, incoming.profile ?? null),
+});
 
 export interface ChatContactViewModel {
   convId: string;
@@ -53,103 +109,73 @@ export interface ChatContactViewModel {
   profile: ContactProfile;
 }
 
-export async function fetchConversationProfile(convId: string): Promise<ContactProfile | null> {
-  const result = await requestValidated(ConversationResponseSchema, {
-    url: buildConversationEndpoint(convId),
+export async function fetchContactDetail(convId: string): Promise<StoredContact> {
+  const result = await requestValidated(StoredContactSchema, {
+    url: buildContactEndpoint(convId),
     method: 'GET',
   });
-  return result.profile;
+  if (result.conversation_id !== convId) {
+    throw new Error('CONVERSATION_ID_MISMATCH');
+  }
+  return result;
+}
+
+export async function updateContactDetail(
+  convId: string,
+  payload: ContactUpdatePayload
+): Promise<StoredContact> {
+  const result = await requestValidated(StoredContactSchema, {
+    url: buildContactEndpoint(convId),
+    method: 'PUT',
+    data: payload,
+  });
+  if (result.conversation_id !== convId) {
+    throw new Error('CONVERSATION_ID_MISMATCH');
+  }
+  return result;
 }
 
 export async function refreshStoredContact(
   convId: string,
-  profile: ContactProfile | null
-): Promise<StoredContact | null> {
+  detail: StoredContact
+): Promise<StoredContact> {
   const contacts = await getContacts();
   const index = contacts.findIndex((contact) => contact.conversation_id === convId);
+  const existing = index === -1 ? null : contacts[index];
+  const updated = mergeStoredContact(existing, detail);
+
   if (index === -1) {
-    return null;
+    contacts.push(updated);
+  } else {
+    contacts[index] = updated;
   }
-
-  const existing = contacts[index];
-  const updated: StoredContact = {
-    ...existing,
-    profile: {
-      ...(existing.profile ?? {}),
-      ...(profile ?? {}),
-    },
-  };
-
-  contacts[index] = updated;
   await saveContacts(contacts);
-
   return updated;
 }
 
-function mergeContactProfile(
-  stored: ContactProfile | null | undefined,
-  incoming: ContactProfile
-): ContactProfile {
-  return {
-    nickname: firstNonEmptyString(incoming.nickname ?? '', stored?.nickname ?? '') ?? '',
-    avatar_url: firstNonEmptyString(incoming.avatar_url ?? '', stored?.avatar_url ?? '') ?? '',
-    gender: incoming.gender ?? stored?.gender ?? null,
-    bio: firstNonEmptyString(incoming.bio ?? '', stored?.bio ?? '') ?? null,
-    region: firstNonEmptyString(incoming.region ?? '', stored?.region ?? '') ?? null,
-  };
-}
-
-export async function fetchConversationInfo(convId: string): Promise<ConversationResponse> {
-  return await requestValidated(ConversationResponseSchema, {
-    url: buildConversationEndpoint(convId),
-    method: 'GET',
-  });
-}
-
 export async function getChatContactViewModel(convId: string): Promise<ChatContactViewModel> {
-  const conversation = await fetchConversationInfo(convId);
-  const contactInfo = conversation.profile;
-  if (conversation.conversation_id !== convId) {
-    throw new Error('CONVERSATION_ID_MISMATCH');
-  }
+  const detail = await fetchContactDetail(convId);
+  const source = await refreshStoredContact(convId, detail);
+  const profile = source.profile ?? {};
 
-  if (!isNonEmptyString(conversation.contact_qiao_id)) {
+  if (!isNonEmptyString(source.contact_qiao_id)) {
     throw new Error('CONTACT_QIAO_ID_MISSING');
   }
-  const imConvId = await resolveAuthoritativeImConvId(conversation.im_conv_id);
 
-  const contacts = await getContacts();
-  const index = contacts.findIndex((contact) => contact.conversation_id === convId);
+  const imConvId = await resolveAuthoritativeImConvId();
+  const displayName = firstNonEmptyString(source.alias ?? '', profile.nickname ?? '') ?? '';
+  const displayAvatar = getAvatarUrl(
+    firstNonEmptyString(source.avatar_url ?? '', profile.avatar_url ?? '') ?? ''
+  );
 
-  const storedContact = index === -1 ? null : contacts[index];
-  const mergedProfile = mergeContactProfile(storedContact?.profile ?? null, contactInfo);
-  const displayName =
-    firstNonEmptyString(storedContact?.alias ?? '', mergedProfile.nickname ?? '') ?? '';
-  const displayAvatar = getAvatarUrl(mergedProfile.avatar_url ?? '');
-
-  if (index !== -1) {
-    const baseContact = contacts[index];
-    const updated: StoredContact = {
-      ...baseContact,
-      conversation_id: baseContact.conversation_id,
-      contact_qiao_id: conversation.contact_qiao_id,
-      im_conv_id: imConvId,
-      profile: {
-        ...(baseContact.profile ?? {}),
-        ...mergedProfile,
-      },
-    };
-    contacts[index] = updated;
-    await saveContacts(contacts);
-    logger.info('Chat contact info updated', { convId });
-  }
+  logger.info('Chat contact info updated', { convId });
 
   return {
     convId,
-    contactQiaoId: conversation.contact_qiao_id,
+    contactQiaoId: source.contact_qiao_id,
     imConvId,
     displayName,
     displayAvatar,
-    profile: mergedProfile,
+    profile,
   };
 }

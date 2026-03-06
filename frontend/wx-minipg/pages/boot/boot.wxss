@@ -1,4 +1,4 @@
-@import '/styles/design-tokens.wxss';
+@import '/styles/design-tokens.global.wxss';
 @import '/styles/tdesign-theme.wxss';
 
 .boot-page {

@@ -1,135 +1,92 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
-import { del } from '../../utils/api';
-import { getAvatarUrl } from '../../utils/avatar';
 import { getLogger } from '../../utils/logger';
-import {
-  clearMessages,
-  getContactByConvId,
-  getContacts,
-  saveContacts,
-  type StoredContact,
-} from '../../utils/storage';
-import { fetchConversationProfile, refreshStoredContact } from '../../utils/contact-service';
-import type { ContactProfile } from '../../utils/schemas';
+import { type StoredContact } from '../../utils/storage';
 import messageStateStore from '../../utils/message/message-state-store';
-import viewStore from '../../utils/message/view-store';
-import { isNonEmptyString } from '../../utils/guards';
 import { normalizeError } from '../../utils/errors';
+import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
+import { type ScreenModel } from '../../services/pages/page-state';
+import {
+  createChatDetailPageService,
+  type ContactView,
+} from '../../services/pages/chat-detail-service';
 
 const logger = getLogger('ChatDetail');
-
-interface ContactView {
-  avatar: string;
-  name: string;
-  genderLabel: string;
-  genderType: 'success' | 'danger' | 'default';
-  hasGender: boolean;
-  displayQiaoId: string;
-}
 
 interface ChatDetailPageData extends Record<string, unknown> {
   convId: string;
   contact: StoredContact | null;
   contactView: ContactView;
-  isPinned: boolean;
-  isMuted: boolean;
   pageLayoutData: PageLayoutData;
 }
 
 interface ChatDetailPageCustom {
+  chatDetailPageService: ReturnType<typeof createChatDetailPageService>;
+  applyScreenModel(screenModel: ScreenModel): void;
+  handleAuthInvalid(): Promise<void>;
   refreshContactInfo(): Promise<void>;
   goToChat(): void;
   viewProfile(): void;
   manageTags(): void;
-  onPinnedChange(event: WechatMiniprogram.SwitchChange): void;
-  onMutedChange(event: WechatMiniprogram.SwitchChange): void;
   clearChatHistory(): void;
   deleteContact(): void;
-  onRetry(): void;
 }
 
-const DEFAULT_CONTACT_AVATAR = getAvatarUrl(null);
-
-const createEmptyContactView = (): ContactView => ({
-  avatar: DEFAULT_CONTACT_AVATAR,
-  name: '',
-  genderLabel: '',
-  genderType: 'default',
-  hasGender: false,
-  displayQiaoId: '--',
+const buildPageLayoutScreenModelPayload = (screenModel: ScreenModel): Record<string, unknown> => ({
+  'pageLayoutData.screenModel': screenModel,
 });
-
-const DEFAULT_CONTACT_NAME = '未命名联系人';
-
-const sanitizeNameCandidate = (value: string | null | undefined): string | undefined =>
-  isNonEmptyString(value) ? value : undefined;
-
-const getDisplayName = (contact: StoredContact, profile: ContactProfile): string =>
-  sanitizeNameCandidate(contact.alias) ??
-  sanitizeNameCandidate(profile.nickname) ??
-  sanitizeNameCandidate(contact.contact_qiao_id) ??
-  DEFAULT_CONTACT_NAME;
-
-const getResolvedAvatar = (profile: ContactProfile): string => {
-  const avatarUrl = isNonEmptyString(profile.avatar_url) ? profile.avatar_url : null;
-  const candidate = getAvatarUrl(avatarUrl);
-  return isNonEmptyString(candidate) ? candidate : DEFAULT_CONTACT_AVATAR;
-};
-
-const getDisplayQiaoId = (contact: StoredContact): string =>
-  isNonEmptyString(contact.contact_qiao_id) ? contact.contact_qiao_id : '--';
-
-const getGenderLabel = (genderValue: number | null): string =>
-  genderValue === 1 ? '男' : genderValue === 2 ? '女' : genderValue === 3 ? '其他' : '';
-
-const buildContactView = (contact: StoredContact, profile?: ContactProfile): ContactView => {
-  const resolvedProfile: ContactProfile = profile ?? contact.profile ?? {};
-  const genderValue = typeof resolvedProfile.gender === 'number' ? resolvedProfile.gender : null;
-  const genderLabel = getGenderLabel(genderValue);
-
-  return {
-    avatar: getResolvedAvatar(resolvedProfile),
-    name: getDisplayName(contact, resolvedProfile),
-    genderLabel,
-    genderType: genderValue === 1 ? 'success' : genderValue === 2 ? 'danger' : 'default',
-    hasGender: genderLabel !== '',
-    displayQiaoId: getDisplayQiaoId(contact),
-  };
-};
 
 Page<ChatDetailPageData, ChatDetailPageCustom>({
   data: {
     convId: '',
     contact: null,
-    contactView: createEmptyContactView(),
-    isPinned: false,
-    isMuted: false,
+    contactView: {
+      avatar: '',
+      name: '',
+      genderLabel: '',
+      genderType: 'default',
+      hasGender: false,
+      displayQiaoId: '',
+    },
     pageLayoutData: createPageLayoutData({
-      isLoading: true,
+      screenModel: {
+        screenState: 'ready',
+        contentVariant: 'data',
+        refreshState: 'idle',
+      },
       emptyMessage: '暂无会话详情',
       hasFooter: true,
     }),
   },
 
+  applyScreenModel(screenModel: ScreenModel) {
+    this.setData(buildPageLayoutScreenModelPayload(screenModel));
+  },
+
+  async handleAuthInvalid() {
+    await showAuthExpiredModalAndRelogin();
+  },
+
+  chatDetailPageService: null as unknown as ReturnType<typeof createChatDetailPageService>,
+
   async onLoad(options) {
+    this.chatDetailPageService = createChatDetailPageService();
     const convId = options.id ?? '';
     if (convId === '') {
-      void wx.showToast({ title: '参数错误', icon: 'none' });
-      void wx.navigateBack();
+      this.applyScreenModel({
+        screenState: 'ready',
+        contentVariant: 'blank',
+        refreshState: 'idle',
+      });
       return;
     }
 
     this.setData({ convId });
-
-    const cachedContact = await getContactByConvId(convId);
-    if (cachedContact !== null) {
+    const bootstrap = await this.chatDetailPageService.bootstrap(convId);
+    if (bootstrap !== null) {
       this.setData({
-        contact: cachedContact,
-        contactView: buildContactView(cachedContact),
-        isPinned: Boolean(cachedContact.is_pinned),
-        isMuted: Boolean(cachedContact.is_muted),
-        'pageLayoutData.isLoading': false,
-        'pageLayoutData.isEmpty': false,
+        contact: bootstrap.contact,
+        contactView: bootstrap.contactView,
+        ...buildPageLayoutScreenModelPayload(bootstrap.screenModel),
       });
     }
 
@@ -137,33 +94,27 @@ Page<ChatDetailPageData, ChatDetailPageCustom>({
   },
 
   async refreshContactInfo() {
-    try {
-      const profile = await fetchConversationProfile(this.data.convId);
-      const updatedContact = await refreshStoredContact(this.data.convId, profile);
-      if (updatedContact === null) {
-        this.setData({
-          'pageLayoutData.isLoading': false,
-          'pageLayoutData.isEmpty': this.data.contact === null,
-        });
-        return;
-      }
+    this.applyScreenModel({
+      ...this.data.pageLayoutData.screenModel,
+      screenState: 'ready',
+      contentVariant: 'data',
+      refreshState: 'refreshing',
+    });
 
-      this.setData({
-        contact: updatedContact,
-        contactView: buildContactView(updatedContact, profile ?? undefined),
-        'pageLayoutData.isLoading': false,
-        'pageLayoutData.isEmpty': false,
-      });
-      logger.info('Chat detail refreshed', { conv_id: this.data.convId });
-    } catch (error: unknown) {
-      const err = normalizeError(error);
-      logger.error('Failed to refresh chat detail', { error: err.message });
-      this.setData({
-        'pageLayoutData.isLoading': false,
-        'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': '加载失败，请稍后重试',
-      });
+    const result = await this.chatDetailPageService.refresh(this.data.convId, this.data.contact);
+    if (result === null) {
+      return;
     }
+    if (result.authInvalid) {
+      await this.handleAuthInvalid();
+      return;
+    }
+
+    this.setData({
+      contact: result.contact,
+      contactView: result.contactView,
+      ...buildPageLayoutScreenModelPayload(result.screenModel),
+    });
   },
 
   goToChat() {
@@ -175,23 +126,16 @@ Page<ChatDetailPageData, ChatDetailPageCustom>({
   viewProfile() {
     void wx.navigateTo({
       url: `/pages/contact-info/contact-info?id=${this.data.convId}`,
+      events: {
+        contactAvatarUpdated: () => {
+          void this.refreshContactInfo();
+        },
+      },
     });
   },
 
   manageTags() {
     void wx.showToast({ title: '标签管理功能即将上线', icon: 'none' });
-  },
-
-  onPinnedChange(event) {
-    const isPinned = Boolean(event.detail.value);
-    this.setData({ isPinned });
-    void wx.showToast({ title: isPinned ? '置顶成功' : '已取消置顶', icon: 'success' });
-  },
-
-  onMutedChange(event) {
-    const isMuted = Boolean(event.detail.value);
-    this.setData({ isMuted });
-    void wx.showToast({ title: isMuted ? '免打扰已开启' : '免打扰已关闭', icon: 'success' });
   },
 
   clearChatHistory() {
@@ -203,8 +147,7 @@ Page<ChatDetailPageData, ChatDetailPageCustom>({
           return;
         }
         try {
-          await clearMessages(this.data.convId);
-          await viewStore.clear(this.data.convId);
+          await this.chatDetailPageService.clearChatHistory(this.data.convId);
           messageStateStore.clearConversation();
           void wx.showToast({ title: '聊天记录已清空', icon: 'success' });
         } catch (error: unknown) {
@@ -227,14 +170,7 @@ Page<ChatDetailPageData, ChatDetailPageCustom>({
         }
         void wx.showLoading({ title: '正在处理', mask: true });
         try {
-          await del(`/contacts/${this.data.convId}`);
-          const contacts = await getContacts();
-          const updatedContacts = contacts.filter(
-            (contact) => contact.conversation_id !== this.data.convId
-          );
-          await saveContacts(updatedContacts);
-          await clearMessages(this.data.convId);
-          await viewStore.clear(this.data.convId);
+          await this.chatDetailPageService.deleteContact(this.data.convId);
           messageStateStore.clearConversation();
           void wx.showToast({ title: '联系人已删除', icon: 'success' });
           setTimeout(() => {
@@ -251,7 +187,7 @@ Page<ChatDetailPageData, ChatDetailPageCustom>({
     });
   },
 
-  onRetry() {
-    void this.refreshContactInfo();
+  onUnload() {
+    this.chatDetailPageService.dispose();
   },
 });

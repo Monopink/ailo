@@ -1,0 +1,29 @@
+@import '/styles/tdesign-theme.wxss';
+@import '/styles/design-tokens.global.wxss';
+
+page {
+  --color-bg-page: var(--color-bg-white);
+  --color-bg-primary: var(--color-bg-white);
+  --color-navbar-glass-bg-base: rgb(255 255 255 / 92%);
+  --color-navbar-glass-bg: var(--color-navbar-glass-bg-base);
+}
+
+.app-page {
+  min-height: 100%;
+  background-color: var(--color-bg-white);
+  padding-top: var(--space-md);
+  box-sizing: border-box;
+}
+
+.app-page__container {
+  background-color: var(--color-bg-white);
+  margin: 0 var(--padding-page) var(--space-lg);
+  padding: var(--space-lg);
+  border-radius: var(--radius-lg);
+}
+
+.app-page__content {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-relaxed);
+}

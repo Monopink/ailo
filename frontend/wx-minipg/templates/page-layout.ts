@@ -5,15 +5,13 @@
  */
 
 export interface PageLayoutData {
-  /** Whether the page is currently loading */
-  isLoading: boolean;
-  /** Whether the page is in error state */
-  hasError: boolean;
-  /** Error message displayed when hasError=true */
-  errorMessage: string;
-  /** Whether the data set is empty */
-  isEmpty: boolean;
-  /** Message displayed when isEmpty=true */
+  /** New state model consumed by page-layout */
+  screenModel: {
+    screenState: 'booting' | 'ready';
+    contentVariant: 'data' | 'empty' | 'blank';
+    refreshState: 'idle' | 'refreshing' | 'degraded';
+  };
+  /** Message displayed when contentVariant=empty */
   emptyMessage: string;
   /** Whether the footer slot should be visible */
   hasFooter: boolean;
@@ -23,20 +21,23 @@ export interface PageLayoutData {
   contentScrollWithAnimation?: boolean;
 }
 
+type ScreenModel = PageLayoutData['screenModel'];
+type PageLayoutInitOptions = Omit<Partial<PageLayoutData>, 'screenModel'> & {
+  screenModel: ScreenModel;
+};
+
 /**
- * Helper to create initial layout data with sensible defaults.
- * Allows overriding partial fields for specific pages.
+ * Helper to create initial layout data.
+ * `screenModel` must be explicitly provided by the page.
  */
-export function createPageLayoutData(options: Partial<PageLayoutData> = {}): PageLayoutData {
+export function createPageLayoutData(options: PageLayoutInitOptions): PageLayoutData {
+  const { screenModel, ...restOptions } = options;
   return {
-    isLoading: false,
-    hasError: false,
-    errorMessage: '',
-    isEmpty: false,
-    emptyMessage: '暂无内容',
+    screenModel,
+    emptyMessage: '',
     hasFooter: false,
     contentScrollIntoView: '',
     contentScrollWithAnimation: true,
-    ...options,
+    ...restOptions,
   };
 }

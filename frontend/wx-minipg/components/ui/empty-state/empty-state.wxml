@@ -1,0 +1,11 @@
+<view class="ui-empty-state theme-scope">
+  <text class="ui-empty-state__message">{{message}}</text>
+  <t-button
+    wx:if="{{hasAction}}"
+    size="small"
+    variant="outline"
+    theme="primary"
+    bindtap="onActionTap">
+    {{actionText}}
+  </t-button>
+</view>

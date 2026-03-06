@@ -1,0 +1,61 @@
+@import '/styles/design-tokens.global.wxss';
+
+.tag-tone-1 {
+  --td-tag-primary-color: var(--color-tag-tone-1);
+  --td-tag-primary-light-color: var(--color-tag-tone-1-light);
+}
+
+.tag-tone-2 {
+  --td-tag-primary-color: var(--color-tag-tone-2);
+  --td-tag-primary-light-color: var(--color-tag-tone-2-light);
+}
+
+.tag-tone-3 {
+  --td-tag-primary-color: var(--color-tag-tone-3);
+  --td-tag-primary-light-color: var(--color-tag-tone-3-light);
+}
+
+.tag-tone-4 {
+  --td-tag-primary-color: var(--color-tag-tone-4);
+  --td-tag-primary-light-color: var(--color-tag-tone-4-light);
+}
+
+.tag-tone-5 {
+  --td-tag-primary-color: var(--color-tag-tone-5);
+  --td-tag-primary-light-color: var(--color-tag-tone-5-light);
+}
+
+.tag-tone-6 {
+  --td-tag-primary-color: var(--color-tag-tone-6);
+  --td-tag-primary-light-color: var(--color-tag-tone-6-light);
+}
+
+.tag-tone-7 {
+  --td-tag-primary-color: var(--color-tag-tone-7);
+  --td-tag-primary-light-color: var(--color-tag-tone-7-light);
+}
+
+.tag-tone-8 {
+  --td-tag-primary-color: var(--color-tag-tone-8);
+  --td-tag-primary-light-color: var(--color-tag-tone-8-light);
+}
+
+.tag-tone-9 {
+  --td-tag-primary-color: var(--color-tag-tone-9);
+  --td-tag-primary-light-color: var(--color-tag-tone-9-light);
+}
+
+.tag-tone-10 {
+  --td-tag-primary-color: var(--color-tag-tone-10);
+  --td-tag-primary-light-color: var(--color-tag-tone-10-light);
+}
+
+.tag-tone-11 {
+  --td-tag-primary-color: var(--color-tag-tone-11);
+  --td-tag-primary-light-color: var(--color-tag-tone-11-light);
+}
+
+.tag-tone-12 {
+  --td-tag-primary-color: var(--color-tag-tone-12);
+  --td-tag-primary-light-color: var(--color-tag-tone-12-light);
+}

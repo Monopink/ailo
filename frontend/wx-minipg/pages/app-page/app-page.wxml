@@ -1,0 +1,15 @@
+<page-layout
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}">
+  <t-navbar slot="header" left-arrow="{{true}}">
+    <view slot="title" class="navbar-title">{{title}}</view>
+  </t-navbar>
+  <view slot="content" class="app-page">
+    <view class="app-page__container">
+      <rich-text class="app-page__content" nodes="{{contentRendered}}" />
+    </view>
+  </view>
+</page-layout>

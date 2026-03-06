@@ -2,168 +2,242 @@ import { createPageLayoutData, type PageLayoutData } from '../../templates/page-
 import { completeAvatarUpload } from '../../utils/avatar-uploader';
 import { getLogger } from '../../utils/logger';
 import profileService, { type ProfileViewModel } from '../../utils/profile-service';
-import { fetchAccountInfo, updateUserAvatar } from '../../utils/profile';
+import { updateUserAvatar } from '../../utils/profile';
 import { isDefined, isNonEmptyString } from '../../utils/guards';
+import { formatRegion } from '../../utils/format';
+import { GENDER_OPTIONS, type GenderOption } from '../../utils/constants/user';
+import { type ScreenModel } from '../../services/pages/page-state';
+import { createProfileDetailPageService } from '../../services/pages/profile-detail-service';
+import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 
 const logger = getLogger('ProfileDetail');
+const PROVINCE_ADMIN_DIVISIONS = new Set(['省直辖县级行政区划', '自治区直辖县级行政区划']);
+const MUNICIPALITY_COUNTY_LABEL = '县';
+
+type RegionValue = [] | [string] | [string, string];
 
 interface ProfileDetailPageData extends Record<string, unknown> {
   pageLayoutData: PageLayoutData;
   profile: ProfileViewModel | null;
-  phoneMasked: string;
   genderText: string;
+  genderOptions: readonly GenderOption[];
+  genderIndex: number;
+  regionValue: RegionValue;
   avatarUploading: boolean;
-  avatarHint: string;
+  fieldUpdating: boolean;
 }
 
 interface ProfileDetailPageCustom {
+  profileDetailPageService: ReturnType<typeof createProfileDetailPageService>;
+  applyScreenModel(screenModel: ScreenModel): void;
   loadProfile(): Promise<void>;
-  editPhone(): void;
+  saveProfileField(updateData: Record<string, unknown>): Promise<void>;
   editNickname(): void;
   editUsername(): void;
-  editGender(): void;
-  editRegion(): void;
+  onGenderChange(event: WechatMiniprogram.PickerChange): void;
+  onRegionChange(event: WechatMiniprogram.PickerChange): void;
   editBio(): void;
-  handleFooterAction(): void;
-  onRetry(): void;
   editAvatar(): Promise<void>;
   onUnload(): void;
 }
 
-const normalizeGenderText = (gender?: number | null): string => {
-  switch (gender) {
-    case 1:
-      return '男';
-    case 2:
-      return '女';
-    case 3:
-      return '其他';
-    default:
-      return '未设置';
-  }
-};
-
 const encodeValue = (value: string | undefined | null): string => encodeURIComponent(value ?? '');
-const getAvatarHint = (isUploading: boolean): string => (isUploading ? '更新中…' : '点击更换');
+const resolveGenderIndex = (gender?: number | null): number =>
+  GENDER_OPTIONS.findIndex((option) => option.value === gender);
+
+const buildPageLayoutScreenModelPayload = (screenModel: ScreenModel): Record<string, unknown> => ({
+  'pageLayoutData.screenModel': screenModel,
+});
 
 Page<ProfileDetailPageData, ProfileDetailPageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
-      isLoading: true,
+      screenModel: {
+        screenState: 'ready',
+        contentVariant: 'data',
+        refreshState: 'idle',
+      },
       emptyMessage: '暂无详细资料',
       hasFooter: false,
     }),
     profile: null,
-    phoneMasked: '',
-    genderText: '未设置',
+    genderText: '',
+    genderOptions: GENDER_OPTIONS,
+    genderIndex: -1,
+    regionValue: [],
     avatarUploading: false,
-    avatarHint: getAvatarHint(false),
+    fieldUpdating: false,
+  },
+
+  profileDetailPageService: null as unknown as ReturnType<typeof createProfileDetailPageService>,
+
+  applyScreenModel(screenModel: ScreenModel) {
+    this.setData(buildPageLayoutScreenModelPayload(screenModel));
   },
 
   onLoad() {
     logger.info('Profile detail page loaded');
+    this.profileDetailPageService = createProfileDetailPageService();
+    const bootstrap = this.profileDetailPageService.bootstrap();
+    this.setData({
+      profile: bootstrap.profile,
+      genderText: bootstrap.genderText,
+      genderIndex: resolveGenderIndex(bootstrap.profile?.gender),
+      ...buildPageLayoutScreenModelPayload(bootstrap.screenModel),
+    });
     void this.loadProfile();
   },
 
   onShow() {
-    void this.loadProfile();
+    const bootstrap = this.profileDetailPageService.bootstrap();
+    if (bootstrap.profile === null) {
+      return;
+    }
+    this.setData({
+      profile: bootstrap.profile,
+      genderText: bootstrap.genderText,
+      genderIndex: resolveGenderIndex(bootstrap.profile.gender),
+      ...buildPageLayoutScreenModelPayload(bootstrap.screenModel),
+    });
   },
 
   onUnload() {
-    profileService.cancelRetries();
+    this.profileDetailPageService.dispose();
   },
 
   async loadProfile() {
+    this.applyScreenModel({
+      ...this.data.pageLayoutData.screenModel,
+      screenState: 'ready',
+      contentVariant: this.data.profile === null ? 'blank' : 'data',
+      refreshState: 'refreshing',
+    });
+
+    logger.info('Loading user profile');
+    const result = await this.profileDetailPageService.load(this.data.profile);
+    if (result === null) {
+      return;
+    }
+    if (result.authInvalid) {
+      await showAuthExpiredModalAndRelogin();
+      return;
+    }
+
+    this.setData({
+      profile: result.profile,
+      genderText: result.genderText,
+      genderIndex: resolveGenderIndex(result.profile?.gender),
+      ...buildPageLayoutScreenModelPayload(result.screenModel),
+      'pageLayoutData.hasFooter': false,
+    });
+  },
+
+  async saveProfileField(updateData) {
+    if (this.data.fieldUpdating || this.data.avatarUploading) {
+      return;
+    }
+    this.setData({
+      fieldUpdating: true,
+    });
     try {
+      const result = await this.profileDetailPageService.updateProfile(
+        updateData,
+        this.data.profile
+      );
+      if (result === null) {
+        return;
+      }
+      if (result.authInvalid) {
+        await showAuthExpiredModalAndRelogin();
+        return;
+      }
       this.setData({
-        'pageLayoutData.isLoading': true,
-        'pageLayoutData.hasError': false,
-        'pageLayoutData.errorMessage': '',
-        'pageLayoutData.hasFooter': false,
+        profile: result.profile,
+        genderText: result.genderText,
+        genderIndex: resolveGenderIndex(result.profile?.gender),
       });
-
-      logger.info('Loading user profile');
-      const profilePromise = profileService.loadProfile();
-      const accountPromise = fetchAccountInfo().catch((error: unknown) => {
-        logger.error('Load account info failed', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        return null;
+      void wx.showToast({
+        title: '修改成功',
+        icon: 'success',
       });
-
-      const [profile, account] = await Promise.all([profilePromise, accountPromise]);
-      const genderText = normalizeGenderText(profile.gender);
-
-      this.setData({
-        profile,
-        phoneMasked: account?.phone ?? '未绑定',
-        genderText,
-        'pageLayoutData.isLoading': false,
-        'pageLayoutData.isEmpty': false,
-        'pageLayoutData.hasFooter': true,
-      });
-
-      logger.info('Profile loaded', { qiao_id: profile.qiao_id });
     } catch (error) {
-      logger.error('Load profile failed', {
+      logger.error('Update profile field failed', {
         error: error instanceof Error ? error.message : String(error),
       });
-
-      const hasProfile = this.data.profile !== null;
+      void wx.showToast({
+        title:
+          error instanceof Error && isNonEmptyString(error.message)
+            ? error.message
+            : '修改失败，请重试',
+        icon: 'none',
+      });
+    } finally {
       this.setData({
-        'pageLayoutData.isLoading': false,
-        'pageLayoutData.hasError': !hasProfile,
-        'pageLayoutData.errorMessage': hasProfile ? '' : '加载失败，请稍后再试',
-        'pageLayoutData.hasFooter': hasProfile,
+        fieldUpdating: false,
       });
     }
   },
 
-  editPhone() {
-    void wx.navigateTo({
-      url: '/pages/account-security/account-security',
-    });
-  },
-
   editNickname() {
     void wx.navigateTo({
-      url: `/pages/profile-edit/profile-edit?field=nickname&value=${encodeValue(this.data.profile?.nickname)}`,
+      url: `/pages/field-edit/field-edit?domain=profile&field=nickname&value=${encodeValue(this.data.profile?.nickname)}`,
     });
   },
 
   editUsername() {
+    if (isNonEmptyString(this.data.profile?.displayUsername)) {
+      return;
+    }
     void wx.navigateTo({
-      url: `/pages/profile-edit/profile-edit?field=username&value=${encodeValue(this.data.profile?.username)}`,
+      url: `/pages/field-edit/field-edit?domain=profile&field=username&value=${encodeValue(this.data.profile?.username)}`,
     });
   },
 
-  editGender() {
-    const value = this.data.profile?.gender ?? '';
-    void wx.navigateTo({
-      url: `/pages/profile-edit/profile-edit?field=gender&value=${value}`,
+  onGenderChange(event) {
+    const nextIndex = Number.parseInt(String(event.detail.value), 10);
+    const option = this.data.genderOptions[nextIndex];
+    if (!isDefined(option)) {
+      return;
+    }
+    if (this.data.profile?.gender === option.value) {
+      return;
+    }
+    void this.saveProfileField({
+      gender: option.value,
     });
   },
 
-  editRegion() {
-    void wx.navigateTo({
-      url: `/pages/profile-edit/profile-edit?field=region&value=${encodeValue(this.data.profile?.region)}`,
+  onRegionChange(event) {
+    const regionArray = event.detail.value as string[];
+    const [province = '', city = '', district = ''] = regionArray;
+    let actualCity: string | null = city;
+    if (PROVINCE_ADMIN_DIVISIONS.has(city)) {
+      actualCity = district;
+    } else if (city === MUNICIPALITY_COUNTY_LABEL) {
+      actualCity = null;
+    }
+
+    const regionDisplay =
+      actualCity !== null ? formatRegion(province, actualCity) : formatRegion(province, province);
+    if (!isNonEmptyString(regionDisplay)) {
+      return;
+    }
+    this.setData({
+      regionValue: actualCity !== null ? [province, actualCity] : [province],
+    });
+    if (this.data.profile?.region === regionDisplay) {
+      return;
+    }
+    void this.saveProfileField({
+      region: regionDisplay,
     });
   },
 
   editBio() {
     void wx.navigateTo({
-      url: `/pages/profile-edit/profile-edit?field=bio&value=${encodeValue(this.data.profile?.bio)}`,
+      url: `/pages/field-edit/field-edit?domain=profile&field=bio&value=${encodeValue(this.data.profile?.bio)}`,
     });
   },
-
-  handleFooterAction() {
-    this.editPhone();
-  },
-
-  onRetry() {
-    void this.loadProfile();
-  },
-
   async editAvatar() {
     if (this.data.avatarUploading) {
       return;
@@ -171,7 +245,6 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
 
     this.setData({
       avatarUploading: true,
-      avatarHint: getAvatarHint(true),
     });
     void wx.showLoading({ title: '上传中', mask: true });
     try {
@@ -201,7 +274,6 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
       void wx.hideLoading();
       this.setData({
         avatarUploading: false,
-        avatarHint: getAvatarHint(false),
       });
     }
   },

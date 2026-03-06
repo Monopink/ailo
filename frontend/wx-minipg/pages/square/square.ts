@@ -1,20 +1,18 @@
 import { requireAuth } from '../../utils/auth-guard';
 import { getLogger } from '../../utils/logger';
 import { promptContactRequestMessage, sendContactRequest } from '../../utils/contact-request';
-import squareDiscoveryService, {
-  type SquareContactViewModel,
-  SQUARE_CACHE_STALE_PERIOD_MS,
-  SQUARE_CACHE_TTL_MS,
-} from '../../utils/discovery-service';
+import squareDiscoveryService, { type SquareContactViewModel } from '../../utils/discovery-service';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { isNonEmptyString } from '../../utils/guards';
-import { initTabBar } from '../../utils/tab-bar';
 import {
   SQUARE_CATEGORY,
   SQUARE_CATEGORY_ITEMS,
   type SquareCategory,
   type SquareCategoryItem,
 } from '../../utils/constants/square';
+import { type ScreenModel } from '../../services/pages/page-state';
+import { createSquarePageService } from '../../services/pages/square-service';
+import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 
 const logger = getLogger('Square');
 
@@ -38,7 +36,21 @@ interface LoadContactsOptions {
   showGlobalLoading?: boolean;
 }
 
+interface StrangerEntryPayload {
+  qiaoId: string;
+  nickname?: string;
+  avatarUrl?: string;
+  gender?: number | null;
+  category?: string | number | null;
+  bio?: string;
+  region?: string;
+}
+
 interface SquarePageCustom {
+  squarePageService: ReturnType<typeof createSquarePageService>;
+  _blankFailureToastShown: boolean;
+  applyScreenModel(screenModel: ScreenModel): void;
+  notifyBlankLoadFailed(message: string): void;
   displayCachedContacts(): boolean;
   loadContactsWithCache(): void;
   revalidateCache(): Promise<void>;
@@ -49,7 +61,7 @@ interface SquarePageCustom {
   onPullDownRefresh(): void;
   handleContactTap(event: WechatMiniprogram.BaseEvent): void;
   handleAddContact(event: WechatMiniprogram.BaseEvent): Promise<void>;
-  onRetry(): void;
+  onUnload(): void;
 }
 
 const normalizeError = (error: unknown): Error => {
@@ -113,9 +125,26 @@ const toStringValue = (value: unknown): string | undefined => {
   return undefined;
 };
 
+const toJsonString = (payload: StrangerEntryPayload): string | null => {
+  try {
+    return JSON.stringify(payload);
+  } catch {
+    return null;
+  }
+};
+
+const buildPageLayoutScreenModelPayload = (screenModel: ScreenModel): Record<string, unknown> => ({
+  'pageLayoutData.screenModel': screenModel,
+});
+
 Page<SquarePageData, SquarePageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
+      screenModel: {
+        screenState: 'ready',
+        contentVariant: 'data',
+        refreshState: 'idle',
+      },
       emptyMessage: '暂无联系人',
     }),
     categories: SQUARE_CATEGORY_ITEMS,
@@ -125,48 +154,53 @@ Page<SquarePageData, SquarePageCustom>({
     nextRefreshAvailableAt: null,
   },
 
-  async onLoad(options?: Record<string, string | undefined>) {
+  _blankFailureToastShown: false,
+  squarePageService: null as unknown as ReturnType<typeof createSquarePageService>,
+
+  applyScreenModel(screenModel: ScreenModel) {
+    this.setData(buildPageLayoutScreenModelPayload(screenModel));
+  },
+
+  notifyBlankLoadFailed(message: string) {
+    if (this._blankFailureToastShown) {
+      return;
+    }
+    this._blankFailureToastShown = true;
+    showToast(message);
+  },
+
+  onLoad(options?: Record<string, string | undefined>) {
+    this.squarePageService = createSquarePageService();
+    const category = toSquareCategory(options?.category) ?? SQUARE_CATEGORY.FRIEND;
+    this._blankFailureToastShown = false;
+    this.setData({ currentCategory: category });
+  },
+
+  async onShow() {
     const isAuth = await requireAuth(this as unknown as AuthGuardPage);
     if (!isAuth) {
       return;
     }
-    const category = toSquareCategory(options?.category) ?? SQUARE_CATEGORY.FRIEND;
-    this.setData({ currentCategory: category }, () => {
-      this.loadContactsWithCache();
+    void this.loadContacts({
+      respectCooldown: false,
+      silentOnCooldown: true,
+      showGlobalLoading: this.data.contacts.length === 0,
     });
-  },
-
-  onShow() {
-    initTabBar(this);
   },
   displayCachedContacts() {
-    const cache = squareDiscoveryService.getCacheEntry(this.data.currentCategory);
-    if (cache === null || typeof cache.timestamp !== 'number') {
+    const cacheResult = this.squarePageService.resolveCache(this.data.currentCategory);
+    if (cacheResult === null) {
       return false;
     }
-
-    const age = Date.now() - cache.timestamp;
     this.setData({
-      contacts: cache.contacts,
-      nextRefreshAvailableAt: cache.nextRefreshAvailableAt,
-      'pageLayoutData.isLoading': false,
-      'pageLayoutData.hasError': false,
-      'pageLayoutData.errorMessage': '',
-      'pageLayoutData.isEmpty': cache.contacts.length === 0,
+      contacts: cacheResult.contacts,
+      nextRefreshAvailableAt: cacheResult.nextRefreshAvailableAt,
+      ...buildPageLayoutScreenModelPayload(cacheResult.screenModel),
     });
-
-    if (age < SQUARE_CACHE_TTL_MS) {
-      logger.info('Using fresh cache', { age: Math.floor(age / 1000) });
-      return true;
-    }
-
-    if (age < SQUARE_CACHE_TTL_MS + SQUARE_CACHE_STALE_PERIOD_MS) {
-      logger.info('Using stale cache, revalidating', { age: Math.floor(age / 1000) });
+    if (cacheResult.shouldRevalidate) {
       void this.revalidateCache();
-      return true;
     }
-
-    return false;
+    return true;
   },
 
   loadContactsWithCache() {
@@ -189,14 +223,6 @@ Page<SquarePageData, SquarePageCustom>({
     }
   },
 
-  onRetry() {
-    this.setData({
-      'pageLayoutData.hasError': false,
-      'pageLayoutData.isLoading': true,
-    });
-    void this.loadContacts({ respectCooldown: false, showGlobalLoading: true });
-  },
-
   async loadContacts(options: LoadContactsOptions = {}) {
     const { respectCooldown = true, silentOnCooldown = false, showGlobalLoading = true } = options;
     if (respectCooldown && !this.canRefreshNow()) {
@@ -215,59 +241,43 @@ Page<SquarePageData, SquarePageCustom>({
       loading: true,
       ...(showGlobalLoading
         ? {
-            'pageLayoutData.isLoading': true,
-            'pageLayoutData.hasError': false,
+            ...buildPageLayoutScreenModelPayload({
+              ...this.data.pageLayoutData.screenModel,
+              screenState: 'ready',
+              contentVariant: 'data',
+              refreshState: 'refreshing',
+            }),
           }
         : null),
     });
 
-    try {
-      const result = await squareDiscoveryService.load(this.data.currentCategory);
-      this.setData({
-        contacts: result.contacts,
-        nextRefreshAvailableAt: result.nextRefreshAvailableAt,
-        'pageLayoutData.isLoading': false,
-        'pageLayoutData.hasError': false,
-        'pageLayoutData.isEmpty': result.contacts.length === 0,
-        'pageLayoutData.errorMessage': '',
-      });
-
-      logger.info('Contacts loaded', {
-        category: this.data.currentCategory,
-        count: result.contacts.length,
-      });
-    } catch (error) {
-      const err = normalizeError(error);
-      this.setData({
-        'pageLayoutData.isLoading': false,
-      });
-
-      const cache = squareDiscoveryService.getCacheEntry(this.data.currentCategory);
-      if (cache !== null && typeof cache.timestamp === 'number') {
-        const age = Date.now() - cache.timestamp;
-        if (age < SQUARE_CACHE_TTL_MS + SQUARE_CACHE_STALE_PERIOD_MS) {
-          logger.warn('Load failed, using stale cache', { age: Math.floor(age / 1000) });
-          this.setData({
-            contacts: cache.contacts,
-            nextRefreshAvailableAt: cache.nextRefreshAvailableAt,
-            'pageLayoutData.isEmpty': cache.contacts.length === 0,
-            'pageLayoutData.hasError': false,
-            'pageLayoutData.errorMessage': '',
-          });
-          return;
-        }
-      }
-
-      const errorMessage = isNonEmptyString(err.message) ? err.message : '加载失败';
-      showToast(errorMessage);
-      this.setData({
-        'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': errorMessage,
-      });
-      logger.error('Load failed', { error: err.message });
-    } finally {
+    const result = await this.squarePageService.load(this.data.currentCategory, {
+      hasCurrentContent: this.data.contacts.length > 0,
+      currentContacts: this.data.contacts,
+    });
+    if (result === null) {
       this.setData({ loading: false });
+      return;
     }
+    if (result.authInvalid) {
+      this.setData({ loading: false });
+      await showAuthExpiredModalAndRelogin();
+      return;
+    }
+
+    if (result.shouldToastBlankFailure) {
+      const errorMessage = isNonEmptyString(result.errorMessage) ? result.errorMessage : '加载失败';
+      this.notifyBlankLoadFailed(errorMessage);
+    } else if (result.screenModel.contentVariant !== 'blank') {
+      this._blankFailureToastShown = false;
+    }
+
+    this.setData({
+      loading: false,
+      ...(result.screenModel.contentVariant === 'blank' ? null : { contacts: result.contacts }),
+      nextRefreshAvailableAt: result.nextRefreshAvailableAt,
+      ...buildPageLayoutScreenModelPayload(result.screenModel),
+    });
   },
 
   canRefreshNow() {
@@ -298,7 +308,11 @@ Page<SquarePageData, SquarePageCustom>({
       currentCategory: category,
       contacts: [],
       nextRefreshAvailableAt: null,
-      'pageLayoutData.isEmpty': false,
+      ...buildPageLayoutScreenModelPayload({
+        screenState: 'ready',
+        contentVariant: 'data',
+        refreshState: 'idle',
+      }),
     });
 
     this.loadContactsWithCache();
@@ -310,14 +324,39 @@ Page<SquarePageData, SquarePageCustom>({
     });
   },
 
+  onUnload() {
+    this.squarePageService.dispose();
+  },
+
   handleContactTap(event) {
     const qiaoId = toStringValue(getDatasetValue(event, 'id'));
     if (!isNonEmptyString(qiaoId)) {
       return;
     }
+    const contact = this.data.contacts.find((item) => item.qiao_id === qiaoId) ?? null;
 
     void wx.navigateTo({
       url: `/pages/stranger-info/stranger-info?id=${qiaoId}`,
+      success: (res) => {
+        if (contact === null) {
+          return;
+        }
+        const payload: StrangerEntryPayload = {
+          qiaoId: contact.qiao_id,
+          nickname: contact.nickname,
+          avatarUrl: contact.avatar_url,
+          gender: contact.gender,
+          category: contact.category,
+          bio: contact.bio,
+          region: contact.region,
+        };
+        const payloadString = toJsonString(payload);
+        if (isNonEmptyString(payloadString)) {
+          res.eventChannel.emit('stranger-entry', payloadString);
+          return;
+        }
+        res.eventChannel.emit('stranger-entry', JSON.stringify({ qiaoId: contact.qiao_id }));
+      },
     });
   },
 
@@ -344,7 +383,11 @@ Page<SquarePageData, SquarePageCustom>({
       const updatedContacts = originalContacts.filter((contact) => contact.qiao_id !== qiaoId);
       this.setData({
         contacts: updatedContacts,
-        'pageLayoutData.isEmpty': updatedContacts.length === 0,
+        ...buildPageLayoutScreenModelPayload({
+          screenState: 'ready',
+          contentVariant: updatedContacts.length === 0 ? 'empty' : 'data',
+          refreshState: this.data.pageLayoutData.screenModel.refreshState,
+        }),
       });
 
       squareDiscoveryService.clearCache(this.data.currentCategory);

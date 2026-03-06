@@ -1,9 +1,12 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { requireAuth } from '../../utils/auth-guard';
 import authService from '../../utils/auth-service';
-import accountService, { type AccountViewModel } from '../../utils/account-service';
+import { type AccountViewModel } from '../../utils/account-service';
 import { getLogger } from '../../utils/logger';
-import { isNonEmptyString } from '../../utils/guards';
+import { normalizeError } from '../../utils/errors';
+import { type ScreenModel } from '../../services/pages/page-state';
+import { createAccountSecurityPageService } from '../../services/pages/account-security-service';
+import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 
 const logger = getLogger('AccountSecurity');
 
@@ -17,29 +20,14 @@ interface AccountSecurityPageData extends Record<string, unknown> {
   phoneMasked: string;
   account: AccountViewModel | null;
   isLogoutProcessing: boolean;
-  phoneReauthLoading: boolean;
 }
 
 interface AccountSecurityPageCustom {
+  accountSecurityPageService: ReturnType<typeof createAccountSecurityPageService>;
+  applyScreenModel(screenModel: ScreenModel): void;
   loadAccountInfo(): Promise<void>;
-  handlePhoneReauthorize(event: WechatMiniprogram.ButtonGetPhoneNumber): Promise<void>;
   handleLogout(): Promise<void>;
-  onRetry(): void;
 }
-
-const toError = (error: unknown): Error => {
-  if (error instanceof Error) {
-    return error;
-  }
-  if (typeof error === 'string') {
-    return new Error(error);
-  }
-  try {
-    return new Error(JSON.stringify(error));
-  } catch {
-    return new Error('Unknown error');
-  }
-};
 
 const showModal = async (
   options: WechatMiniprogram.ShowModalOption
@@ -52,21 +40,37 @@ const showModal = async (
     });
   });
 
+const buildPageLayoutScreenModelPayload = (screenModel: ScreenModel): Record<string, unknown> => ({
+  'pageLayoutData.screenModel': screenModel,
+});
+
 Page<AccountSecurityPageData, AccountSecurityPageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
-      isLoading: true,
+      screenModel: {
+        screenState: 'ready',
+        contentVariant: 'data',
+        refreshState: 'idle',
+      },
       emptyMessage: '暂无账号信息',
       hasFooter: false,
     }),
     phoneMasked: '',
     account: null,
     isLogoutProcessing: false,
-    phoneReauthLoading: false,
+  },
+
+  accountSecurityPageService: null as unknown as ReturnType<
+    typeof createAccountSecurityPageService
+  >,
+
+  applyScreenModel(screenModel: ScreenModel) {
+    this.setData(buildPageLayoutScreenModelPayload(screenModel));
   },
 
   async onLoad() {
     logger.info('Account security page loaded');
+    this.accountSecurityPageService = createAccountSecurityPageService();
     const isAuth = await requireAuth(this as unknown as AuthGuardPage);
     if (!isAuth) {
       return;
@@ -75,89 +79,37 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
     await this.loadAccountInfo();
   },
 
-  async loadAccountInfo() {
-    try {
-      this.setData({
-        'pageLayoutData.isLoading': true,
-        'pageLayoutData.hasError': false,
-        'pageLayoutData.errorMessage': '',
-      });
-
-      logger.info('Loading account info');
-      const account = await accountService.loadAccountInfo();
-
-      this.setData({
-        account,
-        phoneMasked: account.displayPhone,
-        'pageLayoutData.isLoading': false,
-        'pageLayoutData.isEmpty': false,
-      });
-
-      logger.info('Account info loaded');
-    } catch (error) {
-      const err = toError(error);
-      logger.error('Load account info failed', { error: err.message });
-
-      this.setData({
-        account: null,
-        phoneMasked: '',
-        'pageLayoutData.isLoading': false,
-        'pageLayoutData.hasError': true,
-        'pageLayoutData.errorMessage': '加载失败，请稍后重试',
-      });
-
-      void wx.showToast({
-        title: '加载失败',
-        icon: 'none',
-      });
-    }
+  onShow() {
+    // Non-realtime page: do not auto-reload on every show.
   },
 
-  async handlePhoneReauthorize(event: WechatMiniprogram.ButtonGetPhoneNumber) {
-    if (this.data.phoneReauthLoading) {
+  onUnload() {
+    this.accountSecurityPageService.dispose();
+  },
+
+  async loadAccountInfo() {
+    this.applyScreenModel({
+      ...this.data.pageLayoutData.screenModel,
+      screenState: 'ready',
+      contentVariant: 'data',
+      refreshState: 'refreshing',
+    });
+
+    logger.info('Loading account info');
+    const result = await this.accountSecurityPageService.load(this.data.account);
+    if (result === null) {
+      return;
+    }
+    if (result.authInvalid) {
+      await showAuthExpiredModalAndRelogin();
       return;
     }
 
-    if (event.detail.errMsg !== 'getPhoneNumber:ok') {
-      logger.warn('Phone reauthorization rejected', { errMsg: event.detail.errMsg });
-      void wx.showToast({
-        title: '请完成手机号验证',
-        icon: 'none',
-      });
-      return;
-    }
-
-    const phoneCode = event.detail.code;
-    this.setData({ phoneReauthLoading: true });
-
-    try {
-      const { code: loginCode } = await wx.login();
-      if (!isNonEmptyString(loginCode)) {
-        throw new Error('无法获取登录凭证');
-      }
-
-      const updatedAccount = await accountService.refreshPhoneNumber(phoneCode, loginCode);
-
-      void wx.showToast({
-        title: '手机号已更新',
-        icon: 'success',
-      });
-
-      this.setData({
-        account: updatedAccount,
-        phoneMasked: updatedAccount.displayPhone,
-      });
-    } catch (error) {
-      const err = toError(error);
-      logger.error('Phone reauthorization failed', { error: err.message });
-      const toastTitle = isNonEmptyString(err.message) ? err.message : '更新失败，请稍后再试';
-      void wx.showToast({
-        title: toastTitle,
-        icon: 'none',
-      });
-    } finally {
-      this.setData({ phoneReauthLoading: false });
-    }
+    this.setData({
+      account: result.account,
+      phoneMasked: result.account?.displayPhone ?? '',
+      ...buildPageLayoutScreenModelPayload(result.screenModel),
+    });
   },
 
   async handleLogout() {
@@ -197,7 +149,7 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
         url: '/pages/login/login?source=logout',
       });
     } catch (error) {
-      const err = toError(error);
+      const err = normalizeError(error);
       logger.error('Logout failed', { error: err.message });
 
       void wx.showToast({
@@ -208,9 +160,5 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
       this.setData({ isLogoutProcessing: false });
       void wx.hideLoading();
     }
-  },
-
-  onRetry() {
-    void this.loadAccountInfo();
   },
 });

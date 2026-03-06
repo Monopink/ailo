@@ -14,6 +14,138 @@ interface RefreshTokenResponse {
   expires_in: number;
 }
 
+type ErrorLike = {
+  statusCode?: number;
+  status?: number;
+  reason?: string;
+  errorCode?: string | number;
+  data?: unknown;
+  message?: string;
+};
+
+const toRecord = (value: unknown): Record<string, unknown> | null => {
+  if (value === null || typeof value !== 'object') {
+    return null;
+  }
+  return value as Record<string, unknown>;
+};
+
+const toNumberCode = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
+};
+
+const resolveStatusCode = (error: unknown): number | null => {
+  const errorLike = error as ErrorLike;
+  if (typeof errorLike.statusCode === 'number') {
+    return errorLike.statusCode;
+  }
+  if (typeof errorLike.status === 'number') {
+    return errorLike.status;
+  }
+  return null;
+};
+
+const resolveErrorReason = (error: unknown): string => {
+  const errorLike = error as ErrorLike;
+  if (typeof errorLike.reason === 'string') {
+    return errorLike.reason;
+  }
+  const data = toRecord(errorLike.data);
+  if (typeof data?.reason === 'string') {
+    return data.reason;
+  }
+  const detail = toRecord(data?.detail);
+  if (typeof detail?.reason === 'string') {
+    return detail.reason;
+  }
+  return '';
+};
+
+const resolveErrorCode = (error: unknown): number | null => {
+  const errorLike = error as ErrorLike;
+  const directCode = toNumberCode(errorLike.errorCode);
+  if (directCode !== null) {
+    return directCode;
+  }
+  const data = toRecord(errorLike.data);
+  const dataCode = toNumberCode(data?.error_code);
+  if (dataCode !== null) {
+    return dataCode;
+  }
+  const detail = toRecord(data?.detail);
+  return toNumberCode(detail?.error_code);
+};
+
+const isAuthInvalidError = (error: unknown): boolean => {
+  const statusCode = resolveStatusCode(error);
+  if (statusCode === 401 || statusCode === 403) {
+    return true;
+  }
+
+  const errorCode = resolveErrorCode(error);
+  if (errorCode !== null && errorCode % 10000 === 2001) {
+    return true;
+  }
+
+  const reason = resolveErrorReason(error).toUpperCase();
+  return (
+    reason === 'UNAUTHORIZED' ||
+    reason === 'AUTH_REQUIRED' ||
+    reason === 'TOKEN_INVALID' ||
+    reason === 'TOKEN_EXPIRED' ||
+    reason === 'REFRESH_TOKEN_INVALID'
+  );
+};
+
+const isTransientAuthError = (error: unknown): boolean => {
+  const statusCode = resolveStatusCode(error);
+  if (
+    statusCode === 408 ||
+    statusCode === 429 ||
+    statusCode === 502 ||
+    statusCode === 503 ||
+    statusCode === 504
+  ) {
+    return true;
+  }
+  if (statusCode !== null && statusCode >= 500) {
+    return true;
+  }
+
+  const err = normalizeError(error);
+  const message = err.message.toLowerCase();
+  return (
+    message.includes('timeout') ||
+    message.includes('time out') ||
+    message.includes('request:fail') ||
+    message.includes('network') ||
+    message.includes('请求超时') ||
+    message.includes('网络')
+  );
+};
+
+const getStoredUserInfoSync = (): StoredAuthUser | null => {
+  try {
+    const stored = wx.getStorageSync<StoredAuthUser | null>(STORAGE_KEYS.USER_INFO);
+    if (stored !== null && typeof stored === 'object' && isNonEmptyString(stored.qiao_id)) {
+      return stored;
+    }
+  } catch (error: unknown) {
+    const err = normalizeError(error);
+    logger.warn('Read stored user info failed', { error: err.message });
+  }
+  return null;
+};
+
 const mapProfileToStoredUser = (profile: UserProfileResponse): StoredAuthUser => ({
   qiao_id: profile.qiao_id,
 });
@@ -61,33 +193,46 @@ class AuthService {
         return false;
       }
 
+      const storedUser = getStoredUserInfoSync();
+
       logger.info('Token found, verifying with backend', {
         tokenLength: token.length,
+        hasStoredUser: storedUser !== null,
       });
 
-      const profile = await fetchCurrentUserProfile();
-      const storedUser = mapProfileToStoredUser(profile);
-
       try {
-        await saveUserInfo(storedUser);
-        this._setAuthState(true, token, storedUser);
+        const profile = await fetchCurrentUserProfile();
+        const verifiedUser = mapProfileToStoredUser(profile);
+        await saveUserInfo(verifiedUser);
+        this._setAuthState(true, token, verifiedUser);
         this._initialized = true;
         logger.info('=== AuthService Initialization Complete (Authenticated) ===');
         return true;
       } catch (error: unknown) {
-        const statusCandidate = error as { statusCode?: number };
-        const statusCode =
-          typeof statusCandidate.statusCode === 'number' ? statusCandidate.statusCode : undefined;
         const err = normalizeError(error);
-        logger.warn('Token verification failed, clearing invalid token', {
+        const statusCode = resolveStatusCode(error);
+
+        if (isAuthInvalidError(error)) {
+          logger.warn('Token verification failed with invalid auth, clearing session', {
+            errorMessage: err.message,
+            statusCode,
+          });
+          this._clearStoredSession();
+          this._initialized = true;
+          logger.info('=== AuthService Initialization Complete (Not Authenticated) ===');
+          return false;
+        }
+
+        logger.warn('Token verification unavailable, entering degraded auth mode', {
           errorMessage: err.message,
           statusCode,
+          transient: isTransientAuthError(error),
         });
 
-        this._clearStoredSession();
+        this._setAuthState(true, token, storedUser);
         this._initialized = true;
-        logger.info('=== AuthService Initialization Complete (Not Authenticated) ===');
-        return false;
+        logger.info('=== AuthService Initialization Complete (Degraded Auth) ===');
+        return true;
       }
     } catch (error: unknown) {
       const err = normalizeError(error);
@@ -215,7 +360,9 @@ class AuthService {
       logger.error('Refresh token failed', {
         errorMessage: err.message,
       });
-      this._clearStoredSession();
+      if (isAuthInvalidError(error)) {
+        this._clearStoredSession();
+      }
       throw err;
     } finally {
       this._refreshPromise = null;

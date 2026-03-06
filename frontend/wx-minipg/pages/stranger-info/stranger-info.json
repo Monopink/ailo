@@ -6,7 +6,6 @@
     "page-layout": "/components/page-layout/page-layout",
     "t-cell-group": "tdesign-miniprogram/cell-group/cell-group",
     "t-avatar": "tdesign-miniprogram/avatar/avatar",
-    "t-tag": "tdesign-miniprogram/tag/tag",
     "t-cell": "tdesign-miniprogram/cell/cell",
     "t-button": "tdesign-miniprogram/button/button",
     "gender-badge": "/components/ui/gender-badge/gender-badge"

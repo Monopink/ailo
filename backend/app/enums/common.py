@@ -4,7 +4,7 @@ All enum values correspond to the integer values defined in the database schema.
 These enums ensure type safety and consistency across the application.
 """
 
-from enum import Enum, IntEnum
+from enum import IntEnum, StrEnum
 
 # User Management Related Enums
 
@@ -91,7 +91,7 @@ class ContactRequestStatus(IntEnum):
     FAILED = 9  # Processing failed due to system error (future explicit rejection support)
 
 
-class ContactRequestFailureCode(str, Enum):
+class ContactRequestFailureCode(StrEnum):
     """Contact request failure codes (contact_requests.failure_code)."""
 
     NO_TEMPLATE_AVAILABLE = "NO_TEMPLATE_AVAILABLE"
@@ -183,7 +183,7 @@ class NotificationType(IntEnum):
     CONTACT_REQUEST = 1
 
 
-class NotificationActionType(str, Enum):
+class NotificationActionType(StrEnum):
     """Notification action types."""
 
     NAVIGATE = "navigate"  # Navigate to a page
@@ -191,7 +191,7 @@ class NotificationActionType(str, Enum):
     BADGE = "badge"  # Update badge count
 
 
-class NotificationTarget(str, Enum):
+class NotificationTarget(StrEnum):
     """Notification action targets."""
 
     CONTACT_REQUESTS = "contact_requests"  # Contact requests page
@@ -213,14 +213,14 @@ class MessageDeliveryStatus(IntEnum):
     FAILED = 3
 
 
-class EncryptionType(str, Enum):
+class EncryptionType(StrEnum):
     """Supported message encryption algorithms."""
 
     BASE64 = "base64"
     AES_256_GCM = "aes_256_gcm"
 
 
-class EncryptionVersion(str, Enum):
+class EncryptionVersion(StrEnum):
     """Encryption schema version."""
 
     V1 = "v1"
@@ -367,7 +367,7 @@ class AIInstanceCreator(IntEnum):
     SYSTEM = 3
 
 
-class ConversationRole(str, Enum):
+class ConversationRole(StrEnum):
     """Conversation role type (ai_conversation_items.role)."""
 
     SYSTEM = "system"
@@ -482,6 +482,27 @@ class ConfigType(IntEnum):
     BOOLEAN = 3
     JSON = 4
     ENUM = 5  # Select from allowed_values
+
+
+class AppPageCategory(IntEnum):
+    """App page category (app_pages.page_category)."""
+
+    POLICY = 1
+    INFO = 2
+
+
+class AppPageSourceType(IntEnum):
+    """App page source type (app_pages.source_type)."""
+
+    MARKDOWN = 1
+    HTML = 2
+
+
+class AppPageStatus(IntEnum):
+    """App page status (app_pages.status)."""
+
+    ACTIVE = 1
+    INACTIVE = 2
 
 
 # Admin System Related Enums

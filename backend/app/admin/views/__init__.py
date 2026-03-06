@@ -43,7 +43,7 @@ from .ai_template_views import (
 )
 from .ai_type_views import AI_TYPE_VIEWS, ai_type_view
 from .chat_console_view import chat_console_view
-from .discovery_views import DISCOVERY_MODEL_VIEWS, square_type_entry_view
+from .content_views import CONTENT_MODEL_VIEWS, app_page_view, square_type_entry_view
 from .llm_test_views import llm_config_test_view
 from .llm_views import (
     LLM_MODEL_VIEWS,
@@ -123,7 +123,7 @@ ALL_MODEL_VIEWS = [
     *TOKEN_MODEL_VIEWS,
     *SYSTEM_MODEL_VIEWS,
     *STATS_MODEL_VIEWS,
-    *DISCOVERY_MODEL_VIEWS,
+    *CONTENT_MODEL_VIEWS,
 ]
 
 __all__ = [
@@ -144,7 +144,7 @@ __all__ = [
     "TOKEN_MODEL_VIEWS",
     "SYSTEM_MODEL_VIEWS",
     "STATS_MODEL_VIEWS",
-    "DISCOVERY_MODEL_VIEWS",
+    "CONTENT_MODEL_VIEWS",
     # Individual AI views
     "ai_personality_view",
     "ai_personality_placeholder_view",
@@ -170,6 +170,7 @@ __all__ = [
     "admin_user_view",
     "admin_operation_log_view",
     "admin_login_log_view",
+    "app_page_view",
     "user_view",
     "profile_view",
     "user_profile_log_view",

@@ -33,7 +33,7 @@
     {
       "qiao_id": "qiao_xm001",
       "username": "xiaomeng",
-      "category": "1",
+      "category": 1,
       "nickname": "小萌",
       "gender": 2,
       "avatar_url": "https://cdn.example.com/personas/qiao_xm001.webp",
@@ -51,11 +51,11 @@
 - `items` (array) - 推荐的联系人列表
   - `qiao_id` (string) - 联系人的qiao_id
   - `username` (string) - AI 用户名（用于搜索添加）
-  - `category` (string) - 分类
+  - `category` (integer) - 分类
   - `nickname` (string) - 昵称
   - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
   - `avatar_url` (string) - 动态生成的头像 CDN URL
-  - `bio` (string) - 个人简介
+  - `bio` (string) - 个性签名
   - `tags` (array) - 标签列表
   - `region` (string) - 地区
 
@@ -111,7 +111,7 @@
   "avatar_url": "https://cdn.example.com/personas/qiao_abc123.webp",
   "bio": "喜欢和大家聊天",
   "region": "北京",
-  "category": "1"
+  "category": 1
 }
 ```
 
@@ -122,9 +122,9 @@
 - `nickname` (string) - 昵称
 - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
 - `avatar_url` (string) - 动态生成的头像 CDN URL
-- `bio` (string) - 个人简介
+- `bio` (string) - 个性签名
 - `region` (string) - 地区
-- `category` (string) - 分类
+- `category` (integer) - 分类
 
 ### 错误响应
 

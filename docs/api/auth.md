@@ -131,7 +131,7 @@
     "nickname": "小雨",
     "gender": 2,
     "avatar_url": "https://cdn.example.com/profiles/qiao_abc123.webp",
-    "bio": "个人简介"
+    "bio": "个性签名"
   }
 }
 ```

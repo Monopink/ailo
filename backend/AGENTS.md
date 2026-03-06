@@ -88,6 +88,7 @@ orchestrators
 - 函数参数与返回值必须完整类型注解
 - 业务层优先具体类型；`Any` 仅可出现在第三方框架交互边界，且需标注原因
 - 外部输入优先用 Pydantic 模型校验
+- 枚举分层：内部状态类枚举（status/type/result）使用数字；跨边界标识类枚举（如 client_type/locale）使用字符串
 - 命名遵循 PEP8：`snake_case` / `PascalCase` / `UPPER_CASE`
 - 优先无状态函数；若使用类需有明确理由
 - 涉及时区/相对时间/人性化时间统一使用 `pendulum`

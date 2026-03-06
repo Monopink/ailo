@@ -153,6 +153,7 @@ WebSocket `error` 帧（`type=error`）使用同一字段：
 | 24 | 03 | ws_messages | /ws/messages | active |
 | 24 | 04 | message_ingress | /api/v1/leancloud | active |
 | 26 | 01 | system | /api/v1/system | active |
+| 26 | 02 | pages | /api/v1/pages | active |
 | 80 | 01 | admin_api | /admin-api | optional |
 | 90 | 01 | platform | fallback | active |
 

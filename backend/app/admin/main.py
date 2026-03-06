@@ -43,6 +43,7 @@ from .views import (
     ai_template_memory_view,
     ai_template_view,
     ai_type_view,
+    app_page_view,
     chat_console_view,
     contact_request_view,
     contact_view,
@@ -83,6 +84,10 @@ from .views.ai_advanced_edit_views import (
     personality_advanced_edit_view,
     style_advanced_edit_view,
     template_advanced_edit_view,
+)
+from .views.content_advanced_edit_views import (
+    app_page_advanced_edit_view,
+    app_page_preview_view,
 )
 from .views.dashboard_view import DashboardView
 from .views.system_settings_view import SystemSettingsView
@@ -240,6 +245,7 @@ def _register_dropdowns(admin_instance: Admin) -> None:
         icon="fa fa-mobile",
         views=[
             square_type_entry_view,
+            app_page_view,
         ],
         always_open=False,
     )
@@ -286,6 +292,8 @@ def _register_dropdowns(admin_instance: Admin) -> None:
     admin_instance.add_view(template_advanced_edit_view)
     admin_instance.add_view(personality_advanced_edit_view)
     admin_instance.add_view(style_advanced_edit_view)
+    admin_instance.add_view(app_page_advanced_edit_view)
+    admin_instance.add_view(app_page_preview_view)
 
 
 class ThemeSwitchView(CustomView):

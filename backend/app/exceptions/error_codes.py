@@ -24,8 +24,18 @@ SERVICE_MODULE_REGISTRY: tuple[tuple[str, ServiceModuleCode], ...] = (
         "/api/v1/user/email/send-code",
         ServiceModuleCode(service=12, module=1, name="account_security"),
     ),
-    ("/api/v1/user/email", ServiceModuleCode(service=12, module=1, name="account_security")),
-    ("/api/v1/user/phone", ServiceModuleCode(service=12, module=1, name="account_security")),
+    (
+        "/api/v1/user/email",
+        ServiceModuleCode(service=12, module=1, name="account_security"),
+    ),
+    (
+        "/api/v1/user/phone",
+        ServiceModuleCode(service=12, module=1, name="account_security"),
+    ),
+    (
+        "/api/v1/user/username/check",
+        ServiceModuleCode(service=13, module=1, name="users"),
+    ),
     ("/api/v1/user/profile", ServiceModuleCode(service=13, module=1, name="users")),
     ("/api/v1/user/account", ServiceModuleCode(service=13, module=1, name="users")),
     ("/api/v1/user/settings", ServiceModuleCode(service=13, module=1, name="users")),
@@ -38,7 +48,14 @@ SERVICE_MODULE_REGISTRY: tuple[tuple[str, ServiceModuleCode], ...] = (
     ("/api/v1/media", ServiceModuleCode(service=23, module=1, name="media")),
     ("/api/v1/messages", ServiceModuleCode(service=24, module=1, name="messages")),
     ("/api/v1/lc-im", ServiceModuleCode(service=24, module=2, name="message_access")),
-    ("/api/v1/leancloud", ServiceModuleCode(service=24, module=4, name="message_ingress")),
+    (
+        "/api/v1/leancloud",
+        ServiceModuleCode(service=24, module=4, name="message_ingress"),
+    ),
+    (
+        "/api/v1/pages",
+        ServiceModuleCode(service=26, module=2, name="pages"),
+    ),
     ("/api/v1/system", ServiceModuleCode(service=26, module=1, name="system")),
     ("/admin-api", ServiceModuleCode(service=80, module=1, name="admin_api")),
     ("/ws/messages", ServiceModuleCode(service=24, module=3, name="ws_messages")),

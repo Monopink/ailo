@@ -1194,6 +1194,32 @@ CREATE TABLE IF NOT EXISTS system_configs (
 -- Create indexes for system_configs table
 -- Note: No additional indexes needed for MVP
 
+-- App pages table - rendered page content for client display
+CREATE TABLE IF NOT EXISTS app_pages (
+    id BIGINT PRIMARY KEY,
+    page_key VARCHAR(64) NOT NULL,
+    client_type VARCHAR(32) NOT NULL,
+    locale VARCHAR(16) NOT NULL,
+    page_category SMALLINT NOT NULL,
+    title VARCHAR(200),
+    source_type SMALLINT NOT NULL,
+    content_md TEXT,
+    content_html TEXT,
+    status INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_app_pages_page_client_locale UNIQUE (page_key, client_type, locale),
+    CONSTRAINT ck_app_pages_client_type CHECK (client_type IN ('mini-program')),
+    CONSTRAINT ck_app_pages_locale CHECK (locale IN ('zh-CN')),
+    CONSTRAINT ck_app_pages_page_category CHECK (page_category IN (1, 2)),
+    CONSTRAINT ck_app_pages_source_type CHECK (source_type IN (1, 2)),
+    CONSTRAINT ck_app_pages_status CHECK (status IN (1, 2))
+);
+
+CREATE INDEX idx_app_pages_page_key ON app_pages(page_key);
+CREATE INDEX idx_app_pages_client_locale ON app_pages(client_type, locale);
+CREATE INDEX idx_app_pages_status ON app_pages(status);
+
 
 -- ============================================================================
 -- Statistics Tables
@@ -1541,6 +1567,7 @@ DROP TRIGGER IF EXISTS update_ai_instance_dimensions_updated_at ON ai_instance_d
 DROP TRIGGER IF EXISTS update_user_violation_logs_updated_at ON user_violation_logs;
 DROP TRIGGER IF EXISTS update_user_risk_stats_updated_at ON user_risk_stats;
 DROP TRIGGER IF EXISTS update_system_configs_updated_at ON system_configs;
+DROP TRIGGER IF EXISTS update_app_pages_updated_at ON app_pages;
 DROP TRIGGER IF EXISTS update_admin_users_updated_at ON admin_users;
 DROP TRIGGER IF EXISTS update_llm_providers_updated_at ON llm_providers;
 DROP TRIGGER IF EXISTS update_llm_configs_updated_at ON llm_configs;
@@ -1576,6 +1603,7 @@ CREATE TRIGGER update_ai_instance_dimensions_updated_at BEFORE UPDATE ON ai_inst
 CREATE TRIGGER update_user_violation_logs_updated_at BEFORE UPDATE ON user_violation_logs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_user_risk_stats_updated_at BEFORE UPDATE ON user_risk_stats FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_system_configs_updated_at BEFORE UPDATE ON system_configs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_app_pages_updated_at BEFORE UPDATE ON app_pages FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_admin_users_updated_at BEFORE UPDATE ON admin_users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_llm_providers_updated_at BEFORE UPDATE ON llm_providers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_llm_configs_updated_at BEFORE UPDATE ON llm_configs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

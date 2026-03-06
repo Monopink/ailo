@@ -30,10 +30,8 @@ class UserAccountResponse(BaseModel):
 class UserProfileUpdateRequest(BaseModel):
     """User profile update request schema for PUT /api/v1/user/profile."""
 
-    username: str | None = Field(
-        None, min_length=5, max_length=20, description="User-customizable ID"
-    )
-    nickname: str | None = Field(None, max_length=10, description="Display nickname")
+    username: str | None = Field(None, description="Username, user can only set once")
+    nickname: str | None = Field(None, max_length=32, description="Display nickname")
     gender: int | None = Field(
         None, ge=1, le=4, description="Gender: 1=male, 2=female, 3=other, 4=unknown"
     )
@@ -41,5 +39,5 @@ class UserProfileUpdateRequest(BaseModel):
         None,
         description=("File ID (file_xxx format) - converted to avatar_key and avatar_media_id."),
     )
-    bio: str | None = Field(None, max_length=70, description="Personal bio/description")
+    bio: str | None = Field(None, max_length=120, description="Personal bio/description")
     region: str | None = Field(None, max_length=100, description="Location/region")

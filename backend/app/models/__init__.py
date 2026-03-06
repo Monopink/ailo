@@ -39,7 +39,7 @@ from .base import (
     SnowflakeQiaoModel,
 )
 from .contact import Contact, ContactRequest
-from .discovery import SquareTypeEntry
+from .content import AppPage, SquareTypeEntry
 from .llm import LLMConfig, LLMProvider, LLMTestLog
 from .message import (
     MediaFile,
@@ -102,6 +102,7 @@ __all__ = [
     "LLMConfig",
     "LLMProvider",
     "LLMTestLog",
+    "AppPage",
     "LoginRecord",
     "MediaFile",
     "MessageDevice",

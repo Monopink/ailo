@@ -82,7 +82,7 @@ class SystemConfigView(ModelView):
             label="Allowed Values",
             help_text="Allowed values for enum type (JSON array)",
         ),
-        "updated_by",
+        StringField("updated_by", label="Updated By", help_text="Updater admin user ID"),
         DateTimeField("created_at", label="Created At", help_text="Configuration creation time"),
         DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]

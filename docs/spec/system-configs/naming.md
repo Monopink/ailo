@@ -22,7 +22,7 @@
 
 示例：
 
-- `wxminipg_captcha_provider`
+- `mini-program_captcha_provider`
 - `web_captcha_provider`
 
 ## 3) 时间单位

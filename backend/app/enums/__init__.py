@@ -7,6 +7,7 @@ All enum values correspond to the integer values defined in the database schema.
 # Categories: User Management, Contact Management, Message System, Media Files,
 # Profile Management, AI System, Security, System Configuration, Admin System,
 # and LLM Service.
+from .client import ClientType, LocaleCode
 from .common import (
     AdminLoginResult,
     AdminOperationType,
@@ -21,6 +22,9 @@ from .common import (
     AIRequestStatus,
     AIStyleStatus,
     AITemplateStatus,
+    AppPageCategory,
+    AppPageSourceType,
+    AppPageStatus,
     AuthType,
     AutoAction,
     ChatInfoType,
@@ -79,6 +83,8 @@ __all__ = [
     "LoginType",
     "AuthType",
     "LoginResult",
+    "ClientType",
+    "LocaleCode",
     # Contact Management
     "ContactType",
     "ContactRequestSource",
@@ -135,6 +141,9 @@ __all__ = [
     "RiskLevel",
     # System Configuration
     "ConfigType",
+    "AppPageCategory",
+    "AppPageSourceType",
+    "AppPageStatus",
     # Admin System
     "AdminRole",
     "AdminStatus",

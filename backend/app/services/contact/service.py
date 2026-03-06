@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.contact import contact as contact_crud
 from app.crud.profile import profile as profile_crud
-from app.crud.system import system_configs
 from app.enums import ContactType
 from app.models.contact import Contact
 from app.models.profile import Profile
@@ -19,41 +18,11 @@ from app.schemas.contact import (
     ContactListItem,
     ContactProfileSummary,
     ContactUpdate,
-    ConversationInfoResponse,
 )
-from app.services.message.providers.leancloud.service import ensure_system_conversation
 from app.services.profile.avatar import get_avatar_url, get_avatar_urls_batch
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-async def _get_im_conv_id(db: AsyncSession, ensure_valid: bool = False) -> str:
-    """
-    Get IM provider conversation ID from system config.
-
-    Args:
-        db: Database session
-        ensure_valid: Whether to validate the stored ID against LeanCloud
-
-    Returns:
-        IM conversation ID
-
-    Raises:
-        ValueError: If conversation ID is not configured
-    """
-    im_conv_id = await system_configs.get_config_value(
-        db, config_key="leancloud_im_service_conversation_id"
-    )
-    if ensure_valid or not im_conv_id:
-        existing_im_conv_id = im_conv_id if isinstance(im_conv_id, str) else None
-        im_conv_id = await ensure_system_conversation(db, existing_conv_id=existing_im_conv_id)
-
-    if not im_conv_id:
-        logger.error("im_conv_id_not_configured")
-        raise ValueError("IM conversation ID not configured in system settings")
-
-    return str(im_conv_id)
 
 
 async def _get_contact_profile(db: AsyncSession, contact_qiao_id: str) -> Profile | None:
@@ -240,65 +209,6 @@ async def get_contact_with_profile(
     return contact_response
 
 
-async def get_conversation_info(
-    db: AsyncSession, user_qiao_id: str, conversation_id: str
-) -> ConversationInfoResponse | None:
-    """
-    Get conversation information including contact basic info and IM conversation ID.
-
-    Args:
-        db: Database session
-        user_qiao_id: User's qiao_id
-        conversation_id: Conversation identifier
-
-    Returns:
-        ConversationInfoResponse or None if not found
-    """
-    # Get IM conversation ID
-    im_conv_id = await _get_im_conv_id(db, ensure_valid=True)
-
-    # Get contact
-    contact = await contact_crud.get_by_conversation_id(db, conversation_id=conversation_id)
-
-    if not contact:
-        logger.warning("conversation_not_found", conversation_id=conversation_id)
-        return None
-
-    # Verify ownership
-    if contact.user_qiao_id != user_qiao_id:
-        logger.warning(
-            "conversation_access_denied",
-            user_qiao_id=user_qiao_id,
-            contact_owner=contact.user_qiao_id,
-            conversation_id=conversation_id,
-        )
-        return None
-
-    # Get profile
-    profile = await _get_contact_profile(db, contact.contact_qiao_id)
-
-    avatar_url = await get_avatar_url(profile)
-
-    # Build contact info
-    contact_info = _build_profile_summary(profile, avatar_url=avatar_url)
-
-    # Build response
-    response = ConversationInfoResponse(
-        conversation_id=contact.conversation_id,
-        im_conv_id=im_conv_id,
-        contact_qiao_id=contact.contact_qiao_id,
-        profile=contact_info,
-    )
-
-    logger.info(
-        "conversation_info_retrieved",
-        user_qiao_id=user_qiao_id,
-        conversation_id=conversation_id,
-    )
-
-    return response
-
-
 async def update_contact(
     db: AsyncSession, user_qiao_id: str, conversation_id: str, update_data: ContactUpdate
 ) -> ContactDetailResponse | None:
@@ -334,13 +244,15 @@ async def update_contact(
         )
         return None
 
-    # Prepare update dict (only include non-None values)
+    # Prepare update dict.
+    # Use model_fields_set to distinguish "field omitted" from "explicit null".
+    provided_fields = update_data.model_fields_set
     update_dict: dict[str, Any] = {}
-    if update_data.alias is not None:
+    if "alias" in provided_fields:
         update_dict["alias"] = update_data.alias
-    if update_data.tags is not None:
+    if "tags" in provided_fields:
         update_dict["tags"] = _serialize_tags(update_data.tags)
-    if update_data.remark is not None:
+    if "remark" in provided_fields:
         update_dict["remark"] = update_data.remark
     if update_data.is_pinned is not None:
         update_dict["is_pinned"] = 1 if update_data.is_pinned else 0

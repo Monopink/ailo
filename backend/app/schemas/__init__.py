@@ -87,7 +87,6 @@ from .contact import (
     ContactSearchRequest,
     ContactSearchResult,
     ContactUpdate,
-    ConversationInfoResponse,
 )
 
 # Message schemas
@@ -163,7 +162,6 @@ __all__ = [
     "ContactListItem",
     "ContactListResult",
     "ContactProfileSummary",
-    "ConversationInfoResponse",
     "ContactRequestBase",
     "ContactRequestCreate",
     "ContactRequestWithProfile",

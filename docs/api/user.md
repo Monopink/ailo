@@ -42,7 +42,7 @@
 - `nickname` (string) - 昵称
 - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
 - `avatar_url` (string) - 动态生成的头像 CDN URL，基于后台存储的 `avatar_file_id`
-- `bio` (string) - 个人简介
+- `bio` (string) - 个性签名
 - `region` (string) - 地区
 
 ### 业务说明
@@ -68,7 +68,7 @@
   "nickname": "新昵称",
   "gender": 2,
   "avatar_file_id": "file_custom_avatar_123",
-  "bio": "新的个人简介",
+  "bio": "新的个性签名",
   "region": "上海"
 }
 ```
@@ -82,7 +82,9 @@
 
 - `nickname` (string, 可选)
   - 昵称
-  - 2-20字符
+  - 显示宽度上限：24（约12个中文或24个英文）
+  - 字符上限：32（按字符簇计数）
+  - 不支持传入 `null` 或空字符串清空
 
 - `gender` (integer, 可选)
   - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
@@ -93,8 +95,10 @@
   - 服务器会在响应中根据该ID动态生成 `avatar_url`
 
 - `bio` (string, 可选)
-  - 个人简介
-  - 最多200字符
+  - 个性签名
+  - 显示宽度上限：120（约60个中文或120个英文）
+  - 字符上限：120（按字符簇计数）
+  - 传入 `null` 可清空个性签名
 
 - `region` (string, 可选)
   - 地区
@@ -109,7 +113,7 @@
   "nickname": "新昵称",
   "gender": 2,
   "avatar_url": "https://cdn.example.com/profiles/qiao_abc123.webp",
-  "bio": "新的个人简介",
+  "bio": "新的个性签名",
   "region": "上海"
 }
 ```

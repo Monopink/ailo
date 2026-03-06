@@ -16,7 +16,7 @@ gender -- 性别：1=male, 2=female, 3=other, 4=unknown
 avatar_key -- 头像对象键（例如 avatars/2025/12/xxx.webp），仅在用户上传头像后写入；NULL 时由后端通过 CDN 默认图兜底
 avatar_media_id -- 头像媒资记录ID，外键关联 media_files.id（保留最近一次确认头像的审计记录，NULL 表示使用默认头像）
 avatar_prompt -- 头像描述，用于AI对话时的 prompt 替换
-bio -- 个人简介
+bio -- 个性签名
 region -- 地区
 created_at
 updated_at

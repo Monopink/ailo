@@ -64,7 +64,7 @@ class ContactCreate(BaseModel):
 
     contact_type: ContactType = Field(..., description="Contact type")
     contact_qiao_id: str = Field(..., max_length=32, description="Contact external ID")
-    alias: str | None = Field(None, max_length=100, description="Contact alias/remark name")
+    alias: str | None = Field(None, max_length=32, description="Contact alias/remark name")
     custom_avatar_key: str | None = Field(
         None,
         max_length=255,
@@ -74,7 +74,7 @@ class ContactCreate(BaseModel):
         None, description="FK to media_files.id for audit trail"
     )
     tags: list[str] | None = Field(None, description="Contact tags")
-    remark: str | None = Field(None, max_length=500, description="Contact remark/notes")
+    remark: str | None = Field(None, max_length=400, description="Contact remark/notes")
     source: str | None = Field(
         "unknown", max_length=32, description="Contact creation source identifier"
     )
@@ -83,20 +83,11 @@ class ContactCreate(BaseModel):
 class ContactUpdate(BaseModel):
     """Schema for updating contact information."""
 
-    alias: str | None = Field(None, max_length=100, description="Contact alias/remark name")
+    alias: str | None = Field(None, max_length=32, description="Contact alias/remark name")
     tags: list[str] | None = Field(None, description="Contact tags")
-    remark: str | None = Field(None, max_length=500, description="Contact remark/notes")
+    remark: str | None = Field(None, max_length=400, description="Contact remark/notes")
     is_pinned: bool | None = Field(None, description="Pin/unpin the contact")
     is_muted: bool | None = Field(None, description="Enable/disable mute")
-
-
-class ConversationInfoResponse(BaseSchema):
-    """Schema for conversation info response."""
-
-    conversation_id: str = Field(..., description="Conversation identifier")
-    im_conv_id: str = Field(..., description="IM provider conversation ID")
-    contact_qiao_id: str = Field(..., description="Contact external ID")
-    profile: ContactProfileSummary = Field(..., description="Contact basic info")
 
 
 # Contact Request Schemas
@@ -115,7 +106,7 @@ class ContactRequestCreate(BaseModel):
 
     to_qiao_id: str = Field(..., max_length=32, description="Target external ID")
     message: str | None = Field(None, max_length=500, description="Application message")
-    alias: str | None = Field(None, max_length=100, description="Contact alias/remark name")
+    alias: str | None = Field(None, max_length=32, description="Contact alias/remark name")
     tags: list[str] | None = Field(None, description="Contact tags")
     source: ContactRequestSource = Field(ContactRequestSource.SEARCH, description="Request source")
 
@@ -159,16 +150,14 @@ class ContactRequestUpdate(BaseModel):
 class ContactRequestAccept(BaseModel):
     """Schema for accepting contact request."""
 
-    alias: str | None = Field(None, max_length=100, description="Contact alias/remark name")
+    alias: str | None = Field(None, max_length=32, description="Contact alias/remark name")
     tags: list[str] | None = Field(None, description="Contact tags")
 
 
 class ContactRequestRetryPayload(BaseModel):
     """Schema for admin-triggered contact request retry payload."""
 
-    alias: str | None = Field(
-        None, max_length=100, description="Override alias when retry succeeds"
-    )
+    alias: str | None = Field(None, max_length=32, description="Override alias when retry succeeds")
     tags: list[str] | None = Field(None, description="Override tags when retry succeeds")
 
 

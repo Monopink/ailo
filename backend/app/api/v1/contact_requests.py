@@ -18,10 +18,24 @@ from app.services.contact import (
     ignore_contact_request_service,
 )
 from app.utils.logging import get_logger
+from app.utils.text_limits import CONTACT_ALIAS_RULE, validate_text_limit
 
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+def _validate_contact_alias_or_raise(alias: str | None) -> None:
+    """Validate contact alias text limit for request flows."""
+    if alias is None:
+        return
+
+    alias_error = validate_text_limit(alias, CONTACT_ALIAS_RULE)
+    if alias_error is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=alias_error,
+        )
 
 
 @router.post("", response_model=dict)
@@ -40,6 +54,8 @@ async def create_contact_request(
     - 500: System error
     """
     try:
+        _validate_contact_alias_or_raise(request.alias)
+
         result = await create_contact_request_service(
             db=db,
             user_qiao_id=current_user.qiao_id,
@@ -95,6 +111,8 @@ async def accept_contact_request(
     - 500: System error
     """
     try:
+        _validate_contact_alias_or_raise(accept_data.alias)
+
         result = await accept_contact_request_service(
             db=db,
             user_qiao_id=current_user.qiao_id,

@@ -89,7 +89,7 @@ class Settings(BaseSettings):
 
     # Aliyun Captcha credentials (server-side verification)
 
-    CAPTCHA_CLIENT_WHITELIST: list[str] = Field(default_factory=lambda: ["wxminipg"])
+    CAPTCHA_CLIENT_WHITELIST: list[str] = Field(default_factory=lambda: ["mini-program"])
 
     # Storage settings
     MEDIA_PUBLIC_BASE_URL: str

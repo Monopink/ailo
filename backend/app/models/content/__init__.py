@@ -1,4 +1,4 @@
-"""Discovery (Square) models."""
+"""Content models."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ from sqlalchemy import ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import AutoIncrementModel
+
+from .app_page import AppPage
 
 if TYPE_CHECKING:
     from app.models.ai.template import AIType
@@ -46,3 +48,6 @@ class SquareTypeEntry(AutoIncrementModel):
         primaryjoin="AIType.id == SquareTypeEntry.type_id",
         viewonly=True,
     )
+
+
+__all__ = ["AppPage", "SquareTypeEntry"]

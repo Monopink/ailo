@@ -16,18 +16,17 @@ from app.schemas.contact import (
     ContactListPagination,
     ContactListResult,
     ContactUpdate,
-    ConversationInfoResponse,
 )
 from app.services.contact import (
     block_contact,
     delete_contact,
     get_contact_with_profile,
-    get_conversation_info,
     get_user_contacts_with_profiles,
     unblock_contact,
     update_contact,
 )
 from app.utils.logging import get_logger
+from app.utils.text_limits import CONTACT_ALIAS_RULE, CONTACT_REMARK_RULE, validate_text_limit
 
 logger = get_logger(__name__)
 
@@ -35,6 +34,27 @@ router = APIRouter(prefix="/contacts", tags=["Contacts"])
 
 CONTACTS_LIMIT_MIN = 1
 CONTACTS_LIMIT_MAX = 100
+
+
+def _validate_contact_update_payload_or_raise(update_data: ContactUpdate) -> None:
+    """Validate user-editable contact text fields."""
+    provided_fields = update_data.model_fields_set
+
+    if "alias" in provided_fields and update_data.alias is not None:
+        alias_error = validate_text_limit(update_data.alias, CONTACT_ALIAS_RULE)
+        if alias_error is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=alias_error,
+            )
+
+    if "remark" in provided_fields and update_data.remark is not None:
+        remark_error = validate_text_limit(update_data.remark, CONTACT_REMARK_RULE)
+        if remark_error is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=remark_error,
+            )
 
 
 def _decode_cursor(cursor: str | None) -> int:
@@ -204,77 +224,6 @@ async def get_contact(
         )
 
 
-@router.get("/{conversation_id}/conversation", response_model=ConversationInfoResponse)
-async def get_contact_conversation(
-    conversation_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> ConversationInfoResponse:
-    """Get conversation information.
-
-    Returns conversation information including contact basic info and IM conversation ID.
-    Used by messaging client to initialize conversation.
-
-    Args:
-        conversation_id: Conversation identifier
-        current_user: Authenticated user
-        db: Database session
-
-    Returns:
-        ConversationInfoResponse with im_conv_id and contact info
-
-    Raises:
-        HTTPException: 404 if conversation not found, 500 for internal errors
-
-    """
-    try:
-        conversation = await get_conversation_info(
-            db=db,
-            user_qiao_id=current_user.qiao_id,
-            conversation_id=conversation_id,
-        )
-
-        if not conversation:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="操作异常",
-            )
-
-        logger.info(
-            "conversation_info_retrieved",
-            user_qiao_id=current_user.qiao_id,
-            conversation_id=conversation_id,
-        )
-
-        return conversation
-
-    except HTTPException:
-        raise
-    except ValueError as e:
-        logger.error(
-            "conversation_info_config_error",
-            user_qiao_id=current_user.qiao_id,
-            conversation_id=conversation_id,
-            error=str(e),
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="系统错误",
-        )
-    except Exception as e:
-        logger.error(
-            "conversation_info_failed",
-            user_qiao_id=current_user.qiao_id,
-            conversation_id=conversation_id,
-            error=str(e),
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="系统错误",
-        )
-
-
 @router.put("/{conversation_id}", response_model=ContactDetailResponse)
 async def update_contact_info(
     conversation_id: str,
@@ -302,6 +251,8 @@ async def update_contact_info(
 
     """
     try:
+        _validate_contact_update_payload_or_raise(update_data)
+
         updated_contact = await update_contact(
             db=db,
             user_qiao_id=current_user.qiao_id,

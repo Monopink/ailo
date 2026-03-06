@@ -18,7 +18,6 @@ from .service import (
     block_contact,
     delete_contact,
     get_contact_with_profile,
-    get_conversation_info,
     get_user_contacts_with_profiles,
     unblock_contact,
     update_contact,
@@ -28,7 +27,6 @@ __all__ = [
     # Contact basic management
     "get_user_contacts_with_profiles",
     "get_contact_with_profile",
-    "get_conversation_info",
     "update_contact",
     "block_contact",
     "unblock_contact",

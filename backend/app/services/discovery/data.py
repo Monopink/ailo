@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.enums import AIPersonaStatus, ContactType, ProfileOwnerType, SquareEntryStatus
 from app.models.ai import AIPersona
 from app.models.contact import Contact
-from app.models.discovery import SquareTypeEntry
+from app.models.content import SquareTypeEntry
 from app.models.profile import Profile
 from app.utils.logging import get_logger
 

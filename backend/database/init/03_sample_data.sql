@@ -26,6 +26,60 @@ INSERT INTO users (id, qiao_id, username, phone, status, user_type) VALUES
 ON CONFLICT (qiao_id) DO NOTHING;
 
 -- ============================================================================
+-- App Pages (Level 0 - No dependencies)
+-- ============================================================================
+
+INSERT INTO app_pages (
+    id,
+    page_key,
+    client_type,
+    locale,
+    page_category,
+    title,
+    source_type,
+    content_md,
+    content_html,
+    status
+) VALUES
+(
+    223788765171155120,
+    'user_agreement',
+    'mini-program',
+    'zh-CN',
+    1,
+    '用户协议',
+    1,
+    '# 用户协议\n\n欢迎使用敲敲。',
+    '<h1>用户协议</h1><p>欢迎使用敲敲。</p>',
+    1
+),
+(
+    223788765171155121,
+    'privacy_policy',
+    'mini-program',
+    'zh-CN',
+    1,
+    '隐私政策',
+    1,
+    '# 隐私政策\n\n我们将依法保护你的个人信息与隐私安全。',
+    '<h1>隐私政策</h1><p>我们将依法保护你的个人信息与隐私安全。</p>',
+    1
+),
+(
+    223788765171155122,
+    'contact_us',
+    'mini-program',
+    'zh-CN',
+    2,
+    '联系我们',
+    2,
+    '# 联系我们\n\n公众号：敲敲AI\n\n如需帮助，请通过公众号与我们联系。',
+    '<h1>联系我们</h1><p>公众号：敲敲AI</p><p>如需帮助，请通过公众号与我们联系。</p>',
+    1
+)
+ON CONFLICT (page_key, client_type, locale) DO NOTHING;
+
+-- ============================================================================
 -- AI System Base Data (Level 0 - No dependencies)
 -- ============================================================================
 

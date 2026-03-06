@@ -1,0 +1,267 @@
+{% extends "layout.html" %}
+
+{% block title %}<title>Advanced Edit App Page</title>{% endblock %}
+
+{% block header %}
+<div class="d-flex justify-content-between align-items-center">
+  <div>
+    <h1>Advanced Edit App Page</h1>
+  </div>
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for(__name__ ~ ':index') }}">Admin</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for(__name__ ~ ':list', identity='app_page') }}">App Pages</a></li>
+    <li class="breadcrumb-item active">Advanced Edit</li>
+  </ol>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title mb-0">Page Info</h3>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <div class="mb-2">
+            <span class="text-muted">ID:</span>
+            <strong>{{ document.id }}</strong>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="mb-2">
+            <span class="text-muted">Page Key:</span>
+            <strong>{{ document.page_key }}</strong>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="mb-2">
+            <span class="text-muted">Client Type:</span>
+            <strong>{{ document.client_type }}</strong>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="mb-2">
+            <span class="text-muted">Locale:</span>
+            <strong>{{ document.locale }}</strong>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="mb-2">
+            <span class="text-muted">Page Category:</span>
+            <strong>{{ page_info.page_category_text }}</strong>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="mb-2">
+            <span class="text-muted">Source Type:</span>
+            <strong>{{ page_info.source_type_text }}</strong>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="mb-2">
+            <span class="text-muted">Status:</span>
+            <strong>{{ page_info.status_text }}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <form id="app-page-form">
+    <div class="card mt-3">
+      <div class="card-header">
+        <h3 class="card-title mb-0">Content Editing</h3>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label" for="title">Title</label>
+            <input id="title" class="form-control" value="{{ document.title }}">
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="content-md">Markdown Source</label>
+            <textarea id="content-md" class="form-control" rows="18">{{ document.content_md }}</textarea>
+          </div>
+          {% if document.source_type == 2 %}
+          <div class="col-12">
+            <button id="btn-convert-html" type="button" class="btn btn-outline-primary">
+              Convert Markdown -> HTML
+            </button>
+            <span class="text-muted ms-2">Convert markdown source into HTML content.</span>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="content-html">HTML Content</label>
+            <textarea id="content-html" class="form-control" rows="18">{{ document.content_html }}</textarea>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="card-title mb-0">Rendered Preview</h3>
+        <button id="btn-open-preview" type="button" class="btn btn-outline-secondary">
+          Open Read-Only Preview
+        </button>
+      </div>
+      <div class="card-body">
+        <div id="rendered-preview" class="border rounded p-3" style="min-height: 280px;">
+          {{ document.content_html | safe }}
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-body text-end">
+        <a class="btn btn-danger" href="{{ url_for(__name__ ~ ':list', identity='app_page') }}">Cancel</a>
+        <button type="submit" class="btn btn-success">Save</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+const documentId = "{{ document.id }}";
+const sourceType = Number("{{ document.source_type }}");
+const encodedDocumentId = encodeURIComponent(documentId);
+const previewUrl = `/qiao-dash/app_page/preview/${encodedDocumentId}`;
+const saveUrl = `/admin-api/content/app-page/${encodedDocumentId}/save`;
+const renderUrl = `/admin-api/content/app-page/${encodedDocumentId}/render`;
+const contentHtmlInput = document.getElementById('content-html');
+const renderedPreview = document.getElementById('rendered-preview');
+
+function buildPayload() {
+  return {
+    title: document.getElementById('title').value.trim(),
+    content_md: document.getElementById('content-md').value,
+    content_html: contentHtmlInput ? contentHtmlInput.value : '',
+  };
+}
+
+let lastSavedState = buildPayload();
+
+function hasUnsavedChanges() {
+  const current = buildPayload();
+  return (
+    current.title !== lastSavedState.title
+    || current.content_md !== lastSavedState.content_md
+    || current.content_html !== lastSavedState.content_html
+  );
+}
+
+async function parseErrorMessage(response, fallbackMessage) {
+  try {
+    const data = await response.json();
+    return data.detail || fallbackMessage;
+  } catch {
+    return fallbackMessage;
+  }
+}
+
+async function saveDocument({ submitButton = null, showSuccess = true } = {}) {
+  const button = submitButton;
+  const originalText = button ? button.textContent : '';
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Saving...';
+  }
+
+  try {
+    const payload = buildPayload();
+    const response = await fetch(saveUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const message = await parseErrorMessage(response, 'Save failed');
+      throw new Error(message);
+    }
+    const data = await response.json();
+    document.getElementById('title').value = payload.title;
+    if (contentHtmlInput) {
+      contentHtmlInput.value = data.content_rendered;
+    }
+    renderedPreview.innerHTML = data.content_rendered;
+    lastSavedState = buildPayload();
+    if (showSuccess) {
+      alert('Saved successfully');
+    }
+    return true;
+  } catch (error) {
+    alert(`Save failed: ${error.message}`);
+    return false;
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+}
+
+async function convertMarkdownToHtml() {
+  const btn = document.getElementById('btn-convert-html');
+  if (!btn || !contentHtmlInput) {
+    return;
+  }
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Converting...';
+
+  try {
+    const response = await fetch(renderUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content_md: document.getElementById('content-md').value }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || 'Render failed');
+    }
+    contentHtmlInput.value = data.content_rendered;
+    renderedPreview.innerHTML = data.content_rendered;
+  } catch (error) {
+    alert(`Convert failed: ${error.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+if (sourceType === 2) {
+  const convertButton = document.getElementById('btn-convert-html');
+  if (convertButton) {
+    convertButton.addEventListener('click', convertMarkdownToHtml);
+  }
+}
+
+document.getElementById('btn-open-preview').addEventListener('click', async () => {
+  if (!hasUnsavedChanges()) {
+    window.open(previewUrl, '_blank');
+    return;
+  }
+
+  const saveAndOpen = confirm(
+    'You have unsaved changes.\n\nClick OK to save and open preview.\nClick Cancel to open preview without saving.'
+  );
+  if (!saveAndOpen) {
+    window.open(previewUrl, '_blank');
+    return;
+  }
+
+  const saved = await saveDocument({ showSuccess: false });
+  if (saved) {
+    window.open(previewUrl, '_blank');
+  }
+});
+
+document.getElementById('app-page-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const submitBtn = event.submitter || event.target.querySelector('button[type="submit"]');
+  await saveDocument({ submitButton: submitBtn });
+});
+</script>
+{% endblock %}

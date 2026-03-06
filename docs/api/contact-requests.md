@@ -72,8 +72,9 @@
   - 最长500字符
 
 - `alias` (string, 可选)
-  - 备注名
-  - 最长100字符
+  - 备注
+  - 显示宽度上限：24（约12个中文或24个英文）
+  - 字符上限：32（按字符簇计数）
 
 - `tags` (array, 可选)
   - 标签列表
@@ -164,8 +165,9 @@
 **字段说明**:
 
 - `alias` (string, 可选)
-  - 备注名
-  - 最长100字符
+  - 备注
+  - 显示宽度上限：24（约12个中文或24个英文）
+  - 字符上限：32（按字符簇计数）
 
 - `tags` (array, 可选)
   - 标签列表
@@ -196,9 +198,9 @@
 
 - `conversation_id` (string) - 对话ID，用于标识联系人关系
 - `contact_qiao_id` (string) - 联系人的qiao_id
-- `alias` (string) - 备注名
+- `alias` (string) - 备注
 - `tags` (array) - 标签列表
-- `remark` (string) - 备注信息
+- `remark` (string) - 描述
 - `is_pinned` (boolean) - 是否置顶
 - `is_muted` (boolean) - 是否免打扰
 - `is_blocked` (boolean) - 是否屏蔽
@@ -206,7 +208,7 @@
   - `nickname` (string) - 昵称
   - `avatar_url` (string) - 动态生成的头像 CDN URL
   - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
-  - `bio` (string) - 个人简介
+  - `bio` (string) - 个性签名
 
 ### 错误响应
 

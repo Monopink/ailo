@@ -34,11 +34,11 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 
 **不保留内容**：
 
-- remark（备注信息）- 清空，用户可重新填写
+- remark（描述）- 清空，用户可重新填写
 
 **更新内容**：
 
-- alias（备注名）- 使用新值
+- alias（备注）- 使用新值
 - tags（标签）- 使用新值
 - is_deleted - 设置为 0
 - deleted_at - 清空
@@ -59,7 +59,8 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 2. **部分更新**：
    - 只更新传入的字段
    - 未传入的字段保持不变
-   - 支持传入 null 清空字段（除 alias 和 tags）
+   - 支持显式传入 `null` 清空字段（`alias`、`remark`、`tags`）
+   - `tags` 也支持传入空数组 `[]` 作为清空语义
 
 3. **更新时间戳**：
    - 自动更新 updated_at
@@ -189,7 +190,7 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 **查询逻辑**：
 
 - 过滤条件：user_qiao_id=当前用户 AND is_deleted=0
-- 排序规则：is_pinned DESC, updated_at DESC
+- 排序规则：last_message_time DESC, conversation_id ASC
 - 分页：cursor-based pagination
 
 ## 数据一致性

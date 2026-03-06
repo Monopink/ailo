@@ -160,38 +160,3 @@ async def get_llm_configs(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
         ]
 
         return {"success": True, "data": {"configs": config_list}, "message": "LLM配置列表获取成功"}
-
-
-@llm_router.get("/health-check")
-async def health_check_llm_configs() -> dict[str, Any]:
-    """Check health status of all LLM configurations.
-
-    Returns:
-        Health status of all LLM configurations
-
-    """
-    try:
-        # TODO: Implement actual health check
-        # This is a placeholder implementation
-        health_status = {
-            "doubao_primary": {
-                "status": "healthy",
-                "response_time_ms": 850,
-                "last_check": "2024-01-01T12:00:00Z",
-            },
-            "mock_test": {
-                "status": "healthy",
-                "response_time_ms": 50,
-                "last_check": "2024-01-01T12:00:00Z",
-            },
-        }
-
-    except Exception as e:
-        logger.error("llm_health_check_error", error=str(e))
-        return {
-            "success": False,
-            "error": {"code": "LLM_HEALTH_CHECK_ERROR", "message": "LLM配置健康检查失败"},
-        }
-
-    else:
-        return {"success": True, "data": health_status, "message": "LLM配置健康检查完成"}

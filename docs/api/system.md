@@ -13,7 +13,7 @@
 - **路径**: `GET /api/v1/system/captcha-config`
 - **认证**: Bearer Token（必需）
 - **Headers**:
-  - `X-Client` (可选): 标识调用端，例如 `wxminipg`。后端将按照 `client` 前缀匹配配置键（`{client}_captcha_provider` 等），未提供或查不到时回落到全局配置。
+  - `X-Client` (可选): 标识调用端，例如 `mini-program`。后端将按照 `client` 前缀匹配配置键（`{client}_captcha_provider` 等），未提供或查不到时回落到全局配置。
 - **说明**: 统一下发目前启用的验证码提供方与相关参数，前端在初始化 Turnstile/阿里云验证码组件前必须先调用本接口。
 
 ### 成功响应 (200)

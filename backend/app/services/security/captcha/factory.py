@@ -7,7 +7,7 @@ System Architecture:
 - Admin Backend: Uses Turnstile (configured via admin_captcha_provider='turnstile')
 - User/Clients: Currently disabled (provider='none', no human verification required)
 - Future Extension: Supports client-specific providers via X-Client header
-  (e.g., X-Client: wxminipg → reads wxminipg_captcha_provider config)
+  (e.g., X-Client: mini-program → reads mini-program_captcha_provider config)
 
 Design Principles:
 - Factory Pattern: Easy to add new providers (reCAPTCHA, hCaptcha, etc.)
@@ -192,7 +192,7 @@ async def create_captcha_provider_for_request(
     """
     Create CAPTCHA provider with client override support.
 
-    If header X-Client is provided (e.g., 'wxminipg'),
+    If header X-Client is provided (e.g., 'mini-program'),
     try reading client-specific provider key first:
     - {provider_type}_{client}_captcha_provider
     Fallback to the generic {provider_type}_captcha_provider.

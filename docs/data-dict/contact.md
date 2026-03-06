@@ -14,7 +14,7 @@ user_qiao_id -- 联系人所属用户外部ID，NULL表示公共联系人
 contact_type -- 联系人类型：1=user, 2=ai, 3=official
 contact_id -- 联系人内部ID
 contact_qiao_id -- 联系人外部ID
-alias -- 备注名称
+alias -- 备注称
 custom_avatar_key -- 自定义头像对象键（例如 avatars/2025/12/xxx.webp），覆盖联系人真实头像，NULL 表示使用联系人真实头像
 custom_avatar_media_id -- 自定义头像媒资记录ID，外键关联 media_files.id（审计追踪，NULL 表示使用联系人真实头像）
 tags -- 标签JSON数组：["tag1","tag2"]

@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class ProfileBase(BaseModel):
     """Base profile schema matching Profile model."""
 
-    nickname: str | None = Field(None, max_length=10, description="Display nickname")
+    nickname: str | None = Field(None, max_length=32, description="Display nickname")
     gender: int | None = Field(
         None, ge=1, le=4, description="Gender: 1=male, 2=female, 3=other, 4=unknown"
     )
@@ -19,7 +19,7 @@ class ProfileBase(BaseModel):
     avatar_prompt: str | None = Field(
         None, description="Avatar description for LLM prompt replacement"
     )
-    bio: str | None = Field(None, max_length=70, description="Personal bio/description")
+    bio: str | None = Field(None, max_length=120, description="Personal bio/description")
     region: str | None = Field(None, max_length=100, description="Location/region")
 
 

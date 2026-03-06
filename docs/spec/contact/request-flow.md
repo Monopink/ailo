@@ -268,11 +268,11 @@ stateDiagram-v2
 
 **不保留内容**：
 
-- remark（备注信息）
+- remark（描述）
 
 **更新内容**：
 
-- alias（备注名）
+- alias（备注）
 - tags（标签）
 
 ## 异常处理

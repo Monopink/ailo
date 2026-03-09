@@ -4,7 +4,8 @@ Run backend checks with project tools.
 
 ## Required Config
 
-- `backend/pyproject.toml`
+- `pyproject.toml`
+- `.importlinter`
 - `backend/.contracts.yaml`
 - `deployment/.env`
 
@@ -13,19 +14,21 @@ Run backend checks with project tools.
 Run in project root:
 
 ```bash
-ruff format --check backend/app
-ruff check backend/app
+ruff format --check --config pyproject.toml backend/app
+ruff check --config pyproject.toml backend/app
 mypy backend/app
-lint-imports
+lint-imports --config .importlinter
 ```
+
+If running in Docker, ensure `/backend/pyproject.toml` and `/backend/.importlinter` are mounted.
 
 ## Auto-Fix Sequence
 
 If formatting or lint fails:
 
 ```bash
-ruff format backend/app
-ruff check --fix backend/app
+ruff format --config pyproject.toml backend/app
+ruff check --fix --config pyproject.toml backend/app
 ```
 
 Then rerun the full validation command set.

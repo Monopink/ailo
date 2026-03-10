@@ -72,6 +72,25 @@ class ContactType(IntEnum):
     OFFICIAL = 3
 
 
+class ContactSource(IntEnum):
+    """Contact creation source (contacts.source)."""
+
+    UNKNOWN = 0
+    SEARCH = 1
+    ADMIN = 2
+    SYSTEM = 3
+    RECOMMEND = 4
+    DISCOVERY = 5
+    CONTACT_REQUEST = 6
+
+
+class AvatarDisplayMode(IntEnum):
+    """Contact avatar display mode (contacts.avatar_display_mode)."""
+
+    ORIGINAL = 1
+    CUSTOM = 2
+
+
 class ContactRequestSource(IntEnum):
     """Contact request source (contact_requests.source)."""
 

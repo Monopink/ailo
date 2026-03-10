@@ -596,15 +596,15 @@ ON CONFLICT (id) DO NOTHING;
 -- ============================================================================
 
 -- Insert sample contacts (AI instance testing relationships)
-INSERT INTO contacts (id, conversation_id, user_id, user_qiao_id, contact_type, contact_id, contact_qiao_id, alias, tags, is_pinned, is_muted, is_blocked) VALUES
+INSERT INTO contacts (id, conversation_id, user_id, user_qiao_id, contact_type, contact_id, contact_qiao_id, alias, avatar_display_mode, tags, is_pinned, is_muted, is_blocked) VALUES
 -- Test user 001 -> AI instance 小乔
-(223788765171154964, 'conv_001', 223788765171154945, 'qqid_test_user_001', 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', '小乔', '{"tags": ["ai", "companion"]}', 0, 0, 0),
+(223788765171154964, 'conv_001', 223788765171154945, 'qqid_test_user_001', 2, 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', '小乔', 1, '{"tags": ["ai", "companion"]}', 0, 0, 0),
 -- Test user 002 -> AI instance 小甜
-(223788765171154965, 'conv_003', 223788765171154946, 'qqid_test_user_002', 2, 223788765171154945, 'qiao_sweet_girlfriend_001', '小甜', '{"tags": ["ai", "sweet", "girlfriend"]}', 0, 0, 0),
+(223788765171154965, 'conv_003', 223788765171154946, 'qqid_test_user_002', 2, 223788765171154945, 'qiao_sweet_girlfriend_001', '小甜', 1, '{"tags": ["ai", "sweet", "girlfriend"]}', 0, 0, 0),
 -- Test user 003 -> AI instance 阿杰
-(223788765171154966, 'conv_004', 223788765171154947, 'qqid_test_user_003', 2, 223788765171154946, 'qiao_friendly_buddy_001', '阿杰', '{"tags": ["ai", "buddy", "friend"]}', 0, 0, 0),
+(223788765171154966, 'conv_004', 223788765171154947, 'qqid_test_user_003', 2, 223788765171154946, 'qiao_friendly_buddy_001', '阿杰', 1, '{"tags": ["ai", "buddy", "friend"]}', 0, 0, 0),
 -- Keep one user-to-user contact for reference
-(223788765171154967, 'conv_002', 223788765171154946, 'qqid_test_user_002', 1, 223788765171154945, 'qqid_test_user_001', '小雨', '{"tags": ["friend", "photography"]}', 1, 0, 0)
+(223788765171154967, 'conv_002', 223788765171154946, 'qqid_test_user_002', 1, 223788765171154945, 'qqid_test_user_001', '小雨', 1, '{"tags": ["friend", "photography"]}', 1, 0, 0)
 ON CONFLICT (conversation_id) DO NOTHING;
 
 -- Insert sample contact requests

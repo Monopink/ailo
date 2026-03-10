@@ -59,8 +59,12 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 2. **部分更新**：
    - 只更新传入的字段
    - 未传入的字段保持不变
-   - 支持显式传入 `null` 清空字段（`alias`、`remark`、`tags`）
+   - 支持显式传入 `null` 清空字段（`alias`、`remark`、`tags`、`avatar_file_id`）
    - `tags` 也支持传入空数组 `[]` 作为清空语义
+   - `avatar_file_id` 传入非空值时更新备注头像（写入 `custom_avatar_key`、`custom_avatar_media_id`）
+   - `avatar_display_mode` 取值：`1=original`、`2=custom`
+   - 首次设置备注头像且未传入 `avatar_display_mode` 时，系统自动将模式设为 `2`
+   - 清空备注头像时，系统将 `avatar_display_mode` 强制设为 `1`
 
 3. **更新时间戳**：
    - 自动更新 updated_at

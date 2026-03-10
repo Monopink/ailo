@@ -30,18 +30,6 @@ class CRUDAdminUser(CRUDBaseWithStatus[AdminUser, AdminUserCreate, AdminUserUpda
         result = await db.execute(select(self.model).where(self.model.username == username))
         return result.scalar_one_or_none()
 
-    async def authenticate(
-        self, db: AsyncSession, *, username: str, _password: str
-    ) -> AdminUser | None:
-        """Authenticate admin user."""
-        user = await self.get_by_username(db, username=username)
-        if not user:
-            return None
-        # TODO: Implement password verification
-        # if not verify_password(password, user.password_hash):
-        #     return None
-        return user
-
     async def is_active(self, user: AdminUser) -> bool:
         """Check if admin user is active."""
         return user.status == AdminStatus.ACTIVE  # Use enum instead of hardcoded value

@@ -235,9 +235,10 @@ CREATE TABLE IF NOT EXISTS contacts (
     alias VARCHAR(100),
     custom_avatar_key VARCHAR(255),
     custom_avatar_media_id BIGINT,
+    avatar_display_mode INTEGER NOT NULL DEFAULT 1,
     tags JSONB,
     remark TEXT,
-    source VARCHAR(32) NOT NULL DEFAULT 'unknown',
+    source INTEGER NOT NULL DEFAULT 0,
     is_pinned INTEGER NOT NULL DEFAULT 0,
     is_muted INTEGER NOT NULL DEFAULT 0,
     is_blocked INTEGER NOT NULL DEFAULT 0,
@@ -246,6 +247,8 @@ CREATE TABLE IF NOT EXISTS contacts (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     -- Ensure one user cannot add the same qiao_id contact twice
+    CONSTRAINT ck_contacts_avatar_display_mode CHECK (avatar_display_mode IN (1, 2)),
+    CONSTRAINT ck_contacts_source CHECK (source IN (0, 1, 2, 3, 4, 5, 6)),
     CONSTRAINT uq_contacts_user_contact_qiao UNIQUE (user_id, contact_qiao_id),
     CONSTRAINT fk_contacts_custom_avatar_media FOREIGN KEY (custom_avatar_media_id) REFERENCES media_files(id) ON DELETE SET NULL
 );

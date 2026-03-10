@@ -39,9 +39,12 @@
       "is_pinned": false,
       "is_muted": false,
       "is_blocked": false,
+      "avatar_url": "https://cdn.example.com/avatars/2026/03/contact_custom.webp",
+      "remark_avatar_url": "https://cdn.example.com/avatars/2026/03/contact_custom.webp",
+      "original_avatar_url": "https://cdn.example.com/avatars/2026/03/contact_original.webp",
+      "avatar_display_mode": 2,
       "profile": {
         "nickname": "小萌",
-        "avatar_url": "https://cdn.example.com/personas/qiao_xm001.webp",
         "gender": 2,
         "bio": "喜欢音乐和电影",
         "region": "上海"
@@ -65,9 +68,12 @@
 - `is_pinned` (boolean) - 是否置顶
 - `is_muted` (boolean) - 是否免打扰
 - `is_blocked` (boolean) - 是否已屏蔽
+- `avatar_url` (string) - 当前实际展示头像 URL（按 `avatar_display_mode` 决策）
+- `remark_avatar_url` (string|null) - 备注头像 URL，未设置时为 `null`
+- `original_avatar_url` (string) - 原始头像 URL
+- `avatar_display_mode` (integer) - 头像展示模式：`1=original`，`2=custom`
 - `profile` (object) - 联系人资料信息
   - `nickname` (string) - 昵称
-  - `avatar_url` (string) - 动态生成的头像 CDN URL
   - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
   - `bio` (string) - 个性签名（可选）
   - `region` (string) - 地区（可选）
@@ -102,10 +108,13 @@
   "is_pinned": false,
   "is_muted": false,
   "is_blocked": false,
+  "avatar_url": "https://cdn.example.com/avatars/2026/03/contact_custom.webp",
+  "remark_avatar_url": "https://cdn.example.com/avatars/2026/03/contact_custom.webp",
+  "original_avatar_url": "https://cdn.example.com/avatars/2026/03/contact_original.webp",
+  "avatar_display_mode": 2,
   "profile": {
     "nickname": "小萌",
     "gender": 2,
-    "avatar_url": "https://cdn.example.com/personas/qiao_xm001.webp",
     "bio": "喜欢音乐和电影",
     "region": "上海"
   }
@@ -122,10 +131,13 @@
 - `is_pinned` (boolean) - 是否置顶
 - `is_muted` (boolean) - 是否免打扰
 - `is_blocked` (boolean) - 是否屏蔽
+- `avatar_url` (string) - 当前实际展示头像 URL（按 `avatar_display_mode` 决策）
+- `remark_avatar_url` (string|null) - 备注头像 URL，未设置时为 `null`
+- `original_avatar_url` (string) - 原始头像 URL
+- `avatar_display_mode` (integer) - 头像展示模式：`1=original`，`2=custom`
 - `profile` (object) - 联系人资料信息
   - `nickname` (string) - 昵称
   - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
-  - `avatar_url` (string) - 动态生成的头像 CDN URL
   - `bio` (string) - 个性签名
   - `region` (string) - 地区
 
@@ -159,6 +171,8 @@
   "alias": "新的备注",
   "tags": ["新标签1", "新标签2"],
   "remark": "新的描述",
+  "avatar_file_id": "file_1285612345678901234",
+  "avatar_display_mode": 2,
   "is_pinned": true,
   "is_muted": false
 }
@@ -183,6 +197,18 @@
   - 字符上限：400（按字符簇计数）
   - 传入 `null` 可清空描述
 
+- `avatar_file_id` (string, 可选)
+  - 备注头像文件 ID（`media_files.file_id`）
+  - 传入非空值表示设置或替换备注头像
+  - 传入 `null` 表示清空备注头像
+
+- `avatar_display_mode` (integer, 可选)
+  - 头像展示模式：`1=original`，`2=custom`
+  - 显式传入 null 视为参数错误
+  - 首次设置备注头像且未显式传入时，服务端自动设为 `2`
+  - 再次更新备注头像且未显式传入时，保持原模式
+  - 清空备注头像时，服务端强制设为 `1`
+
 - `is_pinned` (boolean, 可选)
   - 是否置顶
 
@@ -198,13 +224,16 @@
   "alias": "新的备注",
   "tags": ["新标签1", "新标签2"],
   "remark": "新的描述",
+  "avatar_url": "https://cdn.example.com/avatars/2026/03/contact_custom.webp",
+  "remark_avatar_url": "https://cdn.example.com/avatars/2026/03/contact_custom.webp",
+  "original_avatar_url": "https://cdn.example.com/avatars/2026/03/contact_original.webp",
+  "avatar_display_mode": 2,
   "is_pinned": true,
   "is_muted": false,
   "is_blocked": false,
   "profile": {
     "nickname": "小萌",
     "gender": 2,
-    "avatar_url": "https://cdn.example.com/personas/qiao_xm001.webp",
     "bio": "喜欢音乐和电影",
     "region": "上海"
   }
@@ -227,6 +256,8 @@
 - 所有字段可选，支持部分更新
 - 只更新传入的字段
 - 未传入的字段保持不变
+- `avatar_display_mode=2` 时，返回 `avatar_url=remark_avatar_url`
+- `avatar_display_mode=1` 时，返回 `avatar_url=original_avatar_url`
 
 ---
 

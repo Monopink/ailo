@@ -8,12 +8,22 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.enums import ContactRequestStatus, ContactType
+from app.enums import AvatarDisplayMode, ContactRequestStatus, ContactSource, ContactType
 from app.models.base import SnowflakeModel, SoftDeleteMixin
 from app.type_defs import JSONDict
 
@@ -84,12 +94,23 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
 
     remark: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Contact remark/notes")
 
-    source: Mapped[str] = mapped_column(
-        String(32),
+    avatar_display_mode: Mapped[int] = mapped_column(
+        Integer,
         nullable=False,
-        default="unknown",
-        server_default=text("'unknown'"),
-        comment="Contact creation source (discovery/search/recommend/etc.)",
+        default=int(AvatarDisplayMode.ORIGINAL),
+        server_default=text(str(int(AvatarDisplayMode.ORIGINAL))),
+        comment="Avatar display mode: 1=original, 2=custom",
+    )
+
+    source: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=int(ContactSource.UNKNOWN),
+        server_default=text(str(int(ContactSource.UNKNOWN))),
+        comment=(
+            "Contact creation source: 0=unknown,1=search,2=admin,3=system,"
+            "4=recommend,5=discovery,6=contact_request"
+        ),
     )
 
     is_pinned: Mapped[int] = mapped_column(
@@ -167,6 +188,14 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
     # Indexes - Only essential indexes for MVP
     # Note: conversation_id already has unique index
     __table_args__ = (
+        CheckConstraint(
+            "avatar_display_mode IN (1, 2)",
+            name="ck_contacts_avatar_display_mode",
+        ),
+        CheckConstraint(
+            "source IN (0, 1, 2, 3, 4, 5, 6)",
+            name="ck_contacts_source",
+        ),
         Index("idx_contacts_user_qiao_id", "user_qiao_id"),
         Index("idx_contacts_contact_qiao_id", "contact_qiao_id"),
         # Unique constraint: one owner can only have one contact record for each contact

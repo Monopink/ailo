@@ -23,6 +23,7 @@ from app.enums import (
     ContactRequestFailureCode,
     ContactRequestSource,
     ContactRequestStatus,
+    ContactSource,
     ContactType,
 )
 from app.enums.templates import CHAT_INFO_TEMPLATES
@@ -149,15 +150,22 @@ def _coerce_int(value: JSONValue | None) -> int | None:
     return None
 
 
-def _map_request_source_to_contact(source: int | None) -> str:
-    """Normalize contact request source enum into contact.source string."""
+def _map_request_source_to_contact(source: int | None) -> ContactSource:
+    """Normalize contact request source enum into contacts.source enum."""
     if source is None:
-        return "unknown"
+        return ContactSource.UNKNOWN
     try:
         enum_value = ContactRequestSource(source)
-        return str(enum_value.name).lower()
     except ValueError:
-        return "unknown"
+        return ContactSource.UNKNOWN
+
+    mapping = {
+        ContactRequestSource.SEARCH: ContactSource.SEARCH,
+        ContactRequestSource.ADMIN: ContactSource.ADMIN,
+        ContactRequestSource.SYSTEM: ContactSource.SYSTEM,
+        ContactRequestSource.RECOMMEND: ContactSource.RECOMMEND,
+    }
+    return mapping.get(enum_value, ContactSource.UNKNOWN)
 
 
 async def _create_contact_record(
@@ -171,7 +179,7 @@ async def _create_contact_record(
     conversation_id: str,
     alias: str | None,
     tags: list[str] | None,
-    source: str | None,
+    source: ContactSource | None,
 ) -> Contact:
     """
     Create contact record.
@@ -198,7 +206,7 @@ async def _create_contact_record(
         custom_avatar_media_id=None,
         tags=tags,
         remark=None,
-        source=source or "unknown",
+        source=source if source is not None else ContactSource.UNKNOWN,
     )
 
     contact = await contact_crud.create_with_user(
@@ -863,7 +871,7 @@ async def get_contact_requests_service(
     db: AsyncSession,
     user_qiao_id: str,
     status_filter: ContactRequestStatus | None = None,
-    _cursor: str | None = None,
+    skip: int = 0,
     limit: int = 20,
 ) -> ContactRequestListResponse:
     """
@@ -873,7 +881,7 @@ async def get_contact_requests_service(
         db: Database session
         user_qiao_id: User's qiao_id
         status_filter: Filter by request status
-        cursor: Pagination cursor (not implemented yet, using skip)
+        skip: Offset for pagination
         limit: Number of items to return
 
     Returns:
@@ -883,9 +891,10 @@ async def get_contact_requests_service(
         HTTPException: If query fails
     """
     try:
+        if skip < 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="参数错误")
+
         # Get contact requests
-        # TODO: Implement cursor-based pagination
-        skip = 0
         requests = await contact_request_crud.get_user_received_requests(
             db, to_qiao_id=user_qiao_id, status=status_filter, skip=skip, limit=limit + 1
         )
@@ -894,6 +903,8 @@ async def get_contact_requests_service(
         has_more = len(requests) > limit
         if has_more:
             requests = requests[:limit]
+
+        next_skip = skip + len(requests) if has_more else None
 
         # Build response items with profiles
         items = []
@@ -925,8 +936,8 @@ async def get_contact_requests_service(
 
         # Build pagination info
         pagination = {
-            "cursor": None,  # TODO: Implement cursor
             "has_more": has_more,
+            "next_skip": next_skip,
         }
 
         logger.info(
@@ -934,6 +945,8 @@ async def get_contact_requests_service(
             user_qiao_id=user_qiao_id,
             status_filter=status_filter,
             count=len(items),
+            skip=skip,
+            limit=limit,
         )
 
         return ContactRequestListResponse(items=items, pagination=pagination)
@@ -1058,7 +1071,7 @@ async def accept_contact_request_service(
             custom_avatar_media_id=None,
             tags=accept_data.tags,
             remark=None,
-            source="contact_request",
+            source=ContactSource.CONTACT_REQUEST,
         )
 
         contact = await contact_crud.create_with_user(

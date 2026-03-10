@@ -56,6 +56,18 @@ def _validate_contact_update_payload_or_raise(update_data: ContactUpdate) -> Non
                 detail=remark_error,
             )
 
+    if "avatar_file_id" in provided_fields and update_data.avatar_file_id == "":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="参数错误",
+        )
+
+    if "avatar_display_mode" in provided_fields and update_data.avatar_display_mode is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="参数错误",
+        )
+
 
 def _decode_cursor(cursor: str | None) -> int:
     """Decode opaque cursor into skip offset."""

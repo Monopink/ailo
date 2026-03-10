@@ -8,7 +8,13 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.enums import ContactRequestSource, ContactRequestStatus, ContactType
+from app.enums import (
+    AvatarDisplayMode,
+    ContactRequestSource,
+    ContactRequestStatus,
+    ContactSource,
+    ContactType,
+)
 from app.schemas.common import BaseSchema
 
 # Contact Schemas
@@ -34,6 +40,10 @@ class ContactListItem(BaseSchema):
     is_pinned: bool = Field(..., description="Is pinned to the top")
     is_muted: bool = Field(..., description="Has do-not-disturb enabled")
     is_blocked: bool = Field(..., description="Is blocked by current user")
+    avatar_url: str = Field(..., description="Current avatar URL used by contact surfaces")
+    remark_avatar_url: str | None = Field(None, description="Custom remark avatar URL")
+    original_avatar_url: str = Field(..., description="Original profile avatar URL")
+    avatar_display_mode: AvatarDisplayMode = Field(..., description="Avatar display mode")
     profile: ContactProfileSummary = Field(..., description="Contact public profile summary")
 
 
@@ -75,8 +85,8 @@ class ContactCreate(BaseModel):
     )
     tags: list[str] | None = Field(None, description="Contact tags")
     remark: str | None = Field(None, max_length=400, description="Contact remark/notes")
-    source: str | None = Field(
-        "unknown", max_length=32, description="Contact creation source identifier"
+    source: ContactSource = Field(
+        ContactSource.UNKNOWN, description="Contact creation source enum value"
     )
 
 
@@ -86,6 +96,14 @@ class ContactUpdate(BaseModel):
     alias: str | None = Field(None, max_length=32, description="Contact alias/remark name")
     tags: list[str] | None = Field(None, description="Contact tags")
     remark: str | None = Field(None, max_length=400, description="Contact remark/notes")
+    avatar_file_id: str | None = Field(
+        None,
+        description="Custom avatar file ID (file_xxx), null clears current custom avatar",
+    )
+    avatar_display_mode: AvatarDisplayMode | None = Field(
+        None,
+        description="Avatar display mode override: 1=original, 2=custom",
+    )
     is_pinned: bool | None = Field(None, description="Pin/unpin the contact")
     is_muted: bool | None = Field(None, description="Enable/disable mute")
 

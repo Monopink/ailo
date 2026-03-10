@@ -9,7 +9,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.base import CRUDBase
-from app.enums import ContactRequestStatus, ContactType
+from app.enums import ContactRequestStatus, ContactSource, ContactType
 from app.models.contact import Contact, ContactRequest
 from app.schemas.contact import (
     ContactCreate,
@@ -148,7 +148,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
             "custom_avatar_media_id": obj_in.custom_avatar_media_id,
             "tags": tags_payload,
             "remark": obj_in.remark,
-            "source": (obj_in.source or "unknown"),
+            "source": int(obj_in.source if obj_in.source is not None else ContactSource.UNKNOWN),
         }
 
         db_obj = self.model(**contact_data)
@@ -338,7 +338,7 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, ContactR
         result = await db.execute(
             select(self.model)
             .where(and_(*conditions))
-            .order_by(self.model.created_at.desc())
+            .order_by(self.model.created_at.desc(), self.model.id.desc())
             .offset(skip)
             .limit(limit)
         )
@@ -361,7 +361,7 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, ContactR
         result = await db.execute(
             select(self.model)
             .where(and_(*conditions))
-            .order_by(self.model.created_at.desc())
+            .order_by(self.model.created_at.desc(), self.model.id.desc())
             .offset(skip)
             .limit(limit)
         )

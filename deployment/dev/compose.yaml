@@ -1,11 +1,12 @@
-version: '3.8'
-
+# Development environment Docker Compose configuration.
+# This file is standalone and is not merged with deployment/compose.base.yaml.
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:16
+    image: postgres:18
     container_name: postgres
     env_file:
+      - ../.env
       - .env
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -41,8 +42,8 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ../backend/database/init:/docker-entrypoint-initdb.d:ro
+      - postgres_data:/var/lib/postgresql
+      - ../../backend/database/init:/docker-entrypoint-initdb.d:ro
     networks:
       - default
     healthcheck:
@@ -57,9 +58,11 @@ services:
   backend:
     container_name: backend
     build:
-      context: ../backend
+      context: ../../backend
       dockerfile: Dockerfile
+      target: dev
     env_file:
+      - ../.env
       - .env
     environment:
       PYTHONDONTWRITEBYTECODE: 1
@@ -68,12 +71,12 @@ services:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
       # Mount the app directory to /backend/app for hot-reload during development
-      - ../backend/app:/backend/app
-      - ../backend/alembic:/backend/alembic
-      - ../backend/alembic.ini:/backend/alembic.ini
-      - ../pyproject.toml:/backend/pyproject.toml:ro
-      - ../.importlinter:/backend/.importlinter:ro
-      - ../logs:/backend/logs
+      - ../../backend/app:/backend/app
+      - ../../backend/alembic:/backend/alembic
+      - ../../backend/alembic.ini:/backend/alembic.ini
+      - ../../pyproject.toml:/backend/pyproject.toml:ro
+      - ../../.importlinter:/backend/.importlinter:ro
+      - ../../logs:/backend/logs
     networks:
       - default
     depends_on:

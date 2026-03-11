@@ -8,6 +8,12 @@
 - API路径中尽量不包含第三方服务名称（如LeanCloud、Aliyun等）
 - API 文档不硬编码枚举值，统一引用 `backend/app/enums/common.py`
 
+### Nginx 配置同步
+
+- 新增或调整 API 路径时，必须同步检查网关转发规则是否覆盖该路径。
+- 当前 staging/prod 默认共用网关模板：`nginx/conf.d/app.conf`（由 `nginx/entrypoint.sh` 渲染到容器内 `default.conf`）。
+- `nginx/conf.d/prod.conf`、`nginx/conf.d/staging.conf` 为历史配置，不是默认生效入口；除非显式设置 `NGINX_TEMPLATE`，否则不会被加载。
+
 ### 速率限制
 
 **短信验证码**:

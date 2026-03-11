@@ -116,7 +116,7 @@ check_tools() {
 
     if [ ${#missing_tools[@]} -ne 0 ]; then
         print_error "Missing tools: ${missing_tools[*]}"
-        echo "Please install missing tools: pip install -r backend/requirements.txt"
+        echo "Please install missing tools: pip install -r backend/app/requirements-dev.txt"
         exit 1
     fi
 }

@@ -1,0 +1,10 @@
+[ailo-nginx-admin-auth-staging]
+enabled = true
+port = http,https
+filter = ailo-nginx-admin-auth
+logpath = /opt/ailo-staging/logs/nginx/admin_access.log
+findtime = 10m
+maxretry = 5
+bantime = 1h
+backend = auto
+ignoreip = __IGNOREIP__

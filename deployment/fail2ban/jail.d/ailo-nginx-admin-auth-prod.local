@@ -1,0 +1,10 @@
+[ailo-nginx-admin-auth-prod]
+enabled = true
+port = http,https
+filter = ailo-nginx-admin-auth
+logpath = /opt/ailo-prod/logs/nginx/admin_access.log
+findtime = 10m
+maxretry = 5
+bantime = 1h
+backend = auto
+ignoreip = __IGNOREIP__

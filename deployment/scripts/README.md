@@ -1,115 +1,71 @@
-# 部署参考
+# Deployment Quick Guide
 
-## 首次部署
+本文件包含通用打包、上传、部署与简单运维流程。环境差异见：
+- deployment/staging/scripts/README.md
+- deployment/prod/scripts/README.md
 
-### 1) 本地打包（Windows）
+## Windows 打包
+
+Staging:
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File "deployment\scripts\pack-for-windows.ps1"
+powershell.exe -ExecutionPolicy Bypass -File "deployment\staging\scripts\pack-for-windows.ps1"
 ```
 
-### 2) 上传产物
+Prod:
 
-上传 `ailo-staging-deploy-YYYYMMDD-HHMMSS.tar.gz` 到服务器 `/home/ubuntu/`。
-
-### 3) 服务器初始化（仅首次）
-
-```bash
-ssh ubuntu@ark3.qiaoqiaoai.cn
-cd /home/ubuntu
-tar -xzf ailo-staging-deploy-YYYYMMDD-HHMMSS.tar.gz
-cd ailo/deployment/scripts
-chmod +x setup.sh
-./setup.sh
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File "deployment\prod\scripts\pack-for-windows.ps1"
 ```
 
-重新登录后执行：
+包名格式：
+- ailo-staging-deploy-YYYYMMDD-HHMMSS.tar.gz
+- ailo-prod-deploy-YYYYMMDD-HHMMSS.tar.gz
 
-```bash
-ssh ubuntu@ark3.qiaoqiaoai.cn
-sudo mkdir -p /opt/ailo-staging
-sudo chown -R ubuntu:ubuntu /opt/ailo-staging
-mv /home/ubuntu/ailo /opt/ailo-staging/
-cd /opt/ailo-staging/ailo/deployment/scripts
-chmod +x *.sh
-./deploy.sh start
+## 上传
+
+上传到：
+
+```text
+/home/ubuntu/
 ```
 
-## 常规更新
-
-先把 `ailo-staging-deploy-YYYYMMDD-HHMMSS.tar.gz` 上传到服务器 `/home/ubuntu/`，然后执行：
+## 部署
 
 ```bash
-ssh ubuntu@ark3.qiaoqiaoai.cn
-cd /opt/ailo-staging/ailo/deployment/scripts
-sudo ./deploy.sh deploy --package /home/ubuntu/ailo-staging-deploy-YYYYMMDD-HHMMSS.tar.gz
+cd /opt/ailo-<env>/ailo/deployment/<env>/scripts
+./deploy.sh deploy --package /home/ubuntu/<package>
 ```
 
-`deploy --package` 包含代码备份、数据库备份、解压新包、替换代码目录、镜像重建、容器启动、数据库迁移。
-
-## deploy.sh 命令
+## 常用运维
 
 ```bash
-cd /opt/ailo-staging/ailo/deployment/scripts
-
 ./deploy.sh start
 ./deploy.sh stop
 ./deploy.sh restart
-./deploy.sh deploy --package /home/ubuntu/ailo-staging-deploy-YYYYMMDD-HHMMSS.tar.gz
-./deploy.sh update
-./deploy.sh update --rebuild
+./deploy.sh status
+./deploy.sh health
 ./deploy.sh logs
-./deploy.sh logs backend_staging
-./deploy.sh status
-./deploy.sh health
-./deploy.sh backup
+./deploy.sh logs <service>
 ```
 
-## 环境变量必填项
+## AI 失灵应急
 
-`/opt/ailo-staging/ailo/deployment/.env.staging` 必须包含：
-
-- `WECHAT_APP_ID`
-- `WECHAT_APP_SECRET`
-
-## 发布后验证
+代码回滚：
 
 ```bash
-cd /opt/ailo-staging/ailo/deployment/scripts
-./deploy.sh status
-./deploy.sh health
-docker ps
-```
-
-- 管理后台：`https://ark3.qiaoqiaoai.cn/qiao-dash/`
-- API：`https://ark3.qiaoqiaoai.cn/api/`
-
-## 回滚参考
-
-### 代码回滚
-
-```bash
-ls -lht /opt/ailo-staging/backups/code/ | head -5
-cd /opt/ailo-staging
-mv ailo ailo.failed.$(date +%Y%m%d-%H%M%S)
+ls -lht /opt/ailo-<env>/backups/code/ | head -5
+cd /opt/ailo-<env>
+mv ailo ailo.failed.YYYYMMDD-HHMMSS
 mkdir -p ailo
-tar -xzf /opt/ailo-staging/backups/code/backup-YYYYMMDD-HHMMSS.tar.gz -C ailo
-cd /opt/ailo-staging/ailo/deployment/scripts
+tar -xzf /opt/ailo-<env>/backups/code/backup-YYYYMMDD-HHMMSS.tar.gz -C ailo
+cd /opt/ailo-<env>/ailo/deployment/<env>/scripts
 ./deploy.sh update --rebuild
 ```
 
-### 数据库回滚
+数据库回滚：
 
 ```bash
-ls -lht /opt/ailo-staging/backups/database/ | head -5
-gunzip -c /opt/ailo-staging/backups/database/db-YYYYMMDD-HHMMSS.sql.gz | docker exec -i postgres psql -U ailo_user ailo
+ls -lht /opt/ailo-<env>/backups/database/ | head -5
+gunzip -c /opt/ailo-<env>/backups/database/db-YYYYMMDD-HHMMSS.sql.gz | docker exec -i postgres psql -U ailo_user ailo
 ```
-
-## 关键路径与名称
-
-- 项目路径：`/opt/ailo-staging/ailo/`
-- 部署脚本：`/opt/ailo-staging/ailo/deployment/scripts/`
-- 环境文件：`/opt/ailo-staging/ailo/deployment/.env.staging`
-- 备份目录：`/opt/ailo-staging/backups/`
-- 日志服务名：`backend_staging`、`nginx_staging`、`postgres_staging`
-- 容器名：`backend`、`nginx`、`postgres`

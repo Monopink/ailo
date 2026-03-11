@@ -1,0 +1,49 @@
+# Staging-specific Compose overrides.
+# This file is merged with deployment/compose.base.yaml.
+
+services:
+  postgres:
+    env_file:
+      - .env
+      - staging/.env
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql
+      - ../backend/database/init:/docker-entrypoint-initdb.d:ro
+    restart: unless-stopped
+
+  backend:
+    build:
+      target: staging
+    env_file:
+      - .env
+      - staging/.env
+    volumes:
+      - /opt/ailo-staging/logs:/backend/logs
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    restart: unless-stopped
+
+  nginx:
+    env_file:
+      - .env
+      - staging/.env
+    environment:
+      ADMIN_AUTH_REALM: Staging Admin
+    volumes:
+      - ../nginx/ssl:/etc/nginx/ssl:ro
+      - ./staging/secrets/.htpasswd:/etc/nginx/.htpasswd:ro
+      - /opt/ailo-staging/logs/nginx:/var/log/nginx
+      - certbot_webroot:/var/www/certbot:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    restart: unless-stopped
+
+volumes:
+  postgres_staging_data:
+    driver: local
+  certbot_webroot:
+    driver: local

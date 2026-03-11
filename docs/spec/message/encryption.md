@@ -113,7 +113,7 @@ metadata 新增字段，映射到 message_history.message_metadata：
 
 ### 依赖
 
-已加入 `backend/app/requirements.txt`：
+已加入 `backend/app/requirements-runtime.txt`：
 
 ```
 cryptography==46.0.3

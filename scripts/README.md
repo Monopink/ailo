@@ -178,10 +178,10 @@ On Windows, use Git Bash or WSL to run these scripts.
 - Wait for Docker to fully initialize
 
 ### "Container not found"
-- Start containers: `cd deployment && docker-compose up -d`
+- Start containers: `docker compose -f deployment/dev/compose.yaml up -d`
 
 ### "pytest not found"
-- Install dependencies: `pip install -r backend/app/requirements.txt`
+- Install dependencies: `pip install -r backend/app/requirements-dev.txt`
 - Install test dependencies: `pip install pytest pytest-asyncio httpx pytest-cov`
 
 ### "Tests fail with database errors"

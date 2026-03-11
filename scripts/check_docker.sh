@@ -18,8 +18,8 @@ NC='\033[0m' # No Color
 
 # Configuration
 DEPLOYMENT_DIR="deployment"
-POSTGRES_CONTAINER="postgres_db_container"
-BACKEND_CONTAINER="backend_container"
+POSTGRES_CONTAINER="postgres"
+BACKEND_CONTAINER="backend"
 BACKEND_URL="http://localhost:8000"
 HEALTH_ENDPOINT="${BACKEND_URL}/health"
 MAX_WAIT_TIME=30
@@ -98,7 +98,7 @@ check_containers() {
 
     if [ $all_running -ne 0 ]; then
         echo ""
-        print_info "To start containers, run: cd deployment && docker-compose up -d"
+        print_info "To start containers, run: docker compose -f deployment/dev/compose.yaml up -d"
         return 1
     fi
 
@@ -234,9 +234,9 @@ main() {
         echo ""
         print_info "Common solutions:"
         echo "  1. Start Docker Desktop"
-        echo "  2. Start containers: cd deployment && docker-compose up -d"
+        echo "  2. Start containers: docker compose -f deployment/dev/compose.yaml up -d"
         echo "  3. Check logs: docker logs <container_name>"
-        echo "  4. Restart containers: cd deployment && docker-compose restart"
+        echo "  4. Restart containers: docker compose -f deployment/dev/compose.yaml restart"
         exit 1
     fi
 }

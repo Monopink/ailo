@@ -1,0 +1,63 @@
+# Shared base Compose file for staging and production deployments.
+# This file is merged with deployment/staging/compose.yaml or
+# deployment/prod/compose.yaml by the deploy scripts.
+# The development environment does not use this file.
+
+services:
+  postgres:
+    image: postgres:18
+    container_name: postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    networks:
+      - default
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  backend:
+    container_name: backend
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        APT_MIRROR_HOST: ${APT_MIRROR_HOST-mirrors.tuna.tsinghua.edu.cn}
+        PIP_INDEX_URL: ${PIP_INDEX_URL-https://pypi.tuna.tsinghua.edu.cn/simple}
+    environment:
+      PYTHONDONTWRITEBYTECODE: 1
+      PYTHONUNBUFFERED: 1
+    networks:
+      - default
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').getcode() == 200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    container_name: nginx
+    build:
+      context: ../nginx
+      dockerfile: Dockerfile
+    environment:
+      BACKEND_UPSTREAM: backend:8000
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - default
+    depends_on:
+      - backend
+
+networks:
+  default:
+    driver: bridge

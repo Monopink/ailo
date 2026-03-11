@@ -8,6 +8,7 @@ from starlette.templating import Jinja2Templates
 from starlette_admin import BaseAdmin
 from starlette_admin.auth import AdminConfig, AdminUser, AuthProvider
 
+from app.core.config import get_settings
 from app.core.database import get_sessionmaker
 from app.core.security import verify_password
 from app.crud.admin import admin_user as admin_user_crud
@@ -19,7 +20,6 @@ from app.services.security.auth_tracker import (
     should_require_captcha,
 )
 from app.services.security.captcha.factory import create_captcha_provider
-from app.services.system_config import get_config_str
 from app.utils.admin_logs import create_login_log
 from app.utils.client_ip import ClientIPResolutionError, get_client_ip
 from app.utils.logging import get_logger
@@ -44,6 +44,8 @@ class CustomAuthProvider(AuthProvider):
     async def _render_login_form(self, request: Request, admin: BaseAdmin) -> Response:
         """Render the custom login template."""
         session_factory = get_sessionmaker()
+        settings = get_settings()
+        turnstile_site_key = settings.ADMIN_TURNSTILE_SITE_KEY or ""
         async with session_factory() as db:
             try:
                 client_ip = get_client_ip(request)
@@ -64,12 +66,6 @@ class CustomAuthProvider(AuthProvider):
                     },
                     status_code=400,
                 )
-            turnstile_site_key = await get_config_str(
-                db,
-                key="admin_turnstile_site_key",
-                required=False,
-                default="",
-            )
             show_captcha_raw = await should_require_captcha(client_ip, "admin_auth", db)
             show_captcha = bool(turnstile_site_key) and show_captcha_raw
             error = request.query_params.get("error")

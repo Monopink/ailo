@@ -8,6 +8,8 @@ node_modules/
 /logs/
 /CLAUDE.md
 /deployment/.env
-/deployment/.env.prod
-/deployment/.env.test
-/deployment/.env.staging
+/deployment/dev/.env
+/deployment/staging/.env
+/deployment/prod/.env
+/deployment/staging/secrets/.htpasswd
+/deployment/prod/secrets/.htpasswd

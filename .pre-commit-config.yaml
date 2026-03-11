@@ -5,6 +5,9 @@ repos:
     hooks:
       - id: trailing-whitespace
         name: Trim trailing whitespace
+      - id: mixed-line-ending
+        name: Fix line endings (LF)
+        args: ["--fix=lf"]
       - id: end-of-file-fixer
         name: Fix end of files
       - id: check-yaml
@@ -58,6 +61,14 @@ repos:
   # Local custom hooks
   - repo: local
     hooks:
+      - id: check-deployment-env-example-overrides
+        name: Check deployment .env.example overrides
+        entry: python scripts/check_deployment_env_example_overrides.py
+        language: system
+        pass_filenames: false
+        files: ^deployment/.*\.env\.example$
+        stages: [pre-commit]
+
       # Check for local imports in functions
       - id: check-local-imports
         name: Check for local imports in functions

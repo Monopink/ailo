@@ -3,14 +3,16 @@ FROM nginx:alpine
 # Configure Alpine mirrors for China
 RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
-# Install curl and envsubst for health checks and environment variable substitution
-RUN apk add --no-cache curl gettext
+# Install tools for health checks, env substitution and certificate bootstrap.
+RUN apk add --no-cache curl gettext openssl
 
 # Copy custom nginx configuration templates
 COPY conf.d/ /etc/nginx/templates/
+COPY entrypoint.sh /entrypoint.sh
 
 # Create directories for SSL certificates
 RUN mkdir -p /etc/nginx/ssl
+RUN chmod +x /entrypoint.sh
 
 # Expose ports
 EXPOSE 80 443
@@ -19,5 +21,5 @@ EXPOSE 80 443
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost/health || exit 1
 
-# Use nginx with environment variable substitution
-CMD ["sh", "-c", "envsubst '$$DOMAIN' < /etc/nginx/templates/default.conf > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+# Use nginx with environment variable substitution and first-run cert bootstrap.
+CMD ["/entrypoint.sh"]

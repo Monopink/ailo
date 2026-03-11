@@ -1,0 +1,8 @@
+[recidive]
+enabled = true
+logpath = /var/log/fail2ban.log
+findtime = 1d
+maxretry = 3
+bantime = 24h
+backend = auto
+ignoreip = __IGNOREIP__

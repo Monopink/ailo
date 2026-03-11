@@ -86,6 +86,8 @@ class Settings(BaseSettings):
 
     # Admin settings
     ADMIN_SECRET_KEY: str  # For session middleware
+    ADMIN_TURNSTILE_SECRET_KEY: str | None = None
+    ADMIN_TURNSTILE_SITE_KEY: str | None = None
 
     # Aliyun Captcha credentials (server-side verification)
 
@@ -165,7 +167,26 @@ class Settings(BaseSettings):
             raise ValueError("CLIENT_IP_HEADER must be configured")
         return normalized
 
-    @field_validator("MEDIA_PUBLIC_BASE_URL", mode="before")
+    @field_validator(
+        "ADMIN_TURNSTILE_SECRET_KEY",
+        "ADMIN_TURNSTILE_SITE_KEY",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_optional_turnstile_settings(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator(
+        "TENCENT_COS_MEDIA_SECRET_ID",
+        "TENCENT_COS_MEDIA_SECRET_KEY",
+        "TENCENT_COS_MEDIA_REGION",
+        "TENCENT_COS_MEDIA_BUCKET",
+        "TENCENT_COS_MEDIA_ENDPOINT",
+        mode="before",
+    )
     @classmethod
     def _validate_media_public_base_url(cls, value: str | None) -> str:
         if value is None:

@@ -2,9 +2,13 @@
 WeChat Mini Program API client
 """
 
+import base64
+import json
 from typing import Any, NotRequired, TypedDict, cast
 
 import httpx
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from app.core.config import get_settings
 from app.services.wechat import cache
@@ -216,3 +220,26 @@ class WeChatClient:
     async def close(self) -> None:
         """Close HTTP client"""
         await self._client.aclose()
+
+    def decrypt_user_data(self, encrypted_data: str, iv: str, session_key: str) -> dict[str, Any]:
+        """Decrypt encrypted user payload from legacy getPhoneNumber callback."""
+        try:
+            encrypted_bytes = base64.b64decode(encrypted_data)
+            iv_bytes = base64.b64decode(iv)
+            session_key_bytes = base64.b64decode(session_key)
+
+            cipher = Cipher(algorithms.AES(session_key_bytes), modes.CBC(iv_bytes))
+            decryptor = cipher.decryptor()
+            decrypted = decryptor.update(encrypted_bytes) + decryptor.finalize()
+
+            unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
+            plaintext = unpadder.update(decrypted) + unpadder.finalize()
+
+            payload = json.loads(plaintext.decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise TypeError("invalid decrypted payload type")
+
+            return cast(dict[str, Any], payload)
+        except Exception as exc:
+            logger.warning("wechat_decrypt_user_data_failed", error=str(exc))
+            raise WeChatAPIError(-2, "failed_to_decrypt_user_data") from exc

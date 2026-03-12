@@ -3,7 +3,7 @@
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.enums import DeviceType
 from app.type_defs import JSONDict
@@ -40,8 +40,29 @@ class WeChatBindPhoneRequest(BaseModel):
     """WeChat bind phone request (second stage)."""
 
     login_code: str = Field(..., description="Login code from wx.login()")
-    phone_code: str = Field(..., description="Phone code from getPhoneNumber button")
+    phone_code: str | None = Field(
+        None, description="Phone code from getPhoneNumber button (new protocol)"
+    )
+    encrypted_data: str | None = Field(
+        None, description="Encrypted phone payload from getPhoneNumber (legacy protocol)"
+    )
+    iv: str | None = Field(
+        None, description="IV for encrypted phone payload from getPhoneNumber (legacy protocol)"
+    )
     device_id: UUID = Field(..., description="Device/installation UUID")
+
+    @model_validator(mode="after")
+    def validate_phone_payload(self) -> "WeChatBindPhoneRequest":
+        """Ensure bind request contains exactly one valid phone payload format."""
+        has_phone_code = bool(self.phone_code and self.phone_code.strip())
+        has_encrypted_data = bool(self.encrypted_data and self.encrypted_data.strip())
+        has_iv = bool(self.iv and self.iv.strip())
+
+        if has_phone_code:
+            return self
+        if has_encrypted_data and has_iv:
+            return self
+        raise ValueError("phone_code or encrypted_data+iv is required")
 
 
 class WeChatBindPhoneResponse(BaseModel):

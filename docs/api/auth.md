@@ -5,6 +5,7 @@
 - [发送短信验证码（暂不开放）](#发送短信验证码暂不开放) - `POST /api/v1/auth/send-sms`
 - [手机号登录（暂不开放）](#手机号登录暂不开放) - `POST /api/v1/auth/phone`
 - [微信登录](#微信登录) - `POST /api/v1/auth/wechat/login`
+- [微信手机号绑定](#2-绑定手机号) - `POST /api/v1/auth/wechat/bind-phone`
 - [微信手机号更新](#微信手机号更新) - `POST /api/v1/auth/wechat/refresh-phone`
 - [账号密码登录](#账号密码登录) - `POST /api/v1/auth/login`
 - [退出登录](#退出登录) - `POST /api/v1/auth/logout`
@@ -227,9 +228,9 @@
 
 - **路径**: `POST /api/v1/auth/wechat/bind-phone`
 - **认证**: 无需认证
-- **说明**: 仅在 `status=need_phone` 时调用，完成手机号绑定并登录
+- **说明**: 仅在 `status=need_phone` 时调用，完成手机号绑定并登录；单接口同时支持新旧两种微信手机号授权载荷
 
-**请求参数**
+**请求参数（新协议：code）**
 
 ```json
 {
@@ -243,6 +244,24 @@
 
 - `login_code` (string, 必填) - 来自 `wx.login()`
 - `phone_code` (string, 必填) - 来自 `getPhoneNumber`
+- `device_id` (string, 必填) - 设备/安装级 UUID（稳定复用）
+
+**请求参数（兼容协议：encryptedData + iv）**
+
+```json
+{
+  "login_code": "wx_login_code",
+  "encrypted_data": "wx_encrypted_data",
+  "iv": "wx_iv",
+  "device_id": "33333333-3333-3333-3333-333333333333"
+}
+```
+
+字段说明：
+
+- `login_code` (string, 必填) - 来自 `wx.login()`
+- `encrypted_data` (string, 必填) - 来自 `getPhoneNumber` 回调
+- `iv` (string, 必填) - 来自 `getPhoneNumber` 回调
 - `device_id` (string, 必填) - 设备/安装级 UUID（稳定复用）
 
 **成功响应 (200)**
@@ -279,6 +298,7 @@
 
 - 该接口只在用户同意手机号授权后调用。
 - `device_id` 为必填 UUID，必须与客户端本地持久化值一致。
+- `phone_code` 与 `encrypted_data + iv` 为互斥协议载荷，调用时二选一。
 - 仅支持中国大陆手机号；国际号码直接返回 400。
 - 手机号已存在时会解绑旧微信并绑定到当前微信，轻提示用户；旧微信下次按未绑定流程处理，无需特殊分支。
 - 开发/测试可用虚拟手机号 Mock：`system_configs` 配置 `wechat_phone_mock_enabled=true` 与 `wechat_phone_mock_number`（仅数字，例如 `13812341234`），生产环境不开启。

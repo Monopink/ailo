@@ -923,6 +923,44 @@ async def wechat_login(
         raise HTTPException(status_code=500, detail="系统错误")
 
 
+async def _resolve_wechat_bind_phone_info(
+    db: AsyncSession,
+    wechat_client: WeChatClient,
+    body: WeChatBindPhoneRequest,
+    session_data: dict[str, str],
+) -> JSONDict:
+    """Resolve phone_info from either new or legacy getPhoneNumber payload."""
+    if body.phone_code and body.phone_code.strip():
+        access_token = await wechat_client.get_access_token()
+        phone_data = await wechat_client.get_phone_number(body.phone_code, access_token)
+        logger.info("wechat_bind_phone_protocol_resolved", protocol="code")
+        raw_phone_info = phone_data.get("phone_info", {})
+    else:
+        try:
+            decrypted = wechat_client.decrypt_user_data(
+                body.encrypted_data or "",
+                body.iv or "",
+                session_data["session_key"],
+            )
+        except WeChatAPIError:
+            raise HTTPException(status_code=400, detail="请求参数错误")
+        logger.info("wechat_bind_phone_protocol_resolved", protocol="encrypted_data")
+
+        watermark = decrypted.get("watermark")
+        if isinstance(watermark, dict):
+            appid = watermark.get("appid")
+            if isinstance(appid, str) and appid and appid != settings.WECHAT_APP_ID:
+                logger.warning("wechat_bind_watermark_appid_mismatch", appid=appid)
+                raise HTTPException(status_code=400, detail="请求参数错误")
+
+        candidate = decrypted.get("phone_info")
+        raw_phone_info = candidate if isinstance(candidate, dict) else decrypted
+
+    if not isinstance(raw_phone_info, dict):
+        raise HTTPException(status_code=400, detail="请求参数错误")
+    return await _apply_wechat_phone_mock(db, raw_phone_info)
+
+
 @router.post("/wechat/bind-phone", response_model=WeChatBindPhoneResponse)
 async def bind_wechat_phone(
     request: Request, body: WeChatBindPhoneRequest, db: AsyncSession = Depends(get_db)
@@ -933,7 +971,6 @@ async def bind_wechat_phone(
     wechat_client = WeChatClient()
 
     try:
-        access_token = await wechat_client.get_access_token()
         session_data = await wechat_client.code2session(body.login_code)
         openid = session_data["openid"]
         unionid = session_data.get("unionid")
@@ -945,10 +982,11 @@ async def bind_wechat_phone(
             ip=client_ip,
         )
 
-        phone_data = await wechat_client.get_phone_number(body.phone_code, access_token)
-        phone_info = await _apply_wechat_phone_mock(
+        phone_info = await _resolve_wechat_bind_phone_info(
             db,
-            phone_data.get("phone_info", {}),
+            wechat_client,
+            body,
+            session_data,
         )
 
         country_code = phone_info.get("countryCode")

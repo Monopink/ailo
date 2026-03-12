@@ -13,6 +13,7 @@ from app.crud.base import CRUDBase
 from app.enums import ConfigType
 from app.models.system import SystemConfig
 from app.schemas.system import SystemConfigCreate, SystemConfigUpdate
+from app.services.config import config_service
 from app.type_defs import JSONValue
 from app.utils.logging import get_logger
 
@@ -94,6 +95,7 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
         db.add(config)
         await db.commit()
         await db.refresh(config)
+        config_service.clear_cache(config_key)
 
         logger.info("system_config_updated", config_key=config_key, updated_by=updated_by)
         return config
@@ -113,6 +115,8 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
                 count += 1
 
         await db.commit()
+        for config_key in configs:
+            config_service.clear_cache(config_key)
         return count
 
     async def get_config_value(

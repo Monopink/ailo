@@ -232,6 +232,34 @@ class SystemSettingsView(CustomView):
                 config_groups = await get_configs_by_group(db)
                 context["config_groups"] = config_groups
                 context["media_cdn_config"] = await self._get_media_cdn_context(db)
+                webhook_token = await system_configs.get_config_value(
+                    db, config_key="leancloud_im_webhook_token"
+                )
+                api_base_url = await system_configs.get_config_value(db, config_key="api_base_url")
+                conversation_id = await system_configs.get_config_value(
+                    db, config_key="leancloud_im_service_conversation_id"
+                )
+                leancloud_raw_config = await config_service.get_leancloud_config(db)
+                webhook_url = None
+                if webhook_token and api_base_url:
+                    webhook_url = build_leancloud_webhook_url(
+                        api_base_url=str(api_base_url),
+                        webhook_token=str(webhook_token),
+                    )
+                context["webhook_url"] = webhook_url
+                context["webhook_token"] = webhook_token
+                context["token_length"] = len(webhook_token) if webhook_token else 0
+                context["conversation_id"] = conversation_id
+                context["leancloud_config"] = {
+                    "configured": bool(
+                        leancloud_raw_config.get("app_id")
+                        and leancloud_raw_config.get("master_key")
+                        and leancloud_raw_config.get("base_url")
+                    ),
+                    "has_app_id": bool(leancloud_raw_config.get("app_id")),
+                    "has_master_key": bool(leancloud_raw_config.get("master_key")),
+                    "has_base_url": bool(leancloud_raw_config.get("base_url")),
+                }
 
             return templates.TemplateResponse("custom_views/system_settings.html", context)
 

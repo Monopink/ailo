@@ -12,6 +12,7 @@ import {
   createLoginPageService,
   type AuthSuccessPayload,
   type LoginStatus,
+  type WechatPhoneAuthPayload,
 } from '../../services/pages/login-service';
 
 const logger = getLogger('Login');
@@ -94,32 +95,49 @@ Page<LoginPageData, LoginPageCustom>({
   },
 
   async handleWeChatLogin(event) {
+    const detail = (event as unknown as { detail?: Record<string, unknown> }).detail ?? {};
+    const eventDetail = detail as {
+      errMsg?: string;
+      code?: string;
+      encryptedData?: string;
+      iv?: string;
+    };
+
     if (event.detail.errMsg !== 'getPhoneNumber:ok') {
       logger.warn('WeChat phone authorization rejected', {
         errMsg: event.detail.errMsg,
       });
-      showToast('完成手机号验证后即可开始使用');
+      showToast('请先登录后即可开始使用');
       return;
     }
 
-    const phoneCode = event.detail.code;
-    logger.info('Got phone code from WeChat', { phoneCode });
+    let phoneAuthPayload: WechatPhoneAuthPayload | null = null;
+    if (isNonEmptyString(eventDetail.code)) {
+      phoneAuthPayload = { phoneCode: eventDetail.code };
+    } else if (isNonEmptyString(eventDetail.encryptedData) && isNonEmptyString(eventDetail.iv)) {
+      phoneAuthPayload = {
+        encryptedData: eventDetail.encryptedData,
+        iv: eventDetail.iv,
+      };
+    }
+
+    if (phoneAuthPayload === null) {
+      showToast('登录失败，请尝试更新微信');
+      return;
+    }
 
     try {
       this.setData({ wechatLoading: true });
-      const result = await this.loginPageService.bindPhone(phoneCode, this.data.loginCode);
+      const result = await this.loginPageService.bindPhone(phoneAuthPayload, this.data.loginCode);
       this.setData({ loginCode: result.loginCode });
       await this.handleAuthSuccess(result.authSuccess);
     } catch (error) {
-      const err = normalizeError(error);
-      const errorMessage = isNonEmptyString(err.message) ? err.message : '登录失败，请重试';
       logger.error('WeChat login failed', {
-        error: errorMessage,
+        error: normalizeError(error).message,
         rawError: error,
       });
       this.setData({ wechatLoading: false });
-
-      showToast(errorMessage, 'none');
+      showToast('登录失败，请尝试更新微信', 'none');
     }
   },
 

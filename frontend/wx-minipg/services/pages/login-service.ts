@@ -37,6 +37,8 @@ export interface LoginBindResult {
   authSuccess: AuthSuccessPayload;
 }
 
+export type WechatPhoneAuthPayload = { phoneCode: string } | { encryptedData: string; iv: string };
+
 const normalizeAuthUser = (payload: AuthUserPayload): StoredAuthUser => ({
   qiao_id: payload.qiao_id,
 });
@@ -111,18 +113,28 @@ export class LoginPageService extends BasePageService {
     }
   }
 
-  async bindPhone(phoneCode: string, currentLoginCode: string): Promise<LoginBindResult> {
+  async bindPhone(
+    phoneAuthPayload: WechatPhoneAuthPayload,
+    currentLoginCode: string
+  ): Promise<LoginBindResult> {
     const loginCode = await this.getFreshLoginCode(currentLoginCode);
     if (!isNonEmptyString(loginCode)) {
       throw new Error('登录失败，请重试');
     }
     const deviceId = await getDeviceId();
+    const bindPayload =
+      'phoneCode' in phoneAuthPayload
+        ? { phone_code: phoneAuthPayload.phoneCode }
+        : {
+            encrypted_data: phoneAuthPayload.encryptedData,
+            iv: phoneAuthPayload.iv,
+          };
     const response = await requestValidated(WechatBindPhoneResponseSchema, {
       url: '/auth/wechat/bind-phone',
       method: 'POST',
       data: {
         login_code: loginCode,
-        phone_code: phoneCode,
+        ...bindPayload,
         device_id: deviceId,
       },
       auth: false,

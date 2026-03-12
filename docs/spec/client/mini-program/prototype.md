@@ -26,19 +26,21 @@
 
 1. 页面加载时静默调用 `wx.login()` 预取 `login_code`（有效期 5 分钟）
 2. 登录页仅保留 `open-type="getPhoneNumber"` 的微信授权登录按钮
-3. 用户授权成功后获得 `phone_code`，与最新 `login_code` 一并提交 [微信登录](../../../api/auth.md#微信登录)
+3. 用户授权成功后，按以下顺序提交 [微信登录](../../../api/auth.md#微信登录)
+   - 回调存在 `code`：提交 `phone_code + login_code + device_id`
+   - 回调不存在 `code` 但存在 `encryptedData + iv`：提交 `encrypted_data + iv + login_code + device_id`
 4. 后端返回 `needs_profile_setup=true` 时跳转资料设置页
 
 **异常处理**:
 
 - 用户拒绝授权：提示“需要授权手机号才能使用本应用”
 - 国际手机号：提示“暂不支持国际手机号，请使用中国大陆手机号”
-- 微信接口异常：提示“微信服务异常，请稍后重试”
+- 两种授权载荷均不可用或登录失败：提示“登录失败，请尝试更新微信”
 
 **注意事项**:
 
 - 仅支持 +86 手机号
-- 登录按钮一次触发 `wx.login()` 与 `getPhoneNumber`，任一环节失败即中止
+- 登录按钮触发 `wx.login()` 与 `getPhoneNumber`；绑定阶段根据回调载荷选择协议分支
 - 小程序前端不得调用 `/auth/phone` 等短信登录接口
 - 开发者工具可通过 `wechat_phone_mock_*` 配置模拟手机号（仅测试）
 

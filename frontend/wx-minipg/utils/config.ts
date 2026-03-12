@@ -3,15 +3,23 @@
  * Centralized configuration for the miniprogram
  */
 
+import { ENV } from './env';
+
 export interface ApiConfig {
   baseUrl: string;
   timeout: number;
   version: string;
 }
 
+const API_BASE_URLS = {
+  develop: 'http://localhost:8000',
+  trial: 'https://synapse.qiaoqiaoai.cn',
+  release: 'https://synapse.qiaoqiaoai.cn',
+} as const;
+
 export const API_CONFIG: ApiConfig = {
   // Base URL for API requests
-  baseUrl: 'http://localhost:8000',
+  baseUrl: API_BASE_URLS[ENV],
 
   // API timeout (ms)
   timeout: 10000,

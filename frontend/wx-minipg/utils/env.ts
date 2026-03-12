@@ -1,14 +1,15 @@
 /**
  * Environment Configuration
- * Controls behavior based on development/production environment
+ * Controls behavior based on WeChat mini program runtime environment
  */
 
 /**
- * Environment type
- * Set to 'development' for local development
- * Set to 'production' for release
+ * WeChat mini program runtime environment.
+ * - develop: developer tools / development version
+ * - trial: trial version
+ * - release: production release
  */
-export type Environment = 'development' | 'production';
+export type Environment = 'develop' | 'trial' | 'release';
 
 export type LogLevel = 'DEBUG' | 'NONE';
 
@@ -18,43 +19,48 @@ const resolveEnvironment = (): Environment => {
       const accountInfo = wx.getAccountInfoSync();
       const envVersion = accountInfo.miniProgram.envVersion;
       switch (envVersion) {
-        case 'release':
-          return 'production';
-        case 'trial':
         case 'develop':
+        case 'trial':
+        case 'release':
+          return envVersion;
         default:
-          return 'development';
+          break;
       }
     }
   } catch {
     // Silent fallback to default
   }
-  return 'development';
+  return 'develop';
 };
 
 export const ENV: Environment = resolveEnvironment();
 
 /**
- * Check if in development mode
+ * Check if in develop mode
  */
-export const IS_DEV: boolean = ENV === 'development';
+export const IS_DEV: boolean = ENV === 'develop';
 
 /**
- * Check if in production mode
+ * Check if in trial mode
  */
-export const IS_PROD: boolean = ENV === 'production';
+export const IS_TRIAL: boolean = ENV === 'trial';
+
+/**
+ * Check if in release mode
+ */
+export const IS_PROD: boolean = ENV === 'release';
 
 /**
  * Log level configuration
- * - development: 'DEBUG' (all logs)
- * - production: 'NONE' (no logs to save storage)
+ * - develop/trial: 'DEBUG' (all logs)
+ * - release: 'NONE' (no logs to save storage)
  */
-export const LOG_LEVEL: LogLevel = IS_DEV ? 'DEBUG' : 'NONE';
+export const LOG_LEVEL: LogLevel = IS_PROD ? 'NONE' : 'DEBUG';
 
 /**
  * Enable debug tools
- * - development: true (enable checkStorage, checkGlobalData, etc.)
- * - production: false (disable all debug tools)
+ * - develop: true (enable checkStorage, checkGlobalData, etc.)
+ * - trial/release: false (disable all debug tools)
  */
 export const ENABLE_DEBUG_TOOLS: boolean = IS_DEV;
 

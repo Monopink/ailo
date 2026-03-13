@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import re
 import traceback
 from datetime import timedelta
 from typing import Any, BinaryIO, cast
+from urllib.parse import urlparse
 
 import boto3
 from botocore.config import Config
@@ -21,6 +23,10 @@ from app.services.storage.base import (
 
 class TencentCOSBackend(StorageBackend):
     """Tencent COS implementation using boto3 (AWS SDK)."""
+
+    _METADATA_KEY_RE = re.compile(r"^[a-z0-9-]+$")
+    _PRINTABLE_ASCII_MIN = 32
+    _PRINTABLE_ASCII_MAX = 126
 
     @property
     def provider_name(self) -> str:
@@ -39,12 +45,21 @@ class TencentCOSBackend(StorageBackend):
         if not bucket:
             raise ValueError("COS bucket must be configured")
 
-        # For Tencent COS, use service domain (without bucket name)
-        # Bucket name will be added automatically by boto3 when using virtual addressing
         if not endpoint:
             raise ValueError("COS endpoint must be configured")
 
-        endpoint_url = endpoint
+        endpoint_url = endpoint.rstrip("/")
+        parsed = urlparse(endpoint_url)
+        if not parsed.scheme or not parsed.netloc:
+            raise ValueError(
+                "COS endpoint must be an absolute URL, e.g. https://cos.ap-shanghai.myqcloud.com"
+            )
+
+        hostname = parsed.hostname or ""
+        if hostname.startswith(f"{bucket}."):
+            raise ValueError(
+                "COS endpoint must be the service domain (without bucket prefix), e.g. https://cos.ap-shanghai.myqcloud.com"
+            )
 
         self.bucket = bucket
         self.region = region
@@ -77,10 +92,9 @@ class TencentCOSBackend(StorageBackend):
         metadata: dict[str, str] | None = None,
         is_public: bool = False,
     ) -> None:
-        del metadata  # maintained for interface compatibility; COS ignores metadata on upload
-        # CRITICAL: Do NOT pass Metadata to put_object - causes SignatureDoesNotMatch with COS
-        # ContentType is sufficient for our needs
         extra_args: dict[str, object] = {"ContentType": mime_type}
+        if metadata is not None:
+            extra_args["Metadata"] = self._validate_metadata(metadata)
 
         # Set ACL for public files (e.g., avatars)
         if is_public:
@@ -108,6 +122,34 @@ class TencentCOSBackend(StorageBackend):
             raise StorageUploadError(
                 f"Failed to upload {object_key}: {exc}\n{error_details}"
             ) from exc
+
+    def _validate_metadata(self, metadata: dict[str, str]) -> dict[str, str]:
+        """Validate metadata keys/values for COS S3-compatible API."""
+        if not metadata:
+            return {}
+
+        normalized: dict[str, str] = {}
+        for key, value in metadata.items():
+            if not isinstance(key, str) or not key:
+                raise ValueError("COS metadata key must be a non-empty string")
+            if key != key.lower():
+                raise ValueError(f"COS metadata key must be lowercase: {key}")
+            if "_" in key or not self._METADATA_KEY_RE.fullmatch(key):
+                raise ValueError(
+                    "COS metadata key must match [a-z0-9-]+ and must not include underscores: "
+                    f"{key}"
+                )
+            if not isinstance(value, str):
+                raise TypeError(f"COS metadata value must be a string for key {key}")
+            if any(
+                (ord(ch) < self._PRINTABLE_ASCII_MIN or ord(ch) > self._PRINTABLE_ASCII_MAX)
+                for ch in value
+            ):
+                raise ValueError(f"COS metadata value must be printable ASCII for key {key}")
+
+            normalized[key] = value
+
+        return normalized
 
     def download(self, object_key: str) -> bytes:
         try:

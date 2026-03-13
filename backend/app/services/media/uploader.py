@@ -104,14 +104,12 @@ async def upload_via_proxy(
     file_id = generate_file_id()
     original_name_value = original_name or object_key.split("/")[-1]
 
-    metadata = {"content_type": mime_type, "uploaded_via": "proxy"}
     try:
         # Call storage.upload() directly - boto3 is thread-safe in uvicorn worker
         storage.upload(
             object_key,
             file_bytes,
             mime_type,
-            metadata=metadata,
             is_public=rule.is_public,
         )
     except StorageError as exc:

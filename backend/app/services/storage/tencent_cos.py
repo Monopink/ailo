@@ -10,6 +10,7 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
+from app.exceptions import MissingConfigurationError
 from app.services.storage.base import (
     StorageBackend,
     StorageError,
@@ -40,7 +41,10 @@ class TencentCOSBackend(StorageBackend):
 
         # For Tencent COS, use service domain (without bucket name)
         # Bucket name will be added automatically by boto3 when using virtual addressing
-        endpoint_url = endpoint or f"https://cos.{region}.myqcloud.com"
+        if not endpoint:
+            raise ValueError("COS endpoint must be configured")
+
+        endpoint_url = endpoint
 
         self.bucket = bucket
         self.region = region
@@ -151,9 +155,9 @@ class TencentCOSBackend(StorageBackend):
         }
 
     def get_public_url(self, object_key: str) -> str:
-        if self.cdn_domain:
-            return f"{self.cdn_domain}/{object_key}"
-        return f"https://{self.bucket}.cos.{self.region}.myqcloud.com/{object_key}"
+        if not self.cdn_domain:
+            raise MissingConfigurationError(config_key="media_public_base_url")
+        return f"{self.cdn_domain}/{object_key}"
 
     def get_presigned_url(
         self,

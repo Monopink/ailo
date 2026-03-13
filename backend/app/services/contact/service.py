@@ -13,7 +13,6 @@ from app.crud.contact import contact as contact_crud
 from app.crud.message import media_file as media_file_crud
 from app.crud.profile import profile as profile_crud
 from app.enums import AvatarDisplayMode, ContactType, FileStatus, FileType
-from app.exceptions import MissingConfigurationError
 from app.models.contact import Contact
 from app.models.message import MediaFile
 from app.models.profile import Profile
@@ -35,12 +34,7 @@ def _build_custom_avatar_url(custom_avatar_key: str | None) -> str | None:
     if not custom_avatar_key:
         return None
 
-    try:
-        base = get_media_base_url()
-    except MissingConfigurationError:
-        logger.error("contact_custom_avatar_base_missing")
-        return ""
-
+    base = get_media_base_url()
     return f"{base}/{custom_avatar_key}"
 
 

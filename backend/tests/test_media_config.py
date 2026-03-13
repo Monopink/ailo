@@ -1,8 +1,9 @@
 import pytest
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.crud.system import system_configs
+from app.exceptions import MissingConfigurationError
 from app.services.media.config import (
     clear_media_base_url_cache,
     get_media_base_url,
@@ -33,10 +34,8 @@ async def test_refresh_media_base_url_uses_db_value(db_session: AsyncSession) ->
 
 
 @pytest.mark.asyncio
-async def test_refresh_media_base_url_env_fallback(
-    monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession
-) -> None:
-    """Fallback to environment variable when DB config is blank."""
+async def test_refresh_media_base_url_missing_raises(db_session: AsyncSession) -> None:
+    """Missing system_configs value should raise without fallback."""
     await system_configs.update_config_value(
         db_session,
         config_key="media_public_base_url",
@@ -45,18 +44,9 @@ async def test_refresh_media_base_url_env_fallback(
         validate_enum=False,
     )
     await SystemConfigService.reload_cache(db_session)
-
-    settings = get_settings()
-    monkeypatch.setattr(
-        settings,
-        "MEDIA_PUBLIC_BASE_URL",
-        "https://cdn-from-env.example.com",
-        raising=False,
-    )
     clear_media_base_url_cache()
-
-    value = await refresh_media_base_url(db_session)
-
-    assert value == "https://cdn-from-env.example.com"
-    assert get_media_base_url() == "https://cdn-from-env.example.com"
-    assert get_media_base_url_source() == "env"
+    with pytest.raises(MissingConfigurationError):
+        await refresh_media_base_url(db_session)
+    assert get_media_base_url_source() == "unset"
+    with pytest.raises(MissingConfigurationError):
+        get_media_base_url()

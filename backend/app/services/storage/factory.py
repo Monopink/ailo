@@ -16,15 +16,15 @@ from app.services.storage.tencent_cos import TencentCOSBackend
 def get_storage_backend() -> StorageBackend:
     """Return cached storage backend instance."""
     settings = get_settings()
-    if not settings.TENCENT_COS_BUCKET:
-        raise ValueError("TENCENT_COS_BUCKET must be configured for COS provider")
+    if not settings.TENCENT_COS_MEDIA_BUCKET:
+        raise ValueError("TENCENT_COS_MEDIA_BUCKET must be configured for COS provider")
     cdn_domain = get_media_base_url()
     return TencentCOSBackend(
-        secret_id=settings.TENCENT_COS_SECRET_ID,
-        secret_key=settings.TENCENT_COS_SECRET_KEY,
-        region=settings.TENCENT_COS_REGION,
-        bucket=settings.TENCENT_COS_BUCKET,
-        endpoint=settings.TENCENT_COS_ENDPOINT or None,
+        secret_id=settings.TENCENT_COS_MEDIA_SECRET_ID,
+        secret_key=settings.TENCENT_COS_MEDIA_SECRET_KEY,
+        region=settings.TENCENT_COS_MEDIA_REGION,
+        bucket=settings.TENCENT_COS_MEDIA_BUCKET,
+        endpoint=settings.TENCENT_COS_MEDIA_ENDPOINT,
         cdn_domain=cdn_domain,
     )
 

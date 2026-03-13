@@ -37,8 +37,6 @@ async def get_avatar_url(profile: Profile | None) -> str:
         >>> avatar_url = await get_avatar_url(profile)
     """
     base = _resolve_media_base_url()
-    if not base:
-        return ""
 
     object_key = profile.avatar_key if profile and profile.avatar_key else DEFAULT_AVATAR_OBJECT_KEY
     return f"{base}/{object_key}"
@@ -73,8 +71,6 @@ async def get_avatar_urls_batch(profiles: list[Profile]) -> dict[int, str]:
         return {}
 
     base = _resolve_media_base_url()
-    if not base:
-        return {}
 
     # Build result: profile_id -> avatar_url (zero database queries)
     result_map: dict[int, str] = {}
@@ -86,12 +82,8 @@ async def get_avatar_urls_batch(profiles: list[Profile]) -> dict[int, str]:
 
 
 def _resolve_media_base_url() -> str:
-    """Return normalized media base URL or empty string if unavailable."""
-    try:
-        return get_media_base_url()
-    except MissingConfigurationError:
-        logger.error("media_public_base_url_missing")
-        return ""
+    """Return normalized media base URL."""
+    return get_media_base_url()
 
 
 async def get_default_avatar_url(db: AsyncSession) -> str:

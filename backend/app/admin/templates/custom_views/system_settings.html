@@ -184,19 +184,6 @@
                   <div class="text-danger">Unavailable</div>
                   {% endif %}
                 </div>
-                <div class="mb-3">
-                  <label class="form-label">Env Fallback</label>
-                  <div class="form-control-plaintext">
-                    {% if media_cdn_config.env_value %}
-                    {{ media_cdn_config.env_value }}
-                    {% else %}
-                    <span class="text-muted fst-italic">(not set)</span>
-                    {% endif %}
-                  </div>
-                  <small class="text-muted">
-                    Backend only uses the environment value when <code>system_configs.media_public_base_url</code> is empty.
-                  </small>
-                </div>
                 <div class="text-muted small mb-3">
                   <i class="fa fa-info-circle me-1"></i>
                   <em>Update CDN domain by editing <code>media_public_base_url</code> below, then reload to apply on all workers.</em>

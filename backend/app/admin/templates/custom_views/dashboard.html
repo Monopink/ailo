@@ -183,13 +183,6 @@
             </div>
             <div class="text-muted small mt-1">
               DB: {% if db_value %}{{ db_value }}{% else %}<em>not set</em>{% endif %}
-              <br />
-              Env fallback:
-              {% if media_cdn_status.env_value %}
-              {{ media_cdn_status.env_value }}
-              {% else %}
-              <em>not set</em>
-              {% endif %}
             </div>
           </div>
         </div>

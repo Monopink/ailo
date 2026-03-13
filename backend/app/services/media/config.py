@@ -2,7 +2,7 @@
 Runtime helpers for media-related configuration.
 
 Provides cached access to ``media_public_base_url`` with system_configs as the
-authoritative source and environment variables as emergency fallback.
+authoritative source.
 """
 
 from __future__ import annotations
@@ -13,7 +13,6 @@ from typing import Final
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.exceptions import MissingConfigurationError
 from app.services.system_config import SystemConfigService
 from app.utils.logging import get_logger
@@ -45,7 +44,7 @@ def _normalize(value: str | None) -> str | None:
 
 async def refresh_media_base_url(db: AsyncSession) -> str:
     """
-    Refresh cached media base URL from system_configs with env fallback.
+    Refresh cached media base URL from system_configs.
 
     Args:
         db: Active AsyncSession for reading system_configs.
@@ -63,21 +62,11 @@ async def refresh_media_base_url(db: AsyncSession) -> str:
         source = "system_configs"
 
         if not normalized:
-            fallback = _normalize(get_settings().MEDIA_PUBLIC_BASE_URL)
-            if not fallback:
-                logger.error(
-                    "media_public_base_url_missing",
-                    source="system_configs",
-                    env_fallback=False,
-                )
-                raise MissingConfigurationError(config_key=_MEDIA_BASE_URL_KEY)
-            normalized = fallback
-            source = "env"
-            logger.warning(
-                "media_public_base_url_fallback_used",
-                fallback_source="env",
-                config_key=_MEDIA_BASE_URL_KEY,
+            logger.error(
+                "media_public_base_url_missing",
+                source="system_configs",
             )
+            raise MissingConfigurationError(config_key=_MEDIA_BASE_URL_KEY)
 
         _state.value = normalized
         _state.source = source
@@ -93,19 +82,15 @@ def get_media_base_url() -> str:
     """
     Return cached media base URL.
 
-    Falls back to environment variable if refresh has not been executed yet.
+    Raises MissingConfigurationError if refresh has not been executed yet.
     """
     if _state.value:
         return _state.value
 
-    fallback = _normalize(get_settings().MEDIA_PUBLIC_BASE_URL)
-    if fallback:
-        logger.warning(
-            "media_public_base_url_cache_uninitialized",
-            config_key=_MEDIA_BASE_URL_KEY,
-        )
-        return fallback
-
+    logger.error(
+        "media_public_base_url_cache_uninitialized",
+        config_key=_MEDIA_BASE_URL_KEY,
+    )
     raise MissingConfigurationError(config_key=_MEDIA_BASE_URL_KEY)
 
 

@@ -19,6 +19,7 @@ from app.api.v1 import v1_router
 from app.api.ws import ws_router
 from app.core.config import Settings, get_settings
 from app.core.database import close_database, get_sessionmaker, init_database
+from app.exceptions import MissingConfigurationError
 from app.exceptions.handlers import register_exception_handlers
 from app.middleware.rate_limit import APIRateLimitMiddleware
 from app.services.contact.request_worker import start_contact_request_worker
@@ -119,7 +120,13 @@ def _create_lifespan(
 
             async with session_factory() as db:
                 await reset_open_conversation_windows(db)
-                await refresh_media_base_url(db)
+                try:
+                    await refresh_media_base_url(db)
+                except MissingConfigurationError as exc:
+                    logger.error(
+                        "media_public_base_url_missing_on_startup",
+                        error=str(exc),
+                    )
 
             logger.info("loading_rate_limit_config")
             async with session_factory() as db:

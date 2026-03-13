@@ -3,7 +3,7 @@ from ipaddress import ip_network
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -93,13 +93,19 @@ class Settings(BaseSettings):
 
     CAPTCHA_CLIENT_WHITELIST: list[str] = Field(default_factory=lambda: ["mini-program"])
 
-    # Storage settings
-    MEDIA_PUBLIC_BASE_URL: str
-    TENCENT_COS_SECRET_ID: str
-    TENCENT_COS_SECRET_KEY: str
-    TENCENT_COS_REGION: str
-    TENCENT_COS_BUCKET: str
-    TENCENT_COS_ENDPOINT: str = ""  # Optional: defaults to virtual-hosted-style URL
+    # Storage settings (media)
+    TENCENT_COS_MEDIA_SECRET_ID: str
+    TENCENT_COS_MEDIA_SECRET_KEY: str
+    TENCENT_COS_MEDIA_REGION: str
+    TENCENT_COS_MEDIA_BUCKET: str
+    TENCENT_COS_MEDIA_ENDPOINT: str
+
+    # Storage settings (backup - optional until used)
+    TENCENT_COS_BACKUP_SECRET_ID: str | None = None
+    TENCENT_COS_BACKUP_SECRET_KEY: str | None = None
+    TENCENT_COS_BACKUP_REGION: str | None = None
+    TENCENT_COS_BACKUP_BUCKET: str | None = None
+    TENCENT_COS_BACKUP_ENDPOINT: str | None = None
 
     @property
     def database_url(self) -> str:
@@ -188,13 +194,28 @@ class Settings(BaseSettings):
         mode="before",
     )
     @classmethod
-    def _validate_media_public_base_url(cls, value: str | None) -> str:
+    def _validate_required_media_settings(cls, value: str | None, info: ValidationInfo) -> str:
         if value is None:
-            raise ValueError("MEDIA_PUBLIC_BASE_URL must be configured")
+            raise ValueError(f"{info.field_name} must be configured")
         normalized = value.strip()
         if not normalized:
-            raise ValueError("MEDIA_PUBLIC_BASE_URL must be configured")
-        return normalized.rstrip("/")
+            raise ValueError(f"{info.field_name} must be configured")
+        return normalized
+
+    @field_validator(
+        "TENCENT_COS_BACKUP_SECRET_ID",
+        "TENCENT_COS_BACKUP_SECRET_KEY",
+        "TENCENT_COS_BACKUP_REGION",
+        "TENCENT_COS_BACKUP_BUCKET",
+        "TENCENT_COS_BACKUP_ENDPOINT",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_optional_backup_settings(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
 
 @lru_cache

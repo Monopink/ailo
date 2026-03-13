@@ -32,19 +32,34 @@ fsspec 抽象层
 **配置**:
 ```bash
 STORAGE_PROVIDER=tencent_cos
-TENCENT_COS_SECRET_ID=your-secret-id
-TENCENT_COS_SECRET_KEY=your-secret-key
-TENCENT_COS_REGION=ap-beijing
-TENCENT_COS_BUCKET=media-prod
-MEDIA_PUBLIC_BASE_URL=https://cdn.example.com
+TENCENT_COS_MEDIA_SECRET_ID=your-secret-id
+TENCENT_COS_MEDIA_SECRET_KEY=your-secret-key
+TENCENT_COS_MEDIA_REGION=ap-shanghai
+TENCENT_COS_MEDIA_BUCKET=media-prod
+TENCENT_COS_MEDIA_ENDPOINT=https://cos.ap-shanghai.myqcloud.com
+TENCENT_COS_BACKUP_SECRET_ID=your-backup-secret-id
+TENCENT_COS_BACKUP_SECRET_KEY=your-backup-secret-key
+TENCENT_COS_BACKUP_REGION=ap-shanghai
+TENCENT_COS_BACKUP_BUCKET=db-backup-prod
+TENCENT_COS_BACKUP_ENDPOINT=https://cos.ap-shanghai.myqcloud.com
 ```
+
+数据库备份存储后端使用 `TENCENT_COS_BACKUP_*` 初始化，与媒体存储配置分离。
 
 ### 公共 CDN 域名配置
 
 - **运行时来源**：system_configs.media_public_base_url（通过管理员可修改）
-- **启动时备选**：MEDIA_PUBLIC_BASE_URL 环境变量（仅在数据库值为空时使用）
 - **目的**：为所有公共资源（头像、展示品等）提供 {base_url}/{object_key} 的网址
+- **约束**：公开媒体 URL 仅使用 `system_configs.media_public_base_url` 作为 base URL，不使用存储桶域名拼接回退
 - **部署步骤**：在更新配置后，刷新存储后端，以使每一个实例都能获取到新的域名
+
+### COS Endpoint 配置约束
+
+- `TENCENT_COS_MEDIA_ENDPOINT` 必须显式配置
+- `TENCENT_COS_BACKUP_ENDPOINT` 必须显式配置
+- COS endpoint 必须使用服务域名：`https://cos.<region>.myqcloud.com`
+- COS endpoint 禁止使用桶域名（`https://<bucket>.cos.<region>.myqcloud.com`）
+- endpoint 不允许自动拼接默认值回退
 
 ---
 
@@ -68,7 +83,7 @@ images/2025/12/1285612345678901236.webp
 ### 公开 URL (可缓存内容)
 
 **用途**:
-- 系统默认头像（avatars/default.webp，由 `system_configs.media_public_base_url` 或 `MEDIA_PUBLIC_BASE_URL` 拼接）
+- 系统默认头像（avatars/default.webp，由 `system_configs.media_public_base_url` 拼接）
 - 用户头像（确认上传后）
 
 **特点**:
@@ -79,7 +94,7 @@ images/2025/12/1285612345678901236.webp
 
 **生成规则**:
 ```
-system_configs.media_public_base_url (or env fallback) + object_key
+system_configs.media_public_base_url + object_key
 ```
 
 ### 预签名 URL (私有内容)

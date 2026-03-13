@@ -8,7 +8,6 @@ from starlette.responses import Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
 
-from app.core.config import get_settings
 from app.crud.system import system_configs
 from app.enums import AdminRole
 from app.exceptions import MissingConfigurationError
@@ -287,18 +286,15 @@ class SystemSettingsView(CustomView):
                     "default_value": "",
                     "runtime_value": "",
                     "runtime_source": "unavailable",
-                    "env_value": "",
                 },
             }
             return templates.TemplateResponse("custom_views/system_settings.html", context)
 
     async def _get_media_cdn_context(self, db: AsyncSession) -> dict[str, str]:
         """Return CDN configuration state for templates."""
-        settings = get_settings()
         config_row = await system_configs.get_by_key(db, config_key="media_public_base_url")
         db_value = config_row.config_value if config_row and config_row.config_value else ""
         default_value = config_row.default_value if config_row and config_row.default_value else ""
-        env_value = settings.MEDIA_PUBLIC_BASE_URL or ""
         runtime_source = get_media_base_url_source()
         try:
             runtime_value = get_media_base_url()
@@ -309,5 +305,4 @@ class SystemSettingsView(CustomView):
             "default_value": default_value,
             "runtime_value": runtime_value,
             "runtime_source": runtime_source,
-            "env_value": env_value,
         }

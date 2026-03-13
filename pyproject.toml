@@ -18,7 +18,7 @@ extend-exclude = [
 # Enable rule sets
 select = [
   # Docstring
-  "D",  # pydocstyle - enabled with selective ignores for progressive adoption
+  "D", # pydocstyle - enabled with selective ignores for progressive adoption
   # Pyflakes
   "F", # pycodestyle
   "E",
@@ -54,13 +54,11 @@ select = [
 # Ignore rules (mapped from previous pylint config)
 ignore = [
   # Docstring rules - selective enablement for progressive adoption
-  "D100",  # Missing docstring in public module (not all modules need docs)
-  "D104",  # Missing docstring in public package (not all __init__.py need docs)
-  "D105",  # Missing docstring in magic method (often self-explanatory)
-  "D107",  # Missing docstring in __init__ (often simple assignments)
-  "D203",  # Disable due to conflict with D211 (per project preference)
-  "TD", # flake8-todos (corresponds to fixme)
-  "FIX", # flake8-fixme
+  "D100", # Missing docstring in public module (not all modules need docs)
+  "D104", # Missing docstring in public package (not all __init__.py need docs)
+  "D105", # Missing docstring in magic method (often self-explanatory)
+  "D107", # Missing docstring in __init__ (often simple assignments)
+  "D203", # Disable due to conflict with D211 (per project preference)
   "PLR0913", # Too many arguments (handled by max-args below)
   "S101", # Use of assert (needed in tests)
   "ISC001", # Conflicts with formatter (implicit string concatenation)  # MVP stage relaxations - gradually fix these issues
@@ -77,28 +75,28 @@ ignore = [
   "TRY300", # Allow return in try block (else block often less clear for AI)
   "B904", # Allow raise without exception chaining (already logging errors)
   "RUF022", # Allow logical grouping in __all__ over alphabetical sorting (AI-friendly)
-  "D213",  # Disable due to conflict with D212, prefer the more permissive layout
+  "D213", # Disable due to conflict with D212, prefer the more permissive layout
 ]
 
 [tool.ruff.lint.per-file-ignores]
 # Test files special rules
-"tests/**/*.py" = [
-  "S101",  # Allow assert in tests
-  "PLR2004",  # Allow magic values in tests
-  "ANN",  # Don't require annotations in tests
-  "D",  # Don't require docstrings in tests
-]
 "backend/tests/**/*.py" = [
-  "S101",  # Allow assert in tests
-  "PLR2004",  # Allow magic values in tests
-  "ANN",  # Don't require annotations in tests
-  "D",  # Don't require docstrings in tests
+  "S101", # Allow assert in tests
+  "PLR2004", # Allow magic values in tests
+  "ANN", # Don't require annotations in tests
+  "D", # Don't require docstrings in tests
+]
+"tests/**/*.py" = [
+  "S101", # Allow assert in tests
+  "PLR2004", # Allow magic values in tests
+  "ANN", # Don't require annotations in tests
+  "D", # Don't require docstrings in tests
 ]
 # Migration files special rules
 "**/migrations/**/*.py" = ["ALL"]
 # Internal services - progressive docstring adoption
 "backend/app/services/**/*.py" = [
-  "D",  # Progressive docstring adoption for internal services
+  "D", # Progressive docstring adoption for internal services
 ]
 # Admin API files - allow FastAPI patterns and higher complexity
 "backend/app/api/admin/**/*.py" = [
@@ -191,17 +189,17 @@ ignore = [
 # Example: f"SELECT * FROM t WHERE 1=1{fixed_where}" with execute(sql, {"id": user_input})
 # Reviewed: 2026-01-08 - Uses safe pattern with where_extra as fixed string
 "backend/app/services/admin/data/style_dimensions.py" = [
-  "S608",  # Allow f-string SQL with parameterized values (reviewed for safety)
-  "E501",  # Allow long SQL lines for readability
+  "S608", # Allow f-string SQL with parameterized values (reviewed for safety)
+  "E501", # Allow long SQL lines for readability
 ]
 
 [tool.ruff.lint.pylint]
 # Corresponds to previous pylint design config
 # Note: Auth flows naturally require more complexity due to multi-step validation
 max-args = 7
-max-branches = 20  # Increased for auth flows (was 15)
+max-branches = 20 # Increased for auth flows (was 15)
 max-returns = 6
-max-statements = 80  # Increased for auth flows (was 60)
+max-statements = 80 # Increased for auth flows (was 60)
 
 [tool.ruff.lint.flake8-unused-arguments]
 # Allow unused arguments starting with underscore (common in framework callbacks)
@@ -348,9 +346,6 @@ disable_error_code = [
 
 # Testing module - Dynamic JSON handling
 [[tool.mypy.overrides]]
-module = [
-  "app.services.admin.testing.*",
-]
 disable_error_code = [
   "union-attr", # JSONValue union type requires runtime type guards
   "index", # JSON dynamic indexing
@@ -358,17 +353,20 @@ disable_error_code = [
   "no-any-return", # Allow Any returns in testing code
   "dict-item", # JSON dict type flexibility
 ]
+module = [
+  "app.services.admin.testing.*",
+]
 
 [[tool.mypy.overrides]]
-module = [
-  "backend.tests.*",
-]
-disallow_untyped_defs = false
-disallow_untyped_calls = false
 disable_error_code = [
   "no-untyped-def",
   "arg-type",
   "return-value",
+]
+disallow_untyped_calls = false
+disallow_untyped_defs = false
+module = [
+  "backend.tests.*",
 ]
 
 # ============================================================================

@@ -10,7 +10,9 @@ Run database migration, reset, and sync workflows.
 ## Required Sources
 
 - `deployment/.env`
-- `deployment/docker-compose.yml`
+- `deployment/dev/compose.yaml`
+- `deployment/compose.base.yaml`
+- `deployment/*/compose.yaml`
 - `backend/database/init/`
 - `backend/alembic/`
 

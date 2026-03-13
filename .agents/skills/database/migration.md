@@ -5,7 +5,7 @@ Use this protocol after schema model changes.
 ## Precheck
 
 1. Read DB config from `deployment/.env`.
-2. Confirm changed model files with git diff.
+2. Confirm changed model files using `git status --short`. Only use `git diff --name-only --cached` when you specifically need the staged file list.
 
 ## Migration Steps
 
@@ -13,7 +13,7 @@ Use this protocol after schema model changes.
 
 ```bash
 cd deployment
-docker-compose exec backend alembic revision --autogenerate -m "descriptive_message"
+docker compose -f dev/compose.yaml exec backend alembic revision --autogenerate -m "descriptive_message"
 ```
 
 2. Review generated file under `backend/alembic/versions/`.
@@ -25,8 +25,8 @@ docker-compose exec backend alembic revision --autogenerate -m "descriptive_mess
 
 ```bash
 cd deployment
-docker-compose exec backend alembic upgrade head
-docker-compose exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB -c "\d+"
+docker compose -f dev/compose.yaml exec backend alembic upgrade head
+docker compose -f dev/compose.yaml exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB -c "\d+"
 ```
 
 ## Rules

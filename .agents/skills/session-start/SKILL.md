@@ -1,31 +1,27 @@
 ---
 name: session-start
-description: "Session initialization. Load memories (current_tasks, known_issues, decisions, quick_ref). Actions: initialize, load, check. Triggers: session start, new conversation, beginning work."
+description: "Session initialization. Establish repo context (rules, current diff, relevant docs). Actions: initialize, load, check. Triggers: session start, new conversation, beginning work."
 ---
 
 # Session Start
 
-Load project memory context at the start of work.
+Establish repo context at the start of work.
 
 ## Required Sequence
 
-1. Read `current_tasks`.
-2. Read `known_issues`.
-3. Read `decisions`.
-4. Read `quick_ref`.
-5. Read `_index`.
+1. Read repository `AGENTS.md`.
+2. Check current working tree state (`git status --short`).
+3. Identify relevant docs/spec/api files for the task and read only those.
 
 ## Execution Rules
 
 1. Always run this before implementation work.
-2. If one memory is missing, continue with the rest.
-3. Do not invent missing context.
+2. Do not invent missing context.
 4. Report only actionable context to the user.
 
 ## Output
 
 Return a short session summary with:
-- Current active tasks
-- Relevant known risks
-- Applicable architecture constraints
-- Key command/operation reminders
+- Current change scope
+- Applicable constraints/rules discovered
+- Relevant docs to consult next (if needed)

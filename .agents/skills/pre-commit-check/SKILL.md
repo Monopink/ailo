@@ -11,7 +11,7 @@ Run final commit gate checks by orchestrating project skills.
 
 1. Detect change scope:
    - `git status --short`
-   - `git diff --name-only HEAD`
+   - Prefer using `git diff --name-only --cached` to scope what will be committed.
 2. Run `/validate`.
 3. Verify documentation sync using `.agents/skills/validate/implementation-standards.md`.
 4. If database schema changed, verify three-way sync (model, init SQL, data dictionary) or run `/database`.

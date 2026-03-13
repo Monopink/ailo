@@ -22,7 +22,8 @@ Perform a structured review of the current git changes with focus on SOLID, arch
 
 ### 1) Preflight context
 
-- Use `git status -sb`, `git diff --stat`, and `git diff` to scope changes.
+- Use `git status -sb` and `git diff --stat` to scope changes.
+- Only use full `git diff` when you are actually reviewing code, and prefer diffing specific files (e.g. `git diff -- path/to/file`) to avoid unnecessary noise on small edits.
 - If needed, use `rg` or `grep` to find related modules, usages, and contracts.
 - Identify entry points, ownership boundaries, and critical paths (auth, payments, data writes, network).
 

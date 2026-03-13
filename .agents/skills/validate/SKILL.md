@@ -11,7 +11,8 @@ Run project validation after code changes and before commit.
 
 1. Detect modified files:
    - `git status --short`
-   - `git diff --name-only HEAD`
+   - Prefer deriving the changed file list from `git status --short`.
+   - Only use `git diff --name-only --cached` when you specifically need the staged file list for a commit gate.
 2. If backend files changed, run [backend-checklist.md](./backend-checklist.md).
 3. If frontend files changed, run [frontend-checklist.md](./frontend-checklist.md).
 4. Run [implementation-standards.md](./implementation-standards.md).

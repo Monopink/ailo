@@ -1,0 +1,14 @@
+[Unit]
+Description=Ailo Production Database Backup
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/ailo-prod/ailo/deployment/prod/scripts
+EnvironmentFile=/opt/ailo-prod/ailo/deployment/.env
+EnvironmentFile=/opt/ailo-prod/ailo/deployment/prod/.env
+ExecStart=/opt/ailo-prod/venv/ailo-backup/bin/python /opt/ailo-prod/ailo/deployment/prod/scripts/backup_db.py
+TimeoutStartSec=7200
+Nice=10

@@ -1,0 +1,11 @@
+[Unit]
+Description=Ailo Production Database Backup Timer
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+OnCalendar=*-*-* 12:30:00
+Persistent=true
+Unit=ailo-db-backup.service
+
+[Install]
+WantedBy=timers.target

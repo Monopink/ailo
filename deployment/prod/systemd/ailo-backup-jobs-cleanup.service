@@ -1,0 +1,14 @@
+[Unit]
+Description=Ailo Backup Jobs Cleanup
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/ailo-prod/ailo/deployment/prod/scripts
+EnvironmentFile=/opt/ailo-prod/ailo/deployment/.env
+EnvironmentFile=/opt/ailo-prod/ailo/deployment/prod/.env
+ExecStart=/opt/ailo-prod/venv/ailo-backup/bin/python /opt/ailo-prod/ailo/deployment/prod/scripts/cleanup_backup_records.py
+TimeoutStartSec=600
+Nice=10

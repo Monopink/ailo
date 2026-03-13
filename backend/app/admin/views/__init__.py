@@ -42,6 +42,7 @@ from .ai_template_views import (
     ai_template_view,
 )
 from .ai_type_views import AI_TYPE_VIEWS, ai_type_view
+from .backup_views import backup_job_view
 from .chat_console_view import chat_console_view
 from .content_views import CONTENT_MODEL_VIEWS, app_page_view, square_type_entry_view
 from .llm_test_views import llm_config_test_view
@@ -213,6 +214,8 @@ __all__ = [
     "stats_ai_daily_view",
     "stats_ai_weekly_view",
     "stats_ai_monthly_view",
+    # Backup views
+    "backup_job_view",
     # AI Testing views (for routing only, not in menu)
     "chat_console_view",
     "ai_style_test_view",

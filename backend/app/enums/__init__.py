@@ -28,6 +28,7 @@ from .common import (
     AuthType,
     AutoAction,
     AvatarDisplayMode,
+    BackupJobStatus,
     ChatInfoType,
     ConfigType,
     ContactRequestFailureCode,
@@ -153,6 +154,8 @@ __all__ = [
     "AdminStatus",
     "AdminOperationType",
     "AdminLoginResult",
+    # Backup
+    "BackupJobStatus",
     # LLM Service
     "LLMTestStatus",
     "LLMErrorCode",

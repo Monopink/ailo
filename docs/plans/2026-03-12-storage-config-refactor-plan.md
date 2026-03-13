@@ -12,6 +12,7 @@
 - PostgreSQL 镜像基线统一为 `postgres:18`。
 - deployment 环境模板中的对象存储变量命名必须与后端配置模型完全一致。
 - `TENCENT_COS_MEDIA_ENDPOINT` 与 `TENCENT_COS_BACKUP_ENDPOINT` 必须显式配置。
+- COS endpoint 统一使用服务域名：`https://cos.<region>.myqcloud.com`（禁止填写桶域名作为 endpoint）。
 - COS endpoint 禁止默认拼接回退。
 - 公开媒体 URL 的唯一权威来源为 `system_configs.media_public_base_url`。
 - 公开媒体 URL 禁止环境变量回退。
@@ -86,6 +87,11 @@
 
 - `get_settings()` 启动时必须校验所有必填媒体配置字段（不包含 `media_public_base_url`）。
 - `TencentCOSBackend` 初始化时必须要求显式 `endpoint`。
+- `TencentCOSBackend` 必须使用虚拟域名风格（virtual addressing style）。
+- boto3 不显式指定 `signature_version`。
+- `TencentCOSBackend.upload()` 的 `metadata`（如启用）必须满足：
+  - key：仅允许小写字母、数字与连字符 `-`（禁止 `_` 与大写）
+  - value：仅允许可打印 ASCII 字符
 - `TencentCOSBackend.get_public_url()` 仅用于显式传入 CDN 域名的场景，不参与媒体默认 URL 回退。
 - `get_media_base_url()` 与 `refresh_media_base_url()` 仅允许读取 `system_configs.media_public_base_url`。
 - 当 `system_configs.media_public_base_url` 缺失时，必须抛出平台配置异常，不返回空字符串，不回退到环境变量。
@@ -123,7 +129,8 @@
 
 1. 更新 `backend/app/services/storage/tencent_cos.py`
 2. 删除 endpoint 默认拼接逻辑
-3. 保持 `TencentCOSBackend` 仅负责 S3 兼容对象操作
+3. `TencentCOSBackend.upload()` 支持可选 `metadata`（严格限制 key/value 字符集），媒体上传链路默认不写入 metadata
+4. 保持 `TencentCOSBackend` 仅负责 S3 兼容对象操作
 
 ### 阶段 3：媒体 URL 重构
 

@@ -1,0 +1,10 @@
+[Unit]
+Description=Ailo Backup Jobs Cleanup Timer
+
+[Timer]
+OnCalendar=Sun *-*-* 04:00:00
+Persistent=true
+Unit=ailo-backup-jobs-cleanup.service
+
+[Install]
+WantedBy=timers.target

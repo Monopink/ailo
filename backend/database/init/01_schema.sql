@@ -1381,6 +1381,44 @@ CREATE TABLE IF NOT EXISTS admin_login_logs (
 
 
 -- ============================================================================
+-- Backup Management Tables
+-- ============================================================================
+
+-- Backup jobs table - Database backup execution records (written by host scripts)
+CREATE TABLE IF NOT EXISTS backup_jobs (
+    id SERIAL PRIMARY KEY,
+    status INTEGER NOT NULL,
+    started_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    finished_at TIMESTAMP WITH TIME ZONE,
+    duration_ms BIGINT,
+    backup_file_name VARCHAR(255),
+    object_key TEXT,
+    bucket_name VARCHAR(255),
+    storage_region VARCHAR(64),
+    file_size BIGINT,
+    sha256 CHAR(64),
+    etag VARCHAR(128),
+    error_message TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'ck_backup_jobs_status'
+    ) THEN
+        ALTER TABLE backup_jobs ADD CONSTRAINT ck_backup_jobs_status
+            CHECK (status IN (1, 2, 3));
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_backup_jobs_started_at ON backup_jobs(started_at);
+CREATE INDEX IF NOT EXISTS idx_backup_jobs_status ON backup_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_backup_jobs_created_at ON backup_jobs(created_at);
+
+
+-- ============================================================================
 -- LLM Configuration Tables
 -- ============================================================================
 
@@ -1572,6 +1610,7 @@ DROP TRIGGER IF EXISTS update_user_risk_stats_updated_at ON user_risk_stats;
 DROP TRIGGER IF EXISTS update_system_configs_updated_at ON system_configs;
 DROP TRIGGER IF EXISTS update_app_pages_updated_at ON app_pages;
 DROP TRIGGER IF EXISTS update_admin_users_updated_at ON admin_users;
+DROP TRIGGER IF EXISTS update_backup_jobs_updated_at ON backup_jobs;
 DROP TRIGGER IF EXISTS update_llm_providers_updated_at ON llm_providers;
 DROP TRIGGER IF EXISTS update_llm_configs_updated_at ON llm_configs;
 
@@ -1608,6 +1647,7 @@ CREATE TRIGGER update_user_risk_stats_updated_at BEFORE UPDATE ON user_risk_stat
 CREATE TRIGGER update_system_configs_updated_at BEFORE UPDATE ON system_configs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_app_pages_updated_at BEFORE UPDATE ON app_pages FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_admin_users_updated_at BEFORE UPDATE ON admin_users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_backup_jobs_updated_at BEFORE UPDATE ON backup_jobs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_llm_providers_updated_at BEFORE UPDATE ON llm_providers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_llm_configs_updated_at BEFORE UPDATE ON llm_configs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 -- Note: llm_request_logs doesn't need updated_at trigger as it's append-only

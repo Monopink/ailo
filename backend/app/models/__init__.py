@@ -27,6 +27,7 @@ from .ai import (
     AITemplateMemory,
     AIType,
 )
+from .backup import BackupJob
 
 # Import base classes first
 from .base import (
@@ -92,6 +93,7 @@ __all__ = [
     "AdminLoginLog",
     "AdminOperationLog",
     "AdminUser",
+    "BackupJob",
     "AutoIncrementModel",
     "Base",
     "BaseModel",

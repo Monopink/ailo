@@ -12,8 +12,6 @@ class VerifySendCodeRequest(BaseModel):
         ..., description="Verification type: phone or email"
     )
     target: str | None = Field(None, description="Target phone/email, defaults to current user's")
-    # For phone verification flows, CAPTCHA is required on each send
-    captcha_token: str | None = Field(None, description="CAPTCHA verification token (Turnstile)")
 
 
 class VerifySendCodeResponse(BaseModel):

@@ -161,7 +161,6 @@ class SystemHealthStats(BaseSchema):
     memory_usage: float = Field(..., ge=0, le=100, description="Memory usage percentage")
     disk_usage: float = Field(..., ge=0, le=100, description="Disk usage percentage")
     database_connections: int = Field(..., ge=0, description="Active database connections")
-    redis_connections: int | None = Field(None, ge=0, description="Active Redis connections")
     response_time: float = Field(..., ge=0, description="Average response time in milliseconds")
     error_rate: float = Field(..., ge=0, le=100, description="Error rate percentage")
     last_updated: datetime = Field(..., description="Last update time")

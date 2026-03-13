@@ -53,11 +53,6 @@ class TurnstileProvider:
         if not self.secret_key:
             error_msg = "Turnstile secret key not configured"
             logger.error("turnstile_secret_key_missing")
-
-            if self.mode == "fallback":
-                logger.warning("turnstile_verification_skipped_fallback_mode")
-                is_valid = True
-                error_msg = None
         elif not token:
             error_msg = "CAPTCHA token is required"
         else:

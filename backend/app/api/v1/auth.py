@@ -56,10 +56,6 @@ from app.schemas.verify import (
 )
 from app.services.profile.avatar import get_avatar_url
 from app.services.security.auth_tracker import check_lockout, record_auth_failure, reset_failures
-from app.services.security.captcha.factory import (
-    create_captcha_provider_for_request,
-)
-from app.services.security.captcha.none import NoneCaptchaProvider
 from app.services.security.rate_limiter import check_password_login_rate_limit, check_rate_limit
 from app.services.security.sms.factory import create_sms_provider
 from app.services.wechat.client import WeChatAPIError, WeChatClient
@@ -80,14 +76,10 @@ WECHAT_TEST_PHONE_NUMBERS = frozenset({"12066600001", "12066600002", "1206660000
 WECHAT_PHONE_MOCK_ENABLED_KEY = "wechat_phone_mock_enabled"
 WECHAT_PHONE_MOCK_NUMBER_KEY = "wechat_phone_mock_number"
 
-# In-memory verification code storage (for MVP)
 # Format: phone -> (code, expires_at)
-# TODO: Replace with Redis in production for distributed deployment
 _verification_codes: dict[str, tuple[str, datetime]] = {}
 
-# In-memory operation token storage (for MVP)
 # Format: token -> (user_id, expires_at)
-# TODO: Replace with Redis in production for distributed deployment
 _operation_tokens: dict[str, tuple[int, datetime]] = {}
 
 # Constants
@@ -213,13 +205,16 @@ async def _get_jwt_expiration_seconds(db: AsyncSession) -> int:
 async def _get_refresh_token_expiration_days(db: AsyncSession) -> int:
     """Return refresh token expiration duration in days."""
     refresh_in_days = await system_configs.get_config_value(
-        db, config_key="refresh_token_expires_in_days", default_value=90
+        db, config_key="refresh_token_expires_in_days"
     )
     days = _coerce_int(refresh_in_days)
-    if days is None:
-        logger.warning("refresh_token_expiration_invalid", value=refresh_in_days)
-        return 90
-    return max(days, 1)
+    if days is None or days < 1:
+        logger.error("refresh_token_expiration_invalid", value=refresh_in_days)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="绯荤粺閿欒",
+        )
+    return days
 
 
 def _enforce_refresh_rate_limit(refresh_hash: str) -> None:
@@ -680,10 +675,6 @@ class SendSMSRequest(BaseModel):
     """Request model for sending SMS verification code."""
 
     phone: str = Field(..., description="Phone number (11 digits)")
-    # Optional for on-demand verification. When CAPTCHA is enabled and
-    # token is missing, API returns a user-actionable 400 error.
-    # to perform human verification and retry with this token.
-    captcha_token: str | None = Field(None, description="CAPTCHA verification token (on-demand)")
 
 
 class SendSMSResponse(BaseModel):
@@ -695,7 +686,7 @@ class SendSMSResponse(BaseModel):
 
 @router.post("/send-sms", response_model=SendSMSResponse)
 async def send_sms_code(
-    request: Request, body: SendSMSRequest, db: AsyncSession = Depends(get_db)
+    body: SendSMSRequest, db: AsyncSession = Depends(get_db)
 ) -> SendSMSResponse:
     """Send SMS verification code.
 
@@ -711,42 +702,6 @@ async def send_sms_code(
         HTTPException: 400 for invalid phone, 429 for rate limit
 
     """
-    # 0. On-demand CAPTCHA: if enabled and missing token -> friendly 400
-    try:
-        client_ip = _get_client_ip(request)
-        provider, captcha_meta = await create_captcha_provider_for_request("user", db, request)
-
-        # If CAPTCHA is enabled, require token; otherwise skip
-        if not isinstance(provider, NoneCaptchaProvider):
-            if not body.captcha_token:
-                # Signal client to perform CAPTCHA first
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=_protective_denial_detail(
-                        reason="SMS_CAPTCHA_REQUIRED",
-                        camouflage_message="需要完成人机验证后再试",
-                        captcha_metadata=captcha_meta.to_response(),
-                    ),
-                )
-
-            is_valid, error = await provider.verify_token(body.captcha_token, client_ip)
-            if not is_valid:
-                logger.warning("sms_captcha_failed", ip=client_ip, error=error)
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=_protective_denial_detail(
-                        reason="SMS_CAPTCHA_INVALID",
-                        camouflage_message="需要完成人机验证后再试",
-                        captcha_error=error,
-                    ),
-                )
-            logger.info("sms_captcha_verified", ip=client_ip)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("sms_captcha_error", error=str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail="系统错误")
-
     # 1. Normalize and check phone number
     try:
         normalized_phone = normalize_phone(body.phone)
@@ -1636,7 +1591,6 @@ async def verify_phone(
 @router.post("/user/verify/send-code", response_model=VerifySendCodeResponse)
 async def send_verification_code(
     body: VerifySendCodeRequest,
-    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> VerifySendCodeResponse:
@@ -1661,42 +1615,6 @@ async def send_verification_code(
     try:
         # Determine target
         if body.verify_type == "phone":
-            # On-demand CAPTCHA for each phone verification code send
-            client_ip = _get_client_ip(request)
-            try:
-                provider, captcha_meta = await create_captcha_provider_for_request(
-                    "user", db, request
-                )
-                if not isinstance(provider, NoneCaptchaProvider):
-                    if not body.captcha_token:
-                        # Ask client to complete CAPTCHA first
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=_protective_denial_detail(
-                                reason="VERIFY_SEND_CAPTCHA_REQUIRED",
-                                camouflage_message="需要完成人机验证后再试",
-                                captcha_metadata=captcha_meta.to_response(),
-                            ),
-                        )
-
-                    is_valid, error = await provider.verify_token(body.captcha_token, client_ip)
-                    if not is_valid:
-                        logger.warning("verify_send_code_captcha_failed", error=error)
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=_protective_denial_detail(
-                                reason="VERIFY_SEND_CAPTCHA_INVALID",
-                                camouflage_message="需要完成人机验证后再试",
-                                captcha_error=error,
-                            ),
-                        )
-                logger.info("verify_send_code_captcha_verified", user_id=current_user.id)
-            except HTTPException:
-                raise
-            except Exception as e:
-                logger.error("verify_send_code_captcha_error", error=str(e), exc_info=True)
-                raise HTTPException(status_code=500, detail="系统错误")
-
             target = body.target if body.target else current_user.phone
             if not target:
                 raise HTTPException(status_code=400, detail="请先绑定手机号")
@@ -1753,8 +1671,6 @@ async def send_verification_code(
             if not target:
                 raise HTTPException(status_code=400, detail="请先绑定邮箱")
 
-            # TODO: Implement email verification code sending
-            # For now, raise not implemented error
             raise HTTPException(status_code=501, detail="系统错误")
 
         raise HTTPException(status_code=400, detail="不支持的验证类型")
@@ -1819,7 +1735,6 @@ async def confirm_verification_code(
             return OperationTokenResponse(operation_token=operation_token, expires_in=300)
 
         if body.verify_type == "email":
-            # TODO: Implement email verification
             raise HTTPException(status_code=501, detail="系统错误")
 
         raise HTTPException(status_code=400, detail="不支持的验证类型")

@@ -31,10 +31,7 @@ LOCKOUT_DURATION_KEYS: dict[str, tuple[str, int]] = {
     "user_auth": ("auth_password_lockout_duration_seconds", 1),
 }
 
-CAPTCHA_THRESHOLD_KEYS: dict[str, str] = {
-    "admin_auth": "admin_captcha_threshold_failures",
-    "user_auth": "captcha_threshold_failures",
-}
+ADMIN_CAPTCHA_THRESHOLD_KEY = "admin_captcha_threshold_failures"
 
 # Failure counting window (separate from lockout duration for clearer semantics).
 FAILURE_WINDOW_KEYS: dict[str, tuple[str, int] | None] = {
@@ -245,27 +242,15 @@ async def should_require_captcha(identifier: str, auth_type: str, db: AsyncSessi
     Returns:
         True if CAPTCHA is required
     """
-    # User-side CAPTCHA is intentionally disabled for now.
-    # Reason: no provider configured in system_configs, and we avoid introducing unused keys.
-    if auth_type == "user_auth":
-        return False
+    if auth_type != "admin_auth":
+        raise ValueError(f"Unsupported auth_type: {auth_type}")
 
-    # Check if CAPTCHA is enabled
-    captcha_provider = await get_config_str(
-        db,
-        key=f"{auth_type.split('_')[0]}_captcha_provider",  # Extract 'admin' or 'user'
-        required=False,
-        default="none",
-    )
+    captcha_provider = await get_config_str(db, key="admin_captcha_provider")
 
     if not captcha_provider or captcha_provider == "none":
         return False
 
-    threshold_key = CAPTCHA_THRESHOLD_KEYS.get(auth_type)
-    if not threshold_key:
-        raise ValueError(f"Unsupported auth_type: {auth_type}")
-
-    threshold = await get_config_int(db, key=threshold_key)
+    threshold = await get_config_int(db, key=ADMIN_CAPTCHA_THRESHOLD_KEY)
 
     cache_key = f"{auth_type}:{identifier}"
     now = time.time()

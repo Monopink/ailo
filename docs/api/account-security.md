@@ -31,8 +31,7 @@
 ```json
 {
   "verify_type": "phone",
-  "target": "+8613800138000",
-  "captcha_token": "cloudflare_turnstile_token"
+  "target": "+8613800138000"
 }
 ```
 
@@ -46,10 +45,6 @@
   - 目标手机号或邮箱
   - 默认为当前用户的手机号/邮箱
   - 用于修改手机号/邮箱时，可以指定新的target
-
-- `captcha_token` (string, 可选)
-  - 当 `verify_type=phone` 时必须提供
-  - 值来源于前端的人机验证组件
 
 #### 成功响应 (200)
 
@@ -70,8 +65,6 @@
 - `"请60秒后再试"` - 超过速率限制
 
 **400 Bad Request**:
-
-- `"需要完成人机验证后再试"` - 缺少或未通过人机验证
 
 **500 Internal Server Error**:
 

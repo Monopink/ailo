@@ -13,8 +13,6 @@ from app.crud.user import user as user_crud
 from app.crud.user import user_token as token_crud
 from app.exceptions.error_codes import build_protective_denial_detail
 from app.models.user import User
-from app.services.security.auth_tracker import should_require_captcha
-from app.services.security.captcha.factory import create_captcha_provider
 from app.services.security.rate_limiter import check_message_rate_limit, check_rate_limit
 from app.utils.client_ip import ClientIPResolutionError, get_client_ip
 from app.utils.logging import get_logger
@@ -25,13 +23,11 @@ __all__ = [
     "require_auth_rate_limit",
     "require_sms_rate_limit",
     "require_message_rate_limit",
-    "require_captcha_if_needed",
     "get_current_user",
     "get_db",
 ]
 
 DBSession = Annotated[AsyncSession, Depends(get_db)]
-DEFAULT_CAPTCHA_TOKEN_FIELD = "captcha_token"  # noqa: S105
 
 logger = get_logger(__name__)
 
@@ -220,64 +216,6 @@ async def require_message_rate_limit(user_id: str, db: DBSession) -> None:
                 retry_after=retry_after,
             ),
         )
-
-
-async def require_captcha_if_needed(
-    auth_type: str,
-    token_field: str = DEFAULT_CAPTCHA_TOKEN_FIELD,
-) -> Callable[[Request, AsyncSession], Awaitable[None]]:
-    """Conditional CAPTCHA verification dependency factory.
-
-    Args:
-        auth_type: 'admin' or 'user'
-        token_field: Field name for CAPTCHA token in request body
-
-    Returns:
-        Dependency function that validates CAPTCHA if required
-
-    Raises:
-        HTTPException: 400 if CAPTCHA required but invalid
-
-    """
-
-    async def dependency(request: Request, db: DBSession) -> None:
-        ip = _resolve_client_ip(request)
-
-        # Check if CAPTCHA is required
-        if await should_require_captcha(ip, f"{auth_type}_auth", db):
-            # Get token from request
-            body = await request.json()
-            token = body.get(token_field)
-
-            if not token:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=_protective_denial_detail(
-                        reason="CAPTCHA_REQUIRED_DEP",
-                        camouflage_message="需要完成人机验证后再试",
-                    ),
-                )
-
-            # Verify token
-            provider = await create_captcha_provider(auth_type, db)
-            is_valid, error = await provider.verify_token(token, ip)
-
-            if not is_valid:
-                logger.warning(
-                    "captcha_verification_failed", ip=ip, auth_type=auth_type, error=error
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=_protective_denial_detail(
-                        reason="CAPTCHA_INVALID_DEP",
-                        camouflage_message="需要完成人机验证后再试",
-                        captcha_error=error,
-                    ),
-                )
-
-            logger.info("captcha_verification_success", ip=ip, auth_type=auth_type)
-
-    return dependency
 
 
 async def get_current_user(request: Request, db: DBSession) -> User:

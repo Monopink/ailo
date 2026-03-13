@@ -154,7 +154,6 @@ class AdminSystemInfo(BaseSchema):
     version: str = Field(..., description="System version")
     uptime: str = Field(..., description="System uptime")
     database_status: str = Field(..., description="Database status")
-    redis_status: str | None = Field(None, description="Redis status")
     total_storage: str = Field(..., description="Total storage usage")
 
 

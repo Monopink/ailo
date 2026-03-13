@@ -141,52 +141,6 @@
         </div>
       </div>
 
-      <!-- CDN Domain Status -->
-      <div class="col-sm-6 col-lg-4">
-        <div class="card">
-          <div class="card-body">
-            <div class="d-flex align-items-center justify-content-between mb-3">
-              <div class="subheader">CDN Domain</div>
-             <button
-                class="btn btn-sm btn-icon"
-                onclick="location.reload()"
-                title="Refresh"
-              >
-                <i class="fa fa-refresh"></i>
-              </button>
-            </div>
-            {% set runtime_value = media_cdn_status.runtime_value %}
-            {% set db_value = media_cdn_status.db_value %}
-            {% if db_value and runtime_value and runtime_value != db_value %}
-            <div class="alert alert-warning py-1 px-2 mb-3">
-              <i class="fa fa-exclamation-triangle me-1"></i>
-              Runtime value does not match system_configs, reload required.
-            </div>
-            {% elif db_value and not runtime_value %}
-            <div class="alert alert-danger py-1 px-2 mb-3">
-              <i class="fa fa-ban me-1"></i>
-              Runtime value missing, reload CDN config ASAP.
-            </div>
-            {% endif %}
-            <div class="h3 mb-2">
-              {% if runtime_value %}
-              {{ runtime_value }}
-              {% else %}
-              <span class="text-warning">Not Available</span>
-              {% endif %}
-            </div>
-            <div class="text-muted small">
-              Source:
-              <span class="badge bg-blue-lt text-capitalize">
-                {{ media_cdn_status.runtime_source }}
-              </span>
-            </div>
-            <div class="text-muted small mt-1">
-              DB: {% if db_value %}{{ db_value }}{% else %}<em>not set</em>{% endif %}
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- Pending AI Contact Requests -->

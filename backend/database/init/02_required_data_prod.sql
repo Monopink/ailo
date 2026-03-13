@@ -36,17 +36,12 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 
 -- Authentication configurations
 ('jwt_token_expires_in_days', '14', '14', 2, 'JWT token expiration time in days', 'auth', NULL),
-('jwt_sliding_window_days', '7', '7', 2, 'JWT sliding window threshold in days (auto-renew if < this)', 'auth', NULL),
-('jwt_algorithm', 'HS256', 'HS256', 1, 'JWT signing algorithm', 'auth', NULL),
-('token_max_active_per_device', '1', '1', 2, 'Maximum active tokens per device type', 'auth', NULL),
-('token_cleanup_after_days', '30', '30', 2, 'Clean up revoked tokens older than N days', 'auth', NULL),
+('refresh_token_expires_in_days', '90', '90', 2, 'Refresh token expiration time in days', 'auth', NULL),
 ('wechat_phone_mock_enabled', 'false', 'false', 3, 'Enable WeChat phone mock (non-production environments only)', 'auth', NULL),
 ('wechat_phone_mock_number', '', '', 1, 'Mock phone number for WeChat virtual accounts (E.164 format)', 'auth', NULL),
 ('username_reserved_words', '["admin","root","system","support","operator","moderator","service","official","help","security"]', '["admin","root","system","support","operator","moderator","service","official","help","security"]', 4, 'Reserved usernames (lowercase), JSON array', 'auth', NULL),
 
 -- LeanCloud IM configurations (must be configured via admin dashboard)
-('leancloud_im_app_id', '', '', 1, 'LeanCloud IM App ID', 'leancloud', NULL),
-('leancloud_im_app_key', '', '', 1, 'LeanCloud IM App Key', 'leancloud', NULL),
 ('leancloud_im_server_url', '', '', 1, 'LeanCloud IM server URL', 'leancloud', NULL),
 ('leancloud_im_service_conversation_id', '', '', 1, 'LeanCloud IM system conversation ID for message routing', 'leancloud', NULL),
 ('leancloud_im_webhook_token', '', '', 1, 'LeanCloud IM webhook security token (24-character URL-safe string)', 'leancloud', NULL),
@@ -62,7 +57,6 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 
 -- Message transport configurations
 ('ws_presence_lease_ttl_seconds', '90', '90', 2, 'WebSocket presence lease TTL in seconds', 'message_transport', NULL),
-('ws_ping_interval_seconds', '25', '25', 2, 'WebSocket client ping interval in seconds', 'message_transport', NULL),
 ('registration_lease_ttl_days', '365', '365', 2, 'Registration lease TTL in days (e.g., LeanCloud installation binding)', 'message_transport', NULL),
 
 -- AI conversation archive configurations (values in seconds unless otherwise noted)
@@ -74,7 +68,6 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 -- API rate limit configuration
 ('api_rate_limit_requests', '100', '100', 2, 'API requests per window', 'rate_limit', NULL),
 ('api_rate_limit_window_seconds', '60', '60', 2, 'API window in seconds', 'rate_limit', NULL),
-('api_whitelist', '', '', 1, 'API whitelist IPs (comma separated)', 'rate_limit', NULL),
 
 -- Admin authentication rate limit and security
 ('admin_auth_rate_limit_requests', '20', '20', 2, 'Admin auth requests per window', 'rate_limit', NULL),
@@ -114,11 +107,6 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('admin_captcha_provider', 'turnstile', 'turnstile', 5, 'Admin captcha provider', 'captcha', '["none","turnstile"]'::jsonb),
 ('admin_captcha_threshold_failures', '1', '1', 2, 'Admin captcha trigger threshold (failures)', 'captcha', NULL),
 ('admin_captcha_mode', 'strict', 'strict', 5, 'Admin CAPTCHA verification mode: strict (block on any error) or fallback (allow on service errors)', 'captcha', '["strict", "fallback"]'::jsonb),
-('admin_turnstile_site_key', '', '1x00000000000000000000AA', 1, 'Admin Turnstile site key', 'captcha', NULL),
-('admin_turnstile_secret_key', '', '1x0000000000000000000000000000000AA', 1, 'Admin Turnstile secret key', 'captcha', NULL),
-
--- User CAPTCHA configuration
-('captcha_threshold_failures', '3', '3', 2, 'User captcha trigger threshold (failures)', 'captcha', NULL),
 
 -- Message rate limit configuration
 ('message_rate_limit_short_requests', '5', '5', 2, 'Max messages per short window', 'rate_limit', NULL),
@@ -133,14 +121,10 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 -- Media upload configuration
 ('avatar_max_size_mb', '2', '2', 2, 'Maximum avatar file size in MB', 'media', NULL),
 ('avatar_allowed_formats', 'image/jpeg,image/png,image/webp', 'image/jpeg,image/png,image/webp', 1, 'Allowed avatar MIME types (comma-separated)', 'media', NULL),
-('image_max_size_mb', '10', '10', 2, 'Maximum image file size in MB', 'media', NULL),
-('image_allowed_formats', 'image/jpeg,image/png,image/webp,image/gif', 'image/jpeg,image/png,image/webp,image/gif', 1, 'Allowed image MIME types (comma-separated)', 'media', NULL),
 
 -- Media upload quota configuration (✅ MVP P0)
 ('avatar_upload_daily_quota', '5', '5', 2, 'Maximum avatar uploads per user per day', 'media', NULL),
 ('avatar_upload_daily_size_quota_mb', '10', '10', 2, 'Maximum total avatar upload size per user per day (MB)', 'media', NULL),
-('image_upload_daily_quota', '20', '20', 2, 'Maximum image uploads per user per day', 'media', NULL),
-('image_upload_daily_size_quota_mb', '50', '50', 2, 'Maximum total image upload size per user per day (MB)', 'media', NULL),
 
 -- Media upload rate limit configuration
 ('media_upload_rate_limit_requests', '10', '10', 2, 'Media upload requests per window', 'rate_limit', NULL),

@@ -12,10 +12,8 @@ from starlette_admin import CustomView
 
 from app.crud.system import system_configs
 from app.enums import ContactRequestStatus
-from app.exceptions import MissingConfigurationError
 from app.models.contact import ContactRequest
 from app.services.config import config_service
-from app.services.media.config import get_media_base_url, get_media_base_url_source
 from app.services.message.monitoring.health import get_message_service_status
 from app.services.message.providers.leancloud.url_builder import (
     build_leancloud_webhook_url,
@@ -91,15 +89,6 @@ class DashboardView(CustomView):
                     webhook_token=str(webhook_token),
                 )
 
-            media_db_value = await system_configs.get_config_value(
-                db, config_key="media_public_base_url"
-            )
-            runtime_source = get_media_base_url_source()
-            try:
-                runtime_cdn = get_media_base_url()
-            except MissingConfigurationError:
-                runtime_cdn = ""
-
             context = {
                 "request": request,
                 "webhook_url": webhook_url,
@@ -122,21 +111,11 @@ class DashboardView(CustomView):
                     "last24h_success": last24h_success,
                     "last24h_failed": last24h_failed,
                 },
-                "media_cdn_status": {
-                    "db_value": media_db_value or "",
-                    "runtime_value": runtime_cdn,
-                    "runtime_source": runtime_source,
-                },
             }
             return templates.TemplateResponse("custom_views/dashboard.html", context)
         except Exception as e:
             logger.error("dashboard_render_error", error=str(e), exc_info=True)
             context = {
                 "request": request,
-                "media_cdn_status": {
-                    "db_value": "",
-                    "runtime_value": "",
-                    "runtime_source": "unavailable",
-                },
             }
             return templates.TemplateResponse("custom_views/dashboard.html", context)

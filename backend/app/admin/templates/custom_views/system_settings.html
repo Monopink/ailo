@@ -138,66 +138,6 @@
           </div>
         </div>
 
-        <!-- CDN Domain Management (separate row) -->
-        <div class="row mb-4">
-          <div class="col-md-6">
-            <div class="card">
-              <div class="card-header">
-                <h3 class="card-title">CDN Domain</h3>
-              </div>
-              <div class="card-body">
-                <!-- CDN Domain Warnings -->
-                {% set runtime_value = media_cdn_config.runtime_value %}
-                {% set db_value = media_cdn_config.db_value %}
-                {% if db_value and runtime_value and runtime_value != db_value %}
-                <div class="alert alert-warning py-1 px-2 mb-3 d-flex align-items-center">
-                  <i class="fa fa-exclamation-triangle me-2"></i>
-                  <span>Runtime value is stale, click reload to apply the latest CDN domain.</span>
-                </div>
-                {% elif db_value and not runtime_value %}
-                <div class="alert alert-danger py-1 px-2 mb-3 d-flex align-items-center">
-                  <i class="fa fa-ban me-2"></i>
-                  <span>Runtime value unavailable while system_configs is set, reload required.</span>
-                </div>
-                {% endif %}
-
-                <div class="mb-3">
-                  <label class="form-label">system_configs Value</label>
-                  <div class="form-control-plaintext">
-                    {% if media_cdn_config.db_value %}
-                    {{ media_cdn_config.db_value }}
-                    {% else %}
-                    <span class="text-warning">Not configured</span>
-                    {% endif %}
-                  </div>
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">Runtime Value</label>
-                  {% if runtime_value %}
-                  <div class="d-flex align-items-center">
-                    <span class="me-2">{{ runtime_value }}</span>
-                    <span class="badge bg-primary-lt text-capitalize">
-                      Source: {{ media_cdn_config.runtime_source }}
-                    </span>
-                  </div>
-                  {% else %}
-                  <div class="text-danger">Unavailable</div>
-                  {% endif %}
-                </div>
-                <div class="text-muted small mb-3">
-                  <i class="fa fa-info-circle me-1"></i>
-                  <em>Update CDN domain by editing <code>media_public_base_url</code> below, then reload to apply on all workers.</em>
-                </div>
-                <form method="post" class="d-inline" id="reload-cdn-form">
-                  <input type="hidden" name="action" value="reload_media_cdn">
-                  <button type="submit" class="btn btn-primary">
-                    <i class="fa fa-refresh me-1"></i>Reload CDN Config
-                  </button>
-                </form>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
         <hr class="my-4">

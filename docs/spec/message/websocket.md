@@ -54,12 +54,10 @@ Presence endpoint 的活跃状态由 lease 管理（见下文“Lease”）。
 默认值：
 
 - TTL：90 秒
-- 客户端 ping 间隔：25 秒
 
 对应配置项（system_configs）：
 
 - `ws_presence_lease_ttl_seconds`
-- `ws_ping_interval_seconds`
 
 2) Registration lease（长）
 

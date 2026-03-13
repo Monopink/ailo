@@ -51,10 +51,6 @@ class Settings(BaseSettings):
     DB_NAME: str
     POSTGRES_ECHO: bool = False
 
-    # Redis settings (optional - not currently used)
-    REDIS_URL: str | None = None
-    REDIS_PASSWORD: str | None = None
-
     # Logging settings
     LOG_LEVEL: str
     LOG_FORMAT: str
@@ -73,8 +69,10 @@ class Settings(BaseSettings):
     CLIENT_IP_HEADER: str = "X-Client-IP"
     TRUSTED_PROXY_CIDRS: list[str] = Field(default_factory=list)
 
-    # LeanCloud settings (only sensitive master key in env)
+    # LeanCloud settings (sensitive keys via env)
     LEANCLOUD_MASTER_KEY: str
+    LEANCLOUD_IM_APP_ID: str
+    LEANCLOUD_IM_APP_KEY: str
 
     # WeChat Mini Program settings
     WECHAT_APP_ID: str
@@ -88,10 +86,6 @@ class Settings(BaseSettings):
     ADMIN_SECRET_KEY: str  # For session middleware
     ADMIN_TURNSTILE_SECRET_KEY: str | None = None
     ADMIN_TURNSTILE_SITE_KEY: str | None = None
-
-    # Aliyun Captcha credentials (server-side verification)
-
-    CAPTCHA_CLIENT_WHITELIST: list[str] = Field(default_factory=lambda: ["mini-program"])
 
     # Storage settings (media)
     TENCENT_COS_MEDIA_SECRET_ID: str
@@ -131,14 +125,6 @@ class Settings(BaseSettings):
     def is_staging(self) -> bool:
         """Check if running in staging environment."""
         return self.ENVIRONMENT.lower() in ("staging", "test")
-
-    @field_validator("CAPTCHA_CLIENT_WHITELIST", mode="before")
-    @classmethod
-    def _split_client_whitelist(cls, value: str | list[str]) -> list[str]:
-        if isinstance(value, str):
-            parts = [item.strip() for item in value.split(",")]
-            return [item for item in parts if item]
-        return value
 
     @field_validator("TRUSTED_PROXY_CIDRS", mode="before")
     @classmethod

@@ -90,7 +90,7 @@ def test_protective_denial_reuses_normal_business_error_tuple() -> None:
 
 
 def test_5xx_message_always_embeds_error_code() -> None:
-    request = _build_request("/api/v1/system/captcha-config")
+    request = _build_request("/api/v1/auth/send-sms")
     response = _build_response(
         request,
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

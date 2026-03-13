@@ -59,14 +59,11 @@ class ConfigService:
         Returns configuration values as-is (may contain None for missing configs).
         Callers are responsible for validating completeness based on their needs.
         """
+        settings = get_settings()
         return {
-            "app_id": self._coerce_to_str(
-                await self.get_config(db, "leancloud_im_app_id", required=False)
-            ),
-            "app_key": self._coerce_to_str(
-                await self.get_config(db, "leancloud_im_app_key", required=False)
-            ),
-            "master_key": get_settings().LEANCLOUD_MASTER_KEY,  # Always from env
+            "app_id": settings.LEANCLOUD_IM_APP_ID,
+            "app_key": settings.LEANCLOUD_IM_APP_KEY,
+            "master_key": settings.LEANCLOUD_MASTER_KEY,
             "base_url": self._coerce_to_str(
                 await self.get_config(db, "leancloud_im_server_url", required=False)
             ),

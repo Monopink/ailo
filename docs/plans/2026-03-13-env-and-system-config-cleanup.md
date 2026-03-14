@@ -57,7 +57,7 @@
 - `backend/app/api/v1/system.py`
 - `backend/app/services/security/auth_tracker.py`
 - `backend/app/schemas/ai/chat.py`
-- `backend/database/init/02_required_data*.sql`
+- `backend/database/init/sql/02_required_data*.sql`
 - `deployment/*/.env.example`
 
 ## 风险与处理

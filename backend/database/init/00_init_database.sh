@@ -20,7 +20,7 @@ echo "========================================="
 echo ""
 echo "[1/3] Loading database schema..."
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-	\i /docker-entrypoint-initdb.d/01_schema.sql
+	\i /docker-entrypoint-initdb.d/sql/01_schema.sql
 EOSQL
 echo "✓ Schema loaded successfully"
 
@@ -30,17 +30,17 @@ echo "[2/3] Loading required system data for $ENV environment..."
 case "$ENV" in
     prod|production)
         psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-			\i /docker-entrypoint-initdb.d/02_required_data_prod.sql
+			\i /docker-entrypoint-initdb.d/sql/02_required_data_prod.sql
 EOSQL
         ;;
     staging|stage|test)
         psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-			\i /docker-entrypoint-initdb.d/02_required_data_staging.sql
+			\i /docker-entrypoint-initdb.d/sql/02_required_data_staging.sql
 EOSQL
         ;;
     dev|development|*)
         psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-			\i /docker-entrypoint-initdb.d/02_required_data.sql
+			\i /docker-entrypoint-initdb.d/sql/02_required_data.sql
 EOSQL
         ;;
 esac
@@ -53,7 +53,7 @@ if [ "$ENV" = "prod" ] || [ "$ENV" = "production" ]; then
 elif [ "$LOAD_SAMPLE_DATA" = "true" ] || [ "$ENV" = "dev" ] || [ "$ENV" = "development" ]; then
     echo "[3/3] Loading sample data..."
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-		\i /docker-entrypoint-initdb.d/03_sample_data.sql
+		\i /docker-entrypoint-initdb.d/sql/03_sample_data.sql
 EOSQL
     echo "✓ Sample data loaded successfully"
 else

@@ -78,7 +78,7 @@ orchestrators
 
 当 schema 发生变更，必须同步更新：
 
-1. `backend/database/init/*.sql`
+1. `backend/database/init/**/*.sql`
 2. `docs/data-dict/*.md`
 
 禁止以“手工改线上库”替代迁移。

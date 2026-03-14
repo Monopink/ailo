@@ -42,11 +42,11 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('username_reserved_words', '["admin","root","system","support","operator","moderator","service","official","help","security"]', '["admin","root","system","support","operator","moderator","service","official","help","security"]', 4, 'Reserved usernames (lowercase), JSON array', 'auth', NULL),
 
 -- LeanCloud IM configurations (must be configured via admin dashboard)
-('leancloud_im_server_url', '', '', 1, 'LeanCloud IM server URL', 'leancloud', NULL),
+('leancloud_im_server_url', 'https://chat.qiaoqiaoai.cn', '', 1, 'LeanCloud IM server URL', 'leancloud', NULL),
 ('leancloud_im_service_conversation_id', '', '', 1, 'LeanCloud IM system conversation ID for message routing', 'leancloud', NULL),
 ('leancloud_im_webhook_token', '', '', 1, 'LeanCloud IM webhook security token (24-character URL-safe string)', 'leancloud', NULL),
-('api_base_url', '', '', 1, 'Base URL for API (e.g., https://example.com)', 'system', NULL),
-('media_public_base_url', '', '', 1, 'Authoritative public base URL for serving media files (CDN or COS bucket domain)', 'media', NULL),
+('api_base_url', 'https://synapse.qiaoqiaoai.cn', '', 1, 'Base URL for API (e.g., https://example.com)', 'system', NULL),
+('media_public_base_url', 'https://cortex.qiaoqiaoai.cn', '', 1, 'Authoritative public base URL for serving media files (CDN or COS bucket domain)', 'media', NULL),
 
 -- Message buffer configurations
 ('message_buffer_normal_wait_ms', '3000', '3000', 2, 'Normal wait time in milliseconds for message buffering', 'message_buffer', NULL),
@@ -122,7 +122,7 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('avatar_max_size_mb', '2', '2', 2, 'Maximum avatar file size in MB', 'media', NULL),
 ('avatar_allowed_formats', 'image/jpeg,image/png,image/webp', 'image/jpeg,image/png,image/webp', 1, 'Allowed avatar MIME types (comma-separated)', 'media', NULL),
 
--- Media upload quota configuration (✅ MVP P0)
+-- Media upload quota configuration
 ('avatar_upload_daily_quota', '5', '5', 2, 'Maximum avatar uploads per user per day', 'media', NULL),
 ('avatar_upload_daily_size_quota_mb', '10', '10', 2, 'Maximum total avatar upload size per user per day (MB)', 'media', NULL),
 

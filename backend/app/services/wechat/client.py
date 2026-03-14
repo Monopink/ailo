@@ -17,6 +17,27 @@ from app.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+def _safe_httpx_request_url(exc: httpx.HTTPError) -> str | None:
+    request = getattr(exc, "request", None)
+    url = getattr(request, "url", None)
+    if url is None:
+        return None
+    raw = str(url)
+    return raw.split("?", 1)[0]
+
+
+def _safe_httpx_request_method(exc: httpx.HTTPError) -> str | None:
+    request = getattr(exc, "request", None)
+    method = getattr(request, "method", None)
+    return method if isinstance(method, str) and method else None
+
+
+def _safe_httpx_status_code(exc: httpx.HTTPError) -> int | None:
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    return status_code if isinstance(status_code, int) else None
+
+
 class WeChatAccessTokenResponse(TypedDict):
     """WeChat access token API response structure."""
 
@@ -110,8 +131,15 @@ class WeChatClient:
             return access_token
 
         except httpx.HTTPError as e:
-            logger.error(f"HTTP error when getting access token: {e}")
-            raise WeChatAPIError(-1, f"HTTP error: {e}")
+            logger.error(
+                "wechat_httpx_error",
+                api="get_access_token",
+                error_type=type(e).__name__,
+                method=_safe_httpx_request_method(e),
+                url=_safe_httpx_request_url(e),
+                status_code=_safe_httpx_status_code(e),
+            )
+            raise WeChatAPIError(-1, f"http_error:{type(e).__name__}")
 
     async def code2session(self, js_code: str) -> dict[str, str]:
         """
@@ -163,8 +191,15 @@ class WeChatClient:
             }
 
         except httpx.HTTPError as e:
-            logger.error(f"HTTP error when calling code2session: {e}")
-            raise WeChatAPIError(-1, f"HTTP error: {e}")
+            logger.error(
+                "wechat_httpx_error",
+                api="code2session",
+                error_type=type(e).__name__,
+                method=_safe_httpx_request_method(e),
+                url=_safe_httpx_request_url(e),
+                status_code=_safe_httpx_status_code(e),
+            )
+            raise WeChatAPIError(-1, f"http_error:{type(e).__name__}")
 
     async def get_phone_number(self, code: str, access_token: str) -> dict[str, Any]:
         """
@@ -214,8 +249,15 @@ class WeChatClient:
             return cast(dict[str, Any], typed_data)
 
         except httpx.HTTPError as e:
-            logger.error(f"HTTP error when getting phone number: {e}")
-            raise WeChatAPIError(-1, f"HTTP error: {e}")
+            logger.error(
+                "wechat_httpx_error",
+                api="get_phone_number",
+                error_type=type(e).__name__,
+                method=_safe_httpx_request_method(e),
+                url=_safe_httpx_request_url(e),
+                status_code=_safe_httpx_status_code(e),
+            )
+            raise WeChatAPIError(-1, f"http_error:{type(e).__name__}")
 
     async def close(self) -> None:
         """Close HTTP client"""

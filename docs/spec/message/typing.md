@@ -69,7 +69,8 @@
 隐藏规则：
 
 - 收到对方 `typing_end`：立即隐藏
-- 收到当前会话的对方 TEXT：立即隐藏
+- 收到当前会话的对方**非 typing 业务消息**：立即隐藏
+  - 判定：`message_type` 不为 `TYPING_START/TYPING_END`，且不属于系统类消息（如 `CHAT_INFO/NOTIFICATION`）
 - 本端发送消息：立即隐藏
 - 兜底超时：最多显示 30 秒，超时自动隐藏
 

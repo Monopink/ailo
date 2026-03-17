@@ -11,6 +11,7 @@ import {
   setConversationUnreadMarks,
 } from '../storage';
 import { isNonEmptyString } from '../guards';
+import conversationPresenceStore from './conversation-presence-store';
 
 const clearConversationPreview = async (convId: string): Promise<void> => {
   const contacts = await getContacts();
@@ -49,6 +50,7 @@ export async function clearLocalConversationState(convId: string): Promise<void>
     return;
   }
 
+  conversationPresenceStore.clearTyping(convId);
   await clearMessages(convId);
   await clearConversationViewPosition(convId);
   await clearConversationUnreadState(convId);

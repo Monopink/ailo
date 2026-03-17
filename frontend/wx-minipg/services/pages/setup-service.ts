@@ -1,5 +1,6 @@
 import { getAvatarUrl } from '../../utils/avatar';
 import { GENDER_OPTIONS, type GenderValue } from '../../utils/constants/user';
+import type { RegionCountryCode } from '../../utils/constants/region';
 import { fetchCurrentUserProfile, updateCurrentUserProfile } from '../../utils/profile';
 import { BasePageService } from './base-page-service';
 

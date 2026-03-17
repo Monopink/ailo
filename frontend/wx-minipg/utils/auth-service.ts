@@ -6,6 +6,7 @@ import profileService from './profile-service';
 import { saveUserInfo, StoredAuthUser } from './storage';
 import { isNonEmptyString } from './guards';
 import { normalizeError } from './errors';
+import conversationPresenceStore from './message/conversation-presence-store';
 
 const logger = getLogger('AuthService');
 
@@ -390,6 +391,7 @@ class AuthService {
   }
 
   private _clearStoredSession(): void {
+    conversationPresenceStore.clearAll();
     profileService.clearProfile();
     wx.removeStorageSync(STORAGE_KEYS.AUTH_TOKEN);
     wx.removeStorageSync(STORAGE_KEYS.REFRESH_TOKEN);

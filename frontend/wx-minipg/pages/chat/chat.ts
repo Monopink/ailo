@@ -25,6 +25,7 @@ import {
 } from '../../utils/storage';
 import typingManager from '../../utils/typing-manager';
 import conversationStore from '../../utils/message/conversation-store';
+import conversationPresenceStore from '../../utils/message/conversation-presence-store';
 import messageStateStore, { MessageStoreState } from '../../utils/message/message-state-store';
 import type { MessageViewModel } from '../../utils/message/message-view-model';
 import { isNonEmptyString, firstNonEmptyString } from '../../utils/guards';
@@ -84,6 +85,7 @@ interface ChatPageCustom {
   chatService: ChatPageService;
   unsubscribeConversationStore: (() => void) | null;
   messageStoreSubscription: (() => void) | null;
+  presenceTypingSubscription: (() => void) | null;
   errorSubscription: (() => void) | null;
   _sendRetried: boolean;
   _retryRefreshed: boolean;
@@ -321,6 +323,7 @@ Page<ChatPageData, ChatPageCustom>({
   chatService: null as unknown as ChatPageService,
   unsubscribeConversationStore: null,
   messageStoreSubscription: null,
+  presenceTypingSubscription: null,
   errorSubscription: null,
   _sendRetried: false,
   _retryRefreshed: false,
@@ -432,7 +435,6 @@ Page<ChatPageData, ChatPageCustom>({
       }
       this.updateMessagesState(state.messages, {
         scrollIntoView: `scroll-anchor-${nextAnchorKey}`,
-        isContactTyping: state.isTyping,
         extraData,
       });
       if (shouldDisableAnimation) {
@@ -443,7 +445,7 @@ Page<ChatPageData, ChatPageCustom>({
       }
       return;
     }
-    this.updateMessagesState(state.messages, { isContactTyping: state.isTyping });
+    this.updateMessagesState(state.messages);
   },
 
   async showErrorMessage(error: unknown) {
@@ -751,13 +753,25 @@ Page<ChatPageData, ChatPageCustom>({
       return;
     }
 
-    this.setData({ convId });
+    this.setData({ convId, isContactTyping: conversationPresenceStore.getTyping(convId) });
     this._pendingViewRestore = true;
     this._initialScrollHandled = false;
     this._pendingMessageState = null;
     this.messageStoreSubscription = messageStateStore.subscribe((state) => {
       this.handleMessageStateUpdate(state);
     });
+    this.presenceTypingSubscription = conversationPresenceStore.subscribeTyping(
+      convId,
+      (isTyping) => {
+        if (this.data.convId !== convId) {
+          return;
+        }
+        if (this.data.isContactTyping === isTyping) {
+          return;
+        }
+        this.setData({ isContactTyping: isTyping });
+      }
+    );
     this.errorSubscription = messageStateStore.onError((error) => {
       this.handleMessageServiceError(error);
     });
@@ -831,6 +845,10 @@ Page<ChatPageData, ChatPageCustom>({
       this.messageStoreSubscription();
       this.messageStoreSubscription = null;
     }
+    if (this.presenceTypingSubscription !== null) {
+      this.presenceTypingSubscription();
+      this.presenceTypingSubscription = null;
+    }
     if (this.errorSubscription !== null) {
       this.errorSubscription();
       this.errorSubscription = null;
@@ -857,11 +875,11 @@ Page<ChatPageData, ChatPageCustom>({
         const initialState =
           currentState.convId === this.data.convId
             ? currentState
-            : { convId: this.data.convId, messages: [] as ChatMessage[], isTyping: false };
+            : { convId: this.data.convId, messages: [] as ChatMessage[] };
         const scrollPlan = await this.resolveInitialScrollPlan(initialState.messages);
         const initialPayload: Record<string, unknown> = {
           messages: initialState.messages,
-          isContactTyping: initialState.isTyping,
+          isContactTyping: conversationPresenceStore.getTyping(this.data.convId),
           isAtBottom: scrollPlan.isAtBottom,
           'pageLayoutData.screenModel': {
             screenState: 'ready',
@@ -886,7 +904,6 @@ Page<ChatPageData, ChatPageCustom>({
         const isBufferedStateUnchanged =
           bufferedState !== null &&
           bufferedState.messages.length === initialState.messages.length &&
-          bufferedState.isTyping === initialState.isTyping &&
           bufferedState.messages[bufferedState.messages.length - 1]?.msg_id ===
             initialState.messages[initialState.messages.length - 1]?.msg_id;
         if (
@@ -1052,6 +1069,7 @@ Page<ChatPageData, ChatPageCustom>({
       return;
     }
 
+    conversationPresenceStore.clearTyping(this.data.convId);
     typingManager.forceStopTyping(this.data.convId);
     const messageService = ensureMessageService();
     let newClientMsgId = '';
@@ -1293,6 +1311,7 @@ Page<ChatPageData, ChatPageCustom>({
       return;
     }
 
+    conversationPresenceStore.clearTyping(this.data.convId);
     typingManager.forceStopTyping(this.data.convId);
 
     const messageService = ensureMessageService();

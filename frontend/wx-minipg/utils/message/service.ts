@@ -20,6 +20,7 @@ import type {
   MessageSignature,
 } from './adapter-types';
 import { getMessageAdapter } from './provider';
+import './conversation-presence-store';
 import messageEventBus from './event-bus';
 import unreadStore from './unread-store';
 import { isDefined, isNonEmptyString } from '../guards';

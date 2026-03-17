@@ -7,6 +7,7 @@ import { classifyError } from '../../utils/error-classifier';
 import { isNonEmptyString } from '../../utils/guards';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { GENDER_OPTIONS, type GenderOption, type GenderValue } from '../../utils/constants/user';
+import { REGION_COUNTRY_OPTIONS, type RegionCountryCode } from '../../utils/constants/region';
 import type { StoredAuthUser } from '../../utils/storage';
 import { createSetupPageService } from '../../services/pages/setup-service';
 import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
@@ -35,6 +36,9 @@ interface SetupPageData {
   genderOptions: readonly GenderOption[];
   genderIndex: number;
   bio: string;
+  regionCountryOptions: typeof REGION_COUNTRY_OPTIONS;
+  regionCountryIndex: number;
+  regionCountryCode: RegionCountryCode;
   regionValue: RegionValue;
   regionDisplay: string;
   regionCnCityCode: string | null;
@@ -52,6 +56,7 @@ interface SetupPageCustom {
   onNicknameInput(event: InputEvent): void;
   onGenderChange(event: WechatMiniprogram.PickerChange): void;
   onBioInput(event: InputEvent): void;
+  onRegionCountryChange(event: WechatMiniprogram.PickerChange): void;
   onRegionChange(event: RegionPickerChangeEvent): void;
   handleChooseAvatar(): Promise<void>;
   handleSubmit(): Promise<void>;
@@ -178,6 +183,9 @@ Page<SetupPageData, SetupPageCustom>({
     genderOptions: GENDER_OPTIONS,
     genderIndex: -1,
     bio: '',
+    regionCountryOptions: REGION_COUNTRY_OPTIONS,
+    regionCountryIndex: 0,
+    regionCountryCode: 'CN',
     regionValue: [],
     regionDisplay: '',
     regionCnCityCode: null,
@@ -295,6 +303,22 @@ Page<SetupPageData, SetupPageCustom>({
     const codeArray = event.detail.code;
     const normalized = normalizeRegionSelection(regionArray, codeArray);
     this.setData({
+      regionCountryIndex: nextIndex,
+      regionCountryCode: nextCountryCode,
+      regionValue: [],
+      regionDisplay: option.displayRegion,
+      regionCnCityCode: null,
+      regionChanged: true,
+    });
+  },
+
+  onRegionChange(event: RegionPickerChangeEvent) {
+    const regionArray = event.detail.value;
+    const codeArray = event.detail.code;
+    const normalized = normalizeRegionSelection(regionArray, codeArray);
+    this.setData({
+      regionCountryIndex: 0,
+      regionCountryCode: normalized.regionCountryCode,
       regionValue: normalized.regionValue,
       regionDisplay: normalized.regionDisplay,
       regionCnCityCode: normalized.regionCnCityCode,

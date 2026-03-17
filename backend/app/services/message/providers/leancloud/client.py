@@ -272,6 +272,7 @@ async def send_service_message(
     from_client: str,
     to_clients: list[str],
     message: str,
+    transient: bool | None = None,
 ) -> tuple[bool, str | None, str | None]:
     """
     Send message through LeanCloud service conversation.
@@ -297,7 +298,13 @@ async def send_service_message(
         "X-LC-Key": f"{master_key},master",
         "Content-Type": "application/json",
     }
-    body = {"from_client": from_client, "to_clients": to_clients, "message": message}
+    body: dict[str, object] = {
+        "from_client": from_client,
+        "to_clients": to_clients,
+        "message": message,
+    }
+    if transient is not None:
+        body["transient"] = transient
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:

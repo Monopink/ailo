@@ -12,7 +12,7 @@ import random
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import select, text, update
@@ -42,7 +42,7 @@ RANDOM_HALF_SCALE_DIVISOR = 50
 # ---------------------------------------------------------------------------
 
 
-class BufferMessageCategory(str, Enum):
+class BufferMessageCategory(StrEnum):
     """Categorized message types for buffer state machine."""
 
     SUPPORTS_TYPING = "CONTENT_TYPING"

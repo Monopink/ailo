@@ -4,7 +4,7 @@ This module contains Pydantic schemas for LLM configurations.
 """
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from .provider import LLMProviderResponse
 
 
-class ThinkingMode(str, Enum):
+class ThinkingMode(StrEnum):
     """Thinking mode enumeration."""
 
     ENABLED = "enabled"
@@ -23,7 +23,7 @@ class ThinkingMode(str, Enum):
     AUTO = "auto"
 
 
-class ToolChoice(str, Enum):
+class ToolChoice(StrEnum):
     """Tool choice preferences."""
 
     AUTO = "auto"

@@ -64,6 +64,10 @@ TYPING 消息影响 buffer 的计时器策略，详见 [buffer.md](buffer.md#状
 
 TYPING 消息仅用于实时输入状态，不写入 message_history。
 
+**传输（LeanCloud）**：
+
+- `message_type=2|3` 的消息以 `transient=true` 发送。
+
 ### 客户端处理
 
 客户端发送与展示规则（含 `typing_start` 1 秒 buffer）统一遵循 [typing.md](typing.md)。

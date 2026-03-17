@@ -455,6 +455,7 @@ async def send_message_to_client(
     extra_fields: JSONDict | None = None,
     msg_id: str | None = None,
     supports_typing: bool = True,
+    transient: bool | None = None,
 ) -> MessageResult:
     """Send one message to one LeanCloud client id (endpoint-level send)."""
     try:
@@ -487,6 +488,7 @@ async def send_message_to_client(
             from_client=from_qiao_id,
             to_clients=[target_client_id],
             message=message_json,
+            transient=transient,
         )
         if success:
             return MessageResult(success=True, msg_id_provider=provider_msg_id)

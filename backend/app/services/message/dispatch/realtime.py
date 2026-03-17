@@ -7,10 +7,13 @@ from datetime import UTC, datetime
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums import MessageTransportProvider
+from app.enums import MessageTransportProvider, MessageType
 from app.models.message import MessageEndpoint
+from app.services.message.providers.leancloud import service as leancloud_service
 from app.services.message.websocket.manager import ws_manager
+from app.type_defs import JSONDict
 from app.utils.logging import get_logger
+from app.utils.snowflake import generate_snowflake_id
 
 logger = get_logger(__name__)
 
@@ -50,6 +53,45 @@ async def _fanout_websocket_typing(
             await ws_manager.unregister(endpoint_id)
 
 
+async def _fanout_leancloud_typing(
+    db: AsyncSession,
+    *,
+    target_client_ids: list[str],
+    conversation_id: str,
+    from_qiao_id: str,
+    to_qiao_id: str,
+    typing_state: str,
+    time_ms: int,
+) -> None:
+    message_type = MessageType.TYPING_START if typing_state == "start" else MessageType.TYPING_END
+    msg_id = f"typing_{generate_snowflake_id()}"
+    extra_fields: JSONDict = {"sent_time": time_ms}
+
+    for target_client_id in target_client_ids:
+        result = await leancloud_service.send_message_to_client(
+            db,
+            target_client_id=target_client_id,
+            from_qiao_id=from_qiao_id,
+            to_qiao_id=to_qiao_id,
+            conv_id=conversation_id,
+            content="",
+            message_type=int(message_type),
+            action=None,
+            extra_fields=extra_fields,
+            msg_id=msg_id,
+            supports_typing=True,
+            transient=True,
+        )
+        if not result.success:
+            logger.warning(
+                "typing_fanout_leancloud_send_failed",
+                conversation_id=conversation_id,
+                target_client_id=target_client_id,
+                error_code=result.error_code,
+                error_message=result.error_message,
+            )
+
+
 async def fanout_typing_event(
     db: AsyncSession,
     *,
@@ -85,10 +127,15 @@ async def fanout_typing_event(
         )
 
         websocket_endpoint_ids: list[int] = []
+        leancloud_target_client_ids: list[str] = []
         for endpoint in endpoints:
             provider = int(endpoint.provider)
             if provider == int(MessageTransportProvider.WEBSOCKET):
                 websocket_endpoint_ids.append(int(endpoint.id))
+                continue
+            if provider == int(MessageTransportProvider.LEANCLOUD):
+                if endpoint.target_key:
+                    leancloud_target_client_ids.append(endpoint.target_key)
                 continue
 
             logger.info(
@@ -102,6 +149,16 @@ async def fanout_typing_event(
         if websocket_endpoint_ids:
             await _fanout_websocket_typing(
                 endpoint_ids=websocket_endpoint_ids,
+                conversation_id=conversation_id,
+                from_qiao_id=from_qiao_id,
+                to_qiao_id=to_qiao_id,
+                typing_state=typing_state,
+                time_ms=time_ms,
+            )
+        if leancloud_target_client_ids:
+            await _fanout_leancloud_typing(
+                db,
+                target_client_ids=leancloud_target_client_ids,
                 conversation_id=conversation_id,
                 from_qiao_id=from_qiao_id,
                 to_qiao_id=to_qiao_id,

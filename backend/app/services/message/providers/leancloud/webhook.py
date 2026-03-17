@@ -165,6 +165,18 @@ async def parse_leancloud_webhook(
             logger.error("invalid_msg_id_provider_type", type=type(msg_id_provider).__name__)
             raise TypeError("invalid_msg_id_provider_type")
 
+        if not msg_id_client.startswith("client_"):
+            logger.info(
+                "leancloud_webhook_skipped_non_client_msg_id",
+                msg_id_client=msg_id_client,
+                msg_id_provider=msg_id_provider,
+                conversation_id=conversation_id,
+                from_qiao_id=from_qiao_id,
+                to_qiao_id=to_qiao_id,
+                message_type=message_type_raw,
+            )
+            return None
+
         # 9. Return InboundMessageEvent (msg_id_server to be filled downstream)
         return InboundMessageEvent(
             message_type=MessageType(message_type_raw),

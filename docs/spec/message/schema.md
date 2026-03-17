@@ -52,6 +52,12 @@
 - CHAT_INFO (4) - 对话提示信息
 - NOTIFICATION (9) - 系统通知
 
+### Typing（transient）
+
+LeanCloud 侧的 `transient` 为传输层选项，不属于 `_lcattrs` 字段。
+
+- `message_type=2|3`（TYPING_START / TYPING_END）必须以 `transient=true` 发送。
+
 ## WebSocket 传输格式
 
 WebSocket Provider 的传输载荷统一为 JSON；客户端以 `device_id` 作为稳定标识。详细协议见：

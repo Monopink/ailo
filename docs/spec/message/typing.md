@@ -6,9 +6,13 @@
 
 ## 协议范围
 
-- 客户端上报：`type=typing`，`typing_state=start|end`
-- 服务端下发：`event_type=typing`
-- 上报字段：`typing` 请求至少包含 `conversation_id` 与 `typing_state`；`from_qiao_id/to_qiao_id` 由服务端按鉴权身份与会话关系推导
+- `typing` 为跨 Provider 的统一语义事件，传输层编码由 Provider 决定。
+- 客户端上报（统一语义）：`typing_start` / `typing_end`
+- 服务端下发（统一语义）：`typing_start` / `typing_end`
+- 上报字段要求：
+  - 必须携带 `conversation_id`
+  - 必须携带开始/结束状态（WS 为 `typing_state`；LeanCloud 为 `message_type=2/3`）
+  - `from_qiao_id/to_qiao_id` 由服务端按鉴权身份与会话关系推导
 - 相关协议字段定义见：
   - `docs/api/websocket-messages.md`
   - `docs/spec/message/schema.md`
@@ -17,6 +21,11 @@
 ---
 
 ## 客户端发送规则（上报 typing）
+
+### Provider 编码
+
+- WebSocket：发送 `type=typing` 帧，字段 `typing_state=start|end`
+- LeanCloud：发送 TypedMessage，字段 `message_type=2|3`（TYPING_START / TYPING_END），并以 `transient=true` 发送
 
 ### typing_start（带 1 秒 buffer）
 
@@ -70,8 +79,8 @@
 
 - `typing_start/typing_end` 为 realtime best-effort 事件
 - 服务端按活跃 endpoint 的 `provider` 扇出 typing
-- `provider=WEBSOCKET` 的 endpoint 下发 `event_type=typing`
-- 不支持 typing 的 provider 记录 `typing_unsupported_provider` 并跳过
+- WebSocket endpoint：下发 `event_type=typing`
+- LeanCloud endpoint：下发 `message_type=2|3`，并以 `transient=true` 发送
 - typing 扇出异常仅记录日志，不中断 timeline 消息发送流程
 - 服务端不保证一定下发 `typing_end`
 - 客户端必须依赖“对方 TEXT + 30 秒超时”完成兜底收敛

@@ -179,6 +179,11 @@ signature = HMAC_SHA1(app_secret, message)
 6. 返回 LeanCloud 消息 ID
 7. 写入 `message_deliveries.provider_msg_id`（由 dispatch worker 在 delivery 记录中维护）
 
+### Typing（transient）
+
+- `message_type=2|3`（TYPING_START / TYPING_END）为 realtime best-effort 事件。
+- Typing 通过 LeanCloud 传输时，按 `transient=true` 发送。
+
 ### TypedMessage `_lcattrs` 出站字段语义
 
 - `msg_id`：时间线消息 `msg_id_server`。
@@ -187,34 +192,22 @@ signature = HMAC_SHA1(app_secret, message)
 
 ### REST API 调用
 
-**端点**：`POST https://api.leancloud.cn/1.1/rtm/messages`
+**端点**：`POST https://{server}/1.2/rtm/service-conversations/{conv_id}/messages`
 
 **请求头**：
 
 - X-LC-Id: {app_id}
-- X-LC-Key: {app_key}
+- X-LC-Key: {master_key},master
 - Content-Type: application/json
 
 **请求体**：
 
 ```json
 {
-  "from_peer": "qiao_xm001",
-  "conv_id": "68edda0a554ecc6e8843b246",
+  "from_client": "qiao_xm001",
+  "to_clients": ["qiao_user001"],
   "transient": false,
-  "message": {
-    "_lctype": 1,
-    "_lcattrs": {
-      "msg_id": "msg_223788765171154945",
-      "msg_id_client": "client_1710001111222_abc123",
-      "from_qiao_id": "qiao_xm001",
-      "to_qiao_id": "qiao_user001",
-      "conversation_id": "conv_xyz789",
-      "content": "你好",
-      "message_type": 1,
-      "sent_time": 1710001111222
-    }
-  }
+  "message": "{\"_lctype\":1,\"_lcattrs\":{\"msg_id\":\"msg_223788765171154945\",\"msg_id_client\":\"client_1710001111222_abc123\",\"from_qiao_id\":\"qiao_xm001\",\"to_qiao_id\":\"qiao_user001\",\"conversation_id\":\"conv_xyz789\",\"content\":\"你好\",\"message_type\":1,\"sent_time\":1710001111222}}"
 }
 ```
 

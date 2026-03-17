@@ -139,7 +139,7 @@
     "nickname": "小橘",
     "avatar_url": "https://cdn.example.com/a.webp",
     "bio": "喜欢雨天和旧书",
-    "region": "Shanghai",
+    "region": "上海",
     "gender": 2
   },
   "style": {

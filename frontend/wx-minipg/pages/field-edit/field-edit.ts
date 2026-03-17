@@ -140,6 +140,8 @@ interface FieldEditPageData extends Record<string, unknown> {
   genderIndex: number;
   regionValue: string[];
   regionDisplay: string;
+  regionCnCityCode: string | null;
+  regionChanged: boolean;
   valueLength: number;
 }
 
@@ -415,6 +417,8 @@ Page<FieldEditPageData, FieldEditPageCustom>({
     genderIndex: 0,
     regionValue: [],
     regionDisplay: '请选择地区',
+    regionCnCityCode: null,
+    regionChanged: false,
     valueLength: 0,
   },
 
@@ -519,6 +523,8 @@ Page<FieldEditPageData, FieldEditPageCustom>({
       this.setData({
         regionDisplay: isNonEmptyString(decodedValue) ? decodedValue : '请选择地区',
         regionValue: [],
+        regionCnCityCode: null,
+        regionChanged: false,
       });
       return true;
     }
@@ -661,24 +667,47 @@ Page<FieldEditPageData, FieldEditPageCustom>({
   },
 
   onRegionChange(event) {
-    const regionArray = event.detail.value as string[];
-    const [province = '', city = '', district = ''] = regionArray;
+    try {
+      const detailRecord = (event as { detail?: unknown }).detail as Record<string, unknown> | undefined;
+      const regionArrayRaw = detailRecord?.value;
+      const codeArrayRaw = detailRecord?.code;
 
-    let actualCity: string | null = city;
-    if (city === '省直辖县级行政区划' || city === '自治区直辖县级行政区划') {
-      actualCity = district;
-    } else if (city === '县') {
-      actualCity = null;
+      if (!Array.isArray(regionArrayRaw)) {
+        logger.warn('Region picker detail.value is not an array', { detail: detailRecord });
+        void wx.showToast({ title: '地区选择异常，请重试', icon: 'none' });
+        return;
+      }
+
+      const regionArray = regionArrayRaw.map((item) => String(item));
+      const codeArray = Array.isArray(codeArrayRaw) ? codeArrayRaw.map((item) => String(item)) : [];
+
+      const [province = '', city = ''] = regionArray;
+      const effectiveCity = isNonEmptyString(city) ? city : province;
+      const regionDisplay = formatRegion(province, effectiveCity);
+
+      let candidateCode = '';
+      if (codeArray.length >= 2) {
+        candidateCode = codeArray[1];
+      } else if (codeArray.length === 1) {
+        candidateCode = codeArray[0];
+      }
+      const candidateCityCode = isNonEmptyString(candidateCode) ? candidateCode : null;
+
+      this.setData({
+        regionValue:
+          isNonEmptyString(province) && isNonEmptyString(city)
+            ? [province, city]
+            : isNonEmptyString(province)
+              ? [province]
+              : [],
+        regionDisplay,
+        regionCnCityCode: candidateCityCode,
+        regionChanged: true,
+      });
+    } catch (error) {
+      logger.error('Region picker change handler crashed', { error });
+      void wx.showToast({ title: '地区选择异常，请重试', icon: 'none' });
     }
-
-    const hasActualCity = isNonEmptyString(actualCity);
-    const regionDisplay = hasActualCity
-      ? formatRegion(province, actualCity as string)
-      : formatRegion(province, province);
-    this.setData({
-      regionValue: hasActualCity ? [province, actualCity as string] : [province],
-      regionDisplay,
-    });
   },
 
   buildProfileUpdateData() {
@@ -693,12 +722,22 @@ Page<FieldEditPageData, FieldEditPageCustom>({
     }
 
     if (this.data.fieldType === 'region') {
-      if (!isNonEmptyString(this.data.regionDisplay)) {
+      if (!this.data.regionChanged) {
+        showErrorToast('请选择地区');
+        return null;
+      }
+      if (!isNonEmptyString(this.data.regionDisplay) || this.data.regionDisplay === '请选择地区') {
+        showErrorToast('请选择地区');
+        return null;
+      }
+      if (!isNonEmptyString(this.data.regionCnCityCode)) {
         showErrorToast('请选择地区');
         return null;
       }
       return {
         region: this.data.regionDisplay,
+        region_country_code: 'CN',
+        region_cn_city_code: this.data.regionCnCityCode,
       };
     }
 

@@ -57,7 +57,7 @@
   - `avatar_url` (string) - 动态生成的头像 CDN URL
   - `bio` (string) - 个性签名
   - `tags` (array) - 标签列表
-  - `region` (string) - 地区
+  - `region` (string) - 地区展示快照
 
 - `refresh_available_at` (string) - 下次可刷新的时间（ISO 8601格式）
 
@@ -123,7 +123,7 @@
 - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
 - `avatar_url` (string) - 动态生成的头像 CDN URL
 - `bio` (string) - 个性签名
-- `region` (string) - 地区
+- `region` (string) - 地区展示快照
 - `category` (integer) - 分类
 
 ### 错误响应

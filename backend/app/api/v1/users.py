@@ -80,6 +80,40 @@ def _raise_username_error(
 
 def _validate_profile_update_payload_or_raise(body: UserProfileUpdateRequest) -> None:
     """Validate profile update payload rules that require field-presence semantics."""
+    region_fields = {"region", "region_country_code", "region_cn_city_code"}
+    if region_fields.intersection(body.model_fields_set):
+        if (
+            "region" not in body.model_fields_set
+            or "region_country_code" not in body.model_fields_set
+        ):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="地区参数错误")
+
+        if body.region is None:
+            if body.region_country_code is not None:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="地区参数错误")
+            if (
+                "region_cn_city_code" in body.model_fields_set
+                and body.region_cn_city_code is not None
+            ):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="地区参数错误")
+        else:
+            if body.region.strip() == "":
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="地区参数错误")
+
+            if body.region_country_code is None:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="地区参数错误")
+            country_code = body.region_country_code.strip().upper()
+            if country_code != "CN":
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="地区参数错误")
+
+            if (
+                "region_cn_city_code" not in body.model_fields_set
+                or body.region_cn_city_code is None
+            ):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="地区参数错误")
+            if not UserProfileUpdateRequest.is_valid_cn_city_code(body.region_cn_city_code):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="地区参数错误")
+
     if "nickname" in body.model_fields_set:
         nickname = body.nickname
         if nickname is None or nickname.strip() == "":
@@ -267,6 +301,17 @@ async def _upsert_profile(
     )
 
     profile_data = body.model_dump(exclude_unset=True, exclude={"username"})
+    if "region" in profile_data and isinstance(profile_data["region"], str):
+        profile_data["region"] = profile_data["region"].strip()
+    if "region_country_code" in profile_data and isinstance(
+        profile_data["region_country_code"], str
+    ):
+        profile_data["region_country_code"] = profile_data["region_country_code"].strip().upper()
+    if "region_cn_city_code" in profile_data and isinstance(
+        profile_data["region_cn_city_code"], str
+    ):
+        profile_data["region_cn_city_code"] = profile_data["region_cn_city_code"].strip()
+
     if "avatar_file_id" in profile_data:
         profile_data["avatar_key"] = avatar_key
         profile_data["avatar_media_id"] = avatar_media_id

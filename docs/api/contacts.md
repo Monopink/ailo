@@ -72,11 +72,11 @@
 - `remark_avatar_url` (string|null) - 备注头像 URL，未设置时为 `null`
 - `original_avatar_url` (string) - 原始头像 URL
 - `avatar_display_mode` (integer) - 头像展示模式：`1=original`，`2=custom`
-- `profile` (object) - 联系人资料信息
+  - `profile` (object) - 联系人资料信息
   - `nickname` (string) - 昵称
   - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
   - `bio` (string) - 个性签名（可选）
-  - `region` (string) - 地区（可选）
+  - `region` (string) - 地区展示快照（可选）
 
 ### 业务说明
 
@@ -135,11 +135,11 @@
 - `remark_avatar_url` (string|null) - 备注头像 URL，未设置时为 `null`
 - `original_avatar_url` (string) - 原始头像 URL
 - `avatar_display_mode` (integer) - 头像展示模式：`1=original`，`2=custom`
-- `profile` (object) - 联系人资料信息
+  - `profile` (object) - 联系人资料信息
   - `nickname` (string) - 昵称
   - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
   - `bio` (string) - 个性签名
-  - `region` (string) - 地区
+  - `region` (string) - 地区展示快照
 
 ### 错误响应
 

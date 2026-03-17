@@ -4,6 +4,7 @@ import { completeAvatarUpload } from '../../utils/avatar-uploader';
 import logger from '../../utils/logger';
 import { formatRegion } from '../../utils/format';
 import { classifyError } from '../../utils/error-classifier';
+import { isNonEmptyString } from '../../utils/guards';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { GENDER_OPTIONS, type GenderOption, type GenderValue } from '../../utils/constants/user';
 import type { StoredAuthUser } from '../../utils/storage';
@@ -12,16 +13,14 @@ import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 import { PROFILE_BIO_RULE, PROFILE_NICKNAME_RULE, validateTextLimit } from '../../utils/text-limit';
 
 const MIN_NICKNAME_LENGTH = 2;
-const PROVINCE_ADMIN_DIVISIONS = new Set(['省直辖县级行政区划', '自治区直辖县级行政区划']);
 const WHITESPACE_REGEX = /\s/u;
-const MUNICIPALITY_COUNTY_LABEL = '县';
 
 type RegionValue = [] | [string] | [string, string];
 
 type InputEvent = WechatMiniprogram.CustomEvent<{ value: string }>;
 type RegionPickerDetail = {
-  value: [string, string, string];
-  code: [string, string, string];
+  value: string[];
+  code: string[];
   postcode: string;
 };
 type RegionPickerChangeEvent = WechatMiniprogram.CustomEvent<RegionPickerDetail>;
@@ -38,6 +37,8 @@ interface SetupPageData {
   bio: string;
   regionValue: RegionValue;
   regionDisplay: string;
+  regionCnCityCode: string | null;
+  regionChanged: boolean;
   maxNicknameLength: number;
   maxBioLength: number;
   loading: boolean;
@@ -70,22 +71,89 @@ const buildScreenModelPayload = (
 });
 
 const normalizeRegionSelection = (
-  regionArray: [string, string, string]
-): { regionValue: RegionValue; regionDisplay: string } => {
-  const [province, city, district] = regionArray;
-  let resolvedCity: string | null = city;
+  regionArray: string[],
+  codeArray: string[]
+): {
+  regionValue: RegionValue;
+  regionDisplay: string;
+  regionCnCityCode: string | null;
+} => {
+  const [province = '', city = ''] = regionArray;
+  const effectiveCity = isNonEmptyString(city) ? city : province;
+  const regionDisplay = formatRegion(province, effectiveCity);
+  const regionValue: RegionValue =
+    isNonEmptyString(province) && isNonEmptyString(city)
+      ? [province, city]
+      : isNonEmptyString(province)
+        ? [province]
+        : [];
+  let candidateCode = '';
+  if (codeArray.length >= 2) {
+    candidateCode = codeArray[1];
+  } else if (codeArray.length === 1) {
+    candidateCode = codeArray[0];
+  }
+  const regionCnCityCode = isNonEmptyString(String(candidateCode)) ? String(candidateCode) : null;
 
-  if (PROVINCE_ADMIN_DIVISIONS.has(city)) {
-    resolvedCity = district;
-  } else if (city === MUNICIPALITY_COUNTY_LABEL) {
-    resolvedCity = null;
+  return { regionValue, regionDisplay, regionCnCityCode };
+};
+
+const validateSetupSubmissionOrToast = (
+  payload: Pick<
+    SetupPageData,
+    'nickname' | 'bio' | 'regionChanged' | 'regionDisplay' | 'regionCnCityCode'
+  >
+): { trimmedNickname: string } | null => {
+  const trimmedNickname = payload.nickname.trim();
+
+  if (trimmedNickname === '' || trimmedNickname.length < MIN_NICKNAME_LENGTH) {
+    void wx.showToast({
+      title: '请输入昵称',
+      icon: 'none',
+    });
+    return null;
   }
 
-  const regionDisplay =
-    resolvedCity !== null ? formatRegion(province, resolvedCity) : formatRegion(province, province);
-  const regionValue: RegionValue = resolvedCity !== null ? [province, resolvedCity] : [province];
+  if (WHITESPACE_REGEX.test(trimmedNickname)) {
+    void wx.showToast({
+      title: '昵称不能包含空格',
+      icon: 'none',
+    });
+    return null;
+  }
 
-  return { regionValue, regionDisplay };
+  const nicknameValidation = validateTextLimit(trimmedNickname, PROFILE_NICKNAME_RULE);
+  if (!nicknameValidation.valid) {
+    void wx.showToast({
+      title: nicknameValidation.message ?? '昵称格式不正确',
+      icon: 'none',
+    });
+    return null;
+  }
+
+  const trimmedBio = payload.bio.trim();
+  if (trimmedBio !== '') {
+    const bioValidation = validateTextLimit(trimmedBio, PROFILE_BIO_RULE);
+    if (!bioValidation.valid) {
+      void wx.showToast({
+        title: bioValidation.message ?? '个性签名格式不正确',
+        icon: 'none',
+      });
+      return null;
+    }
+  }
+
+  if (payload.regionChanged) {
+    if (!isNonEmptyString(payload.regionDisplay) || !isNonEmptyString(payload.regionCnCityCode)) {
+      void wx.showToast({
+        title: '请选择地区',
+        icon: 'none',
+      });
+      return null;
+    }
+  }
+
+  return { trimmedNickname };
 };
 
 const mapProfileToStoredUser = (profile: { qiao_id: string }): StoredAuthUser => ({
@@ -112,6 +180,8 @@ Page<SetupPageData, SetupPageCustom>({
     bio: '',
     regionValue: [],
     regionDisplay: '',
+    regionCnCityCode: null,
+    regionChanged: false,
     maxNicknameLength: PROFILE_NICKNAME_RULE.displayWidthLimit,
     maxBioLength: PROFILE_BIO_RULE.graphemeLimit,
     loading: false,
@@ -220,12 +290,15 @@ Page<SetupPageData, SetupPageCustom>({
     this.setData({ bio: event.detail.value });
   },
 
-  onRegionChange(event) {
+  onRegionChange(event: RegionPickerChangeEvent) {
     const regionArray = event.detail.value;
-    const normalized = normalizeRegionSelection(regionArray);
+    const codeArray = event.detail.code;
+    const normalized = normalizeRegionSelection(regionArray, codeArray);
     this.setData({
       regionValue: normalized.regionValue,
       regionDisplay: normalized.regionDisplay,
+      regionCnCityCode: normalized.regionCnCityCode,
+      regionChanged: true,
     });
   },
 
@@ -262,52 +335,20 @@ Page<SetupPageData, SetupPageCustom>({
   },
 
   async handleSubmit() {
-    const trimmedNickname = this.data.nickname.trim();
-
-    if (trimmedNickname === '' || trimmedNickname.length < MIN_NICKNAME_LENGTH) {
-      void wx.showToast({
-        title: '请输入昵称',
-        icon: 'none',
-      });
+    const validated = validateSetupSubmissionOrToast(this.data);
+    if (validated === null) {
       return;
-    }
-
-    if (WHITESPACE_REGEX.test(trimmedNickname)) {
-      void wx.showToast({
-        title: '昵称不能包含空格',
-        icon: 'none',
-      });
-      return;
-    }
-
-    const nicknameValidation = validateTextLimit(trimmedNickname, PROFILE_NICKNAME_RULE);
-    if (!nicknameValidation.valid) {
-      void wx.showToast({
-        title: nicknameValidation.message ?? '昵称格式不正确',
-        icon: 'none',
-      });
-      return;
-    }
-
-    const trimmedBio = this.data.bio.trim();
-    if (trimmedBio !== '') {
-      const bioValidation = validateTextLimit(trimmedBio, PROFILE_BIO_RULE);
-      if (!bioValidation.valid) {
-        void wx.showToast({
-          title: bioValidation.message ?? '个性签名格式不正确',
-          icon: 'none',
-        });
-        return;
-      }
     }
 
     try {
       this.setData({ loading: true, ...buildScreenModelPayload('ready', 'data', 'refreshing') });
       const updatedProfile = await this.setupPageService.submitProfile({
-        nickname: trimmedNickname,
+        nickname: validated.trimmedNickname,
         gender: this.data.gender,
         bio: this.data.bio,
         regionDisplay: this.data.regionDisplay,
+        regionCnCityCode: this.data.regionCnCityCode,
+        regionChanged: this.data.regionChanged,
         avatarFileId: this.data.avatarFileId,
       });
       if (updatedProfile === null) {

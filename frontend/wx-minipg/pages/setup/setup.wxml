@@ -61,7 +61,7 @@
       <t-cell-group theme="card">
         <picker
           mode="region"
-          value="{{regionValue}}"
+          level="city"
           bindchange="onRegionChange">
           <t-cell
             title="地区"

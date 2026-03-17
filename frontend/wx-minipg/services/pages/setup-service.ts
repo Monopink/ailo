@@ -17,6 +17,8 @@ export interface SetupSubmitPayload {
   gender: GenderValue | null;
   bio: string;
   regionDisplay: string;
+  regionCnCityCode: string | null;
+  regionChanged: boolean;
   avatarFileId: string;
 }
 
@@ -41,8 +43,16 @@ const buildProfilePayload = (payload: SetupSubmitPayload): Record<string, unknow
     submitPayload.bio = trimmedBio;
   }
 
-  if (payload.regionDisplay !== '') {
-    submitPayload.region = payload.regionDisplay;
+  if (payload.regionChanged) {
+    if (payload.regionDisplay !== '') {
+      submitPayload.region = payload.regionDisplay;
+      submitPayload.region_country_code = 'CN';
+      submitPayload.region_cn_city_code = payload.regionCnCityCode;
+    } else {
+      submitPayload.region = null;
+      submitPayload.region_country_code = null;
+      submitPayload.region_cn_city_code = null;
+    }
   }
 
   if (payload.avatarFileId !== '') {

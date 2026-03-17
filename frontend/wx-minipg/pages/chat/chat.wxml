@@ -13,10 +13,8 @@
   <view slot="header" class="chat-page__header {{navbarSolid ? 'chat-page__header--solid' : ''}}">
     <t-navbar left-arrow="{{true}}">
       <view slot="title" class="navbar-title chat-navbar__title" bindtap="onNavbarTitleClick">
-        <text wx:if="{{isContactTyping}}" class="chat-navbar__title-text chat-navbar__typing-text">
-          对方正在输入...
-        </text>
-        <text wx:else class="chat-navbar__title-text">{{navbarTitle}}</text>
+        <text wx:if="{{isContactTyping}}" class="navbar-title chat-navbar__title-text chat-navbar__typing-text">对方正在输入...</text>
+        <text wx:else class="navbar-title chat-navbar__title-text">{{navbarTitle}}</text>
       </view>
     </t-navbar>
   </view>

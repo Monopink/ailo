@@ -21,6 +21,16 @@ class ProfileBase(BaseModel):
     )
     bio: str | None = Field(None, max_length=120, description="Personal bio/description")
     region: str | None = Field(None, max_length=100, description="Location/region")
+    region_country_code: str | None = Field(
+        None,
+        max_length=2,
+        description="Region country/territory code",
+    )
+    region_cn_city_code: str | None = Field(
+        None,
+        max_length=6,
+        description="CN city code (6 digits), when region_country_code=CN",
+    )
 
 
 class ProfileCreate(ProfileBase):

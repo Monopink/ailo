@@ -148,7 +148,98 @@ export function formatAge(birthYear: number | null | undefined): number {
 }
 
 // Region formatting
-// Remove suffixes (省/市/自治区/特别行政区) and merge duplicates for municipalities
+const AUTONOMOUS_DESCRIPTOR_SUFFIXES = [
+  '哈萨克',
+  '柯尔克孜',
+  '蒙古',
+  '维吾尔',
+  '壮',
+  '回',
+  '藏',
+  '彝',
+  '白',
+  '傣',
+  '苗',
+  '羌',
+  '土家',
+  '哈尼',
+  '景颇',
+  '朝鲜',
+] as const;
+
+const stripTrailingAutonomyDescriptor = (raw: string): string => {
+  let name = raw.trim();
+  let changed = true;
+
+  while (changed && name !== '') {
+    changed = false;
+
+    for (const suffix of AUTONOMOUS_DESCRIPTOR_SUFFIXES) {
+      const withZu = `${suffix}族`;
+      if (name.endsWith(withZu)) {
+        name = name.slice(0, -withZu.length).trim();
+        changed = true;
+        break;
+      }
+    }
+    if (changed) {
+      continue;
+    }
+
+    for (const suffix of AUTONOMOUS_DESCRIPTOR_SUFFIXES) {
+      if (name.endsWith(suffix)) {
+        name = name.slice(0, -suffix.length).trim();
+        changed = true;
+        break;
+      }
+    }
+  }
+
+  return name;
+};
+
+const cleanCnProvinceName = (raw: string): string => {
+  return raw
+    .trim()
+    .replace(/特别行政区$/u, '')
+    .replace(/省$/u, '')
+    .replace(/市$/u, '')
+    .replace(/(壮族自治区|回族自治区|维吾尔自治区)$/u, '')
+    .replace(/自治区$/u, '')
+    .trim();
+};
+
+const cleanCnCityName = (raw: string): string => {
+  let name = raw
+    .trim()
+    .replace(/自治州$/u, '')
+    .replace(/自治县$/u, '')
+    .replace(/自治旗$/u, '')
+    .replace(/自治市$/u, '')
+    .replace(/市$/u, '')
+    .replace(/地区$/u, '')
+    .replace(/盟$/u, '')
+    .trim();
+
+  name = stripTrailingAutonomyDescriptor(name).trim();
+  return name;
+};
+
+const formatCnRegionCity = (province: string, city: string): string => {
+  const cleanProvince = cleanCnProvinceName(province);
+  const cleanCity = cleanCnCityName(city);
+
+  if (!isNonEmptyString(cleanProvince) || !isNonEmptyString(cleanCity)) {
+    return '';
+  }
+
+  if (cleanProvince === cleanCity) {
+    return cleanProvince;
+  }
+
+  return `${cleanProvince} ${cleanCity}`;
+};
+
 export function formatRegion(
   province: string | null | undefined,
   city: string | null | undefined
@@ -157,37 +248,29 @@ export function formatRegion(
     return '';
   }
 
-  // Remove common suffixes and ethnic names for autonomous regions (province level)
-  const cleanProvince = province
-    .replace(/维吾尔自治区$/, '')
-    .replace(/壮族自治区$/, '')
-    .replace(/回族自治区$/, '')
-    .replace(/藏族自治区$/, '')
-    .replace(/蒙古自治区$/, '')
-    .replace(/自治区$/, '')
-    .replace(/省$/, '')
-    .replace(/特别行政区$/, '')
-    .replace(/市$/, '');
+  const normalized = formatCnRegionCity(province, city);
+  if (normalized !== '') {
+    return normalized;
+  }
 
-  // Remove suffixes and ethnic names for autonomous prefectures (city level)
+  const cleanProvince = province
+    .trim()
+    .replace(/特别行政区$/, '')
+    .replace(/省$/, '')
+    .replace(/市$/, '')
+    .replace(/(壮族自治区|回族自治区|维吾尔自治区)$/, '')
+    .replace(/自治区$/, '');
+
   const cleanCity = city
-    .replace(/土家族苗族自治州$/, '')
-    .replace(/藏族羌族自治州$/, '')
-    .replace(/彝族自治州$/, '')
-    .replace(/白族自治州$/, '')
-    .replace(/哈尼族彝族自治州$/, '')
-    .replace(/傣族景颇族自治州$/, '')
-    .replace(/傣族自治州$/, '')
-    .replace(/蒙古族藏族自治州$/, '')
-    .replace(/藏族自治州$/, '')
-    .replace(/回族自治州$/, '')
-    .replace(/蒙古自治州$/, '')
-    .replace(/朝鲜族自治州$/, '')
-    .replace(/哈萨克自治州$/, '')
-    .replace(/柯尔克孜自治州$/, '')
+    .trim()
     .replace(/自治州$/, '')
+    .replace(/地区$/, '')
     .replace(/盟$/, '')
     .replace(/市$/, '');
+
+  if (!isNonEmptyString(cleanProvince) || !isNonEmptyString(cleanCity)) {
+    return '';
+  }
 
   // Merge if province and city are the same (municipalities)
   if (cleanProvince === cleanCity) {

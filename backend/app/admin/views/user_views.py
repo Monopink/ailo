@@ -265,6 +265,8 @@ class ProfileView(BaseRoleAwareModelView):
         "owner_type",  # Auto-inferred from selected owner
         "avatar_key",  # Auto-filled from selected avatar_media
         "avatar_media_id",  # Auto-filled from selected avatar_media
+        "region_country_code",  # Auto-filled by client
+        "region_cn_city_code",  # Auto-filled by client
         "created_at",
         "updated_at",
     ]
@@ -275,6 +277,8 @@ class ProfileView(BaseRoleAwareModelView):
         "owner_type",  # Auto-inferred from selected owner
         "avatar_key",  # Auto-filled from selected avatar_media
         "avatar_media_id",  # Auto-filled from selected avatar_media
+        "region_country_code",  # Auto-filled by client
+        "region_cn_city_code",  # Auto-filled by client
         "created_at",
         "updated_at",
     ]
@@ -356,6 +360,16 @@ class ProfileView(BaseRoleAwareModelView):
         ),
         TextAreaField("bio", label="Bio", help_text="Profile biography"),
         StringField("region", label="Region", help_text="Location/region information"),
+        StringField(
+            "region_country_code",
+            label="Region Country Code",
+            help_text="Region country/area code",
+        ),
+        StringField(
+            "region_cn_city_code",
+            label="Region CN City Code",
+            help_text="CN only, 6-digit city code",
+        ),
         DateTimeField("created_at", label="Created At", help_text="Profile creation time"),
         DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]

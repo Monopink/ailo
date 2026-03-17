@@ -4,17 +4,12 @@ import { getLogger } from '../../utils/logger';
 import profileService, { type ProfileViewModel } from '../../utils/profile-service';
 import { updateUserAvatar } from '../../utils/profile';
 import { isDefined, isNonEmptyString } from '../../utils/guards';
-import { formatRegion } from '../../utils/format';
 import { GENDER_OPTIONS, type GenderOption } from '../../utils/constants/user';
 import { type ScreenModel } from '../../services/pages/page-state';
 import { createProfileDetailPageService } from '../../services/pages/profile-detail-service';
 import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 
 const logger = getLogger('ProfileDetail');
-const PROVINCE_ADMIN_DIVISIONS = new Set(['省直辖县级行政区划', '自治区直辖县级行政区划']);
-const MUNICIPALITY_COUNTY_LABEL = '县';
-
-type RegionValue = [] | [string] | [string, string];
 
 interface ProfileDetailPageData extends Record<string, unknown> {
   pageLayoutData: PageLayoutData;
@@ -22,7 +17,6 @@ interface ProfileDetailPageData extends Record<string, unknown> {
   genderText: string;
   genderOptions: readonly GenderOption[];
   genderIndex: number;
-  regionValue: RegionValue;
   avatarUploading: boolean;
   fieldUpdating: boolean;
 }
@@ -34,8 +28,8 @@ interface ProfileDetailPageCustom {
   saveProfileField(updateData: Record<string, unknown>): Promise<void>;
   editNickname(): void;
   editUsername(): void;
+  editRegion(): void;
   onGenderChange(event: WechatMiniprogram.PickerChange): void;
-  onRegionChange(event: WechatMiniprogram.PickerChange): void;
   editBio(): void;
   editAvatar(): Promise<void>;
   onUnload(): void;
@@ -64,7 +58,6 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
     genderText: '',
     genderOptions: GENDER_OPTIONS,
     genderIndex: -1,
-    regionValue: [],
     avatarUploading: false,
     fieldUpdating: false,
   },
@@ -193,6 +186,12 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
     });
   },
 
+  editRegion() {
+    void wx.navigateTo({
+      url: `/pages/field-edit/field-edit?domain=profile&field=region&value=${encodeValue(this.data.profile?.region)}`,
+    });
+  },
+
   onGenderChange(event) {
     const nextIndex = Number.parseInt(String(event.detail.value), 10);
     const option = this.data.genderOptions[nextIndex];
@@ -204,32 +203,6 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
     }
     void this.saveProfileField({
       gender: option.value,
-    });
-  },
-
-  onRegionChange(event) {
-    const regionArray = event.detail.value as string[];
-    const [province = '', city = '', district = ''] = regionArray;
-    let actualCity: string | null = city;
-    if (PROVINCE_ADMIN_DIVISIONS.has(city)) {
-      actualCity = district;
-    } else if (city === MUNICIPALITY_COUNTY_LABEL) {
-      actualCity = null;
-    }
-
-    const regionDisplay =
-      actualCity !== null ? formatRegion(province, actualCity) : formatRegion(province, province);
-    if (!isNonEmptyString(regionDisplay)) {
-      return;
-    }
-    this.setData({
-      regionValue: actualCity !== null ? [province, actualCity] : [province],
-    });
-    if (this.data.profile?.region === regionDisplay) {
-      return;
-    }
-    void this.saveProfileField({
-      region: regionDisplay,
     });
   },
 

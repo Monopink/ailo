@@ -44,13 +44,13 @@
 - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
 - `avatar_url` (string) - 动态生成的头像 CDN URL，基于后台存储的 `avatar_file_id`
 - `bio` (string) - 个性签名
-- `region` (string) - 地区
+- `region` (string) - 地区展示快照
 
 ### 业务说明
 
 - 只返回用户资料信息（profiles表内容）+ username字段
 - 不包括账户安全信息（手机号、邮箱等）
-- region由前端维护列表，后端只验证长度
+- region 展示规范见 `docs/spec/client/base/profile-and-settings.md`
 
 ---
 
@@ -119,7 +119,8 @@
   "gender": 2,
   "avatar_file_id": "file_custom_avatar_123",
   "bio": "新的个性签名",
-  "region": "上海"
+  "region": "上海",
+  "region_country_code": "CN"
 }
 ```
 
@@ -150,8 +151,24 @@
   - 传入 `null` 可清空个性签名
 
 - `region` (string, 可选)
-  - 地区
-  - 由前端维护列表
+  - 地区展示快照
+  - 展示规范见 `docs/spec/client/base/profile-and-settings.md`
+
+- `region_country_code` (string, 可选)
+  - 地区国家/地区代码（ISO 3166-1 alpha-2）
+  - 支持：CN
+  - 本字段为写入字段，本接口响应不会返回该字段
+
+- `region_cn_city_code` (string, 可选)
+  - 中国大陆市级行政区划代码（6位字符串）
+  - 仅当 `region_country_code=CN` 时允许写入
+  - 本字段为写入字段，本接口响应不会返回该字段
+
+**字段组合规则**:
+
+- 当提交 `region` 时必须同时提交 `region_country_code`。
+- 当提交 `region_country_code` 时必须同时提交 `region`。
+- 当 `region_country_code=CN` 时必须同时提交 `region_cn_city_code`。
 
 ### 成功响应 (200)
 

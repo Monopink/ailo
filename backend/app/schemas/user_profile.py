@@ -1,5 +1,7 @@
 """User profile schemas for API request/response."""
 
+import re
+
 from pydantic import BaseModel, Field
 
 
@@ -41,6 +43,19 @@ class UserProfileUpdateRequest(BaseModel):
     )
     bio: str | None = Field(None, max_length=120, description="Personal bio/description")
     region: str | None = Field(None, max_length=100, description="Location/region")
+    region_country_code: str | None = Field(
+        None,
+        max_length=2,
+        description="Region country/territory code",
+    )
+    region_cn_city_code: str | None = Field(
+        None, max_length=6, description="CN city-level administrative division code (6 digits)"
+    )
+
+    @staticmethod
+    def is_valid_cn_city_code(value: str) -> bool:
+        """Return True if value is a 6-digit CN city code."""
+        return bool(re.fullmatch(r"\d{6}", value))
 
 
 class UsernameCheckResponse(BaseModel):

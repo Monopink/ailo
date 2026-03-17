@@ -73,6 +73,18 @@ class Profile(SnowflakeModel):
         String(100), nullable=True, comment="Location/region"
     )
 
+    region_country_code: Mapped[str | None] = mapped_column(
+        String(2),
+        nullable=True,
+        comment="Region country/territory code",
+    )
+
+    region_cn_city_code: Mapped[str | None] = mapped_column(
+        String(6),
+        nullable=True,
+        comment="CN city code (6 digits), when region_country_code=CN",
+    )
+
     # Polymorphic owner relationships
     # owner_type=1 (USER) → users table (includes all user types: normal, official, virtual)
     _owner_user: Mapped[User | None] = relationship(

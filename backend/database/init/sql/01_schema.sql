@@ -306,6 +306,8 @@ CREATE TABLE IF NOT EXISTS profiles (
     avatar_prompt TEXT,
     bio TEXT,
     region VARCHAR(100),
+    region_country_code VARCHAR(2),
+    region_cn_city_code VARCHAR(6),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT fk_profiles_avatar_media FOREIGN KEY (avatar_media_id) REFERENCES media_files(id) ON DELETE SET NULL

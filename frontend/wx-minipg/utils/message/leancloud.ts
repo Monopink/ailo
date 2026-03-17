@@ -488,7 +488,13 @@ export class LCAdapter implements MessageAdapter {
       type SendResult = { id?: string; timestamp?: number };
       let sentMessage: SendResult;
       try {
-        sentMessage = (await conversation.send(businessMessage)) as SendResult;
+        const isTypingMessage =
+          messageData.message_type === MESSAGE_TYPE.TYPING_START ||
+          messageData.message_type === MESSAGE_TYPE.TYPING_END;
+        sentMessage = (await conversation.send(
+          businessMessage,
+          isTypingMessage ? { transient: true } : undefined
+        )) as SendResult;
       } catch (sendError) {
         const err = toError(sendError);
         const rawDetails = sendError as { code?: unknown; constructor?: { name?: string } };

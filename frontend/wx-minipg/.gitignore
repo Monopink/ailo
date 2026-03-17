@@ -20,12 +20,9 @@ Thumbs.db
 # Build
 dist/
 
-# Depend
-libs/*
-!libs/README.md
-
 # TypeScript compiled files
 **/*.js
+!libs/**/*.js
 !miniprogram_npm/**/*.js
 !*.config.js
 !scripts/**/*.js

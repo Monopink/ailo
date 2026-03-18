@@ -11,7 +11,7 @@
   [功能设计目录](docs\spec\) [数据字典目录](docs\data-dict\) [API文档目录](docs\api\)
 - 如果你发现设计存在问题或不详细的地方应该立即提出，而不是自行修改实现
 - 开发后端前务必了解 [后端规则](backend\AGENTS.md)
-- 开发小程序前务必了解 [小程序规则](frontend\wx-minipg\AGENTS.md)
+- 开发小程序前务必了解 [小程序规则](frontend\mp-weixin\AGENTS.md)
 - [参考资料目录](docs\references\) ，相关参考内容:
   [微信小程序文档索引目录](docs\references\weixin-miniprogram-docs\) [Doubao文档目录](docs\references\doubao-docs\) [Leancloud文档目录](docs\references\leancloud-docs\) [Leancloud示例Web Demo目录](docs\references\leancloud-message-web-demo\) [Starlette Admin源码及文档](docs\references\starlette-admin\)
 - Leancloud公告将于2027年1月12日停止服务，需要做好替换准备

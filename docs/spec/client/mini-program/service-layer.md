@@ -15,7 +15,7 @@
 
 ## 页面 Service 层
 
-- 位置：`frontend/wx-minipg/services/pages/*`
+- 位置：`frontend/mp-weixin/services/pages/*`
 - 页面层调用页面 Service
 - 页面 Service 负责页面级编排，组合领域 Service 与存储
 - 页面 Service 覆盖页面：`login`、`chat`、`contact-info`、`field-edit`、`chat-detail`、`setup`、`account-security`、`profile`、`profile-detail`、`stranger-info`、`legal-document`、`index`、`square`、`contact-requests`
@@ -102,7 +102,7 @@
 - 分类来源：`docs/api/error-codes.md` 与对应接口文档
 - 前端分支依赖 `error_code`、`reason`、HTTP 状态码与微信请求错误语义
 - 分类结果用于 Service 内部决策与日志
-- 分类器位置：`frontend/wx-minipg/utils/error-classifier.ts`
+- 分类器位置：`frontend/mp-weixin/utils/error-classifier.ts`
 
 ### 分类语义
 
@@ -135,8 +135,8 @@
 ## 参考实现
 
 查看以下文件了解标准实现模式：
-- [utils/profile-service.ts](../../../frontend/wx-minipg/utils/profile-service.ts)
-- [utils/account-service.ts](../../../frontend/wx-minipg/utils/account-service.ts)
+- [utils/profile-service.ts](../../../frontend/mp-weixin/utils/profile-service.ts)
+- [utils/account-service.ts](../../../frontend/mp-weixin/utils/account-service.ts)
 
 ## 错误处理规范
 

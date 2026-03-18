@@ -53,8 +53,8 @@
 
 ## 设计令牌与暗色模式
 
-- 语义变量: `frontend/wx-minipg/styles/design-tokens.wxss`
-- TDesign 映射: `frontend/wx-minipg/styles/tdesign-theme.wxss`
+- 语义变量: `frontend/mp-weixin/styles/design-tokens.wxss`
+- TDesign 映射: `frontend/mp-weixin/styles/tdesign-theme.wxss`
 - 禁止直接引用 `--td-*` 做业务样式
 - 暗色模式仅在 `design-tokens.wxss` 定义变量，`tdesign-theme.wxss` 只做映射
 - `app.json` 必须启用 `darkmode: true` 且配置 `themeLocation: "theme.json"`

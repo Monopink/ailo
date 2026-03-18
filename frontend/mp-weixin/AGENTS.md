@@ -53,7 +53,7 @@ Libs (第三方库)
 ### 目录结构
 
 ```
-frontend/wx-minipg/
+frontend/mp-weixin/
 ├── pages/              # 页面
 ├── components/         # 自定义组件
 ├── utils/              # 工具函数
@@ -131,7 +131,7 @@ frontend/wx-minipg/
 提交前必须运行 `npm run check` 并通过，禁止跳过检查或提交未格式化代码。
 
 ```bash
-cd frontend/wx-minipg
+cd frontend/mp-weixin
 npm run check  # type-check + lint + lint:style + ui:audit
 ```
 
@@ -142,7 +142,7 @@ npm run check  # type-check + lint + lint:style + ui:audit
 ### 安装依赖
 
 ```bash
-cd frontend/wx-minipg
+cd frontend/mp-weixin
 npm install
 ```
 

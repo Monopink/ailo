@@ -6,15 +6,15 @@ ignore_all_files_in_gitignore: false
 # Was previously called `ignored_dirs`, please update your config if you are using that.
 # Added (renamed) on 2025-04-07
 ignored_paths:
-- "*.pyc"
-- "cache/"
-- "tmpclaude*"
-- "__pycache__/"
-- "node_modules/"
-- "venv/"
-- "/deployment/.env.prod"
-- "/.history"
-- "/frontend/wx-minipg/miniprogram_npm/"
+  - "*.pyc"
+  - "cache/"
+  - "tmpclaude*"
+  - "__pycache__/"
+  - "node_modules/"
+  - "venv/"
+  - "/deployment/.env.prod"
+  - "/.history"
+  - "/frontend/mp-weixin/miniprogram_npm/"
 
 # whether the project is in read-only mode
 # If set to true, all editing tools will be disabled and attempts to use them will result in an error
@@ -118,9 +118,9 @@ encoding: utf-8
 # The first language is the default language and the respective language server will be used as a fallback.
 # Note that when using the JetBrains backend, language servers are not used and this list is correspondingly ignored.
 languages:
-- python
-- typescript
-- markdown
+  - python
+  - typescript
+  - markdown
 
 # time budget (seconds) per tool call for the retrieval of additional symbol information
 # such as docstrings or parameter information.

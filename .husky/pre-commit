@@ -9,8 +9,8 @@ else
 fi
 
 # Run lint-staged for miniprogram frontend
-if [ -d "frontend/wx-minipg" ]; then
-  cd frontend/wx-minipg || exit 1
+if [ -d "frontend/mp-weixin" ]; then
+  cd frontend/mp-weixin || exit 1
   # Try npx.cmd first (Windows), then npx (Unix)
   if npx.cmd --version > /dev/null 2>&1; then
     npx.cmd lint-staged

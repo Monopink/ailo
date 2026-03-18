@@ -3,60 +3,60 @@
   "packOptions": {
     "ignore": [
       {
-        "type": "folder",
-        "value": "node_modules"
+        "value": "node_modules",
+        "type": "folder"
       },
       {
-        "type": "folder",
-        "value": "scripts"
+        "value": "scripts",
+        "type": "folder"
       },
       {
-        "type": "folder",
-        "value": "test"
+        "value": "test",
+        "type": "folder"
       },
       {
-        "type": "folder",
-        "value": "minitest"
+        "value": "minitest",
+        "type": "folder"
       },
       {
-        "type": "file",
-        "value": "package-lock.json"
+        "value": "package-lock.json",
+        "type": "file"
       },
       {
-        "type": "file",
-        "value": "jest.config.js"
+        "value": "jest.config.js",
+        "type": "file"
       },
       {
-        "type": "file",
-        "value": "ui-audit.mjs"
+        "value": "ui-audit.mjs",
+        "type": "file"
       },
       {
-        "type": "file",
-        "value": "tsconfig.json"
+        "value": "tsconfig.json",
+        "type": "file"
       },
       {
-        "type": "file",
-        "value": ".eslintrc.js"
+        "value": ".eslintrc.js",
+        "type": "file"
       },
       {
-        "type": "file",
-        "value": ".prettierrc.json"
+        "value": ".prettierrc.json",
+        "type": "file"
       },
       {
-        "type": "file",
-        "value": ".stylelintrc.cjs"
+        "value": ".stylelintrc.cjs",
+        "type": "file"
       },
       {
-        "type": "file",
-        "value": "AGENTS.md"
+        "value": "AGENTS.md",
+        "type": "file"
       },
       {
-        "type": "suffix",
-        "value": ".map"
+        "value": ".map",
+        "type": "suffix"
       },
       {
-        "type": "suffix",
-        "value": ".md"
+        "value": ".md",
+        "type": "suffix"
       }
     ],
     "include": []
@@ -104,12 +104,14 @@
     "compileWorklet": false,
     "localPlugins": false,
     "disableUseStrict": false,
-    "useCompilerPlugins": ["typescript"],
+    "useCompilerPlugins": [
+      "typescript"
+    ],
     "swc": false,
     "disableSWC": true
   },
   "compileType": "miniprogram",
-  "libVersion": "3.0.0",
+  "libVersion": "3.7.12",
   "appid": "wx6935fe0a74a96664",
   "projectname": "ailo-miniprogram",
   "condition": {},

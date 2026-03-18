@@ -22,6 +22,7 @@ dist/
 
 # TypeScript compiled files
 **/*.js
+!.eslintrc.js
 !libs/**/*.js
 !miniprogram_npm/**/*.js
 !*.config.js

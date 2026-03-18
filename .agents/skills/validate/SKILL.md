@@ -1,6 +1,6 @@
 ---
 name: validate
-description: "Unified code validation workflow. Runs format, lint, type checks, and implementation standards. Actions: validate, check, lint, fix. Triggers: after code changes, before commit. Files: backend/**/*.py, frontend/wx-minipg/**/*"
+description: "Unified code validation workflow. Runs format, lint, type checks, and implementation standards. Actions: validate, check, lint, fix. Triggers: after code changes, before commit. Files: backend/**/*.py, frontend/mp-weixin/**/*"
 ---
 
 # Validate
@@ -29,5 +29,5 @@ Run project validation after code changes and before commit.
 ## Sources of Truth
 
 - Backend config: `backend/pyproject.toml`, `backend/.contracts.yaml`
-- Frontend config: `frontend/wx-minipg/package.json`, `frontend/wx-minipg/.eslintrc.js`
-- Project rules: `backend/AGENTS.md`, `frontend/wx-minipg/AGENTS.md`
+- Frontend config: `frontend/mp-weixin/package.json`, `frontend/mp-weixin/.eslintrc.js`
+- Project rules: `backend/AGENTS.md`, `frontend/mp-weixin/AGENTS.md`

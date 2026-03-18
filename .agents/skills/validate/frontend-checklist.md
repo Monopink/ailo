@@ -4,13 +4,13 @@ Run frontend checks with configured npm scripts.
 
 ## Required Config
 
-- `frontend/wx-minipg/package.json`
-- `frontend/wx-minipg/.eslintrc.js`
-- `frontend/wx-minipg/tsconfig.json`
+- `frontend/mp-weixin/package.json`
+- `frontend/mp-weixin/.eslintrc.js`
+- `frontend/mp-weixin/tsconfig.json`
 
 ## Validation Commands
 
-Run in `frontend/wx-minipg`:
+Run in `frontend/mp-weixin`:
 
 ```bash
 npm run check

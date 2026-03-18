@@ -16,7 +16,7 @@ Checklist for implementation-level quality gates.
 | `backend/app/api/**/*.py` | `docs/api/*.md` |
 | `backend/app/models/*.py` | `backend/database/init/01_schema.sql` and `docs/data-dict/*.md` |
 | `backend/alembic/versions/*.py` | `backend/database/init/*.sql` and `docs/data-dict/*.md` |
-| `frontend/wx-minipg/pages/**/*` | related `docs/spec/**/*.md` if behavior changes |
+| `frontend/mp-weixin/pages/**/*` | related `docs/spec/**/*.md` if behavior changes |
 | config/environment files | corresponding config docs |
 
 ## Execution

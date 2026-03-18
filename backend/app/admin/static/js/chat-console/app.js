@@ -243,7 +243,7 @@ import { createViewRuntimeController } from './view-runtime.js';
       dbVersion: IDB_VERSION,
       storeName: IDB_STORE_MESSAGES,
     });
-  const { encryptVaultPayload, decryptVaultPayload } = createVaultCrypto({
+  const { encryptVaultPayload, decryptVaultPayload, vaultPersistenceMode } = createVaultCrypto({
     masterKey: VAULT_MASTER_KEY,
     saltKey: VAULT_SALT_KEY,
     bytesToBase64,
@@ -302,6 +302,7 @@ import { createViewRuntimeController } from './view-runtime.js';
     vaultStorageKey: VAULT_STORAGE_KEY,
     encryptVaultPayload,
     decryptVaultPayload,
+    vaultPersistenceMode,
     normalizeVaultAccounts,
     resolveActiveAccountId,
     nowMs,
@@ -798,9 +799,9 @@ import { createViewRuntimeController } from './view-runtime.js';
   }
 
   async function initialize() {
-    if (!window.crypto || !window.crypto.subtle) {
-      setStatus('当前环境不支持 Web Crypto API，聊天控制台无法安全启动。');
-      appendLog('webcrypto_unavailable');
+    if (!window.crypto || typeof window.crypto.getRandomValues !== 'function') {
+      setStatus('当前环境不支持安全随机数能力，聊天控制台无法启动。');
+      appendLog('secure_random_unavailable');
       updateControls();
       return;
     }
@@ -825,6 +826,10 @@ import { createViewRuntimeController } from './view-runtime.js';
       renderAccountSelect();
     }
 
+    if (vaultPersistenceMode === 'plain') {
+      appendLog({ vault_persistence_mode: vaultPersistenceMode });
+    }
+
     if (state.vault.active_account_id) {
       try {
         await activateAccount(state.vault.active_account_id, 'restore');
@@ -835,7 +840,13 @@ import { createViewRuntimeController } from './view-runtime.js';
     }
 
     setAuthBadge(false);
-    setStage(STAGE.UNAUTH, '当前无活跃会话，请先登录后开始聊天。');
+    if (vaultPersistenceMode === 'encrypted') {
+      setStage(STAGE.UNAUTH, '当前无活跃会话，请先登录后开始聊天。');
+    } else if (vaultPersistenceMode === 'plain') {
+      setStage(STAGE.UNAUTH, '当前地址为局域网非安全上下文，账号会明文保存在本地，请仅用于内网调试。');
+    } else {
+      setStage(STAGE.UNAUTH, '当前地址不是安全上下文，账号仅在当前页面有效，请登录后使用。');
+    }
     updateControls();
   }
 

@@ -50,7 +50,60 @@ export function resolveActiveAccountId(activeAccountId, normalizedAccounts) {
   return normalizedAccounts[0] ? normalizedAccounts[0].account_id : null;
 }
 
+function isAllowedPlaintextVaultHost(hostname) {
+  const normalized = String(hostname || '')
+    .trim()
+    .toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  if (normalized === 'localhost' || normalized === '::1' || normalized === '[::1]' || normalized === '0.0.0.0') {
+    return true;
+  }
+  if (/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(normalized)) {
+    return true;
+  }
+
+  const ipv4Match = normalized.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!ipv4Match) {
+    return false;
+  }
+
+  const octets = ipv4Match.slice(1).map(Number);
+  if (octets.some((item) => item < 0 || item > 255)) {
+    return false;
+  }
+  if (octets[0] === 10) {
+    return true;
+  }
+  if (octets[0] === 192 && octets[1] === 168) {
+    return true;
+  }
+  if (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) {
+    return true;
+  }
+  return false;
+}
+
 export function createVaultCrypto({ masterKey, saltKey, bytesToBase64, base64ToBytes, safeJsonParse }) {
+  const supportsSecureVaultPersistence =
+    typeof window !== 'undefined' &&
+    !!window.crypto &&
+    typeof window.crypto.getRandomValues === 'function' &&
+    !!window.crypto.subtle &&
+    typeof window.crypto.subtle.importKey === 'function' &&
+    typeof window.crypto.subtle.deriveKey === 'function' &&
+    typeof window.crypto.subtle.encrypt === 'function' &&
+    typeof window.crypto.subtle.decrypt === 'function';
+  const allowsPlaintextVaultPersistence =
+    typeof window !== 'undefined' &&
+    !supportsSecureVaultPersistence &&
+    isAllowedPlaintextVaultHost(window.location && window.location.hostname);
+  const vaultPersistenceMode = supportsSecureVaultPersistence
+    ? 'encrypted'
+    : allowsPlaintextVaultPersistence
+      ? 'plain'
+      : 'memory';
   let vaultKeyPromise = null;
 
   function ensureVaultMasterSecret() {
@@ -76,6 +129,9 @@ export function createVaultCrypto({ masterKey, saltKey, bytesToBase64, base64ToB
   }
 
   async function getVaultCryptoKey() {
+    if (!supportsSecureVaultPersistence) {
+      throw new Error('SECURE_VAULT_PERSISTENCE_UNAVAILABLE');
+    }
     if (vaultKeyPromise) {
       return vaultKeyPromise;
     }
@@ -101,6 +157,13 @@ export function createVaultCrypto({ masterKey, saltKey, bytesToBase64, base64ToB
   }
 
   async function encryptVaultPayload(obj) {
+    if (vaultPersistenceMode === 'plain') {
+      return {
+        v: 0,
+        mode: 'plain',
+        data: obj,
+      };
+    }
     const key = await getVaultCryptoKey();
     const encoder = new window.TextEncoder();
     const iv = new Uint8Array(12);
@@ -115,6 +178,16 @@ export function createVaultCrypto({ masterKey, saltKey, bytesToBase64, base64ToB
   }
 
   async function decryptVaultPayload(payload) {
+    if (
+      payload &&
+      payload.v === 0 &&
+      payload.mode === 'plain' &&
+      vaultPersistenceMode === 'plain' &&
+      payload.data &&
+      typeof payload.data === 'object'
+    ) {
+      return payload.data;
+    }
     if (!payload || payload.v !== 1 || typeof payload.iv !== 'string' || typeof payload.data !== 'string') {
       throw new Error('INVALID_VAULT_PAYLOAD');
     }
@@ -129,6 +202,7 @@ export function createVaultCrypto({ masterKey, saltKey, bytesToBase64, base64ToB
   }
 
   return Object.freeze({
+    vaultPersistenceMode,
     encryptVaultPayload,
     decryptVaultPayload,
   });

@@ -8,6 +8,7 @@ export function createAccountRuntimeController({
   vaultStorageKey,
   encryptVaultPayload,
   decryptVaultPayload,
+  vaultPersistenceMode,
   normalizeVaultAccounts,
   resolveActiveAccountId,
   nowMs,
@@ -35,7 +36,27 @@ export function createAccountRuntimeController({
   hydrateConversationFromLocal,
   pullOffline,
 }) {
+  let hasLoggedVaultPersistenceMode = false;
+
+  function shouldPersistVaultLocally() {
+    return vaultPersistenceMode === 'encrypted' || vaultPersistenceMode === 'plain';
+  }
+
+  function logVaultPersistenceModeOnce() {
+    if (hasLoggedVaultPersistenceMode) {
+      return;
+    }
+    appendLog({ vault_persistence_mode: vaultPersistenceMode });
+    hasLoggedVaultPersistenceMode = true;
+  }
+
   async function loadVault() {
+    if (!shouldPersistVaultLocally()) {
+      state.vault = { accounts: [], active_account_id: null };
+      logVaultPersistenceModeOnce();
+      return;
+    }
+
     const raw = localStorage.getItem(vaultStorageKey);
     if (!raw) {
       state.vault = { accounts: [], active_account_id: null };
@@ -71,6 +92,11 @@ export function createAccountRuntimeController({
   }
 
   async function saveVault() {
+    if (!shouldPersistVaultLocally()) {
+      logVaultPersistenceModeOnce();
+      return;
+    }
+
     const payload = {
       active_account_id: state.vault.active_account_id,
       accounts: state.vault.accounts.map((account) => ({

@@ -265,8 +265,8 @@ class ProfileView(BaseRoleAwareModelView):
         "owner_type",  # Auto-inferred from selected owner
         "avatar_key",  # Auto-filled from selected avatar_media
         "avatar_media_id",  # Auto-filled from selected avatar_media
-        "region_country_code",  # Auto-filled by client
-        "region_cn_city_code",  # Auto-filled by client
+        "region_country_code",  # Auto-filled by profile API
+        "region_cn_city_code",  # Auto-filled by profile API
         "created_at",
         "updated_at",
     ]
@@ -277,8 +277,8 @@ class ProfileView(BaseRoleAwareModelView):
         "owner_type",  # Auto-inferred from selected owner
         "avatar_key",  # Auto-filled from selected avatar_media
         "avatar_media_id",  # Auto-filled from selected avatar_media
-        "region_country_code",  # Auto-filled by client
-        "region_cn_city_code",  # Auto-filled by client
+        "region_country_code",  # Auto-filled by profile API
+        "region_cn_city_code",  # Auto-filled by profile API
         "created_at",
         "updated_at",
     ]
@@ -359,7 +359,7 @@ class ProfileView(BaseRoleAwareModelView):
             help_text="Description for AI-generated avatars",
         ),
         TextAreaField("bio", label="Bio", help_text="Profile biography"),
-        StringField("region", label="Region", help_text="Location/region information"),
+        StringField("region", label="Region", help_text="Server-generated region snapshot"),
         StringField(
             "region_country_code",
             label="Region Country Code",

@@ -1,6 +1,5 @@
 import { getAvatarUrl } from '../../utils/avatar';
 import { GENDER_OPTIONS, type GenderValue } from '../../utils/constants/user';
-import type { RegionCountryCode } from '../../utils/constants/region';
 import { fetchCurrentUserProfile, updateCurrentUserProfile } from '../../utils/profile';
 import { BasePageService } from './base-page-service';
 
@@ -17,8 +16,9 @@ export interface SetupSubmitPayload {
   nickname: string;
   gender: GenderValue | null;
   bio: string;
-  regionDisplay: string;
   regionCnCityCode: string | null;
+  regionProvinceName: string | null;
+  regionCityName: string | null;
   regionChanged: boolean;
   avatarFileId: string;
 }
@@ -45,14 +45,20 @@ const buildProfilePayload = (payload: SetupSubmitPayload): Record<string, unknow
   }
 
   if (payload.regionChanged) {
-    if (payload.regionDisplay !== '') {
-      submitPayload.region = payload.regionDisplay;
+    if (
+      payload.regionCnCityCode !== null &&
+      payload.regionProvinceName !== null &&
+      payload.regionCityName !== null
+    ) {
       submitPayload.region_country_code = 'CN';
       submitPayload.region_cn_city_code = payload.regionCnCityCode;
+      submitPayload.region_province_name = payload.regionProvinceName;
+      submitPayload.region_city_name = payload.regionCityName;
     } else {
-      submitPayload.region = null;
       submitPayload.region_country_code = null;
       submitPayload.region_cn_city_code = null;
+      submitPayload.region_province_name = null;
+      submitPayload.region_city_name = null;
     }
   }
 

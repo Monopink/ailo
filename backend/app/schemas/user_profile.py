@@ -2,7 +2,7 @@
 
 import re
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class UserProfileResponse(BaseModel):
@@ -32,6 +32,8 @@ class UserAccountResponse(BaseModel):
 class UserProfileUpdateRequest(BaseModel):
     """User profile update request schema for PUT /api/v1/user/profile."""
 
+    model_config = ConfigDict(extra="forbid")
+
     username: str | None = Field(None, description="Username, user can only set once")
     nickname: str | None = Field(None, max_length=32, description="Display nickname")
     gender: int | None = Field(
@@ -42,7 +44,6 @@ class UserProfileUpdateRequest(BaseModel):
         description=("File ID (file_xxx format) - converted to avatar_key and avatar_media_id."),
     )
     bio: str | None = Field(None, max_length=120, description="Personal bio/description")
-    region: str | None = Field(None, max_length=100, description="Location/region")
     region_country_code: str | None = Field(
         None,
         max_length=2,
@@ -50,6 +51,16 @@ class UserProfileUpdateRequest(BaseModel):
     )
     region_cn_city_code: str | None = Field(
         None, max_length=6, description="CN city-level administrative division code (6 digits)"
+    )
+    region_province_name: str | None = Field(
+        None,
+        max_length=50,
+        description="CN province-level name selected by client",
+    )
+    region_city_name: str | None = Field(
+        None,
+        max_length=50,
+        description="CN city-level name selected by client",
     )
 
     @staticmethod

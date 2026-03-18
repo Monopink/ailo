@@ -113,7 +113,7 @@ class ConversationPresenceStore {
 
   private cleanupExpiredIfNeeded(convId: string): void {
     const state = this.presenceByConvId.get(convId);
-    if (state === undefined || !state.isTyping) {
+    if (!state?.isTyping) {
       return;
     }
     if (state.expiresAtMs === null) {

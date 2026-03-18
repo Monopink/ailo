@@ -93,19 +93,6 @@
               <picker mode="region" level="city" bindchange="onRegionChange">
                 <t-cell title="地区" t-class-note="field-edit__picker-note" note="{{regionDisplay}}" arrow hover />
               </picker>
-
-              <picker
-                wx:if="{{true}}"
-                mode="region"
-                level="city"
-                bindchange="onRegionChange">
-                <t-cell title="地区" t-class-note="field-edit__picker-note" note="{{regionDisplay}}" arrow hover />
-              </picker>
-              <t-cell
-                wx:if="{{false}}"
-                title="地区"
-                t-class-note="field-edit__picker-note"
-                note="{{regionDisplay}}" />
             </t-cell-group>
           </view>
         </view>

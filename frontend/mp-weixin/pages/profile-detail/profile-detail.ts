@@ -21,6 +21,13 @@ interface ProfileDetailPageData extends Record<string, unknown> {
   fieldUpdating: boolean;
 }
 
+type RegionPickerDetail = {
+  value: string[];
+  code: string[];
+  postcode: string;
+};
+type RegionPickerChangeEvent = WechatMiniprogram.CustomEvent<RegionPickerDetail>;
+
 interface ProfileDetailPageCustom {
   profileDetailPageService: ReturnType<typeof createProfileDetailPageService>;
   applyScreenModel(screenModel: ScreenModel): void;
@@ -28,8 +35,8 @@ interface ProfileDetailPageCustom {
   saveProfileField(updateData: Record<string, unknown>): Promise<void>;
   editNickname(): void;
   editUsername(): void;
-  editRegion(): void;
   onGenderChange(event: WechatMiniprogram.PickerChange): void;
+  onRegionChange(event: RegionPickerChangeEvent): void;
   editBio(): void;
   editAvatar(): Promise<void>;
   onUnload(): void;
@@ -38,6 +45,44 @@ interface ProfileDetailPageCustom {
 const encodeValue = (value: string | undefined | null): string => encodeURIComponent(value ?? '');
 const resolveGenderIndex = (gender?: number | null): number =>
   GENDER_OPTIONS.findIndex((option) => option.value === gender);
+const buildRegionDraftDisplay = (province: string, city: string): string => {
+  if (!isNonEmptyString(province)) {
+    return '';
+  }
+  const effectiveCity = isNonEmptyString(city) ? city : province;
+  if (!isNonEmptyString(effectiveCity)) {
+    return '';
+  }
+  return province === effectiveCity ? province : `${province} ${effectiveCity}`;
+};
+
+const normalizeRegionSelection = (
+  regionArray: string[],
+  codeArray: string[]
+): {
+  regionDisplay: string;
+  regionCnCityCode: string | null;
+  regionProvinceName: string | null;
+  regionCityName: string | null;
+} => {
+  const [province = '', city = ''] = regionArray;
+  const effectiveCity = isNonEmptyString(city) ? city : province;
+  const regionDisplay = buildRegionDraftDisplay(province, effectiveCity);
+
+  let candidateCode = '';
+  if (codeArray.length >= 2) {
+    candidateCode = codeArray[1];
+  } else if (codeArray.length === 1) {
+    candidateCode = codeArray[0];
+  }
+
+  return {
+    regionDisplay,
+    regionCnCityCode: isNonEmptyString(candidateCode) ? candidateCode : null,
+    regionProvinceName: isNonEmptyString(province) ? province : null,
+    regionCityName: isNonEmptyString(effectiveCity) ? effectiveCity : null,
+  };
+};
 
 const buildPageLayoutScreenModelPayload = (screenModel: ScreenModel): Record<string, unknown> => ({
   'pageLayoutData.screenModel': screenModel,
@@ -186,12 +231,6 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
     });
   },
 
-  editRegion() {
-    void wx.navigateTo({
-      url: `/pages/field-edit/field-edit?domain=profile&field=region&value=${encodeValue(this.data.profile?.region)}`,
-    });
-  },
-
   onGenderChange(event) {
     const nextIndex = Number.parseInt(String(event.detail.value), 10);
     const option = this.data.genderOptions[nextIndex];
@@ -204,6 +243,44 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
     void this.saveProfileField({
       gender: option.value,
     });
+  },
+
+  onRegionChange(event) {
+    if (this.data.fieldUpdating || this.data.avatarUploading) {
+      return;
+    }
+
+    try {
+      const normalized = normalizeRegionSelection(event.detail.value, event.detail.code);
+      if (
+        !isNonEmptyString(normalized.regionCnCityCode) ||
+        !isNonEmptyString(normalized.regionProvinceName) ||
+        !isNonEmptyString(normalized.regionCityName)
+      ) {
+        void wx.showToast({
+          title: '请选择地区',
+          icon: 'none',
+        });
+        return;
+      }
+
+      if (normalized.regionDisplay === (this.data.profile?.region ?? '')) {
+        return;
+      }
+
+      void this.saveProfileField({
+        region_country_code: 'CN',
+        region_cn_city_code: normalized.regionCnCityCode,
+        region_province_name: normalized.regionProvinceName,
+        region_city_name: normalized.regionCityName,
+      });
+    } catch (error) {
+      logger.error('Region picker change handler crashed', { error });
+      void wx.showToast({
+        title: '地区选择异常，请重试',
+        icon: 'none',
+      });
+    }
   },
 
   editBio() {

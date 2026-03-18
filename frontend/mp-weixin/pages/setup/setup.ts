@@ -2,12 +2,10 @@ import authService from '../../utils/auth-service';
 import { getAvatarUrl } from '../../utils/avatar';
 import { completeAvatarUpload } from '../../utils/avatar-uploader';
 import logger from '../../utils/logger';
-import { formatRegion } from '../../utils/format';
 import { classifyError } from '../../utils/error-classifier';
 import { isNonEmptyString } from '../../utils/guards';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { GENDER_OPTIONS, type GenderOption, type GenderValue } from '../../utils/constants/user';
-import { REGION_COUNTRY_OPTIONS, type RegionCountryCode } from '../../utils/constants/region';
 import type { StoredAuthUser } from '../../utils/storage';
 import { createSetupPageService } from '../../services/pages/setup-service';
 import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
@@ -36,12 +34,11 @@ interface SetupPageData {
   genderOptions: readonly GenderOption[];
   genderIndex: number;
   bio: string;
-  regionCountryOptions: typeof REGION_COUNTRY_OPTIONS;
-  regionCountryIndex: number;
-  regionCountryCode: RegionCountryCode;
   regionValue: RegionValue;
   regionDisplay: string;
   regionCnCityCode: string | null;
+  regionProvinceName: string | null;
+  regionCityName: string | null;
   regionChanged: boolean;
   maxNicknameLength: number;
   maxBioLength: number;
@@ -56,7 +53,6 @@ interface SetupPageCustom {
   onNicknameInput(event: InputEvent): void;
   onGenderChange(event: WechatMiniprogram.PickerChange): void;
   onBioInput(event: InputEvent): void;
-  onRegionCountryChange(event: WechatMiniprogram.PickerChange): void;
   onRegionChange(event: RegionPickerChangeEvent): void;
   handleChooseAvatar(): Promise<void>;
   handleSubmit(): Promise<void>;
@@ -75,6 +71,17 @@ const buildScreenModelPayload = (
   },
 });
 
+const buildRegionDraftDisplay = (province: string, city: string): string => {
+  if (!isNonEmptyString(province)) {
+    return '';
+  }
+  const effectiveCity = isNonEmptyString(city) ? city : province;
+  if (!isNonEmptyString(effectiveCity)) {
+    return '';
+  }
+  return province === effectiveCity ? province : `${province} ${effectiveCity}`;
+};
+
 const normalizeRegionSelection = (
   regionArray: string[],
   codeArray: string[]
@@ -82,10 +89,12 @@ const normalizeRegionSelection = (
   regionValue: RegionValue;
   regionDisplay: string;
   regionCnCityCode: string | null;
+  regionProvinceName: string | null;
+  regionCityName: string | null;
 } => {
   const [province = '', city = ''] = regionArray;
   const effectiveCity = isNonEmptyString(city) ? city : province;
-  const regionDisplay = formatRegion(province, effectiveCity);
+  const regionDisplay = buildRegionDraftDisplay(province, effectiveCity);
   const regionValue: RegionValue =
     isNonEmptyString(province) && isNonEmptyString(city)
       ? [province, city]
@@ -99,14 +108,21 @@ const normalizeRegionSelection = (
     candidateCode = codeArray[0];
   }
   const regionCnCityCode = isNonEmptyString(String(candidateCode)) ? String(candidateCode) : null;
+  const regionProvinceName = isNonEmptyString(province) ? province : null;
+  const regionCityName = isNonEmptyString(effectiveCity) ? effectiveCity : null;
 
-  return { regionValue, regionDisplay, regionCnCityCode };
+  return { regionValue, regionDisplay, regionCnCityCode, regionProvinceName, regionCityName };
 };
 
 const validateSetupSubmissionOrToast = (
   payload: Pick<
     SetupPageData,
-    'nickname' | 'bio' | 'regionChanged' | 'regionDisplay' | 'regionCnCityCode'
+    | 'nickname'
+    | 'bio'
+    | 'regionChanged'
+    | 'regionCnCityCode'
+    | 'regionProvinceName'
+    | 'regionCityName'
   >
 ): { trimmedNickname: string } | null => {
   const trimmedNickname = payload.nickname.trim();
@@ -149,7 +165,11 @@ const validateSetupSubmissionOrToast = (
   }
 
   if (payload.regionChanged) {
-    if (!isNonEmptyString(payload.regionDisplay) || !isNonEmptyString(payload.regionCnCityCode)) {
+    if (
+      !isNonEmptyString(payload.regionCnCityCode) ||
+      !isNonEmptyString(payload.regionProvinceName) ||
+      !isNonEmptyString(payload.regionCityName)
+    ) {
       void wx.showToast({
         title: '请选择地区',
         icon: 'none',
@@ -183,12 +203,11 @@ Page<SetupPageData, SetupPageCustom>({
     genderOptions: GENDER_OPTIONS,
     genderIndex: -1,
     bio: '',
-    regionCountryOptions: REGION_COUNTRY_OPTIONS,
-    regionCountryIndex: 0,
-    regionCountryCode: 'CN',
     regionValue: [],
     regionDisplay: '',
     regionCnCityCode: null,
+    regionProvinceName: null,
+    regionCityName: null,
     regionChanged: false,
     maxNicknameLength: PROFILE_NICKNAME_RULE.displayWidthLimit,
     maxBioLength: PROFILE_BIO_RULE.graphemeLimit,
@@ -251,6 +270,10 @@ Page<SetupPageData, SetupPageCustom>({
         bio: snapshot.bio,
         regionDisplay: snapshot.regionDisplay,
         regionValue: [],
+        regionCnCityCode: null,
+        regionProvinceName: null,
+        regionCityName: null,
+        regionChanged: false,
         ...buildScreenModelPayload('ready', 'data', 'idle'),
       });
     } catch (error) {
@@ -303,25 +326,11 @@ Page<SetupPageData, SetupPageCustom>({
     const codeArray = event.detail.code;
     const normalized = normalizeRegionSelection(regionArray, codeArray);
     this.setData({
-      regionCountryIndex: nextIndex,
-      regionCountryCode: nextCountryCode,
-      regionValue: [],
-      regionDisplay: option.displayRegion,
-      regionCnCityCode: null,
-      regionChanged: true,
-    });
-  },
-
-  onRegionChange(event: RegionPickerChangeEvent) {
-    const regionArray = event.detail.value;
-    const codeArray = event.detail.code;
-    const normalized = normalizeRegionSelection(regionArray, codeArray);
-    this.setData({
-      regionCountryIndex: 0,
-      regionCountryCode: normalized.regionCountryCode,
       regionValue: normalized.regionValue,
       regionDisplay: normalized.regionDisplay,
       regionCnCityCode: normalized.regionCnCityCode,
+      regionProvinceName: normalized.regionProvinceName,
+      regionCityName: normalized.regionCityName,
       regionChanged: true,
     });
   },
@@ -370,8 +379,9 @@ Page<SetupPageData, SetupPageCustom>({
         nickname: validated.trimmedNickname,
         gender: this.data.gender,
         bio: this.data.bio,
-        regionDisplay: this.data.regionDisplay,
         regionCnCityCode: this.data.regionCnCityCode,
+        regionProvinceName: this.data.regionProvinceName,
+        regionCityName: this.data.regionCityName,
         regionChanged: this.data.regionChanged,
         avatarFileId: this.data.avatarFileId,
       });

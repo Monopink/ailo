@@ -18,8 +18,9 @@
 ## 提交流程
 
 1. 用户填写资料
-2. 调用 [更新资料接口](../../../api/user.md#更新用户资料)
-3. 成功后进入主界面
+2. 地区字段提交 `region_country_code`、`region_cn_city_code`、`region_province_name`、`region_city_name`
+3. 调用 [更新资料接口](../../../api/user.md#更新用户资料)
+4. 成功后进入主界面
 
 ## 错误处理
 

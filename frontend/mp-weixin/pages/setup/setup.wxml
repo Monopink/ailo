@@ -60,25 +60,6 @@
     <view class="card-wrapper">
       <t-cell-group theme="card">
         <picker
-          wx:if="{{false}}"
-          mode="selector"
-          range="{{regionCountryOptions}}"
-          range-key="label"
-          value="{{regionCountryIndex}}"
-          bindchange="onRegionCountryChange">
-          <t-cell
-            title="国家/地区"
-            t-class-title="profile-cell__title"
-            arrow
-            hover>
-            <text slot="note" class="profile-cell__note">
-              {{regionCountryOptions[regionCountryIndex].label}}
-            </text>
-          </t-cell>
-        </picker>
-
-        <picker
-          wx:if="{{true}}"
           mode="region"
           level="city"
           bindchange="onRegionChange">
@@ -93,12 +74,6 @@
             <text wx:else slot="note" class="profile-cell__note">请选择地区</text>
           </t-cell>
         </picker>
-        <t-cell
-          wx:if="{{false}}"
-          title="地区"
-          t-class-title="profile-cell__title">
-          <text slot="note" class="profile-cell__note">{{regionDisplay}}</text>
-        </t-cell>
 
         <t-cell
           title="个性签名"

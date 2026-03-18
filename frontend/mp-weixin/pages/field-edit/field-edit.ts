@@ -2,14 +2,9 @@ import { createPageLayoutData, type PageLayoutData } from '../../templates/page-
 import type { ApiError } from '../../utils/api';
 import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 import { classifyError } from '../../utils/error-classifier';
-import { formatRegion } from '../../utils/format';
 import { isDefined, isNonEmptyString } from '../../utils/guards';
 import { getLogger } from '../../utils/logger';
 import { createFieldEditPageService } from '../../services/pages/field-edit-service';
-import {
-  REGION_COUNTRY_OPTIONS,
-  type RegionCountryCode,
-} from '../../utils/constants/region';
 import type { ContactUpdatePayload } from '../../utils/contact-service';
 import { mapTagToneClasses } from '../../utils/tag-tone';
 import {
@@ -142,12 +137,11 @@ interface FieldEditPageData extends Record<string, unknown> {
   submitButtonText: string;
   genderOptions: string[];
   genderIndex: number;
-  regionCountryOptions: typeof REGION_COUNTRY_OPTIONS;
-  regionCountryIndex: number;
-  regionCountryCode: RegionCountryCode;
   regionValue: string[];
   regionDisplay: string;
   regionCnCityCode: string | null;
+  regionProvinceName: string | null;
+  regionCityName: string | null;
   regionChanged: boolean;
   valueLength: number;
 }
@@ -167,7 +161,6 @@ interface FieldEditPageCustom {
   onTagBlur(): void;
   onRemoveTag(event: WechatMiniprogram.TouchEvent): void;
   onGenderChange(event: WechatMiniprogram.PickerChange): void;
-  onRegionCountryChange(event: WechatMiniprogram.PickerChange): void;
   onRegionChange(event: WechatMiniprogram.PickerChange): void;
   buildProfileUpdateData(): Record<string, unknown> | null;
   buildContactUpdateData(): ContactUpdatePayload | null;
@@ -277,6 +270,17 @@ const decodeValue = (value?: string): string => {
   } catch {
     return value ?? '';
   }
+};
+
+const buildRegionDraftDisplay = (province: string, city: string): string => {
+  if (!isNonEmptyString(province)) {
+    return '';
+  }
+  const effectiveCity = isNonEmptyString(city) ? city : province;
+  if (!isNonEmptyString(effectiveCity)) {
+    return '';
+  }
+  return province === effectiveCity ? province : `${province} ${effectiveCity}`;
 };
 
 const parseTagsFromQuery = (rawValue: string): string[] => {
@@ -423,12 +427,11 @@ Page<FieldEditPageData, FieldEditPageCustom>({
     submitButtonText: '确认',
     genderOptions: ['男', '女', '其他', '未知'],
     genderIndex: 0,
-    regionCountryOptions: REGION_COUNTRY_OPTIONS,
-    regionCountryIndex: 0,
-    regionCountryCode: 'CN',
     regionValue: [],
     regionDisplay: '请选择地区',
     regionCnCityCode: null,
+    regionProvinceName: null,
+    regionCityName: null,
     regionChanged: false,
     valueLength: 0,
   },
@@ -531,21 +534,12 @@ Page<FieldEditPageData, FieldEditPageCustom>({
 
     if (config.type === 'region') {
       const decodedValue = decodeValue(options.value);
-      const matchedCountryIndex = REGION_COUNTRY_OPTIONS.findIndex(
-        (option) => option.displayRegion !== '' && option.displayRegion === decodedValue
-      );
-      const resolvedCountryIndex = matchedCountryIndex >= 0 ? matchedCountryIndex : 0;
-      const resolvedCountryOption = REGION_COUNTRY_OPTIONS[resolvedCountryIndex];
       this.setData({
-        regionCountryIndex: resolvedCountryIndex,
-        regionCountryCode: resolvedCountryOption.code,
-        regionDisplay: isNonEmptyString(decodedValue)
-          ? decodedValue
-          : resolvedCountryOption.code === 'CN'
-            ? '请选择地区'
-            : resolvedCountryOption.displayRegion,
+        regionDisplay: isNonEmptyString(decodedValue) ? decodedValue : '请选择地区',
         regionValue: [],
         regionCnCityCode: null,
+        regionProvinceName: null,
+        regionCityName: null,
         regionChanged: false,
       });
       return true;
@@ -690,7 +684,9 @@ Page<FieldEditPageData, FieldEditPageCustom>({
 
   onRegionChange(event) {
     try {
-      const detailRecord = (event as { detail?: unknown }).detail as Record<string, unknown> | undefined;
+      const detailRecord = (event as { detail?: unknown }).detail as
+        | Record<string, unknown>
+        | undefined;
       const regionArrayRaw = detailRecord?.value;
       const codeArrayRaw = detailRecord?.code;
 
@@ -705,7 +701,7 @@ Page<FieldEditPageData, FieldEditPageCustom>({
 
       const [province = '', city = ''] = regionArray;
       const effectiveCity = isNonEmptyString(city) ? city : province;
-      const regionDisplay = formatRegion(province, effectiveCity);
+      const regionDisplay = buildRegionDraftDisplay(province, effectiveCity);
 
       let candidateCode = '';
       if (codeArray.length >= 2) {
@@ -724,6 +720,8 @@ Page<FieldEditPageData, FieldEditPageCustom>({
               : [],
         regionDisplay,
         regionCnCityCode: candidateCityCode,
+        regionProvinceName: isNonEmptyString(province) ? province : null,
+        regionCityName: isNonEmptyString(effectiveCity) ? effectiveCity : null,
         regionChanged: true,
       });
     } catch (error) {
@@ -748,18 +746,19 @@ Page<FieldEditPageData, FieldEditPageCustom>({
         showErrorToast('请选择地区');
         return null;
       }
-      if (!isNonEmptyString(this.data.regionDisplay) || this.data.regionDisplay === '请选择地区') {
-        showErrorToast('请选择地区');
-        return null;
-      }
-      if (!isNonEmptyString(this.data.regionCnCityCode)) {
+      if (
+        !isNonEmptyString(this.data.regionCnCityCode) ||
+        !isNonEmptyString(this.data.regionProvinceName) ||
+        !isNonEmptyString(this.data.regionCityName)
+      ) {
         showErrorToast('请选择地区');
         return null;
       }
       return {
-        region: this.data.regionDisplay,
         region_country_code: 'CN',
         region_cn_city_code: this.data.regionCnCityCode,
+        region_province_name: this.data.regionProvinceName,
+        region_city_name: this.data.regionCityName,
       };
     }
 

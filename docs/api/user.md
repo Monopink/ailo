@@ -44,7 +44,7 @@
 - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
 - `avatar_url` (string) - 动态生成的头像 CDN URL，基于后台存储的 `avatar_file_id`
 - `bio` (string) - 个性签名
-- `region` (string) - 地区展示快照
+- `region` (string) - 服务端生成的地区展示快照
 
 ### 业务说明
 
@@ -119,8 +119,10 @@
   "gender": 2,
   "avatar_file_id": "file_custom_avatar_123",
   "bio": "新的个性签名",
-  "region": "上海",
-  "region_country_code": "CN"
+  "region_country_code": "CN",
+  "region_cn_city_code": "310100",
+  "region_province_name": "上海市",
+  "region_city_name": "上海市"
 }
 ```
 
@@ -150,10 +152,6 @@
   - 字符上限：120（按字符簇计数）
   - 传入 `null` 可清空个性签名
 
-- `region` (string, 可选)
-  - 地区展示快照
-  - 展示规范见 `docs/spec/client/base/profile-and-settings.md`
-
 - `region_country_code` (string, 可选)
   - 地区国家/地区代码（ISO 3166-1 alpha-2）
   - 支持：CN
@@ -164,11 +162,20 @@
   - 仅当 `region_country_code=CN` 时允许写入
   - 本字段为写入字段，本接口响应不会返回该字段
 
+- `region_province_name` (string, 可选)
+  - 用户本次选择的中国大陆省级名称原文
+  - 本字段仅用于服务端生成 `region`，接口响应不会返回该字段
+
+- `region_city_name` (string, 可选)
+  - 用户本次选择的中国大陆市级名称原文
+  - 本字段仅用于服务端生成 `region`，接口响应不会返回该字段
+
 **字段组合规则**:
 
-- 当提交 `region` 时必须同时提交 `region_country_code`。
-- 当提交 `region_country_code` 时必须同时提交 `region`。
-- 当 `region_country_code=CN` 时必须同时提交 `region_cn_city_code`。
+- 地区写入按整组提交：`region_country_code`、`region_cn_city_code`、`region_province_name`、`region_city_name`。
+- 当 `region_country_code=CN` 时，必须同时提交 `region_cn_city_code`、`region_province_name`、`region_city_name`，且三者不能为空。
+- 清空地区时，以上四个字段必须同时提交 `null`。
+- `region` 为服务端生成字段，客户端不能提交。
 
 ### 成功响应 (200)
 

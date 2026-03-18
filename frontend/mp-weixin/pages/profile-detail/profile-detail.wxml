@@ -71,15 +71,16 @@
 
     <view class="card-wrapper">
       <t-cell-group theme="card">
-        <t-cell
-          title="地区"
-          t-class-title="profile-cell__title"
-          t-class-center="profile-detail__cell-center"
-          arrow
-          hover
-          bindtap="editRegion">
-          <text slot="note" class="profile-cell__note">{{profile && profile.region ? profile.region : ''}}</text>
-        </t-cell>
+        <picker mode="region" level="city" disabled="{{fieldUpdating || avatarUploading}}" bindchange="onRegionChange">
+          <t-cell
+            title="地区"
+            t-class-title="profile-cell__title"
+            t-class-center="profile-detail__cell-center"
+            arrow
+            hover>
+            <text slot="note" class="profile-cell__note">{{profile && profile.region ? profile.region : ''}}</text>
+          </t-cell>
+        </picker>
 
         <t-cell
           title="个性签名"

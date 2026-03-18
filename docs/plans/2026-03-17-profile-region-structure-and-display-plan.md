@@ -19,7 +19,7 @@
 ### 交互与提交
 
 - 客户端选择流程为：（中国大陆）省 -> 市。
-- 小程序端使用 `picker mode="region"` 且层级为市级，提交时以 `event.detail.code` 为准写入结构化字段。
+- 小程序端使用 `picker mode="region"` 且层级为市级，提交时同时上送 `event.detail.code` 与选择得到的省名、市名原文；`region` 由后端生成。
 - App 端使用后端下发的省/市数据做级联选择，写入同一套结构化字段。
 
 ### 存储结构
@@ -33,7 +33,7 @@
 
 ### 接口影响
 
-- `PUT /api/v1/user/profile`：支持结构化地区字段写入。
+- `PUT /api/v1/user/profile`：支持 `region_country_code`、`region_cn_city_code`、`region_province_name`、`region_city_name` 写入；`region` 由后端生成。
 - `GET /api/v1/user/profile`、`GET /api/v1/contacts`、`GET /api/v1/discovery/*` 等返回资料的接口：仅返回 `region` 展示快照。
 
 ### 需要移除的规则
@@ -46,8 +46,8 @@
 1. 更新文档：地区展示规范、资料字段规范、API 文档、数据字典（本次阶段）。
 2. 数据库：新增 `profiles` 表字段，同步初始化脚本与数据字典；补充迁移脚本。
 3. 后端：更新 Profile 模型与相关 Schema；更新资料写入校验；补充日志记录字段。
-4. 小程序：改为市级选择器；写入结构化字段；展示使用 `region` 快照。
-5. App：实现国家/地区与省市级联选择；使用后端省市数据源；写入同一套结构化字段。
+4. 小程序：改为市级选择器；写入结构化字段与省市名称原文；展示使用 `region` 快照。
+5. App：实现国家/地区与省市级联选择；写入同一套结构化字段与省市名称原文。
 
 ## 验收标准
 

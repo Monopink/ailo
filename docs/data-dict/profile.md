@@ -17,7 +17,7 @@ avatar_key -- 头像对象键（例如 avatars/2025/12/xxx.webp），仅在用�
 avatar_media_id -- 头像媒资记录ID，外键关联 media_files.id（保留最近一次确认头像的审计记录，NULL 表示使用默认头像）
 avatar_prompt -- 头像描述，用于AI对话时的 prompt 替换
 bio -- 个性签名
-region -- 地区展示快照（规范见 docs/spec/client/base/profile-and-settings.md）
+region -- 服务端生成的地区展示快照（规范见 docs/spec/client/base/profile-and-settings.md）
 region_country_code -- 地区国家/地区代码（ISO 3166-1 alpha-2，当前仅使用 CN）
 region_cn_city_code -- 中国大陆市级行政区划代码（6位字符串），仅当 region_country_code=CN 时写入
 created_at

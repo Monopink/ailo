@@ -234,9 +234,14 @@
         <div class="card mt-3">
           <div class="card-body text-black">
             <div class="btn-list ms-auto justify-content-end">
-              <a href="{{ url_for(__name__ ~ ':list', identity='ai_template') }}" class="btn btn-danger">Cancel</a>
-              <button type="submit" data-action="continue" class="btn">Save and continue editing</button>
-              <button type="submit" data-action="save" class="btn btn-success">Save</button>
+              <a
+                id="btn-cancel-template-edit"
+                href="{{ url_for(__name__ ~ ':list', identity='ai_template') }}"
+                class="btn btn-danger"
+                data-qiao-guard-ignore="true"
+              >Cancel</a>
+              <button id="btn-save-continue-template-edit" type="submit" data-action="continue" class="btn">Save and continue editing</button>
+              <button id="btn-save-template-edit" type="submit" data-action="save" class="btn btn-success">Save</button>
             </div>
           </div>
         </div>
@@ -289,10 +294,65 @@
 <script>
   const V1_ALGORITHM = 2;
   const algorithmParamSpecs = {{ (algorithm_param_specs or {}) | tojson | safe }};
+  const listUrl = "{{ url_for(__name__ ~ ':list', identity='ai_template') }}";
+  const dialogs = window.qiaoAdminDialogs;
 
   function getSpecsForAlgorithm(algorithm) {
     return algorithmParamSpecs[String(algorithm)] || [];
   }
+
+  function buildTemplatePayload(formElement) {
+    const formData = new FormData(formElement);
+
+    const variables = {};
+    for (const [key, value] of formData.entries()) {
+      if (key.startsWith('var_') && value) {
+        variables[key.substring(4)] = value;
+      }
+    }
+
+    const positionMappingConfig = {};
+    const missingParamMessages = [];
+    document.querySelectorAll('.dimension-config-section').forEach(section => {
+      const dimensionName = section.dataset.dimensionName;
+      const dimensionDisplay = section.dataset.dimensionDisplay || dimensionName;
+      const algorithm = parseInt(formData.get(`algorithm_${dimensionName}`), 10);
+
+      positionMappingConfig[dimensionName] = { algorithm };
+
+      if (algorithm === V1_ALGORITHM) {
+        const specs = getSpecsForAlgorithm(algorithm);
+        const { params, missing } = collectAlgorithmParams(specs, dimensionName, formData);
+        if (missing.length) {
+          missingParamMessages.push(`${dimensionDisplay}: ${missing.join(', ')}`);
+        } else {
+          positionMappingConfig[dimensionName].params = params;
+        }
+      }
+    });
+
+    return {
+      payload: {
+        prompt_variables: variables,
+        position_mapping_config: positionMappingConfig,
+      },
+      missingParamMessages,
+    };
+  }
+
+  function serializeSnapshot(payload) {
+    return JSON.stringify(payload);
+  }
+
+  async function confirmAction(options) {
+    return dialogs.confirm(options);
+  }
+
+  const mainForm = document.getElementById('main-form');
+  let lastSavedSnapshot = serializeSnapshot(buildTemplatePayload(mainForm).payload);
+  const unsavedGuard = window.qiaoUnsavedGuard.create({
+    isDirty: () => serializeSnapshot(buildTemplatePayload(mainForm).payload) !== lastSavedSnapshot,
+  });
 
   function collectAlgorithmParams(specs, dimensionKey, dataSource) {
     const params = {};
@@ -340,67 +400,63 @@
     select.addEventListener('change', toggleParams);
   });
 
+  document.getElementById('btn-cancel-template-edit')?.addEventListener('click', async (event) => {
+    event.preventDefault();
+    const ok = await confirmAction({
+      title: '确认返回列表',
+      message: '确认放弃当前编辑并返回 AI Templates 列表页吗？<br>未保存的修改将会丢失。',
+      confirmText: '放弃并返回',
+      cancelText: '继续编辑',
+      confirmButtonClass: 'btn btn-danger',
+    });
+    if (!ok) {
+      return;
+    }
+    unsavedGuard.bypassOnce();
+    window.location.assign(listUrl);
+  });
+
   // Handle main form submission
   document.getElementById('main-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const { payload, missingParamMessages } = buildTemplatePayload(e.target);
+    const action = (e.submitter && e.submitter.dataset && e.submitter.dataset.action) ? e.submitter.dataset.action : 'continue';
+
+    if (missingParamMessages.length) {
+      alert('请完善以下算法参数：\n' + missingParamMessages.join('\n'));
+      return;
+    }
+
+    const confirmed = await confirmAction({
+      title: action === 'save' ? '确认保存并返回' : '确认保存',
+      message: action === 'save'
+        ? '确认保存当前编辑内容，并返回 AI Templates 列表页吗？'
+        : '确认保存当前编辑内容，并继续留在本页面吗？',
+      confirmText: action === 'save' ? '保存并返回' : '保存',
+      cancelText: '取消',
+      confirmButtonClass: 'btn btn-primary',
+    });
+    if (!confirmed) {
+      return;
+    }
+
     const submitBtn = e.submitter || e.target.querySelector('button[type="submit"]');
     const originalHtml = submitBtn.innerHTML;
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
 
-    const formData = new FormData(e.target);
-    const action = (e.submitter && e.submitter.dataset && e.submitter.dataset.action) ? e.submitter.dataset.action : 'continue';
-
-    // Extract variables
-    const variables = {};
-    for (const [key, value] of formData.entries()) {
-      if (key.startsWith('var_')) {
-        const varName = key.substring(4);
-        if (value) variables[varName] = value;
-      }
-    }
-
-    // Extract position mapping config
-    const positionMappingConfig = {};
-    const missingParamMessages = [];
-    document.querySelectorAll('.dimension-config-section').forEach(section => {
-      const dimensionName = section.dataset.dimensionName;
-      const dimensionDisplay = section.dataset.dimensionDisplay || dimensionName;
-      const algorithm = parseInt(formData.get(`algorithm_${dimensionName}`));
-
-      positionMappingConfig[dimensionName] = { algorithm };
-
-      if (algorithm === V1_ALGORITHM) {
-        const specs = getSpecsForAlgorithm(algorithm);
-        const { params, missing } = collectAlgorithmParams(specs, dimensionName, formData);
-        if (missing.length) {
-          missingParamMessages.push(`${dimensionDisplay}: ${missing.join(', ')}`);
-        } else {
-          positionMappingConfig[dimensionName].params = params;
-        }
-      }
-    });
-
-    if (missingParamMessages.length) {
-      alert('请完善以下算法参数：\n' + missingParamMessages.join('\n'));
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = originalHtml;
-      return;
-    }
-
     try {
       const response = await fetch('/admin-api/ai/ai_template/{{ template.id }}/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt_variables: variables,
-          position_mapping_config: positionMappingConfig,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
+        lastSavedSnapshot = serializeSnapshot(payload);
+        unsavedGuard.bypassOnce();
         if (action === 'save') {
-          window.location.href = "{{ url_for(__name__ ~ ':list', identity='ai_template') }}";
+          window.location.href = listUrl;
         } else {
           alert('Saved successfully');
           location.reload();
@@ -522,7 +578,14 @@
   }
 
   async function deleteMemory(memoryId) {
-    if (!confirm('Are you sure you want to delete this memory?')) {
+    const ok = await confirmAction({
+      title: '确认删除记忆',
+      message: '确定删除这条模板记忆吗？此操作不可恢复。',
+      confirmText: '删除',
+      cancelText: '取消',
+      confirmButtonClass: 'btn btn-danger',
+    });
+    if (!ok) {
       return;
     }
 

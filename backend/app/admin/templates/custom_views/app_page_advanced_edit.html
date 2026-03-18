@@ -116,7 +116,12 @@
 
     <div class="card mt-3">
       <div class="card-body text-end">
-        <a class="btn btn-danger" href="{{ url_for(__name__ ~ ':list', identity='app_page') }}">Cancel</a>
+        <a
+          id="btn-cancel-app-page-edit"
+          class="btn btn-danger"
+          href="{{ url_for(__name__ ~ ':list', identity='app_page') }}"
+          data-qiao-guard-ignore="true"
+        >Cancel</a>
         <button type="submit" class="btn btn-success">Save</button>
       </div>
     </div>
@@ -127,11 +132,13 @@
 const documentId = "{{ document.id }}";
 const sourceType = Number("{{ document.source_type }}");
 const encodedDocumentId = encodeURIComponent(documentId);
+const listUrl = "{{ url_for(__name__ ~ ':list', identity='app_page') }}";
 const previewUrl = `/qiao-dash/app_page/preview/${encodedDocumentId}`;
 const saveUrl = `/admin-api/content/app-page/${encodedDocumentId}/save`;
 const renderUrl = `/admin-api/content/app-page/${encodedDocumentId}/render`;
 const contentHtmlInput = document.getElementById('content-html');
 const renderedPreview = document.getElementById('rendered-preview');
+const dialogs = window.qiaoAdminDialogs;
 
 function buildPayload() {
   return {
@@ -142,6 +149,9 @@ function buildPayload() {
 }
 
 let lastSavedState = buildPayload();
+const unsavedGuard = window.qiaoUnsavedGuard.create({
+  isDirty: () => hasUnsavedChanges(),
+});
 
 function hasUnsavedChanges() {
   const current = buildPayload();
@@ -159,6 +169,10 @@ async function parseErrorMessage(response, fallbackMessage) {
   } catch {
     return fallbackMessage;
   }
+}
+
+async function confirmAction(options) {
+  return dialogs.confirm(options);
 }
 
 async function saveDocument({ submitButton = null, showSuccess = true } = {}) {
@@ -238,16 +252,46 @@ if (sourceType === 2) {
   }
 }
 
+document.getElementById('btn-cancel-app-page-edit')?.addEventListener('click', async (event) => {
+  event.preventDefault();
+  const ok = await confirmAction({
+    title: '确认返回列表',
+    message: '确认放弃当前页面编辑并返回 App Pages 列表页吗？\n未保存的修改将会丢失。',
+    confirmText: '放弃并返回',
+    cancelText: '继续编辑',
+    confirmButtonClass: 'btn btn-danger',
+  });
+  if (!ok) {
+    return;
+  }
+  unsavedGuard.bypassOnce();
+  window.location.assign(listUrl);
+});
+
 document.getElementById('btn-open-preview').addEventListener('click', async () => {
   if (!hasUnsavedChanges()) {
     window.open(previewUrl, '_blank');
     return;
   }
 
-  const saveAndOpen = confirm(
-    'You have unsaved changes.\n\nClick OK to save and open preview.\nClick Cancel to open preview without saving.'
-  );
+  const saveAndOpen = await confirmAction({
+    title: '打开预览前保存',
+    message: '当前编辑内容尚未保存。\n确认先保存，再打开只读预览吗？',
+    confirmText: '保存并预览',
+    cancelText: '直接预览',
+    confirmButtonClass: 'btn btn-primary',
+  });
   if (!saveAndOpen) {
+    const openWithoutSaving = await confirmAction({
+      title: '直接打开预览',
+      message: '将直接打开只读预览页，未保存的修改不会出现在预览中。\n确认继续吗？',
+      confirmText: '直接预览',
+      cancelText: '继续编辑',
+      confirmButtonClass: 'btn btn-danger',
+    });
+    if (!openWithoutSaving) {
+      return;
+    }
     window.open(previewUrl, '_blank');
     return;
   }
@@ -261,6 +305,16 @@ document.getElementById('btn-open-preview').addEventListener('click', async () =
 document.getElementById('app-page-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const submitBtn = event.submitter || event.target.querySelector('button[type="submit"]');
+  const confirmed = await confirmAction({
+    title: '确认保存',
+    message: '确认保存当前页面编辑内容吗？',
+    confirmText: '保存',
+    cancelText: '继续编辑',
+    confirmButtonClass: 'btn btn-primary',
+  });
+  if (!confirmed) {
+    return;
+  }
   await saveDocument({ submitButton: submitBtn });
 });
 </script>

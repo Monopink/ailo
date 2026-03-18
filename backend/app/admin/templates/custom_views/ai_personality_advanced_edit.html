@@ -170,7 +170,12 @@
       <div class="card mt-3">
         <div class="card-body">
           <div class="btn-list ms-auto justify-content-end">
-            <a href="{{ url_for(__name__ ~ ':list', identity='ai_personality') }}" class="btn btn-danger">Cancel</a>
+            <a
+              id="btn-cancel-personality-edit"
+              href="{{ url_for(__name__ ~ ':list', identity='ai_personality') }}"
+              class="btn btn-danger"
+              data-qiao-guard-ignore="true"
+            >Cancel</a>
             <button type="button" class="btn" onclick="app.save('continue')">Save and continue editing</button>
             <button type="button" class="btn btn-success" onclick="app.save('save')">Save</button>
           </div>
@@ -309,6 +314,7 @@
 const PERSONALITY_ID = {{ personality.id }};
 const INITIAL_SCHEMA = {{ personality.json_schema | tojson | safe }};
 const LIST_URL = "{{ url_for(__name__ ~ ':list', identity='ai_personality') }}";
+const dialogs = window.qiaoAdminDialogs;
 {% raw %}
 const SYSTEM_PLACEHOLDERS = [
   {key: 'relationship_prompt', title: '关系提示词'},
@@ -329,11 +335,49 @@ const SYSTEM_PLACEHOLDERS = [
       schemaFieldModal: null,
       presetFieldModal: null,
       manualUndoOps: [],
+      lastSavedSnapshot: null,
+      unsavedGuard: null,
       // Cache for style -> dimensions to avoid repeated requests
       styleDimensionsCache: {},
       // Map of styleId -> <option> element for label updates
       styleOptionsMap: {}
     },
+
+  serializeSnapshot(data) {
+    return JSON.stringify(data);
+  },
+
+  buildPayload() {
+    return {
+      prompt: (document.getElementById('prompt-editor')?.value || '').trim(),
+      schema_config: {
+        dimensions: this.state.dimensions.map(d => ({
+          name: d.name,
+          min: Number(d.min),
+          max: Number(d.max),
+          description: (d.description || '').trim()
+        })),
+        custom_fields: this.state.customFields.map(field => ({ ...field }))
+      },
+      placeholders: this.state.placeholders.map(placeholder => ({ ...placeholder })),
+      deleted_placeholder_ids: [...this.state.deletedPlaceholderIds]
+    };
+  },
+
+  hasUnsavedChanges() {
+    if (this.state.lastSavedSnapshot === null) {
+      return false;
+    }
+    return this.serializeSnapshot(this.buildPayload()) !== this.state.lastSavedSnapshot;
+  },
+
+  markSaved() {
+    this.state.lastSavedSnapshot = this.serializeSnapshot(this.buildPayload());
+  },
+
+  async confirmAction(options) {
+    return dialogs.confirm(options);
+  },
 
   async init() {
     // Initialize modals
@@ -383,6 +427,25 @@ const SYSTEM_PLACEHOLDERS = [
     this.renderPlaceholdersList();
     this.renderSchemaFieldsTable();
     this.validatePrompt();
+    this.markSaved();
+    this.state.unsavedGuard = window.qiaoUnsavedGuard.create({
+      isDirty: () => this.hasUnsavedChanges()
+    });
+    document.getElementById('btn-cancel-personality-edit')?.addEventListener('click', async (event) => {
+      event.preventDefault();
+      const ok = await this.confirmAction({
+        title: '确认返回列表',
+        message: '确认放弃当前编辑并返回 Personalities 列表页吗？<br>未保存的修改将会丢失。',
+        confirmText: '放弃并返回',
+        cancelText: '继续编辑',
+        confirmButtonClass: 'btn btn-danger'
+      });
+      if (!ok) {
+        return;
+      }
+      this.state.unsavedGuard?.bypassOnce();
+      window.location.assign(LIST_URL);
+    });
   },
 
   escapeHtml(value) {
@@ -918,19 +981,28 @@ const SYSTEM_PLACEHOLDERS = [
   },
 
   deletePlaceholder(id) {
-    if (!confirm('确认删除此placeholder？')) return;
+    void (async () => {
+      const ok = await this.confirmAction({
+        title: '确认删除 Placeholder',
+        message: '确认删除此 placeholder 吗？',
+        confirmText: '删除',
+        cancelText: '取消',
+        confirmButtonClass: 'btn btn-danger'
+      });
+      if (!ok) return;
 
-    const index = this.state.placeholders.findIndex(p => p.id === id);
-    if (index !== -1) {
-      if (this.state.placeholders[index].id) {
-        this.state.deletedPlaceholderIds.push(this.state.placeholders[index].id);
+      const index = this.state.placeholders.findIndex(p => p.id === id);
+      if (index !== -1) {
+        if (this.state.placeholders[index].id) {
+          this.state.deletedPlaceholderIds.push(this.state.placeholders[index].id);
+        }
+        this.state.placeholders.splice(index, 1);
       }
-      this.state.placeholders.splice(index, 1);
-    }
 
-    this.renderCustomPlaceholders();
-    this.renderPlaceholdersList();
-    this.validatePrompt();
+      this.renderCustomPlaceholders();
+      this.renderPlaceholdersList();
+      this.validatePrompt();
+    })();
   },
 
   renderSchemaFieldsTable() {
@@ -1080,9 +1152,18 @@ const SYSTEM_PLACEHOLDERS = [
   },
 
   deleteSchemaField(index) {
-    if (!confirm('确认删除此自定义字段？')) return;
-    this.state.customFields.splice(index, 1);
-    this.renderSchemaFieldsTable();
+    void (async () => {
+      const ok = await this.confirmAction({
+        title: '确认删除字段',
+        message: '确认删除此自定义字段吗？',
+        confirmText: '删除',
+        cancelText: '取消',
+        confirmButtonClass: 'btn btn-danger'
+      });
+      if (!ok) return;
+      this.state.customFields.splice(index, 1);
+      this.renderSchemaFieldsTable();
+    })();
   },
 
   showPresetFieldModal() {
@@ -1133,8 +1214,8 @@ const SYSTEM_PLACEHOLDERS = [
   },
 
   async save(action = 'save') {
-    const prompt = document.getElementById('prompt-editor').value.trim();
-    if (!prompt) {
+    const payload = this.buildPayload();
+    if (!payload.prompt) {
       alert('提示词不能为空');
       return;
     }
@@ -1151,32 +1232,29 @@ const SYSTEM_PLACEHOLDERS = [
       return;
     }
 
-    // Build schema_config
-    const schema_config = {
-      dimensions: this.state.dimensions.map(d => ({
-        name: d.name,
-        min: Number(d.min),
-        max: Number(d.max),
-        description: (d.description || '').trim()
-      })),
-      custom_fields: this.state.customFields
-    };
-
-    const data = {
-      prompt,
-      schema_config,
-      placeholders: this.state.placeholders,
-      deleted_placeholder_ids: this.state.deletedPlaceholderIds
-    };
+    const confirmed = await this.confirmAction({
+      title: action === 'save' ? '确认保存并返回' : '确认保存',
+      message: action === 'save'
+        ? '确认保存当前 Personality 编辑内容，并返回列表页吗？'
+        : '确认保存当前 Personality 编辑内容，并继续留在本页面吗？',
+      confirmText: action === 'save' ? '保存并返回' : '保存',
+      cancelText: '取消',
+      confirmButtonClass: 'btn btn-primary'
+    });
+    if (!confirmed) {
+      return;
+    }
 
     try {
       const response = await fetch(`/admin-api/ai/ai-personality/${PERSONALITY_ID}/save`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(data)
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
+        this.markSaved();
+        this.state.unsavedGuard?.bypassOnce();
         if (action === 'save') {
           alert('保存成功');
           window.location.href = LIST_URL;

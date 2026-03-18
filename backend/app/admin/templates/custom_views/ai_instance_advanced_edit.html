@@ -353,9 +353,14 @@
     <div class="card mt-3">
       <div class="card-body text-black">
         <div class="btn-list ms-auto justify-content-end">
-          <a href="{{ url_for(__name__ ~ ':list', identity='ai_instance') }}" class="btn btn-danger">Cancel</a>
-          <button type="submit" data-action="continue" class="btn" {% if schema_mismatch %}disabled{% endif %}>Save and continue editing</button>
-          <button type="submit" data-action="save" class="btn btn-success" {% if schema_mismatch %}disabled{% endif %}>Save</button>
+          <a
+            id="btn-cancel-instance-edit"
+            href="{{ url_for(__name__ ~ ':list', identity='ai_instance') }}"
+            class="btn btn-danger"
+            data-qiao-guard-ignore="true"
+          >Cancel</a>
+          <button id="btn-save-continue-instance-edit" type="submit" data-action="continue" class="btn" {% if schema_mismatch %}disabled{% endif %}>Save and continue editing</button>
+          <button id="btn-save-instance-edit" type="submit" data-action="save" class="btn btn-success" {% if schema_mismatch %}disabled{% endif %}>Save</button>
         </div>
       </div>
     </div>
@@ -428,6 +433,12 @@
 <script>
  const V1_ALGORITHM = 2;
  const algorithmParamSpecs = {{ (algorithm_param_specs or {}) | tojson | safe }};
+ const instanceListUrl = "{{ url_for(__name__ ~ ':list', identity='ai_instance') }}";
+ const dialogs = window.qiaoAdminDialogs;
+
+ function serializeSnapshot(payload) {
+  return JSON.stringify(payload);
+ }
 
  function getSpecsForAlgorithm(algorithm) {
   return algorithmParamSpecs[String(algorithm)] || [];
@@ -452,6 +463,88 @@
   });
   return { params, missing };
  }
+
+ function buildInstancePayload(formElement) {
+  const formData = new FormData(formElement);
+
+  const variables = {};
+  for (const [key, value] of formData.entries()) {
+   if (key.startsWith('var_') && value) {
+    variables[key.substring(4)] = value;
+   }
+  }
+
+  const dimensions = [];
+  const missingParamMessages = [];
+  document.querySelectorAll('.dimension-section').forEach(section => {
+   const dimensionId = section.dataset.dimensionId;
+   const dimensionDisplay = section.dataset.dimensionDisplay || `Dimension ${dimensionId}`;
+   const algStr = (formData.get(`algorithm_${dimensionId}`) || '').toString().trim();
+   const scoreStr = (formData.get(`score_${dimensionId}`) || '').toString().trim();
+
+   if (!algStr || !scoreStr) {
+    return;
+   }
+
+   const algorithm = parseInt(algStr, 10);
+   const score = parseInt(scoreStr, 10);
+   if (Number.isNaN(algorithm) || Number.isNaN(score)) {
+    return;
+   }
+
+   const dimData = {
+    dimension_id: parseInt(dimensionId, 10),
+    score,
+    position_mapping_algorithm: algorithm,
+   };
+
+   if (algorithm === V1_ALGORITHM) {
+    const specs = getSpecsForAlgorithm(algorithm);
+    const { params, missing } = collectAlgorithmParams(specs, dimensionId, formData);
+    if (missing.length) {
+     missingParamMessages.push(`${dimensionDisplay}: ${missing.join(', ')}`);
+     return;
+    }
+    dimData.position_mapping_params = params;
+   }
+
+   dimensions.push(dimData);
+  });
+
+  const positions = {};
+  document.querySelectorAll('.dimension-section').forEach(section => {
+   const dimensionId = section.dataset.dimensionId;
+   const posInput = section.querySelector(`input[name="position_${dimensionId}"]`);
+   if (posInput && posInput.value !== '') {
+    positions[dimensionId] = parseInt(posInput.value, 10);
+   }
+  });
+
+  const relationshipIdInput = document.getElementById('selected-relationship-id');
+  const relationshipId = relationshipIdInput && relationshipIdInput.value
+   ? parseInt(relationshipIdInput.value, 10)
+   : null;
+
+  return {
+   payload: {
+    prompt_variables: variables,
+    dimensions,
+    positions,
+    relationship_id: relationshipId,
+   },
+   missingParamMessages,
+  };
+ }
+
+ async function confirmAction(options) {
+  return dialogs.confirm(options);
+ }
+
+ const mainForm = document.getElementById('main-form');
+ let lastSavedSnapshot = serializeSnapshot(buildInstancePayload(mainForm).payload);
+ const unsavedGuard = window.qiaoUnsavedGuard.create({
+  isDirty: () => serializeSnapshot(buildInstancePayload(mainForm).payload) !== lastSavedSnapshot,
+ });
 
  // Toggle algorithm params visibility
  document.querySelectorAll('.algorithm-select').forEach(select => {
@@ -480,94 +573,63 @@
  });
 
  // Handle main form submission
+ document.getElementById('btn-cancel-instance-edit')?.addEventListener('click', async (event) => {
+  event.preventDefault();
+  const ok = await confirmAction({
+   title: '确认返回列表',
+   message: '确认放弃当前编辑并返回 AI Instances 列表页吗？<br>未保存的修改将会丢失。',
+   confirmText: '放弃并返回',
+   cancelText: '继续编辑',
+   confirmButtonClass: 'btn btn-danger',
+  });
+  if (!ok) {
+   return;
+  }
+  unsavedGuard.bypassOnce();
+  window.location.assign(instanceListUrl);
+ });
+
  document.getElementById('main-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
+  const { payload, missingParamMessages } = buildInstancePayload(e.target);
+  const action = (e.submitter && e.submitter.dataset && e.submitter.dataset.action) ? e.submitter.dataset.action : 'continue';
+
+  if (missingParamMessages.length) {
+   alert('请完善以下算法参数：\n' + missingParamMessages.join('\n'));
+   return;
+  }
+
+  const confirmed = await confirmAction({
+   title: action === 'save' ? '确认保存并返回' : '确认保存',
+   message: action === 'save'
+    ? '确认保存当前实例编辑内容，并返回 AI Instances 列表页吗？'
+    : '确认保存当前实例编辑内容，并继续留在本页面吗？',
+   confirmText: action === 'save' ? '保存并返回' : '保存',
+   cancelText: '取消',
+   confirmButtonClass: 'btn btn-primary',
+  });
+  if (!confirmed) {
+   return;
+  }
+
   const submitBtn = e.submitter || e.target.querySelector('button[type="submit"]');
   const originalHtml = submitBtn.innerHTML;
   submitBtn.disabled = true;
   submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
 
-  const formData = new FormData(e.target);
-  const action = (e.submitter && e.submitter.dataset && e.submitter.dataset.action) ? e.submitter.dataset.action : 'continue';
-
-  // Extract variables
-  const variables = {};
-  for (const [key, value] of formData.entries()) {
-   if (key.startsWith('var_')) {
-    const varName = key.substring(4);
-    if (value) variables[varName] = value;
-   }
-  }
-
-  // Extract dimensions (skip if score/algorithm empty)
-  const dimensions = [];
-  const missingParamMessages = [];
-  document.querySelectorAll('.dimension-section').forEach(section => {
-   const dimensionId = section.dataset.dimensionId;
-   const dimensionDisplay = section.dataset.dimensionDisplay || `Dimension ${dimensionId}`;
-   const algStr = (formData.get(`algorithm_${dimensionId}`) || '').toString().trim();
-   const scoreStr = (formData.get(`score_${dimensionId}`) || '').toString().trim();
-
-   if (!algStr || !scoreStr) { return; }
-
-   const algorithm = parseInt(algStr, 10);
-   const score = parseInt(scoreStr, 10);
-   if (Number.isNaN(algorithm) || Number.isNaN(score)) { return; }
-
-   const dimData = {
-     dimension_id: parseInt(dimensionId, 10),
-     score: score,
-     position_mapping_algorithm: algorithm,
-   };
-
-   if (algorithm === V1_ALGORITHM) {
-    const specs = getSpecsForAlgorithm(algorithm);
-    const { params, missing } = collectAlgorithmParams(specs, dimensionId, formData);
-    if (missing.length) {
-      missingParamMessages.push(`${dimensionDisplay}: ${missing.join(', ')}`);
-      return;
-    }
-    dimData.position_mapping_params = params;
-   }
-
-   dimensions.push(dimData);
- });
-
- if (missingParamMessages.length) {
-  alert('请完善以下算法参数：\n' + missingParamMessages.join('\n'));
-  submitBtn.disabled = false;
-  submitBtn.innerHTML = originalHtml;
-  return;
- }
-
-  // Include preview-applied positions if present
-  const positions = {};
-  document.querySelectorAll('.dimension-section').forEach(section => {
-    const dimensionId = section.dataset.dimensionId;
-    const posInput = section.querySelector(`input[name="position_${dimensionId}"]`);
-    if (posInput && posInput.value !== '') { positions[dimensionId] = parseInt(posInput.value); }
-  });
-
-  // Include relationship_id if present
-  const relationshipIdInput = document.getElementById('selected-relationship-id');
-  const relationshipId = relationshipIdInput && relationshipIdInput.value ? parseInt(relationshipIdInput.value) : null;
-
   try {
    const response = await fetch('/admin-api/ai/ai_instance/{{ instance.id }}/save', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt_variables: variables,
-      dimensions,
-      positions,
-      relationship_id: relationshipId,
-    }),
+    body: JSON.stringify(payload),
    });
 
    if (response.ok) {
-    if (action === 'save') {
-      window.location.href = "{{ url_for(__name__ ~ ':list', identity='ai_instance') }}";
-    } else {
+     lastSavedSnapshot = serializeSnapshot(payload);
+     unsavedGuard.bypassOnce();
+     if (action === 'save') {
+      window.location.href = instanceListUrl;
+     } else {
       alert('Saved successfully');
       location.reload();
     }
@@ -587,15 +649,20 @@
 document.getElementById('generate-relationship-btn')?.addEventListener('click', async () => {
   const btn = document.getElementById('generate-relationship-btn');
   const originalHtml = btn.innerHTML;
+  const confirmed = await confirmAction({
+   title: '确认生成关系',
+   message: '确认使用当前表单值生成 relationship 预览吗？<br>生成结果会回填到表单，保存后才会真正持久化。',
+   confirmText: '生成预览',
+   cancelText: '取消',
+   confirmButtonClass: 'btn btn-primary',
+  });
+  if (!confirmed) {
+   return;
+  }
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
 
   try {
-   if (!confirm('Generate relationship using current form values?')) {
-     btn.disabled = false;
-     btn.innerHTML = originalHtml;
-     return;
-   }
 
    // Build overrides from current form
    const form = document.getElementById('main-form');
@@ -850,7 +917,14 @@ document.getElementById('generate-relationship-btn')?.addEventListener('click', 
  }
 
  async function deleteMemory(memoryId) {
-   if (!confirm('Are you sure you want to delete this memory?')) {
+   const ok = await confirmAction({
+    title: '确认删除记忆',
+    message: '确定删除这条实例记忆吗？此操作不可恢复。',
+    confirmText: '删除',
+    cancelText: '取消',
+    confirmButtonClass: 'btn btn-danger',
+   });
+   if (!ok) {
      return;
    }
 

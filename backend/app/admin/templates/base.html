@@ -30,6 +30,8 @@
     <link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/fontawesome.min.css') }}">
     <!-- Project small fixes (e.g., alert fallbacks) -->
     <link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/admin-fixes.css') }}">
+    <script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/admin-dialogs.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/admin-unsaved-guard.js') }}"></script>
 
     <style>
         @import url('https://rsms.me/inter/inter.css');
@@ -46,6 +48,10 @@
             width: auto;
             height: 2rem;
         }
+
+        .qiao-admin-confirm-message {
+            white-space: pre-line;
+        }
     </style>
     {% block head_css %}{% endblock %}
 </head>
@@ -53,6 +59,23 @@
 <body>
 {% block body %}{% endblock %}
 {% block modal %}{% endblock %}
+<div id="qiao-admin-confirm-modal" class="modal fade" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 id="qiao-admin-confirm-title" class="modal-title">确认</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body">
+        <div id="qiao-admin-confirm-message" class="qiao-admin-confirm-message">确定执行该操作？</div>
+      </div>
+      <div class="modal-footer">
+        <button id="qiao-admin-confirm-cancel" type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button id="qiao-admin-confirm-confirm" type="button" class="btn btn-primary">确认</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 
 <script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/vendor/jquery.min.js') }}"></script>

@@ -78,9 +78,14 @@
       <div class="card mt-3">
         <div class="card-body text-black">
           <div class="btn-list ms-auto justify-content-end">
-            <a href="{{ url_for(__name__ ~ ':list', identity='ai_style') }}" class="btn btn-danger">Cancel</a>
-            <button type="button" class="btn" onclick="saveAll('continue')">Save and continue editing</button>
-            <button type="button" class="btn btn-success" onclick="saveAll('save')">Save</button>
+            <a
+              id="btn-cancel-style-edit"
+              href="{{ url_for(__name__ ~ ':list', identity='ai_style') }}"
+              class="btn btn-danger"
+              data-qiao-guard-ignore="true"
+            >Cancel</a>
+            <button type="button" class="btn" onclick="saveAll('continue', this)">Save and continue editing</button>
+            <button type="button" class="btn btn-success" onclick="saveAll('save', this)">Save</button>
           </div>
         </div>
       </div>
@@ -204,25 +209,6 @@
     </div>
   </div>
 </div>
-
-<!-- Common Confirm Modal -->
-<div class="modal fade" id="confirmModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="confirm-modal-title">确认</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <div id="confirm-modal-message">确定执行该操作？</div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" id="confirm-modal-cancel" data-bs-dismiss="modal">取消</button>
-        <button type="button" class="btn btn-primary" id="confirm-modal-confirm">确认</button>
-      </div>
-    </div>
-  </div>
-  </div>
 
 <style>
   .dimension-edit-form {
@@ -388,8 +374,7 @@
     reuseModal: null,
     copyModal: null,
     editModal: null,
-    availableDimensions: [],
-    confirmModal: null
+    availableDimensions: []
   };
 
   // Cache: how many other styles use a given dimension id
@@ -399,6 +384,92 @@
   const relationshipColors = [
     '#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', '#6f42c1', '#e83e8c', '#fd7e14'
   ];
+  const dialogs = window.qiaoAdminDialogs;
+  const styleListUrl = "{{ url_for(__name__ ~ ':list', identity='ai_style') }}";
+  let lastSavedSnapshot = null;
+  let unsavedGuard = null;
+
+  function serializeSnapshot(data) {
+    return JSON.stringify(data);
+  }
+
+  function buildRequestData() {
+    const nameSet = new Set();
+    const duplicateNames = new Set();
+
+    dimensions.forEach(d => {
+      if (d.id >= 0 && d.name) {
+        nameSet.add(String(d.name).trim().toLowerCase());
+      }
+    });
+
+    const allDimensions = [];
+    dimensions.forEach(dimension => {
+      const dimData = {
+        initial_position: dimension.initial_position,
+        description: dimension.description || ''
+      };
+
+      if (dimension.id < 0) {
+        const dimName = (dimension.name || '').trim();
+        if (!dimName) {
+          duplicateNames.add('(空名称)');
+        } else if (nameSet.has(dimName.toLowerCase())) {
+          duplicateNames.add(dimName);
+        }
+        nameSet.add(dimName.toLowerCase());
+      }
+
+      if (dimension.id < 0) {
+        dimData.name = dimension.name;
+        dimData.display_name = dimension.display_name;
+        dimData.temp_id = dimension.id;
+        dimData.description = dimension.description || '';
+      } else {
+        dimData.dimension_id = dimension.id;
+      }
+
+      allDimensions.push(dimData);
+    });
+
+    const allMappings = [];
+    document.querySelectorAll('.mapping-item').forEach(item => {
+      const mappingId = item.getAttribute('data-mapping-id');
+      const dimensionId = parseInt(item.getAttribute('data-dimension-id'), 10);
+      const dimensionDisplayName = item.getAttribute('data-dimension');
+      const startPos = parseInt(item.querySelector('[name="start_position"]').value, 10);
+      const endPos = parseInt(item.querySelector('[name="end_position"]').value, 10);
+      const relationshipId = parseInt(item.querySelector('[name="relationship_id"]').value, 10);
+      const priority = parseInt(item.querySelector('[name="priority"]').value, 10) || 1;
+      const limitCount = parseInt(item.querySelector('[name="limit_count"]').value, 10) || 0;
+
+      const mappingData = {
+        dimension_id: dimensionId,
+        dimension_display_name: dimensionDisplayName,
+        start_position: startPos,
+        end_position: endPos,
+        relationship_id: relationshipId,
+        priority,
+        limit_count: limitCount
+      };
+
+      if (mappingId) {
+        mappingData.id = parseInt(mappingId, 10);
+      }
+
+      allMappings.push(mappingData);
+    });
+
+    return {
+      requestData: {
+        dimensions: allDimensions,
+        removed_association_dimension_ids: [...removedAssociationDimensionIds],
+        mappings: allMappings,
+        deleted_mapping_ids: [...deletedMappingIds]
+      },
+      duplicateNames: Array.from(duplicateNames)
+    };
+  }
 
   // Initialize on page load
   document.addEventListener('DOMContentLoaded', function () {
@@ -408,12 +479,27 @@
       uiState.reuseModal = new bootstrap.Modal(document.getElementById('reuseDimensionModal'));
       uiState.copyModal = new bootstrap.Modal(document.getElementById('copyDimensionModal'));
       uiState.editModal = new bootstrap.Modal(document.getElementById('editDimensionModal'));
-      const confirmEl = document.getElementById('confirmModal');
-      if (confirmEl) {
-        uiState.confirmModal = new bootstrap.Modal(confirmEl);
-      }
     }
     initializeMappings();
+    lastSavedSnapshot = serializeSnapshot(buildRequestData().requestData);
+    unsavedGuard = window.qiaoUnsavedGuard.create({
+      isDirty: () => serializeSnapshot(buildRequestData().requestData) !== lastSavedSnapshot
+    });
+    document.getElementById('btn-cancel-style-edit')?.addEventListener('click', async (event) => {
+      event.preventDefault();
+      const ok = await dialogs.confirm({
+        title: '确认返回列表',
+        message: '确认放弃当前编辑并返回 Styles 列表页吗？<br>未保存的修改将会丢失。',
+        confirmText: '放弃并返回',
+        cancelText: '继续编辑',
+        confirmButtonClass: 'btn btn-danger'
+      });
+      if (!ok) {
+        return;
+      }
+      unsavedGuard?.bypassOnce();
+      window.location.assign(styleListUrl);
+    });
   });
 
   // Initialize: group mappings by dimension
@@ -1119,52 +1205,14 @@
     confirmText = '确认',
     cancelText = '取消'
   } = {}) {
-    return new Promise((resolve) => {
-      const modalEl = document.getElementById('confirmModal');
-      const titleEl = document.getElementById('confirm-modal-title');
-      const msgEl = document.getElementById('confirm-modal-message');
-      const btnConfirm = document.getElementById('confirm-modal-confirm');
-      const btnCancel = document.getElementById('confirm-modal-cancel');
-      const btnClose = modalEl.querySelector('.btn-close');
-
-      if (titleEl) titleEl.textContent = title;
-      if (msgEl) msgEl.innerHTML = message;
-      if (btnConfirm) btnConfirm.textContent = confirmText;
-      if (btnCancel) btnCancel.textContent = cancelText;
-
-      let resolved = false;
-      const cleanup = () => {
-        btnConfirm?.removeEventListener('click', onConfirm);
-        btnCancel?.removeEventListener('click', onCancel);
-        btnClose?.removeEventListener('click', onCancel);
-        modalEl.removeEventListener('hidden.bs.modal', onHidden);
-      };
-      const onConfirm = () => {
-        resolved = true;
-        cleanup();
-        uiState.confirmModal?.hide();
-        resolve(true);
-      };
-      const onCancel = () => {
-        if (resolved) return;
-        resolved = true;
-        cleanup();
-        uiState.confirmModal?.hide();
-        resolve(false);
-      };
-      const onHidden = () => {
-        if (resolved) return;
-        resolved = true;
-        cleanup();
-        resolve(false);
-      };
-
-      btnConfirm?.addEventListener('click', onConfirm, { once: true });
-      btnCancel?.addEventListener('click', onCancel, { once: true });
-      btnClose?.addEventListener('click', onCancel, { once: true });
-      modalEl.addEventListener('hidden.bs.modal', onHidden, { once: true });
-
-      uiState.confirmModal?.show();
+    return dialogs.confirm({
+      title,
+      message,
+      confirmText,
+      cancelText,
+      confirmButtonClass: confirmText === '删除' || confirmText === '移除' || confirmText === '永久删除'
+        ? 'btn btn-danger'
+        : 'btn btn-primary'
     });
   }
 
@@ -1396,100 +1444,32 @@
   }
 
   // Save
-  async function saveAll(action) {
-    const saveBtn = event.target;
+  async function saveAll(action, saveBtn) {
+    const confirmed = await dialogs.confirm({
+      title: action === 'save' ? '确认保存并返回' : '确认保存',
+      message: action === 'save'
+        ? '确认保存当前 Style 编辑内容，并返回列表页吗？'
+        : '确认保存当前 Style 编辑内容，并继续留在本页面吗？',
+      confirmText: action === 'save' ? '保存并返回' : '保存',
+      cancelText: '取消',
+      confirmButtonClass: 'btn btn-primary'
+    });
+    if (!confirmed) {
+      return;
+    }
     const originalBtnHtml = saveBtn.innerHTML;
     saveBtn.disabled = true;
     saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>保存中...';
 
     try {
-      // Collect all dimensions
-      const nameSet = new Set();
-      const duplicateNames = new Set();
-      // seed with existing dimension names to prevent creating duplicate names
-      dimensions.forEach(d => {
-        if (d.id >= 0 && d.name) {
-          nameSet.add(String(d.name).trim().toLowerCase());
-        }
-      });
+      const { requestData, duplicateNames } = buildRequestData();
 
-      const allDimensions = [];
-      dimensions.forEach(dimension => {
-        const dimData = {
-          initial_position: dimension.initial_position,
-          description: dimension.description || ''
-        };
-
-        // Validate duplicate dimension names (only for new dimensions)
-        if (dimension.id < 0) {
-          const dimName = (dimension.name || '').trim();
-          if (!dimName) {
-            duplicateNames.add('(空名称)');
-          } else if (nameSet.has(dimName.toLowerCase())) {
-            duplicateNames.add(dimName);
-          }
-          nameSet.add(dimName.toLowerCase());
-        }
-
-        // Negative ID means new dimension, need to create dimension first
-        if (dimension.id < 0) {
-          dimData.name = dimension.name;
-          dimData.display_name = dimension.display_name;
-          dimData.temp_id = dimension.id; // help backend map temp id to new id
-          // include description for creation
-          dimData.description = dimension.description || '';
-        } else {
-          dimData.dimension_id = dimension.id;
-        }
-
-        allDimensions.push(dimData);
-      });
-
-      if (duplicateNames.size > 0) {
-        alert('保存失败: 维度名称重复，请修改后再保存 (重复: ' + Array.from(duplicateNames).join(', ') + ')');
+      if (duplicateNames.length > 0) {
+        alert('保存失败: 维度名称重复，请修改后再保存 (重复: ' + duplicateNames.join(', ') + ')');
         saveBtn.disabled = false;
         saveBtn.innerHTML = originalBtnHtml;
         return;
       }
-
-      // Collect all mappings
-      const allMappings = [];
-      const mappingItems = document.querySelectorAll('.mapping-item');
-
-      mappingItems.forEach(item => {
-        const mappingId = item.getAttribute('data-mapping-id');
-        const dimensionId = parseInt(item.getAttribute('data-dimension-id'));
-        const dimensionDisplayName = item.getAttribute('data-dimension');
-        const startPos = parseInt(item.querySelector('[name="start_position"]').value);
-        const endPos = parseInt(item.querySelector('[name="end_position"]').value);
-        const relationshipId = parseInt(item.querySelector('[name="relationship_id"]').value);
-        const priority = parseInt(item.querySelector('[name="priority"]').value) || 1;
-        const limitCount = parseInt(item.querySelector('[name="limit_count"]').value) || 0;
-
-        const mappingData = {
-          dimension_id: dimensionId,
-          dimension_display_name: dimensionDisplayName,
-          start_position: startPos,
-          end_position: endPos,
-          relationship_id: relationshipId,
-          priority: priority,
-          limit_count: limitCount
-        };
-
-        if (mappingId) {
-          mappingData.id = parseInt(mappingId);
-        }
-
-        allMappings.push(mappingData);
-      });
-
-      // Prepare request data
-      const requestData = {
-        dimensions: allDimensions,
-        removed_association_dimension_ids: removedAssociationDimensionIds,
-        mappings: allMappings,
-        deleted_mapping_ids: deletedMappingIds
-      };
 
       // Submit
       const response = await fetch('/admin-api/ai/ai_style/{{ style.id }}/save', {
@@ -1510,8 +1490,10 @@
         message += '  创建: ' + result.created_mappings + '个\n';
         message += '  删除: ' + result.deleted_mappings + '个';
         const act = action || 'continue';
+        lastSavedSnapshot = serializeSnapshot(requestData);
+        unsavedGuard?.bypassOnce();
         if (act === 'save') {
-          window.location.href = "{{ url_for(__name__ ~ ':list', identity='ai_style') }}";
+          window.location.href = styleListUrl;
         } else {
           alert(message);
           location.reload();

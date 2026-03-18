@@ -8,7 +8,6 @@ from enum import IntEnum
 from typing import Any, ClassVar, cast
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 from starlette_admin import (
     DateTimeField,
@@ -23,22 +22,19 @@ from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 
 from app.admin.views.base import IntegerEnumField
-from app.crud.ai import ai_instance as ai_instance_crud
 from app.enums import AIInstanceCreator, AIInstanceStatus, Gender, ProfileOwnerType
 from app.models.ai import AIInstanceDimension
 from app.models.ai.instance import AIInstance
 from app.models.ai.memory import AIInstanceMemory
-from app.models.ai.personality import AIPersonality
-from app.models.ai.style import AIDimension, AIStyleDimension
-from app.models.base import generate_qiao_id
+from app.models.ai.style import AIStyleDimension
 from app.models.profile import Profile
-from app.models.user import User
-from app.services.ai.profile_integrity import ensure_instance_profile
-from app.services.ai.relationship_scoring import initialize_instance_relationship
-from app.services.ai.response_schema import validate_style_personality_contract
+from app.services.ai.instance_creation import (
+    ManualAIInstanceCreateError,
+    create_manual_instance,
+    validate_instance_contract,
+)
 from app.services.ai.utils.position_mapping import map_score_to_position
 from app.utils.logging import get_logger
-from app.utils.snowflake import generate_snowflake_id
 
 FormData = MutableMapping[str, object]
 logger = get_logger(__name__)
@@ -234,7 +230,6 @@ class AIInstanceView(ModelView):
 
     exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
-        "qiao_id",
         "user_id",
         "user_qiao_id",
         "username",
@@ -278,126 +273,42 @@ class AIInstanceView(ModelView):
     def can_delete(self, _request: Request) -> bool:
         return False
 
-    async def create(self, request: Request, data: FormData) -> AIInstance:
-        """Override create to automatically set created_by field and generate IDs."""
-        # Set created_by to 2 (Admin) for admin panel creations
-        data["created_by"] = 2
-
-        # Generate qiao_id if not provided
-        if not data.get("qiao_id"):
-            data["qiao_id"] = generate_qiao_id()
-
-        # Generate id if not provided
-        if not data.get("id"):
-            data["id"] = generate_snowflake_id()
-
-        created_instance = await super().create(request, data)
-
-        session = request.state.session
+    @staticmethod
+    def _extract_relation_id(value: object) -> int | None:
+        """Extract a relation primary key from a HasOne field value."""
+        relation_id = getattr(value, "id", value)
+        if relation_id is None:
+            return None
         try:
-            await initialize_instance_relationship(session, instance_id=int(created_instance.id))
-            await session.commit()
-        except Exception as exc:
-            await session.rollback()
-            logger.error(
-                "admin_instance_relationship_initialization_failed",
-                instance_id=getattr(created_instance, "id", None),
-                error=str(exc),
-                exc_info=True,
-            )
-            try:
-                await ai_instance_crud.remove(session, record_id=int(created_instance.id))
-            except Exception as cleanup_exc:
-                logger.error(
-                    "admin_instance_cleanup_failed_after_relationship_init_error",
-                    instance_id=getattr(created_instance, "id", None),
-                    error=str(cleanup_exc),
-                    exc_info=True,
-                )
-            raise FormValidationError(
-                {"relationship": "Failed to initialize relationship for new instance"}
-            ) from exc
+            return int(cast(Any, relation_id))
+        except (TypeError, ValueError):
+            return None
 
-        return created_instance
+    async def create(self, request: Request, data: FormData) -> AIInstance:
+        """Create a manual AI instance through the application service."""
+        try:
+            return await create_manual_instance(
+                request.state.session,
+                user_id=self._extract_relation_id(data.get("user")),
+                qiao_id=data.get("qiao_id"),
+                style_id=self._extract_relation_id(data.get("style")),
+                personality_id=self._extract_relation_id(data.get("personality")),
+                relationship_id=self._extract_relation_id(data.get("relationship")),
+                request_params=data.get("request_params"),
+                llm_config_id=self._extract_relation_id(data.get("llm_config")),
+                prompt_variables=data.get("prompt_variables"),
+                relationship_counts=data.get("relationship_counts"),
+                creation_metadata=data.get("creation_metadata"),
+                status=cast(int | None, data.get("status")),
+                typing_speed_wpm=data.get("typing_speed_wpm"),
+                timezone=data.get("timezone"),
+            )
+        except ManualAIInstanceCreateError as exc:
+            raise FormValidationError(exc.errors) from exc
 
     async def edit(self, request: Request, pk: str, data: FormData) -> AIInstance:
         """Override edit to handle data processing."""
         return await super().edit(request, pk, data)
-
-    async def before_create(self, request: Request, data: FormData, obj: AIInstance) -> None:
-        """Auto-fill foreign keys and required fields before creating instance."""
-        if not getattr(obj, "id", None):
-            obj.id = generate_snowflake_id()
-        if not getattr(obj, "qiao_id", None):
-            obj.qiao_id = generate_qiao_id()
-
-        # Set created_by to 2 (Admin) for admin panel creations
-        obj.created_by = 2
-
-        # Auto-fill user_id and user_qiao_id from selected user
-        user = data.get("user")
-        if user and isinstance(user, User):
-            obj.user_id = user.id
-            obj.user_qiao_id = user.qiao_id
-
-        # Auto-fill foreign keys from HasOne relationships
-        if hasattr(obj, "style") and obj.style is not None:
-            obj.style_id = obj.style.id
-        if hasattr(obj, "personality") and obj.personality is not None:
-            obj.personality_id = obj.personality.id
-        if hasattr(obj, "relationship") and obj.relationship is not None:
-            obj.relationship_id = obj.relationship.id
-        else:
-            obj.relationship_id = None
-        if hasattr(obj, "llm_config") and obj.llm_config is not None:
-            obj.llm_config_id = obj.llm_config.id
-        else:
-            obj.llm_config_id = None
-
-        if hasattr(obj, "timezone") and (obj.timezone is None or obj.timezone == ""):
-            obj.timezone = "Asia/Shanghai"
-
-        if not hasattr(obj, "creation_metadata") or obj.creation_metadata is None:
-            obj.creation_metadata = {}
-        metadata = obj.creation_metadata if isinstance(obj.creation_metadata, dict) else {}
-        metadata["source"] = "admin_manual"
-        obj.creation_metadata = metadata
-        obj.username = None
-
-        # Validate required foreign keys
-        errors = {}
-        if not hasattr(obj, "user_id") or obj.user_id is None:
-            errors["user"] = "Owner User is required"
-        if not hasattr(obj, "style_id") or obj.style_id is None:
-            errors["style"] = "AI Style is required"
-        if not hasattr(obj, "personality_id") or obj.personality_id is None:
-            errors["personality"] = "AI Personality is required"
-
-        if errors:
-            raise FormValidationError(errors)
-
-        contract_error = await self._validate_instance_contract(
-            request.state.session,
-            style_id=getattr(obj, "style_id", None),
-            personality_id=getattr(obj, "personality_id", None),
-        )
-        if contract_error is not None:
-            raise FormValidationError({"personality": contract_error})
-
-        try:
-            await ensure_instance_profile(
-                request.state.session,
-                instance=obj,
-                source="admin.ai_instance.before_create",
-            )
-        except (TypeError, ValueError) as exc:
-            logger.error(
-                "admin_instance_profile_validation_failed",
-                error=str(exc),
-                instance_id=getattr(obj, "id", None),
-                instance_qiao_id=getattr(obj, "qiao_id", None),
-            )
-            raise FormValidationError({"qiao_id": str(exc)}) from exc
 
     async def before_edit(self, _request: Request, _data: FormData, obj: AIInstance) -> None:
         """Auto-fill foreign keys before editing instance."""
@@ -435,47 +346,13 @@ class AIInstanceView(ModelView):
         if errors:
             raise FormValidationError(errors)
 
-        contract_error = await self._validate_instance_contract(
+        contract_error = await validate_instance_contract(
             _request.state.session,
             style_id=getattr(obj, "style_id", None),
             personality_id=getattr(obj, "personality_id", None),
         )
         if contract_error is not None:
             raise FormValidationError({"personality": contract_error})
-
-    @staticmethod
-    async def _validate_instance_contract(
-        session: AsyncSession,
-        *,
-        style_id: int | None,
-        personality_id: int | None,
-    ) -> str | None:
-        """Validate style/personality score-schema contract before save."""
-        if style_id is None or personality_id is None:
-            return None
-
-        style_result = await session.execute(
-            select(AIDimension.name)
-            .join(AIStyleDimension, AIStyleDimension.dimension_id == AIDimension.id)
-            .where(AIStyleDimension.style_id == style_id)
-            .order_by(AIDimension.name)
-        )
-        style_dimension_names = [row[0] for row in style_result.all() if isinstance(row[0], str)]
-        if not style_dimension_names:
-            return "Selected style has no dimensions"
-
-        personality_result = await session.execute(
-            select(AIPersonality.json_schema).where(AIPersonality.id == personality_id)
-        )
-        personality_schema = personality_result.scalar_one_or_none()
-        if personality_schema is None:
-            return "Selected personality not found"
-
-        try:
-            validate_style_personality_contract(style_dimension_names, personality_schema)
-        except (TypeError, ValueError) as exc:
-            return f"Style/personality contract mismatch: {exc!s}"
-        return None
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
     searchable_fields: ClassVar[list[str]] = ["qiao_id", "username", "user_qiao_id"]
@@ -499,7 +376,12 @@ class AIInstanceView(ModelView):
             required=True,
         ),
         StringField("user_qiao_id", label="User Qiao ID", help_text="Owning user qiao_id"),
-        StringField("qiao_id", label="Qiao ID", help_text="External AI identifier"),
+        StringField(
+            "qiao_id",
+            label="Qiao ID",
+            help_text="Optional external AI identifier; leave blank to auto-generate",
+            required=False,
+        ),
         StringField(
             "username",
             label="Username",
@@ -529,7 +411,7 @@ class AIInstanceView(ModelView):
             "relationship",
             identity="ai_relationship",
             label="Current Relationship",
-            help_text="Current relationship type",
+            help_text="Leave blank to auto-initialize; select one to keep it as the current relationship",
             required=False,
         ),
         StringField(

@@ -234,6 +234,9 @@ blocked (2)
 **特点**：
 
 - 拥有独立的 qiao_id（不继承 persona）
+- `qiao_id` 可由管理员手动填写；留空时系统自动生成
+- 手动填写的 `qiao_id` 必须未被现有 persona 或 instance profile 占用
+- `relationship_id` 留空时系统自动初始化；手动指定时保持管理员选择
 - `username` 固定为 NULL（手动实例不绑定 persona.username）
 - 拥有独立的 profile（owner_type=3）
 - 不受 persona/template 复用规则限制

@@ -187,7 +187,7 @@ async def initialize_relationship_scores(
             )
             db.add(dimension_record)
 
-        await db.commit()
+        await db.flush()
 
         logger.info(
             "relationship_scores_initialized",

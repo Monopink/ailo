@@ -31,7 +31,6 @@ from app.models.base import (
     SnowflakeModel,
     SnowflakeQiaoModel,
     TimestampMixin,
-    generate_qiao_id,
 )
 from app.type_defs import JSONDict
 
@@ -53,7 +52,6 @@ class AIInstance(SnowflakeQiaoModel):
     qiao_id: Mapped[str] = mapped_column(
         String(32),
         nullable=False,
-        default=generate_qiao_id,
         comment="External persona identifier (multiple users can add same persona)",
     )
     username: Mapped[str | None] = mapped_column(

@@ -4,22 +4,302 @@ AI instance creation service.
 This module handles creating AI instances from personas/templates.
 """
 
+from collections.abc import Mapping
+from typing import Any, cast
+
+from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.ai import ai_instance
+from app.crud.profile import profile as profile_crud
 from app.enums import AIInstanceCreator
+from app.exceptions import AIRelationshipError
 from app.models.ai import AIInstance
+from app.models.ai.personality import AIPersonality
+from app.models.ai.style import AIDimension, AIRelationship, AIStyleDimension
 from app.models.ai.template import AIPersona, AITemplate
+from app.models.base import generate_qiao_id
+from app.models.user import User
 from app.schemas.ai import AIInstanceCreate
 from app.services.ai.memory import copy_template_memories_to_instance
 from app.services.ai.profile_integrity import ensure_instance_profile
 from app.services.ai.relationship_scoring import (
     initialize_instance_relationship,
     initialize_relationship_scores,
+    update_instance_current_relationship,
 )
+from app.services.ai.response_schema import validate_style_personality_contract
+from app.type_defs import JSONDict
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+class ManualAIInstanceCreateError(Exception):
+    """Raised when manual AI instance creation fails with field-level errors."""
+
+    def __init__(self, errors: dict[str, str]) -> None:
+        super().__init__("Manual AI instance creation failed")
+        self.errors = errors
+
+
+def _normalize_optional_string(value: object) -> str | None:
+    """Trim optional string inputs and collapse blanks to None."""
+    if not isinstance(value, str):
+        return None
+    normalized_value = value.strip()
+    return normalized_value or None
+
+
+def _normalize_optional_json_dict(value: object) -> JSONDict | None:
+    """Accept only JSON object payloads for manual instance inputs."""
+    if isinstance(value, Mapping):
+        return dict(value)
+    return None
+
+
+async def validate_instance_contract(
+    db: AsyncSession,
+    *,
+    style_id: int | None,
+    personality_id: int | None,
+) -> str | None:
+    """Validate style/personality score-schema contract before save."""
+    if style_id is None or personality_id is None:
+        return None
+
+    style_result = await db.execute(
+        select(AIDimension.name)
+        .join(AIStyleDimension, AIStyleDimension.dimension_id == AIDimension.id)
+        .where(AIStyleDimension.style_id == style_id)
+        .order_by(AIDimension.name)
+    )
+    style_dimension_names = [row[0] for row in style_result.all() if isinstance(row[0], str)]
+    if not style_dimension_names:
+        return "Selected style has no dimensions"
+
+    personality_result = await db.execute(
+        select(AIPersonality.json_schema).where(AIPersonality.id == personality_id)
+    )
+    personality_schema = personality_result.scalar_one_or_none()
+    if personality_schema is None:
+        return "Selected personality not found"
+
+    try:
+        validate_style_personality_contract(style_dimension_names, personality_schema)
+    except (TypeError, ValueError) as exc:
+        return f"Style/personality contract mismatch: {exc!s}"
+    return None
+
+
+async def _validate_manual_instance_qiao_id(
+    db: AsyncSession,
+    *,
+    qiao_id: str,
+    user_id: int,
+) -> None:
+    """Validate that a manual instance qiao_id can own its own profile."""
+    existing_instance = await ai_instance.get_by_qiao_id(db, qiao_id=qiao_id, user_id=user_id)
+    if existing_instance is not None:
+        raise ManualAIInstanceCreateError(
+            {"qiao_id": "Qiao ID already exists for the selected user"}
+        )
+
+    profile_obj = await profile_crud.get_by_owner_qiao_id(db, owner_qiao_id=qiao_id)
+    if profile_obj is not None:
+        raise ManualAIInstanceCreateError(
+            {"qiao_id": "Qiao ID is already bound to an existing persona or instance profile"}
+        )
+
+
+async def _get_relationship_display_name(
+    db: AsyncSession,
+    *,
+    relationship_id: int,
+) -> str:
+    """Resolve relationship display_name for a manually selected relationship."""
+    result = await db.execute(
+        select(AIRelationship.display_name).where(AIRelationship.id == relationship_id)
+    )
+    display_name = result.scalar_one_or_none()
+    if not isinstance(display_name, str) or not display_name:
+        raise ManualAIInstanceCreateError({"relationship": "Selected relationship not found"})
+    return display_name
+
+
+async def _get_user_qiao_id(
+    db: AsyncSession,
+    *,
+    user_id: int,
+) -> str:
+    """Resolve the owning user's qiao_id for manual instance creation."""
+    result = await db.execute(select(User.qiao_id).where(User.id == user_id))
+    user_qiao_id = result.scalar_one_or_none()
+    if not isinstance(user_qiao_id, str) or not user_qiao_id:
+        raise ManualAIInstanceCreateError({"user": "Owner User is required"})
+    return user_qiao_id
+
+
+async def create_manual_instance(
+    db: AsyncSession,
+    *,
+    user_id: int | None,
+    qiao_id: object,
+    style_id: int | None,
+    personality_id: int | None,
+    relationship_id: int | None,
+    request_params: object,
+    llm_config_id: int | None,
+    prompt_variables: object,
+    relationship_counts: object,
+    creation_metadata: object,
+    status: int | None,
+    typing_speed_wpm: object,
+    timezone: object,
+) -> AIInstance:
+    """Create a manual AI instance in a single transaction."""
+    errors: dict[str, str] = {}
+    if user_id is None:
+        errors["user"] = "Owner User is required"
+    if style_id is None:
+        errors["style"] = "AI Style is required"
+    if personality_id is None:
+        errors["personality"] = "AI Personality is required"
+    if errors:
+        raise ManualAIInstanceCreateError(errors)
+    validated_user_id = cast(int, user_id)
+    validated_user_qiao_id = await _get_user_qiao_id(db, user_id=validated_user_id)
+    validated_style_id = cast(int, style_id)
+    validated_personality_id = cast(int, personality_id)
+    validated_relationship_id = relationship_id
+
+    contract_error = await validate_instance_contract(
+        db,
+        style_id=validated_style_id,
+        personality_id=validated_personality_id,
+    )
+    if contract_error is not None:
+        raise ManualAIInstanceCreateError({"personality": contract_error})
+
+    normalized_qiao_id = _normalize_optional_string(qiao_id) or generate_qiao_id()
+    await _validate_manual_instance_qiao_id(
+        db,
+        qiao_id=normalized_qiao_id,
+        user_id=validated_user_id,
+    )
+
+    metadata = _normalize_optional_json_dict(creation_metadata) or {}
+    metadata["source"] = "admin_manual"
+
+    try:
+        instance_data = AIInstanceCreate(
+            user_id=validated_user_id,
+            user_qiao_id=validated_user_qiao_id,
+            qiao_id=normalized_qiao_id,
+            username=None,
+            creation_metadata=metadata,
+            style_id=validated_style_id,
+            personality_id=validated_personality_id,
+            placeholder_overrides=_normalize_optional_json_dict(prompt_variables),
+            request_params=_normalize_optional_json_dict(request_params),
+            llm_config_id=llm_config_id,
+            relationship_id=None,
+            relationship_counts=_normalize_optional_json_dict(relationship_counts),
+            status=status if status is not None else 1,
+            typing_speed_wpm=cast(Any, typing_speed_wpm),
+            timezone=_normalize_optional_string(timezone) or "Asia/Shanghai",
+            created_by=int(AIInstanceCreator.ADMIN),
+        )
+    except ValidationError as exc:
+        validation_errors: dict[str, str] = {}
+        for error in exc.errors():
+            location = error.get("loc", ())
+            field_name = str(location[0]) if location else "form"
+            validation_errors[field_name] = str(error.get("msg", "Invalid value"))
+        raise ManualAIInstanceCreateError(validation_errors) from exc
+
+    try:
+        instance = await ai_instance.create(db, obj_in=instance_data, commit=False)
+        await ensure_instance_profile(
+            db,
+            instance=instance,
+            source="instance_creation.create_manual_instance",
+        )
+    except (TypeError, ValueError) as exc:
+        await db.rollback()
+        logger.error(
+            "manual_instance_profile_validation_failed",
+            error=str(exc),
+            user_id=user_id,
+            instance_qiao_id=normalized_qiao_id,
+        )
+        raise ManualAIInstanceCreateError({"qiao_id": str(exc)}) from exc
+    except Exception as exc:
+        await db.rollback()
+        logger.error(
+            "manual_instance_creation_failed",
+            error=str(exc),
+            user_id=user_id,
+            instance_qiao_id=normalized_qiao_id,
+            exc_info=True,
+        )
+        raise
+
+    try:
+        await initialize_relationship_scores(db, instance.id, validated_style_id)
+        if validated_relationship_id is None:
+            await initialize_instance_relationship(db, instance_id=instance.id)
+        else:
+            relationship_display_name = await _get_relationship_display_name(
+                db,
+                relationship_id=validated_relationship_id,
+            )
+            updated = await update_instance_current_relationship(
+                db,
+                instance_id=instance.id,
+                relationship_id=validated_relationship_id,
+                relationship_display_name=relationship_display_name,
+            )
+            if not updated:
+                raise ManualAIInstanceCreateError(
+                    {"relationship": "Failed to persist the selected relationship"}
+                )
+        await db.commit()
+    except AIRelationshipError as exc:
+        await db.rollback()
+        logger.error(
+            "manual_instance_relationship_initialization_failed",
+            error=str(exc),
+            user_id=user_id,
+            instance_qiao_id=normalized_qiao_id,
+            exc_info=True,
+        )
+        raise ManualAIInstanceCreateError(
+            {"relationship": "Failed to initialize relationship for new instance"}
+        ) from exc
+    except ManualAIInstanceCreateError:
+        await db.rollback()
+        raise
+    except Exception as exc:
+        await db.rollback()
+        logger.error(
+            "manual_instance_creation_commit_failed",
+            error=str(exc),
+            user_id=user_id,
+            instance_qiao_id=normalized_qiao_id,
+            exc_info=True,
+        )
+        raise
+
+    await db.refresh(instance)
+    logger.info(
+        "manual_instance_created",
+        instance_id=instance.id,
+        user_id=user_id,
+        instance_qiao_id=instance.qiao_id,
+    )
+    return instance
 
 
 async def create_instance_from_persona(

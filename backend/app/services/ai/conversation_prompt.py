@@ -24,6 +24,7 @@ from app.utils.logging import get_logger
 
 from .queries import get_conversation_contexts, get_personality_with_placeholders, get_user_profile
 from .relationship_scoring import get_relationship_scores
+from .utils.time_context import build_current_datetime
 
 logger = get_logger(__name__)
 
@@ -442,17 +443,9 @@ def _get_current_datetime(context: dict[str, Any] | InstanceContext) -> str:
     Get current datetime string based on instance timezone.
 
     Falls back to Asia/Shanghai when timezone is invalid or missing.
-    Uses Pendulum for better timezone handling.
     """
     try:
-        tz_name = (context or {}).get("timezone") or "Asia/Shanghai"
-        try:
-            now = pendulum.now(tz_name)
-        except Exception:
-            logger.warning("invalid_timezone_fallback", timezone=tz_name)
-            now = pendulum.now("Asia/Shanghai")
-
-        return str(now.format("YYYY年MM月DD日 HH:mm", locale="zh"))
+        return build_current_datetime(context)
 
     except Exception as exc:
         logger.error("datetime_formatting_failed", error=str(exc), exc_info=True)

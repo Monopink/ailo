@@ -95,9 +95,8 @@
 
 **{{current_datetime}}**
 
-- 来源：系统时间（+8:00 时区）
-- 格式：日期、农历、时间
-- 示例：2024年11月23日 星期六 农历十月廿三 14:30
+- 来源：实例时区对应的系统时间（`instance.timezone`）
+- 格式：见 [time-context-format.md](time-context-format.md)
 
 **{{memory}}**
 

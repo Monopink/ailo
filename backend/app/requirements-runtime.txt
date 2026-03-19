@@ -39,8 +39,9 @@ redis==6.4.0
 PyJWT==2.10.1
 
 # Time and Date handling
-zhdate==0.1
 pendulum==3.1.0  # Human-friendly datetime with timezone support
+lunar_python==1.4.8
+chinesecalendar==1.11.0
 
 # Admin Interface
 starlette-admin==0.16.0

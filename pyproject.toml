@@ -98,6 +98,10 @@ ignore = [
 "backend/app/services/**/*.py" = [
   "D", # Progressive docstring adoption for internal services
 ]
+# Time context protocol definitions follow third-party API naming
+"backend/app/services/ai/utils/time_context.py" = [
+  "N802", # Third-party lunar/chinese-calendar methods are camelCase
+]
 # Admin API files - allow FastAPI patterns and higher complexity
 "backend/app/api/admin/**/*.py" = [
   "B008", # Allow Depends() in function defaults (FastAPI pattern)

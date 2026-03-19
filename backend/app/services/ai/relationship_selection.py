@@ -46,7 +46,7 @@ async def collect_candidates(
           AND drm.dimension_id = :dimension_id
           AND drm.start_position <= :position
           AND drm.end_position >= :position
-        ORDER BY drm.priority DESC
+        ORDER BY drm.priority ASC
         """
     )
     result = await db.execute(
@@ -118,14 +118,14 @@ def enforce_limit_count(
 def select_final_relationship(
     candidates_across_dimensions: list[RelationshipCandidate],
     *,
-    higher_is_better: bool = True,
+    higher_is_better: bool = False,
 ) -> dict[str, Any]:
     """
     Select final relationship using unified rules.
 
     Rules:
-    - Aggregate candidates by relationship_id with max priority
-    - Pick single highest priority (max if higher_is_better)
+    - Aggregate candidates by relationship_id keeping the best priority
+    - Pick single highest priority (min when higher_is_better is False)
     - If tie on top priority => return empty (None) with reason
     - If empty list => return empty (None) with reason
 
@@ -136,7 +136,7 @@ def select_final_relationship(
     if not candidates_across_dimensions:
         return {"relationship": None, "changed": False, "reason": "no_candidate"}
 
-    # Aggregate by relationship_id to compute max priority across dims
+    # Aggregate by relationship_id to keep the best priority across dimensions.
     agg: dict[int, dict[str, Any]] = {}
     for c in candidates_across_dimensions:
         rid = c["relationship_id"]
@@ -146,22 +146,24 @@ def select_final_relationship(
                 "relationship_id": rid,
                 "relationship_display_name": c.get("relationship_display_name"),
                 "prompt_fragment": c.get("prompt_fragment"),
-                "max_priority": pr,
+                "best_priority": pr,
                 "_sample": c,
             }
-        elif pr > agg[rid]["max_priority"]:
-            agg[rid]["max_priority"] = pr
+        elif (higher_is_better and pr > agg[rid]["best_priority"]) or (
+            not higher_is_better and pr < agg[rid]["best_priority"]
+        ):
+            agg[rid]["best_priority"] = pr
 
     if not agg:
         return {"relationship": None, "changed": False, "reason": "no_candidate"}
 
     # Determine top priority
     top_priority = (
-        max(v["max_priority"] for v in agg.values())
+        max(v["best_priority"] for v in agg.values())
         if higher_is_better
-        else min(v["max_priority"] for v in agg.values())
+        else min(v["best_priority"] for v in agg.values())
     )
-    top_relations = [v for v in agg.values() if v["max_priority"] == top_priority]
+    top_relations = [v for v in agg.values() if v["best_priority"] == top_priority]
 
     if len(top_relations) > 1:
         logger.error(

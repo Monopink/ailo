@@ -525,7 +525,7 @@ def _find_matching_relationship(
                     if not limited_candidates:
                         logger.error("no_candidate_after_limit_filter")
                     else:
-                        top_priority = max(v["priority"] for v in limited_candidates.values())
+                        top_priority = min(v["priority"] for v in limited_candidates.values())
                         top_relations = [
                             v for v in limited_candidates.values() if v["priority"] == top_priority
                         ]
@@ -634,7 +634,7 @@ def _aggregate_relationship_candidates(
     candidates: list[RelationshipMapping],
 ) -> dict[int, RelationshipMapping]:
     """
-    Aggregate candidates by relationship_id keeping the highest priority mapping.
+    Aggregate candidates by relationship_id keeping the best-priority mapping.
 
     Args:
         candidates: Filtered relationship mappings
@@ -649,7 +649,7 @@ def _aggregate_relationship_candidates(
         priority = int(candidate["priority"])
         existing = aggregated.get(rid)
 
-        if existing is None or priority > existing["priority"]:
+        if existing is None or priority < existing["priority"]:
             aggregated[rid] = RelationshipMapping(
                 relationship=candidate["relationship"],
                 dimension_name=candidate["dimension_name"],

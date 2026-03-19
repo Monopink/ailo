@@ -211,15 +211,15 @@ async def run_style_score_test(  # noqa: PLR0912, PLR0915
                     "relationship_display_name": c.get("relationship_display_name"),
                     "prompt_fragment": c.get("prompt_fragment"),
                     "count": 0,
-                    "max_priority": pr,
+                    "best_priority": pr,
                     "dimension_display_names": sorted(rel_to_dims.get(rid, set())),
                 }
             unique[rid]["count"] += 1
-            unique[rid]["max_priority"] = max(pr, unique[rid]["max_priority"])
+            unique[rid]["best_priority"] = min(pr, unique[rid]["best_priority"])
 
         all_unique_candidates = list(unique.values())
 
-        selection = select_final_relationship(all_candidates, higher_is_better=True)
+        selection = select_final_relationship(all_candidates, higher_is_better=False)
         selected_relationship = selection.get("relationship")
         reason = selection.get("reason")
 

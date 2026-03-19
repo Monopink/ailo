@@ -238,7 +238,7 @@ async def generate_relationship_for_instance(  # noqa: PLR0911, PLR0912, PLR0915
         )
 
     # Final selection
-    selection = select_final_relationship(all_candidates, higher_is_better=True)
+    selection = select_final_relationship(all_candidates, higher_is_better=False)
     selected = selection.get("relationship")
     reason = selection.get("reason")
 

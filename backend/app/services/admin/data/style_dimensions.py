@@ -68,7 +68,7 @@ async def get_dimension_relationship_mappings(
         JOIN ai_dimensions d ON d.id = drm.dimension_id
         JOIN ai_relationships ar ON ar.id = drm.relationship_id
         WHERE 1=1{where_extra}
-        ORDER BY d.name, drm.priority DESC, drm.start_position
+        ORDER BY d.name, drm.priority ASC, drm.start_position
     """
 
     if norm_limit and norm_limit > 0:

@@ -257,14 +257,14 @@
       </div>
       {% endif %}
       <div class="list-group">
-        {% for rel in test_result.all_unique_candidates|sort(attribute='max_priority', reverse=True) %}
+        {% for rel in test_result.all_unique_candidates|sort(attribute='best_priority') %}
         <div class="list-group-item {% if test_result.selected_relationship and rel.relationship_id==test_result.selected_relationship.relationship_id %}list-group-item-success{% endif %}">
           <div class="d-flex justify-content-between align-items-start w-100">
             <div>
               <div class="fw-semibold">{{ rel.relationship_display_name or ('ID ' ~ rel.relationship_id) }}</div>
               <div class="text-muted mt-1">
                 <span class="me-3">维度：<strong>{{ (rel.dimension_display_names or []) | join(', ') }}</strong></span>
-                <span class="me-3">优先级：<strong>{{ rel.max_priority }}</strong></span>
+                <span class="me-3">优先级：<strong>{{ rel.best_priority }}</strong></span>
                 <span class="me-3">提示词：<strong>{{ (rel.prompt_fragment or '')[:80] }}{% if rel.prompt_fragment and (rel.prompt_fragment|length) > 120 %}...{% endif %}</strong></span>
               </div>
             </div>
@@ -347,9 +347,9 @@
   {% endif %}
   let html = '<div class="relationship-visual-container">';
   Object.keys(dimensionGroups).forEach(name => {
-    const items = dimensionGroups[name].sort((a, b) => (b.priority - a.priority) || (a.start_position - b.start_position));
+    const items = dimensionGroups[name].sort((a, b) => (a.priority - b.priority) || (a.start_position - b.start_position));
     const groups = {}; items.forEach(it => (groups[it.priority] ||= []).push(it));
-    const positions = []; let row = 0; Object.keys(groups).map(p => parseInt(p)).sort((a, b) => b - a).forEach(p => { const gs = groups[p]; const base = row; gs.forEach(it => { const sp = it.start_position / 1000, ep = it.end_position / 1000, wp = ep - sp, color = relColors[it.relationship_id]; let r = base, ok = false; while (!ok) { ok = true; for (const pos of positions) { if (pos.row === r && !(it.end_position <= pos.start || it.start_position >= pos.end)) { ok = false; break; } } if (!ok) r++; } positions.push({ item: it, row: r, start: it.start_position, end: it.end_position, sp, wp, color, priority: p }); }); row = Math.max(...positions.filter(x => x.priority === p).map(x => x.row)) + 1; });
+    const positions = []; let row = 0; Object.keys(groups).map(p => parseInt(p)).sort((a, b) => a - b).forEach(p => { const gs = groups[p]; const base = row; gs.forEach(it => { const sp = it.start_position / 1000, ep = it.end_position / 1000, wp = ep - sp, color = relColors[it.relationship_id]; let r = base, ok = false; while (!ok) { ok = true; for (const pos of positions) { if (pos.row === r && !(it.end_position <= pos.start || it.start_position >= pos.end)) { ok = false; break; } } if (!ok) r++; } positions.push({ item: it, row: r, start: it.start_position, end: it.end_position, sp, wp, color, priority: p }); }); row = Math.max(...positions.filter(x => x.priority === p).map(x => x.row)) + 1; });
     const maxRow = positions.length ? Math.max(...positions.map(p => p.row)) : 0; const h = 70 + maxRow * 26;
     html += `<div class="dimension-axis mb-4"><div class="form-label">${name} <small class="text-muted"> (${items.length})</small></div>`;
 

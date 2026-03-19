@@ -637,7 +637,7 @@ class AIDimensionRelationshipMappingView(ModelView):
         IntegerField(
             "priority",
             label="Priority",
-            help_text="Priority level (higher number = higher priority)",
+            help_text="Priority level (lower number = higher priority)",
         ),
         IntegerField(
             "limit_count",

@@ -23,6 +23,7 @@
   - `score = initial_position`
   - `position = initial_position`
   - `position_mapping_params` 复制自 dimension 配置
+- style 保存时，若任一 dimension 的 `initial_position` 命中多个 mapping，且最小 `priority` 不唯一，则保存失败。
 - 初始关系按现有关系选择引擎计算并持久化到 `ai_instances.relationship_id`。
 - 实例创建后必须具备 `relationship_id`；若无法得到唯一关系（如无候选或优先级并列），创建流程失败。
 

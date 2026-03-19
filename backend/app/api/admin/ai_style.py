@@ -24,6 +24,106 @@ logger = get_logger(__name__)
 style_router = APIRouter()
 
 
+def _resolve_dimension_key(dimension_data: dict[str, Any]) -> int | None:
+    """Resolve a stable per-request dimension key from persisted or temporary IDs."""
+    raw_key = dimension_data.get("dimension_id", dimension_data.get("temp_id"))
+    if raw_key is None:
+        return None
+    try:
+        return int(raw_key)
+    except (TypeError, ValueError):
+        return None
+
+
+def _validate_initial_position_priority_uniqueness(
+    dimensions_data: list[dict[str, Any]],
+    mappings_data: list[dict[str, Any]],
+) -> list[str]:
+    """Validate that each dimension's initial position can resolve a unique top-priority mapping.
+
+    Overlapping ranges are allowed. This check only blocks the case where the initial position
+    hits multiple mappings and the smallest priority value is shared by more than one mapping.
+    """
+    dimension_positions: dict[int, int] = {}
+    dimension_labels: dict[int, str] = {}
+
+    for dim_data in dimensions_data:
+        dimension_key = _resolve_dimension_key(dim_data)
+        if dimension_key is None:
+            continue
+
+        init_pos = dim_data.get("initial_position")
+        if not isinstance(init_pos, int):
+            continue
+
+        dimension_positions[dimension_key] = init_pos
+        label = dim_data.get("display_name") or dim_data.get("name")
+        dimension_labels[dimension_key] = str(label or f"dimension_id={dimension_key}")
+
+    candidates_by_dimension: dict[int, list[dict[str, int]]] = {}
+    for mapping_data in mappings_data:
+        raw_dimension_id = mapping_data.get("dimension_id")
+        if raw_dimension_id is None:
+            continue
+        try:
+            dimension_id = int(raw_dimension_id)
+        except (TypeError, ValueError):
+            continue
+
+        if dimension_id not in dimension_positions:
+            continue
+
+        start_position = mapping_data.get("start_position")
+        end_position = mapping_data.get("end_position")
+        relationship_id = mapping_data.get("relationship_id")
+        if not (
+            isinstance(start_position, int)
+            and isinstance(end_position, int)
+            and isinstance(relationship_id, int)
+        ):
+            continue
+
+        position = dimension_positions[dimension_id]
+        if start_position <= position <= end_position:
+            candidates_by_dimension.setdefault(dimension_id, []).append(
+                {
+                    "relationship_id": relationship_id,
+                    "start_position": start_position,
+                    "end_position": end_position,
+                    "priority": int(mapping_data.get("priority", 1) or 1),
+                }
+            )
+
+    errors: list[str] = []
+    for dimension_id, candidates in candidates_by_dimension.items():
+        if len(candidates) <= 1:
+            continue
+
+        top_priority = min(candidate["priority"] for candidate in candidates)
+        top_candidates = [
+            candidate for candidate in candidates if candidate["priority"] == top_priority
+        ]
+        if len(top_candidates) <= 1:
+            continue
+
+        candidates_text = ", ".join(
+            (
+                f"relationship_id={candidate['relationship_id']} "
+                f"range={candidate['start_position']}-{candidate['end_position']}"
+            )
+            for candidate in top_candidates
+        )
+        errors.append(
+            "Initial position "
+            f"{dimension_positions[dimension_id]} for dimension "
+            f"{dimension_labels.get(dimension_id, f'dimension_id={dimension_id}')}"
+            f" matches multiple highest-priority mappings (priority={top_priority}): "
+            f"{candidates_text}"
+        )
+
+    return errors
+
+
 @style_router.get("/ai_style/{style_id}/dimensions")
 async def get_style_dimensions(
     style_id: int, db: AsyncSession = Depends(get_db)
@@ -68,6 +168,13 @@ async def save_style_complete(
     removed_association_dimension_ids = data.get("removed_association_dimension_ids", []) or []
     mappings_data = data.get("mappings", []) or []
     deleted_mapping_ids = data.get("deleted_mapping_ids", []) or []
+
+    uniqueness_errors = _validate_initial_position_priority_uniqueness(
+        dimensions_data=dimensions_data,
+        mappings_data=mappings_data,
+    )
+    if uniqueness_errors:
+        raise HTTPException(status_code=400, detail="; ".join(uniqueness_errors))
 
     # === Remove associations (style-dimension only) ===
     deleted_associations = 0

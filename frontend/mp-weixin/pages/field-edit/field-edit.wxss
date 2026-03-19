@@ -127,3 +127,28 @@
   padding: var(--space-xl) var(--padding-page) var(--space-md);
   padding-bottom: calc(var(--space-md) + env(safe-area-inset-bottom));
 }
+
+.field-edit__submit-button {
+  width: 100%;
+  min-height: 88rpx;
+  padding: 0 var(--space-md);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-primary);
+  color: var(--color-white);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  line-height: 88rpx;
+  border: none;
+}
+
+.field-edit__submit-button--hover {
+  opacity: 0.9;
+}
+
+.field-edit__submit-button[disabled] {
+  opacity: 0.5;
+}
+
+.field-edit__submit-button::after {
+  border: none;
+}

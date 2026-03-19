@@ -12,14 +12,31 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: var(--space-sm);
+  background-color: transparent;
+  border: none;
+  line-height: normal;
 }
 
 .profile-detail__avatar--active {
   opacity: 0.8;
 }
 
+.profile-detail__avatar::after {
+  border: none;
+}
+
+.profile-detail__avatar[disabled] {
+  opacity: 0.5;
+}
+
 .profile-detail__avatar-image-wrap {
   position: relative;
+}
+
+.profile-detail__avatar-hint {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
 }
 
 .profile-detail__avatar-edit-badge {
@@ -41,4 +58,12 @@
 .profile-detail__cell-center {
   display: flex;
   align-items: center;
+}
+
+.profile-detail__avatar-export-canvas {
+  position: absolute;
+  width: 512rpx;
+  height: 512rpx;
+  left: -2000rpx;
+  top: -2000rpx;
 }

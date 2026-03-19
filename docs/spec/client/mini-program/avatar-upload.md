@@ -7,12 +7,14 @@
 - **配额限制**：每日 5 次、总量 10MB（后端返回 429）
 - **认证依赖**：需要 Bearer Token，支持 401 自动刷新
 - **后端兜底**：前端不维护默认头像，由后端返回兜底 URL
+- **来源分流**：微信头像在当前页面导出为 512x512 WebP，相册/拍照进入裁剪页后再上传
 
 ## 2. 模块职责
 
 | 模块 | 职责 |
 | --- | --- |
-| `utils/avatar-uploader.ts` | 统一上传流程（选择 → 裁剪 → 上传），返回 `{ fileId, url }` |
+| `utils/avatar-uploader.ts` | 统一上传流程编排，返回 `{ fileId, url }` |
+| `utils/avatar-image.ts` | 方图导出与 512x512 WebP 输出 |
 | `utils/media.ts` | 封装 `/api/v1/media/upload`，支持 401 自动刷新 |
 | `utils/profile.ts` | 封装 `/api/v1/user/profile`，提供 `updateUserAvatar(fileId)` |
 | `utils/avatar.ts` | URL 解析，不做前端兜底 |
@@ -21,8 +23,9 @@
 ## 3. 数据流
 
 ```
-用户点击 → wx.chooseMedia
-  → avatar-cropper (512x512 WebP)
+用户点击头像
+  → 基础库 >= 2.21.2: wx.chooseAvatar → 当前页面导出 512x512 WebP
+  → 基础库 < 2.21.2: wx.chooseMedia → avatar-cropper 导出 512x512 WebP
   → wx.getFileInfo
   → POST /api/v1/media/upload → { file_id, url }
   → (可选) PUT /api/v1/user/profile
@@ -32,6 +35,7 @@
 **相关 API 文档**：
 - [POST /api/v1/media/upload](../../../api/media.md)
 - [PUT /api/v1/user/profile](../../../api/user.md)
+- [头像昵称填写](profile-avatar-nickname.md)
 
 ## 5. 并发控制
 

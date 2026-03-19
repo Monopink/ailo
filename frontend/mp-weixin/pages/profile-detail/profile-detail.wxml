@@ -8,7 +8,27 @@
     <view slot="title" class="navbar-title">我的资料</view>
   </t-navbar>
   <view slot="content" class="profile-detail card-container">
+    <button
+      wx:if="{{canUseChooseAvatar}}"
+      class="profile-detail__avatar"
+      disabled="{{avatarUploading}}"
+      hover-class="profile-detail__avatar--active"
+      open-type="chooseAvatar"
+      bindchooseavatar="onChooseWechatAvatar">
+      <view class="profile-detail__avatar-image-wrap">
+        <t-avatar
+          image="{{profile ? profile.displayAvatar : ''}}"
+          size="112rpx"
+          shape="circle"
+        />
+        <view class="profile-detail__avatar-edit-badge">
+          <t-icon name="edit-1" size="var(--icon-xs)" color="var(--color-text-primary)" />
+        </view>
+      </view>
+      <text class="profile-detail__avatar-hint">点击设置头像</text>
+    </button>
     <view
+      wx:else
       class="profile-detail__avatar"
       bindtap="editAvatar"
       hover-class="profile-detail__avatar--active">
@@ -22,6 +42,7 @@
           <t-icon name="edit-1" size="var(--icon-xs)" color="var(--color-text-primary)" />
         </view>
       </view>
+      <text class="profile-detail__avatar-hint">点击设置头像</text>
     </view>
 
     <!-- Info groups - Using t-cell-group with card theme -->
@@ -94,3 +115,7 @@
     </view>
   </view>
 </page-layout>
+<canvas id="avatarExportCanvas2d" type="2d" class="profile-detail__avatar-export-canvas"></canvas>
+<canvas
+  canvas-id="avatarExportCanvasLegacy"
+  class="profile-detail__avatar-export-canvas"></canvas>

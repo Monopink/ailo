@@ -14,12 +14,36 @@
   align-items: center;
 }
 
-.setup-avatar--active {
+.setup-avatar__trigger {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  background-color: transparent;
+  border: none;
+  line-height: normal;
+}
+
+.setup-avatar__trigger--hover {
   opacity: 0.8;
+}
+
+.setup-avatar__trigger::after {
+  border: none;
+}
+
+.setup-avatar__trigger[disabled] {
+  opacity: 0.5;
 }
 
 .setup-avatar__image-wrap {
   position: relative;
+}
+
+.setup-avatar__hint {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
 }
 
 .setup-avatar__edit-badge {
@@ -73,4 +97,37 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
+}
+
+.setup-submit-button {
+  width: 100%;
+  min-height: 88rpx;
+  padding: 0 var(--space-md);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-primary);
+  color: var(--color-white);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  line-height: 88rpx;
+  border: none;
+}
+
+.setup-submit-button--hover {
+  opacity: 0.9;
+}
+
+.setup-submit-button[disabled] {
+  opacity: 0.5;
+}
+
+.setup-submit-button::after {
+  border: none;
+}
+
+.setup-avatar__export-canvas {
+  position: absolute;
+  width: 512rpx;
+  height: 512rpx;
+  left: -2000rpx;
+  top: -2000rpx;
 }

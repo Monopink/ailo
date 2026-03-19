@@ -1,8 +1,12 @@
 import { getLogger } from '../../utils/logger';
 import { isDefined, isNonEmptyString } from '../../utils/guards';
+import {
+  exportSquareAvatar,
+  getAvatarImageInfo,
+  type SquareCropSourceRect,
+} from '../../utils/avatar-image';
 
 const logger = getLogger('AvatarCropper');
-const OUTPUT_SIZE = 512;
 const MIN_INPUT_SHORT_SIDE = 256;
 const MAX_SCALE = 4;
 
@@ -16,12 +20,6 @@ interface CropTransform {
   x: number;
   y: number;
   scale: number;
-}
-
-interface CropSourceRect {
-  sourceX: number;
-  sourceY: number;
-  sourceSize: number;
 }
 
 interface AvatarCropperPageData {
@@ -87,7 +85,7 @@ Page<AvatarCropperPageData, AvatarCropperPageCustom>({
 
   async initializeCropper(filePath: string) {
     try {
-      const info = await getImageInfo(filePath);
+      const info = await getAvatarImageInfo(filePath);
       const minSide = Math.min(info.width, info.height);
       if (minSide < MIN_INPUT_SHORT_SIDE) {
         logger.info('Reject low resolution image for avatar crop', {
@@ -251,18 +249,6 @@ Page<AvatarCropperPageData, AvatarCropperPageCustom>({
   },
 });
 
-function getImageInfo(
-  filePath: string
-): Promise<WechatMiniprogram.GetImageInfoSuccessCallbackResult> {
-  return new Promise((resolve, reject) => {
-    wx.getImageInfo({
-      src: filePath,
-      success: resolve,
-      fail: reject,
-    });
-  });
-}
-
 function cropImageToSquare(options: {
   imagePath: string;
   imageInfo: CropperInternalState;
@@ -271,7 +257,12 @@ function cropImageToSquare(options: {
   scale: number;
 }): Promise<string> {
   const cropSourceRect = resolveCropSourceRect(options);
-  return drawCroppedAvatarToCanvas(options.imagePath, cropSourceRect);
+  return exportSquareAvatar({
+    imagePath: options.imagePath,
+    cropSourceRect,
+    canvas2dSelector: '#cropCanvas2d',
+    legacyCanvasId: 'cropCanvasLegacy',
+  });
 }
 
 function resolveCropSourceRect(options: {
@@ -279,7 +270,7 @@ function resolveCropSourceRect(options: {
   containerSize: number;
   position: { x: number; y: number };
   scale: number;
-}): CropSourceRect {
+}): SquareCropSourceRect {
   const { imageInfo, containerSize, position, scale } = options;
   const resolvedScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
   const resolvedX = Number.isFinite(position.x) ? position.x : 0;
@@ -306,147 +297,6 @@ function resolveWindowWidth(): number {
     }
   }
   return 375;
-}
-
-function resolvePixelRatio(): number {
-  if (typeof wx.getWindowInfo === 'function') {
-    const windowInfo = wx.getWindowInfo();
-    if (typeof windowInfo.pixelRatio === 'number' && Number.isFinite(windowInfo.pixelRatio)) {
-      return Math.max(1, windowInfo.pixelRatio);
-    }
-  }
-  return 2;
-}
-
-function getCropCanvasNode(): Promise<WechatMiniprogram.Canvas> {
-  return new Promise((resolve, reject) => {
-    const query = wx.createSelectorQuery();
-    query
-      .select('#cropCanvas2d')
-      .fields({ node: true, size: true }, (result) => {
-        const canvas = (result as { node?: WechatMiniprogram.Canvas } | null)?.node;
-        if (isDefined(canvas)) {
-          resolve(canvas);
-          return;
-        }
-        reject(new Error('CANVAS_NODE_NOT_FOUND'));
-      })
-      .exec();
-  });
-}
-
-function loadCanvasImage(
-  canvas: WechatMiniprogram.Canvas,
-  imagePath: string
-): Promise<WechatMiniprogram.Image> {
-  return new Promise((resolve, reject) => {
-    const image = canvas.createImage();
-    image.onload = () => resolve(image);
-    image.onerror = (error: unknown) =>
-      reject(error instanceof Error ? error : new Error(String(error)));
-    image.src = imagePath;
-  });
-}
-
-function exportCanvasToTempFile2D(canvas: WechatMiniprogram.Canvas): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const exportOptions = {
-      canvas: canvas as unknown as WechatMiniprogram.IAnyObject,
-      width: canvas.width,
-      height: canvas.height,
-      destWidth: OUTPUT_SIZE,
-      destHeight: OUTPUT_SIZE,
-      fileType: 'webp',
-      quality: 0.85,
-      success: (res: WechatMiniprogram.CanvasToTempFilePathSuccessCallbackResult) =>
-        resolve(res.tempFilePath),
-      fail: reject,
-    } as unknown as WechatMiniprogram.CanvasToTempFilePathOption;
-    void wx.canvasToTempFilePath(exportOptions);
-  });
-}
-
-function drawCroppedAvatarToCanvasLegacy(
-  cropSourceRect: CropSourceRect,
-  imagePath: string
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const ctx = wx.createCanvasContext('cropCanvasLegacy');
-    ctx.drawImage(
-      imagePath,
-      cropSourceRect.sourceX,
-      cropSourceRect.sourceY,
-      cropSourceRect.sourceSize,
-      cropSourceRect.sourceSize,
-      0,
-      0,
-      OUTPUT_SIZE,
-      OUTPUT_SIZE
-    );
-    ctx.draw(false, () => {
-      const exportOptions = {
-        canvasId: 'cropCanvasLegacy',
-        width: OUTPUT_SIZE,
-        height: OUTPUT_SIZE,
-        destWidth: OUTPUT_SIZE,
-        destHeight: OUTPUT_SIZE,
-        fileType: 'webp',
-        quality: 0.85,
-        success: (res: WechatMiniprogram.CanvasToTempFilePathSuccessCallbackResult) =>
-          resolve(res.tempFilePath),
-        fail: reject,
-      } as unknown as WechatMiniprogram.CanvasToTempFilePathOption;
-      void wx.canvasToTempFilePath(exportOptions, undefined);
-    });
-  });
-}
-
-function serializeError(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return String(error);
-}
-
-async function drawCroppedAvatarToCanvas(
-  imagePath: string,
-  cropSourceRect: CropSourceRect
-): Promise<string> {
-  try {
-    const canvas = await getCropCanvasNode();
-    const context = canvas.getContext('2d');
-    const dpr = resolvePixelRatio();
-
-    canvas.width = OUTPUT_SIZE * dpr;
-    canvas.height = OUTPUT_SIZE * dpr;
-
-    if (typeof context.setTransform === 'function') {
-      context.setTransform(dpr, 0, 0, dpr, 0, 0);
-    } else {
-      context.scale(dpr, dpr);
-    }
-    context.clearRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
-
-    const image = await loadCanvasImage(canvas, imagePath);
-    context.drawImage(
-      image,
-      cropSourceRect.sourceX,
-      cropSourceRect.sourceY,
-      cropSourceRect.sourceSize,
-      cropSourceRect.sourceSize,
-      0,
-      0,
-      OUTPUT_SIZE,
-      OUTPUT_SIZE
-    );
-
-    return await exportCanvasToTempFile2D(canvas);
-  } catch (error) {
-    logger.warn('Canvas 2D crop failed, fallback to legacy canvas', {
-      error: serializeError(error),
-    });
-    return await drawCroppedAvatarToCanvasLegacy(cropSourceRect, imagePath);
-  }
 }
 
 function resolveNextTransform(params: {

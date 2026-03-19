@@ -1,106 +1,150 @@
-<page-layout
-  screenState="{{pageLayoutData.screenModel.screenState}}"
-  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
-  refreshState="{{pageLayoutData.screenModel.refreshState}}"
-  emptyMessage="{{pageLayoutData.emptyMessage}}"
-  hasFooter="{{pageLayoutData.hasFooter}}">
-  <t-navbar slot="header" left-arrow="{{true}}">
-    <view slot="title" class="navbar-title">完善资料</view>
-  </t-navbar>
-  <view slot="content" class="setup-page card-container">
-    <view class="setup-avatar" bindtap="handleChooseAvatar" hover-class="setup-avatar--active">
-      <view class="setup-avatar__image-wrap">
-        <t-avatar
-          image="{{avatarUrl}}"
-          size="112rpx"
-          shape="circle"
-        />
-        <view class="setup-avatar__edit-badge">
-          <t-icon name="edit-1" size="var(--icon-xs)" color="var(--color-text-primary)" />
+<form bindsubmit="handleSubmit">
+  <page-layout
+    screenState="{{pageLayoutData.screenModel.screenState}}"
+    contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+    refreshState="{{pageLayoutData.screenModel.refreshState}}"
+    emptyMessage="{{pageLayoutData.emptyMessage}}"
+    hasFooter="{{pageLayoutData.hasFooter}}">
+    <t-navbar slot="header" left-arrow="{{true}}">
+      <view slot="title" class="navbar-title">完善资料</view>
+    </t-navbar>
+    <view slot="content" class="setup-page card-container">
+      <view class="setup-avatar">
+        <button
+          wx:if="{{canUseChooseAvatar}}"
+          class="setup-avatar__trigger"
+          disabled="{{uploadingAvatar}}"
+          hover-class="setup-avatar__trigger--hover"
+          open-type="chooseAvatar"
+          bindchooseavatar="onChooseWechatAvatar">
+          <view class="setup-avatar__image-wrap">
+            <t-avatar
+              image="{{avatarUrl}}"
+              size="112rpx"
+              shape="circle"
+            />
+            <view class="setup-avatar__edit-badge">
+              <t-icon name="edit-1" size="var(--icon-xs)" color="var(--color-text-primary)" />
+            </view>
+          </view>
+          <text class="setup-avatar__hint">点击设置头像</text>
+        </button>
+        <view
+          wx:else
+          class="setup-avatar__trigger"
+          hover-class="setup-avatar__trigger--hover"
+          bindtap="handleChooseAvatar">
+          <view class="setup-avatar__image-wrap">
+            <t-avatar
+              image="{{avatarUrl}}"
+              size="112rpx"
+              shape="circle"
+            />
+            <view class="setup-avatar__edit-badge">
+              <t-icon name="edit-1" size="var(--icon-xs)" color="var(--color-text-primary)" />
+            </view>
+          </view>
+          <text class="setup-avatar__hint">点击设置头像</text>
         </view>
       </view>
-    </view>
 
-    <!-- Basic info group -->
-    <view class="card-wrapper">
-      <t-cell-group theme="card">
-        <t-cell
-          title="昵称 *"
-          t-class-title="profile-cell__title">
-          <input
-            slot="note"
-            class="setup-input"
-            placeholder="请输入昵称"
-            bindinput="onNicknameInput"
-            value="{{nickname}}"
-            maxlength="{{maxNicknameLength}}" />
-        </t-cell>
-
-        <picker
-          mode="selector"
-          range="{{genderOptions}}"
-          range-key="label"
-          value="{{genderIndex}}"
-          bindchange="onGenderChange">
+      <!-- Basic info group -->
+      <view class="card-wrapper">
+        <t-cell-group theme="card">
           <t-cell
-            title="性别"
-            t-class-title="profile-cell__title"
-            arrow
-            hover>
-            <text wx:if="{{genderIndex >= 0}}" slot="note" class="profile-cell__note">
-              {{genderOptions[genderIndex].label}}
-            </text>
-            <text wx:else slot="note" class="profile-cell__note">请选择性别</text>
+            title="昵称 *"
+            t-class-title="profile-cell__title">
+            <input
+              slot="note"
+              class="setup-input"
+              name="nickname"
+              type="{{useWechatNicknameInput ? 'nickname' : 'text'}}"
+              placeholder="请输入昵称"
+              bindinput="onNicknameInput"
+              bindnicknamereview="onNicknameReview"
+              value="{{nickname}}"
+              maxlength="{{maxNicknameLength}}" />
           </t-cell>
-        </picker>
-      </t-cell-group>
-    </view>
 
-    <!-- Additional info group -->
-    <view class="card-wrapper">
-      <t-cell-group theme="card">
-        <picker
-          mode="region"
-          level="city"
-          bindchange="onRegionChange">
+          <picker
+            mode="selector"
+            range="{{genderOptions}}"
+            range-key="label"
+            value="{{genderIndex}}"
+            bindchange="onGenderChange">
+            <t-cell
+              title="性别"
+              t-class-title="profile-cell__title"
+              arrow
+              hover>
+              <text wx:if="{{genderIndex >= 0}}" slot="note" class="profile-cell__note">
+                {{genderOptions[genderIndex].label}}
+              </text>
+              <text wx:else slot="note" class="profile-cell__note">请选择性别</text>
+            </t-cell>
+          </picker>
+        </t-cell-group>
+      </view>
+
+      <!-- Additional info group -->
+      <view class="card-wrapper">
+        <t-cell-group theme="card">
+          <picker
+            mode="region"
+            level="city"
+            bindchange="onRegionChange">
+            <t-cell
+              title="地区"
+              t-class-title="profile-cell__title"
+              arrow
+              hover>
+              <text wx:if="{{regionDisplay !== ''}}" slot="note" class="profile-cell__note">
+                {{regionDisplay}}
+              </text>
+              <text wx:else slot="note" class="profile-cell__note">请选择地区</text>
+            </t-cell>
+          </picker>
+
           <t-cell
-            title="地区"
-            t-class-title="profile-cell__title"
-            arrow
-            hover>
-            <text wx:if="{{regionDisplay !== ''}}" slot="note" class="profile-cell__note">
-              {{regionDisplay}}
-            </text>
-            <text wx:else slot="note" class="profile-cell__note">请选择地区</text>
+            title="个性签名"
+            t-class-title="profile-cell__title">
+            <textarea
+              slot="description"
+              class="setup-textarea"
+              placeholder="请输入个性签名"
+              bindinput="onBioInput"
+              value="{{bio}}"
+              maxlength="{{maxBioLength}}"
+              auto-height />
           </t-cell>
-        </picker>
+        </t-cell-group>
+      </view>
 
-        <t-cell
-          title="个性签名"
-          t-class-title="profile-cell__title">
-          <textarea
-            slot="description"
-            class="setup-textarea"
-            placeholder="请输入个性签名"
-            bindinput="onBioInput"
-            value="{{bio}}"
-            maxlength="{{maxBioLength}}"
-            auto-height />
-        </t-cell>
-      </t-cell-group>
     </view>
-  </view>
 
-  <view slot="footer" class="setup-footer">
-    <t-button
-      theme="primary"
-      block
-      loading="{{loading}}"
-      bindtap="handleSubmit">
-      完成
-    </t-button>
-    <t-button variant="outline" block bindtap="handleCancel">
-      取消
-    </t-button>
-  </view>
-</page-layout>
+    <view slot="footer" class="setup-footer">
+      <button
+        wx:if="{{useWechatNicknameInput}}"
+        class="setup-submit-button"
+        form-type="submit"
+        disabled="{{loading}}"
+        hover-class="setup-submit-button--hover"
+        loading="{{loading}}">
+        完成
+      </button>
+      <t-button
+        wx:else
+        theme="primary"
+        block
+        loading="{{loading}}"
+        bindtap="handleSubmit">
+        完成
+      </t-button>
+      <t-button variant="outline" block bindtap="handleCancel">
+        取消
+      </t-button>
+    </view>
+  </page-layout>
+  <canvas id="avatarExportCanvas2d" type="2d" class="setup-avatar__export-canvas"></canvas>
+  <canvas canvas-id="avatarExportCanvasLegacy" class="setup-avatar__export-canvas"></canvas>
+</form>

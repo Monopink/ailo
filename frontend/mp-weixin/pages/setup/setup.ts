@@ -1,6 +1,6 @@
 import authService from '../../utils/auth-service';
 import { getAvatarUrl } from '../../utils/avatar';
-import { completeAvatarUpload } from '../../utils/avatar-uploader';
+import { completeAvatarUpload, completeWechatAvatarUpload } from '../../utils/avatar-uploader';
 import logger from '../../utils/logger';
 import { classifyError } from '../../utils/error-classifier';
 import { isNonEmptyString } from '../../utils/guards';
@@ -10,6 +10,7 @@ import type { StoredAuthUser } from '../../utils/storage';
 import { createSetupPageService } from '../../services/pages/setup-service';
 import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 import { PROFILE_BIO_RULE, PROFILE_NICKNAME_RULE, validateTextLimit } from '../../utils/text-limit';
+import { getWechatProfileCapabilities } from '../../utils/wechat-profile-capability';
 
 const MIN_NICKNAME_LENGTH = 2;
 const WHITESPACE_REGEX = /\s/u;
@@ -17,6 +18,9 @@ const WHITESPACE_REGEX = /\s/u;
 type RegionValue = [] | [string] | [string, string];
 
 type InputEvent = WechatMiniprogram.CustomEvent<{ value: string }>;
+type NicknameReviewEvent = WechatMiniprogram.CustomEvent<{ pass: boolean; timeout: boolean }>;
+type ChooseAvatarEvent = WechatMiniprogram.CustomEvent<{ avatarUrl?: string }>;
+type FormSubmitEvent = WechatMiniprogram.CustomEvent<{ value: Record<string, string> }>;
 type RegionPickerDetail = {
   value: string[];
   code: string[];
@@ -43,6 +47,9 @@ interface SetupPageData {
   maxNicknameLength: number;
   maxBioLength: number;
   loading: boolean;
+  canUseChooseAvatar: boolean;
+  useWechatNicknameInput: boolean;
+  canUseNicknameReview: boolean;
 }
 
 interface SetupPageCustom {
@@ -51,11 +58,13 @@ interface SetupPageCustom {
   ensureProfileRequired(): boolean;
   onUnload(): void;
   onNicknameInput(event: InputEvent): void;
+  onNicknameReview(event: NicknameReviewEvent): void;
   onGenderChange(event: WechatMiniprogram.PickerChange): void;
   onBioInput(event: InputEvent): void;
   onRegionChange(event: RegionPickerChangeEvent): void;
   handleChooseAvatar(): Promise<void>;
-  handleSubmit(): Promise<void>;
+  onChooseWechatAvatar(event: ChooseAvatarEvent): Promise<void>;
+  handleSubmit(event?: FormSubmitEvent): Promise<void>;
   handleCancel(): void;
 }
 
@@ -185,6 +194,11 @@ const mapProfileToStoredUser = (profile: { qiao_id: string }): StoredAuthUser =>
   qiao_id: profile.qiao_id,
 });
 
+const resolveSubmittedNickname = (currentNickname: string, event?: FormSubmitEvent): string => {
+  const formValue = event?.detail.value.nickname;
+  return typeof formValue === 'string' ? formValue : currentNickname;
+};
+
 Page<SetupPageData, SetupPageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
@@ -212,6 +226,9 @@ Page<SetupPageData, SetupPageCustom>({
     maxNicknameLength: PROFILE_NICKNAME_RULE.displayWidthLimit,
     maxBioLength: PROFILE_BIO_RULE.graphemeLimit,
     loading: false,
+    canUseChooseAvatar: false,
+    useWechatNicknameInput: false,
+    canUseNicknameReview: false,
   },
 
   setupPageService: null as unknown as ReturnType<typeof createSetupPageService>,
@@ -219,6 +236,12 @@ Page<SetupPageData, SetupPageCustom>({
   async onLoad() {
     logger.info('Profile setup page loaded');
     this.setupPageService = createSetupPageService();
+    const capabilities = getWechatProfileCapabilities();
+    this.setData({
+      canUseChooseAvatar: capabilities.canUseChooseAvatar,
+      useWechatNicknameInput: capabilities.canUseNicknameInput,
+      canUseNicknameReview: capabilities.canUseNicknameReview,
+    });
     if (!this.ensureProfileRequired()) {
       return;
     }
@@ -305,6 +328,16 @@ Page<SetupPageData, SetupPageCustom>({
     this.setData({ nickname: event.detail.value });
   },
 
+  onNicknameReview(event) {
+    if (!this.data.canUseNicknameReview || event.detail.pass) {
+      return;
+    }
+    void wx.showToast({
+      title: event.detail.timeout ? '昵称校验超时，请稍后重试' : '昵称未通过校验，请重新输入',
+      icon: 'none',
+    });
+  },
+
   onGenderChange(event) {
     const genderIndex = Number(event.detail.value);
     const genderOption = Number.isNaN(genderIndex) ? undefined : GENDER_OPTIONS[genderIndex];
@@ -367,8 +400,52 @@ Page<SetupPageData, SetupPageCustom>({
     }
   },
 
-  async handleSubmit() {
-    const validated = validateSetupSubmissionOrToast(this.data);
+  async onChooseWechatAvatar(event) {
+    if (this.data.uploadingAvatar) {
+      return;
+    }
+
+    const avatarUrl = event.detail.avatarUrl ?? '';
+    if (!isNonEmptyString(avatarUrl)) {
+      return;
+    }
+
+    this.setData({ uploadingAvatar: true });
+    try {
+      const result = await completeWechatAvatarUpload(avatarUrl, {
+        page: 'setup',
+        sourceType: 'wechat-avatar',
+      });
+      if (result === null) {
+        return;
+      }
+
+      const resolvedUrl = getAvatarUrl(result.url);
+      this.setData({
+        avatarFileId: result.fileId,
+        avatarUrl: resolvedUrl !== '' ? resolvedUrl : result.url,
+      });
+      void wx.showToast({
+        title: '头像已更新',
+        icon: 'success',
+      });
+    } catch (error) {
+      logger.error('WeChat avatar upload failed during setup', { error });
+      void wx.showToast({
+        title: '头像更新失败，请重试',
+        icon: 'none',
+      });
+    } finally {
+      this.setData({ uploadingAvatar: false });
+    }
+  },
+
+  async handleSubmit(event) {
+    const nickname = resolveSubmittedNickname(this.data.nickname, event);
+    const validated = validateSetupSubmissionOrToast({
+      ...this.data,
+      nickname,
+    });
     if (validated === null) {
       return;
     }

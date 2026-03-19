@@ -1,18 +1,21 @@
 import type { ApiError } from './api';
+import { exportCenteredSquareAvatar } from './avatar-image';
+import { isDefined, isNonEmptyString } from './guards';
 import { getLogger } from './logger';
 import {
   uploadAvatarViaProxy,
   type AvatarUploadFormData,
   type AvatarUploadResponse,
 } from './media';
-import { isDefined, isNonEmptyString } from './guards';
 
 const logger = getLogger('AvatarUploader');
 const AVATAR_FILE_TYPE = '1';
 const AVATAR_MIME_TYPE = 'image/webp';
 const HTTP_TMP_PREFIX = /^https?:\/\/tmp\//i;
+const AVATAR_EXPORT_CANVAS_2D_SELECTOR = '#avatarExportCanvas2d';
+const AVATAR_EXPORT_CANVAS_LEGACY_ID = 'avatarExportCanvasLegacy';
 
-interface CroppedAvatarResult {
+interface PreparedAvatarResult {
   tempFilePath: string;
   fileSize: number;
   sourceType?: string;
@@ -76,11 +79,7 @@ const serializeError = (error: unknown): string => {
 const pickNonEmptyString = (...values: Array<string | undefined | null>): string | undefined =>
   values.find((value) => isNonEmptyString(value));
 
-// Removed downloadTmpFile - http://tmp/... paths are valid and should be used directly
-
 const ensureLocalFilePath = (filePath: string): Promise<string> => {
-  // http://tmp/... is a valid local file protocol in DevTools (equivalent to wxfile:// on devices)
-  // No conversion needed - wx APIs support both protocols natively
   if (HTTP_TMP_PREFIX.test(filePath)) {
     logger.info('[avatar] using DevTools temp file path', {
       pathPrefix: filePath.substring(0, 30),
@@ -197,8 +196,6 @@ const getFileInfoSize = (filePath: string): Promise<number> =>
   });
 
 const resolveFileSize = async (filePath: string): Promise<number | null> => {
-  // DevTools uses http://tmp/... protocol which FileSystemManager APIs don't support
-  // Return 0 to signal backend to use actual file size
   if (HTTP_TMP_PREFIX.test(filePath)) {
     logger.info('[avatar] DevTools path - skipping file size check, backend will detect', {
       pathPrefix: filePath.substring(0, 30),
@@ -206,7 +203,6 @@ const resolveFileSize = async (filePath: string): Promise<number | null> => {
     return 0;
   }
 
-  // Real device uses wxfile:// protocol which FileSystemManager supports
   try {
     return await getFileInfoSize(filePath);
   } catch (error) {
@@ -287,6 +283,17 @@ const handleSelectionError = (error: unknown): void => {
   });
 };
 
+const handlePreparationError = (error: unknown): void => {
+  if (isUserCancelError(error)) {
+    return;
+  }
+  logger.error('Avatar preparation failed', { error: serializeError(error) });
+  void wx.showToast({
+    title: '处理图片失败，请重试',
+    icon: 'none',
+  });
+};
+
 const handleUploadError = (error: unknown, logContext?: Record<string, unknown>): void => {
   if (isUserCancelError(error)) {
     return;
@@ -328,13 +335,32 @@ const handleUploadError = (error: unknown, logContext?: Record<string, unknown>)
   });
 };
 
-export async function selectAndCropAvatar(): Promise<CroppedAvatarResult | null> {
-  const media = await chooseAvatarMedia();
-  if (!isDefined(media)) {
+const finalizePreparedAvatarFile = async (
+  tempFilePath: string,
+  sourceType?: string
+): Promise<PreparedAvatarResult | null> => {
+  const fileSize = await resolveFileSize(tempFilePath);
+  if (fileSize === null) {
+    logger.error('Avatar file size check failed', { filePath: tempFilePath });
+    void wx.showToast({
+      title: '无法读取图片，请重试',
+      icon: 'none',
+    });
     return null;
   }
 
-  const normalizedSourcePath = await ensureLocalFilePath(media.tempFilePath);
+  return {
+    tempFilePath,
+    fileSize,
+    sourceType,
+  };
+};
+
+const selectAndCropAvatarFromTempFile = async (
+  tempFilePath: string,
+  sourceType?: string
+): Promise<PreparedAvatarResult | null> => {
+  const normalizedSourcePath = await ensureLocalFilePath(tempFilePath);
   const croppedFilePath = await openCropper(normalizedSourcePath);
   if (croppedFilePath === null) {
     return null;
@@ -355,21 +381,45 @@ export async function selectAndCropAvatar(): Promise<CroppedAvatarResult | null>
     return null;
   }
 
-  const fileSize = await resolveFileSize(normalizedCroppedPath);
-  if (fileSize === null) {
-    logger.error('Avatar file size check failed', { filePath: normalizedCroppedPath });
+  return await finalizePreparedAvatarFile(normalizedCroppedPath, sourceType);
+};
+
+const prepareWechatAvatarFromTempFile = async (
+  tempFilePath: string,
+  sourceType?: string
+): Promise<PreparedAvatarResult | null> => {
+  let normalizedSourcePath: string;
+  let exportedTempFilePath: string;
+
+  try {
+    normalizedSourcePath = await ensureLocalFilePath(tempFilePath);
+    exportedTempFilePath = await exportCenteredSquareAvatar({
+      imagePath: normalizedSourcePath,
+      canvas2dSelector: AVATAR_EXPORT_CANVAS_2D_SELECTOR,
+      legacyCanvasId: AVATAR_EXPORT_CANVAS_LEGACY_ID,
+    });
+  } catch (error) {
+    logger.error('[avatar] wechat avatar export failed', {
+      filePath: tempFilePath,
+      error: serializeError(error),
+    });
     void wx.showToast({
-      title: '无法读取图片，请重试',
+      title: '处理图片失败，请重试',
       icon: 'none',
     });
     return null;
   }
 
-  return {
-    tempFilePath: normalizedCroppedPath,
-    fileSize,
-    sourceType: media.sourceType,
-  };
+  const normalizedExportedPath = await ensureLocalFilePath(exportedTempFilePath);
+  return await finalizePreparedAvatarFile(normalizedExportedPath, sourceType);
+};
+
+export async function selectAndCropAvatar(): Promise<PreparedAvatarResult | null> {
+  const media = await chooseAvatarMedia();
+  if (!isDefined(media)) {
+    return null;
+  }
+  return await selectAndCropAvatarFromTempFile(media.tempFilePath, media.sourceType);
 }
 
 export async function uploadAvatarToBackend(
@@ -390,20 +440,28 @@ export async function uploadAvatarToBackend(
   };
 }
 
-export async function completeAvatarUpload(
-  context?: AvatarUploadContext
-): Promise<AvatarUploadResult | null> {
+interface CompleteAvatarUploadOptions {
+  context?: AvatarUploadContext;
+  prepare: () => Promise<PreparedAvatarResult | null>;
+  onPrepareError: (error: unknown) => void;
+}
+
+const completePreparedAvatarUpload = async ({
+  context,
+  prepare,
+  onPrepareError,
+}: CompleteAvatarUploadOptions): Promise<AvatarUploadResult | null> => {
   const uploadStart = Date.now();
   let logContext = buildLogContext(context);
   const environment = resolveEnvironmentTag();
 
-  let selection: CroppedAvatarResult | null = null;
+  let selection: PreparedAvatarResult | null = null;
   let selectionDurationMs = 0;
   try {
-    selection = await selectAndCropAvatar();
+    selection = await prepare();
     selectionDurationMs = Date.now() - uploadStart;
   } catch (error) {
-    handleSelectionError(error);
+    onPrepareError(error);
     return null;
   }
 
@@ -447,4 +505,25 @@ export async function completeAvatarUpload(
   } finally {
     void wx.hideLoading();
   }
+};
+
+export async function completeAvatarUpload(
+  context?: AvatarUploadContext
+): Promise<AvatarUploadResult | null> {
+  return await completePreparedAvatarUpload({
+    context,
+    prepare: async () => await selectAndCropAvatar(),
+    onPrepareError: handleSelectionError,
+  });
+}
+
+export async function completeWechatAvatarUpload(
+  tempFilePath: string,
+  context?: AvatarUploadContext
+): Promise<AvatarUploadResult | null> {
+  return await completePreparedAvatarUpload({
+    context,
+    prepare: async () => await prepareWechatAvatarFromTempFile(tempFilePath, context?.sourceType),
+    onPrepareError: handlePreparationError,
+  });
 }

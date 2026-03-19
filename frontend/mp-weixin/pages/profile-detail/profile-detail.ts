@@ -1,5 +1,5 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
-import { completeAvatarUpload } from '../../utils/avatar-uploader';
+import { completeAvatarUpload, completeWechatAvatarUpload } from '../../utils/avatar-uploader';
 import { getLogger } from '../../utils/logger';
 import profileService, { type ProfileViewModel } from '../../utils/profile-service';
 import { updateUserAvatar } from '../../utils/profile';
@@ -8,6 +8,7 @@ import { GENDER_OPTIONS, type GenderOption } from '../../utils/constants/user';
 import { type ScreenModel } from '../../services/pages/page-state';
 import { createProfileDetailPageService } from '../../services/pages/profile-detail-service';
 import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
+import { getWechatProfileCapabilities } from '../../utils/wechat-profile-capability';
 
 const logger = getLogger('ProfileDetail');
 
@@ -19,8 +20,10 @@ interface ProfileDetailPageData extends Record<string, unknown> {
   genderIndex: number;
   avatarUploading: boolean;
   fieldUpdating: boolean;
+  canUseChooseAvatar: boolean;
 }
 
+type ChooseAvatarEvent = WechatMiniprogram.CustomEvent<{ avatarUrl?: string }>;
 type RegionPickerDetail = {
   value: string[];
   code: string[];
@@ -38,6 +41,9 @@ interface ProfileDetailPageCustom {
   onGenderChange(event: WechatMiniprogram.PickerChange): void;
   onRegionChange(event: RegionPickerChangeEvent): void;
   editBio(): void;
+  onChooseWechatAvatar(event: ChooseAvatarEvent): Promise<void>;
+  applyAvatarFile(fileId: string): Promise<void>;
+  uploadLocalAvatar(): Promise<void>;
   editAvatar(): Promise<void>;
   onUnload(): void;
 }
@@ -105,6 +111,7 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
     genderIndex: -1,
     avatarUploading: false,
     fieldUpdating: false,
+    canUseChooseAvatar: false,
   },
 
   profileDetailPageService: null as unknown as ReturnType<typeof createProfileDetailPageService>,
@@ -116,11 +123,13 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
   onLoad() {
     logger.info('Profile detail page loaded');
     this.profileDetailPageService = createProfileDetailPageService();
+    const capabilities = getWechatProfileCapabilities();
     const bootstrap = this.profileDetailPageService.bootstrap();
     this.setData({
       profile: bootstrap.profile,
       genderText: bootstrap.genderText,
       genderIndex: resolveGenderIndex(bootstrap.profile?.gender),
+      canUseChooseAvatar: capabilities.canUseChooseAvatar,
       ...buildPageLayoutScreenModelPayload(bootstrap.screenModel),
     });
     void this.loadProfile();
@@ -288,7 +297,58 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
       url: `/pages/field-edit/field-edit?domain=profile&field=bio&value=${encodeValue(this.data.profile?.bio)}`,
     });
   },
-  async editAvatar() {
+
+  async applyAvatarFile(fileId) {
+    await updateUserAvatar(fileId);
+    void wx.showToast({
+      title: '头像已更新',
+      icon: 'success',
+    });
+    await profileService.loadProfile(true);
+    await this.loadProfile();
+  },
+
+  async onChooseWechatAvatar(event) {
+    if (this.data.avatarUploading) {
+      return;
+    }
+
+    const avatarUrl = event.detail.avatarUrl ?? '';
+    if (!isNonEmptyString(avatarUrl)) {
+      return;
+    }
+
+    this.setData({
+      avatarUploading: true,
+    });
+    try {
+      const result = await completeWechatAvatarUpload(avatarUrl, {
+        page: 'profile-detail',
+        sourceType: 'wechat-avatar',
+      });
+      if (result === null) {
+        return;
+      }
+      await this.applyAvatarFile(result.fileId);
+    } catch (error) {
+      logger.error('Update WeChat avatar failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      void wx.showToast({
+        title:
+          error instanceof Error && isNonEmptyString(error.message)
+            ? error.message
+            : '更新头像失败，请重试',
+        icon: 'none',
+      });
+    } finally {
+      this.setData({
+        avatarUploading: false,
+      });
+    }
+  },
+
+  async uploadLocalAvatar() {
     if (this.data.avatarUploading) {
       return;
     }
@@ -296,19 +356,12 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
     this.setData({
       avatarUploading: true,
     });
-    void wx.showLoading({ title: '上传中', mask: true });
     try {
       const result = await completeAvatarUpload({ page: 'profile-detail' });
       if (!isDefined(result)) {
         return;
       }
-      await updateUserAvatar(result.fileId);
-      void wx.showToast({
-        title: '头像已更新',
-        icon: 'success',
-      });
-      await profileService.loadProfile(true);
-      await this.loadProfile();
+      await this.applyAvatarFile(result.fileId);
     } catch (error) {
       logger.error('Update avatar failed', {
         error: error instanceof Error ? error.message : String(error),
@@ -321,10 +374,17 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
         icon: 'none',
       });
     } finally {
-      void wx.hideLoading();
       this.setData({
         avatarUploading: false,
       });
     }
+  },
+
+  async editAvatar() {
+    if (this.data.avatarUploading) {
+      return;
+    }
+
+    await this.uploadLocalAvatar();
   },
 });

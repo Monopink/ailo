@@ -15,6 +15,7 @@ import {
   getTextMetrics,
   validateTextLimit,
 } from '../../utils/text-limit';
+import { getWechatProfileCapabilities } from '../../utils/wechat-profile-capability';
 
 const logger = getLogger('FieldEdit');
 
@@ -144,7 +145,14 @@ interface FieldEditPageData extends Record<string, unknown> {
   regionCityName: string | null;
   regionChanged: boolean;
   valueLength: number;
+  isProfileNicknameField: boolean;
+  useWechatNicknameInput: boolean;
+  canUseNicknameReview: boolean;
+  useNicknameSubmitForm: boolean;
 }
+
+type FormSubmitEvent = WechatMiniprogram.CustomEvent<{ value: Record<string, string> }>;
+type NicknameReviewEvent = WechatMiniprogram.CustomEvent<{ pass: boolean; timeout: boolean }>;
 
 interface FieldEditPageCustom {
   fieldEditPageService: ReturnType<typeof createFieldEditPageService> | null;
@@ -162,13 +170,15 @@ interface FieldEditPageCustom {
   onRemoveTag(event: WechatMiniprogram.TouchEvent): void;
   onGenderChange(event: WechatMiniprogram.PickerChange): void;
   onRegionChange(event: WechatMiniprogram.PickerChange): void;
-  buildProfileUpdateData(): Record<string, unknown> | null;
+  onNicknameReview(event: NicknameReviewEvent): void;
+  onFormSubmit(event: FormSubmitEvent): Promise<void>;
+  buildProfileUpdateData(rawValue?: string): Record<string, unknown> | null;
   buildContactUpdateData(): ContactUpdatePayload | null;
   confirmUsernameSubmission(updateData: Record<string, unknown>): Promise<boolean>;
-  saveProfileField(): Promise<boolean>;
+  saveProfileField(rawValue?: string): Promise<boolean>;
   saveContactField(): Promise<boolean>;
   resetSubmitState(): void;
-  handleSave(): Promise<void>;
+  handleSave(rawValue?: string): Promise<void>;
 }
 
 const isProfileField = (field: string): field is ProfileFieldKey =>
@@ -434,6 +444,10 @@ Page<FieldEditPageData, FieldEditPageCustom>({
     regionCityName: null,
     regionChanged: false,
     valueLength: 0,
+    isProfileNicknameField: false,
+    useWechatNicknameInput: false,
+    canUseNicknameReview: false,
+    useNicknameSubmitForm: false,
   },
 
   fieldEditPageService: null,
@@ -510,6 +524,8 @@ Page<FieldEditPageData, FieldEditPageCustom>({
     }
 
     const config = PROFILE_FIELD_CONFIG[rawField];
+    const capabilities = getWechatProfileCapabilities();
+    const isProfileNicknameField = rawField === 'nickname';
     this.setData({
       domain: 'profile',
       field: rawField,
@@ -521,6 +537,10 @@ Page<FieldEditPageData, FieldEditPageCustom>({
       isMultiline: config.multiline,
       isTagEditor: false,
       submitButtonText: config.submitText,
+      isProfileNicknameField,
+      useWechatNicknameInput: isProfileNicknameField && capabilities.canUseNicknameInput,
+      canUseNicknameReview: isProfileNicknameField && capabilities.canUseNicknameReview,
+      useNicknameSubmitForm: isProfileNicknameField && capabilities.canUseNicknameInput,
     });
 
     if (config.type === 'gender') {
@@ -585,6 +605,10 @@ Page<FieldEditPageData, FieldEditPageCustom>({
       isMultiline: config.multiline,
       isTagEditor: rawField === 'tags',
       submitButtonText: config.submitText,
+      isProfileNicknameField: false,
+      useWechatNicknameInput: false,
+      canUseNicknameReview: false,
+      useNicknameSubmitForm: false,
     });
 
     if (rawField === 'tags') {
@@ -630,6 +654,15 @@ Page<FieldEditPageData, FieldEditPageCustom>({
       value,
       valueLength: getFieldValueLength(this.data.field, value),
     });
+  },
+
+  onNicknameReview(event) {
+    if (!this.data.canUseNicknameReview || event.detail.pass) {
+      return;
+    }
+    showErrorToast(
+      event.detail.timeout ? '昵称校验超时，请稍后重试' : '昵称未通过校验，请重新输入'
+    );
   },
 
   onTagInput(event) {
@@ -730,9 +763,9 @@ Page<FieldEditPageData, FieldEditPageCustom>({
     }
   },
 
-  buildProfileUpdateData() {
+  buildProfileUpdateData(rawValue) {
     if (this.data.fieldType === 'text') {
-      return buildProfileTextUpdateData(this.data.field, this.data.value);
+      return buildProfileTextUpdateData(this.data.field, rawValue ?? this.data.value);
     }
 
     if (this.data.fieldType === 'gender') {
@@ -829,14 +862,14 @@ Page<FieldEditPageData, FieldEditPageCustom>({
     });
   },
 
-  async saveProfileField() {
+  async saveProfileField(rawValue) {
     if (this.fieldEditPageService === null) {
       showErrorToast('页面初始化失败');
       this.resetSubmitState();
       return false;
     }
 
-    const updateData = this.buildProfileUpdateData();
+    const updateData = this.buildProfileUpdateData(rawValue);
     if (!isDefined(updateData)) {
       this.resetSubmitState();
       return false;
@@ -905,7 +938,7 @@ Page<FieldEditPageData, FieldEditPageCustom>({
     return true;
   },
 
-  async handleSave() {
+  async handleSave(rawValue) {
     if (this.data.saving) {
       return;
     }
@@ -917,7 +950,7 @@ Page<FieldEditPageData, FieldEditPageCustom>({
       });
 
       if (this.data.domain === 'profile') {
-        await this.saveProfileField();
+        await this.saveProfileField(rawValue);
         return;
       }
 
@@ -949,5 +982,17 @@ Page<FieldEditPageData, FieldEditPageCustom>({
     } finally {
       this.resetSubmitState();
     }
+  },
+
+  async onFormSubmit(event) {
+    const nicknameValue =
+      typeof event.detail.value.nickname === 'string'
+        ? event.detail.value.nickname
+        : this.data.value;
+    this.setData({
+      value: nicknameValue,
+      valueLength: getFieldValueLength(this.data.field, nicknameValue),
+    });
+    await this.handleSave(nicknameValue);
   },
 });

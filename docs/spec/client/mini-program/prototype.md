@@ -61,8 +61,7 @@
 
 ## 资料设置差异
 
-- 小程序内置 6-12 个默认头像供选择
-- 默认头像为 CDN URL（如 `https://cdn.example.com/avatars/xxx.webp`）
+- 头像与昵称填写能力见 [小程序头像昵称填写](profile-avatar-nickname.md)
 
 ## 输入长度
 

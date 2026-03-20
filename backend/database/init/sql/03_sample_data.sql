@@ -396,20 +396,28 @@ INSERT INTO profiles (id, owner_id, owner_qiao_id, owner_type, nickname, bio, ge
 (223788765171154954, 223788765171154949, 'qqid_test_user_005', 1, '小月', '音乐老师，会弹钢琴和吉他，喜欢民谣和古典音乐', 2, NULL, NULL)
 ON CONFLICT (owner_qiao_id) DO NOTHING;
 
-INSERT INTO square_type_entries (square_category, type_id, exposure_strategy, status) VALUES
+INSERT INTO square_categories (category_key, title, description, theme_key, icon_ref, sort_order, status) VALUES
+('friend', '交友', '结识同频的人，聊聊日常和心情', 'ocean', 'tdesign:user-filled', 10, 1),
+('love', '恋爱', '遇见心动对象，把故事慢慢说给TA', 'rose', 'tdesign:chat-filled', 20, 1),
+('talk', '倾诉', '想说的话有人听，情绪不必独自消化', 'amber', 'tdesign:chat', 30, 1),
+('bestie', '闺蜜', '找个懂你的闺蜜，分享秘密与小确幸', 'grape', 'tdesign:user', 40, 1),
+('hobby', '同好', '一起聊兴趣爱好，把话题聊到尽兴', 'forest', 'tdesign:earth', 50, 1)
+ON CONFLICT (category_key) DO NOTHING;
+
+INSERT INTO square_type_entries (category_key, type_id, exposure_strategy, status) VALUES
 (
-    2,
+    'love',
     (SELECT id FROM ai_types WHERE display_name='Romantic Companion Sample'),
     1,
     1
 ),
 (
-    1,
+    'friend',
     (SELECT id FROM ai_types WHERE display_name='Friendly Companion Sample'),
     1,
     1
 )
-ON CONFLICT (square_category, type_id) DO NOTHING;
+ON CONFLICT (category_key, type_id) DO NOTHING;
 
 -- ============================================================================
 -- AI Instances

@@ -124,6 +124,13 @@ class ContactRequestCreate(BaseModel):
 
     to_qiao_id: str = Field(..., max_length=32, description="Target external ID")
     message: str | None = Field(None, max_length=500, description="Application message")
+    category_key: str | None = Field(
+        None,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        description="Source square category key (kebab-case)",
+    )
     alias: str | None = Field(None, max_length=32, description="Contact alias/remark name")
     tags: list[str] | None = Field(None, description="Contact tags")
     source: ContactRequestSource = Field(ContactRequestSource.SEARCH, description="Request source")

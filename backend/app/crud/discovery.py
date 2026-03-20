@@ -14,12 +14,12 @@ class CRUDSquareEntry(CRUDBase[SquareTypeEntry, SquareEntryCreate, SquareEntryUp
     """CRUD helpers for Square entries."""
 
     async def get_active_by_category(
-        self, db: AsyncSession, *, category: str, limit: int
+        self, db: AsyncSession, *, category_key: str, limit: int
     ) -> list[SquareTypeEntry]:
         """Return active square entries for the given category."""
         stmt = (
             select(self.model)
-            .where(self.model.square_category == category, self.model.status == 1)
+            .where(self.model.category_key == category_key, self.model.status == 1)
             .order_by(self.model.id.desc())
             .limit(limit)
         )

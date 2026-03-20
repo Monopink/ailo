@@ -62,6 +62,7 @@ from .views import (
     notification_push_history_view,
     pending_contact_request_view,
     profile_view,
+    square_category_view,
     square_type_entry_view,
     stats_ai_daily_view,
     stats_ai_monthly_view,
@@ -245,6 +246,7 @@ def _register_dropdowns(admin_instance: Admin) -> None:
         "App Content",
         icon="fa fa-mobile",
         views=[
+            square_category_view,
             square_type_entry_view,
             app_page_view,
         ],

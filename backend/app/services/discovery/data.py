@@ -8,21 +8,47 @@ and the corresponding AI persona profiles.
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums import AIPersonaStatus, ContactType, ProfileOwnerType, SquareEntryStatus
+from app.enums import (
+    SQUARE_CATEGORY_THEME_KEYS,
+    AIPersonaStatus,
+    ContactType,
+    ProfileOwnerType,
+    SquareCategoryStatus,
+    SquareEntryStatus,
+)
 from app.models.ai import AIPersona
 from app.models.contact import Contact
-from app.models.content import SquareTypeEntry
+from app.models.content import SquareCategory, SquareTypeEntry
 from app.models.profile import Profile
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
+async def get_active_square_categories(db: AsyncSession) -> list[SquareCategory]:
+    """Load active categories.
+
+    Note: categories may be empty (no active square_type_entries).
+    """
+
+    stmt = (
+        select(SquareCategory)
+        .where(
+            SquareCategory.status == SquareCategoryStatus.ACTIVE,
+            SquareCategory.theme_key.in_(SQUARE_CATEGORY_THEME_KEYS),
+        )
+        .order_by(SquareCategory.sort_order.asc(), SquareCategory.category_key.asc())
+    )
+
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
 async def get_random_persona_entries(
     db: AsyncSession,
     *,
     user_qiao_id: str,
-    category: int | None = None,
+    category_key: str,
     page: int = 1,
     page_size: int = 20,
 ) -> tuple[list[tuple[SquareTypeEntry, AIPersona, Profile]], int]:
@@ -48,9 +74,10 @@ async def get_random_persona_entries(
             qiao_id for qiao_id in excluded_result.scalars().all() if isinstance(qiao_id, str)
         ]
 
-        base_conditions = [SquareTypeEntry.status == SquareEntryStatus.ACTIVE]
-        if category is not None:
-            base_conditions.append(SquareTypeEntry.square_category == category)
+        base_conditions = [
+            SquareTypeEntry.status == SquareEntryStatus.ACTIVE,
+            SquareTypeEntry.category_key == category_key,
+        ]
 
         total_query = (
             select(func.count()).select_from(SquareTypeEntry).where(and_(*base_conditions))
@@ -96,7 +123,7 @@ async def get_random_persona_entries(
         logger.debug(
             "square_entries_selected",
             user_qiao_id=user_qiao_id,
-            category=category,
+            category_key=category_key,
             requested_page=page,
             returned=len(resolved_entries),
             total=total,
@@ -108,7 +135,7 @@ async def get_random_persona_entries(
         logger.error(
             "fetch_square_entries_failed",
             user_qiao_id=user_qiao_id,
-            category=category,
+            category_key=category_key,
             error=str(exc),
         )
         raise
@@ -118,9 +145,10 @@ async def get_persona_profile_by_qiao_id(
     db: AsyncSession,
     *,
     qiao_id: str,
-) -> tuple[Profile | None, int | None]:
+    category_key: str | None = None,
+) -> tuple[Profile | None, str | None, str | None]:
     """
-    Load the AI persona profile along with its latest square category.
+    Load the AI persona profile and validate optional category context.
     """
     try:
         profile_stmt = select(Profile).where(
@@ -131,32 +159,32 @@ async def get_persona_profile_by_qiao_id(
         profile = profile_result.scalar_one_or_none()
 
         if not profile:
-            return None, None
+            return None, None, None
 
-        persona_stmt = select(AIPersona.type_id).where(
-            AIPersona.qiao_id == qiao_id,
-            AIPersona.status == AIPersonaStatus.ACTIVE,
-        )
-        persona_result = await db.execute(persona_stmt)
-        type_id = persona_result.scalar_one_or_none()
-
-        if type_id is None:
-            return profile, None
+        if category_key is None:
+            return profile, None, None
 
         category_stmt = (
-            select(SquareTypeEntry.square_category)
+            select(SquareCategory.category_key, SquareCategory.title)
             .where(
-                SquareTypeEntry.type_id == type_id,
-                SquareTypeEntry.status == SquareEntryStatus.ACTIVE,
+                SquareCategory.category_key == category_key,
+                SquareCategory.status == SquareCategoryStatus.ACTIVE,
+                SquareCategory.theme_key.in_(SQUARE_CATEGORY_THEME_KEYS),
             )
             .limit(1)
         )
         category_result = await db.execute(category_stmt)
-        category = category_result.scalar_one_or_none()
-
-        return profile, category
+        category_row = category_result.first()
+        if category_row is None:
+            return profile, None, None
+        return profile, category_row[0], category_row[1]
     except Exception as exc:
-        logger.error("fetch_persona_profile_failed", qiao_id=qiao_id, error=str(exc))
+        logger.error(
+            "fetch_persona_profile_failed",
+            qiao_id=qiao_id,
+            category_key=category_key,
+            error=str(exc),
+        )
         raise
 
 

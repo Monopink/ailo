@@ -44,7 +44,12 @@ from .ai_template_views import (
 from .ai_type_views import AI_TYPE_VIEWS, ai_type_view
 from .backup_views import backup_job_view
 from .chat_console_view import chat_console_view
-from .content_views import CONTENT_MODEL_VIEWS, app_page_view, square_type_entry_view
+from .content_views import (
+    CONTENT_MODEL_VIEWS,
+    app_page_view,
+    square_category_view,
+    square_type_entry_view,
+)
 from .llm_test_views import llm_config_test_view
 from .llm_views import (
     LLM_MODEL_VIEWS,
@@ -186,6 +191,7 @@ __all__ = [
     "media_file_view",
     "system_config_view",
     "notification_push_history_view",
+    "square_category_view",
     "square_type_entry_view",
     # Individual LLM views
     "llm_provider_view",

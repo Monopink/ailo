@@ -1,32 +1,39 @@
 # 发现页
 
-本规范定义发现页的通用交互与展示规则。
+本规范定义小程序发现页的分类与列表交互。
 
-## 数据来源
+## 接口依赖
 
-- [广场推荐接口](../../../api/discovery.md#获取广场随机联系人)
+- [获取广场分类](../../../api/discovery.md#获取广场分类)
+- [获取广场联系人](../../../api/discovery.md#获取广场联系人)
+- [获取陌生人详情](../../../api/discovery.md#获取陌生人详情)
 
-## 入口页
+## 入口页（`pages/square-entry/square-entry`）
 
-- 入口页提供分类卡片：`pages/square-entry/square-entry`
-- 点击卡片进入 Square 列表页，并携带 `category` 参数
+- 页面进入执行鉴权。
+- 分类卡片数据优先读取本地缓存。
+- 无分类缓存时展示内置默认卡片。
+- 后台刷新分类数据并更新缓存。
+- 点击卡片进入 `pages/square/square`，参数为 `category_key`。
 
-## 筛选栏
+## 列表页（`pages/square/square`）
 
-- Square 列表页提供分类切换
-- 默认分类：交友
-- 分类示例：交友/恋爱/倾诉/闺蜜/同好
+- Tab 数据来自分类接口（缓存优先，后台刷新）。
+- 列表请求必须携带 `category_key`。
+- 列表缓存按 `category_key` 维度存储。
+- 无效或下线 `category_key` 时提示 `暂无内容`，并返回入口页。
+- 刷新节奏由响应 `refresh_available_at` 控制。
 
-## 刷新规则
+## 陌生人页（`pages/stranger-info/stranger-info`）
 
-- 遵守刷新频率限制（超限提示且保持当前数据）
+- 从 Square 进入时透传 `category_key`。
+- 请求详情时附带 `category_key`。
+- 分类展示文案使用响应 `category_title`。
 
-## 结果展示
+## 图标与主题
 
-- 头像、昵称、性别、标签、地区
-- 后端返回为空时不设置默认值
-
-## 添加联系人
-
-- 使用 [联系人申请接口](../../../api/contact-requests.md#发送联系人申请)
-- 统一返回“请求已发送”
+- 分类图标来源 `icon_ref`。
+- 仅解析 `tdesign:<icon-name>`。
+- 解析失败时使用默认图标 `tdesign:chat`。
+- `theme_key` 取值集合来源 `backend/app/enums/common.py` 的 `SquareCategoryTheme`。
+- 主题样式由 `theme_key` 映射本地 design tokens。

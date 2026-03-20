@@ -3,7 +3,7 @@ import squareDiscoveryService, {
   SQUARE_CACHE_TTL_MS,
   type SquareContactViewModel,
 } from '../../utils/discovery-service';
-import { type SquareCategory } from '../../utils/constants/square';
+import { isValidCategoryKey } from '../../utils/constants/square';
 import { classifyError } from '../../utils/error-classifier';
 import { BasePageService } from './base-page-service';
 import { createReadyScreenModel, type ScreenModel } from './page-state';
@@ -39,8 +39,11 @@ const resolveScreenByContacts = (
   });
 
 export class SquarePageService extends BasePageService {
-  resolveCache(category: SquareCategory): SquareCacheResult | null {
-    const cache = squareDiscoveryService.getCacheEntry(category);
+  resolveCache(categoryKey: string): SquareCacheResult | null {
+    if (!isValidCategoryKey(categoryKey)) {
+      return null;
+    }
+    const cache = squareDiscoveryService.getCacheEntry(categoryKey);
     if (cache === null || typeof cache.timestamp !== 'number') {
       return null;
     }
@@ -60,13 +63,24 @@ export class SquarePageService extends BasePageService {
     };
   }
 
-  async load(
-    category: SquareCategory,
-    context: SquareLoadContext
-  ): Promise<SquareLoadResult | null> {
+  async load(categoryKey: string, context: SquareLoadContext): Promise<SquareLoadResult | null> {
+    if (!isValidCategoryKey(categoryKey)) {
+      return {
+        screenModel: createReadyScreenModel({
+          contentVariant: context.hasCurrentContent ? 'data' : 'blank',
+          refreshState: 'degraded',
+        }),
+        contacts: context.hasCurrentContent ? context.currentContacts : [],
+        nextRefreshAvailableAt: null,
+        authInvalid: false,
+        shouldToastBlankFailure: !context.hasCurrentContent,
+        errorMessage: '无效的分类参数',
+      };
+    }
+
     const seq = this.startRequest();
     try {
-      const result = await squareDiscoveryService.load(category);
+      const result = await squareDiscoveryService.load(categoryKey);
       if (!this.isRequestActive(seq)) {
         return null;
       }
@@ -85,7 +99,7 @@ export class SquarePageService extends BasePageService {
       }
       const isAuthInvalid = semantics.reason === 'auth-invalid';
 
-      const cache = squareDiscoveryService.getCacheEntry(category);
+      const cache = squareDiscoveryService.getCacheEntry(categoryKey);
       if (cache !== null && typeof cache.timestamp === 'number') {
         const age = Date.now() - cache.timestamp;
         if (age < SQUARE_CACHE_TTL_MS + SQUARE_CACHE_STALE_PERIOD_MS) {

@@ -55,6 +55,7 @@
 {
   "to_qiao_id": "qiao_xm001",
   "message": "你好，我想和你聊天",
+  "category_key": "friend",
   "alias": "小萌",
   "tags": ["朋友", "聊天"],
   "source": 1
@@ -64,24 +65,28 @@
 **字段说明**:
 
 - `to_qiao_id` (string, 必填)
-  - 目标联系人的qiao_id
+  - 目标联系人的 qiao_id
   - 必须存在于系统中
 
 - `message` (string, 可选)
   - 申请消息
-  - 最长500字符
+  - 最长 500 字符
+
+- `category_key` (string, 可选)
+  - 来源分类键（kebab-case）
+  - 仅作为请求上下文持久化
 
 - `alias` (string, 可选)
   - 备注
-  - 显示宽度上限：24（约12个中文或24个英文）
+  - 显示宽度上限：24（约 12 个中文或 24 个英文）
   - 字符上限：32（按字符簇计数）
 
 - `tags` (array, 可选)
   - 标签列表
-  - 每个标签最长20字符
+  - 每个标签最长 20 字符
 
-- `source` (integer, 必填)
-  - 请求来源
+- `source` (integer, 可选)
+  - 请求来源，默认 `1`
   - 枚举值定义见：`backend/app/enums/common.py` - `ContactRequestSource`
 
 ### 成功响应 (200)
@@ -127,7 +132,7 @@
 
 1. 验证联系人关系（是否已添加、数量上限）
 2. 如果联系人已删除（`is_deleted=1`），恢复联系人关系
-3. 创建联系人请求记录（`contact_request` 表）
+3. 创建联系人请求记录（`contact_requests` 表，持久化 `category_key`、`alias`、`tags`）
 4. 根据目标类型执行相应逻辑
 5. 发送 NOTIFICATION 消息给接收方
 6. 返回统一响应

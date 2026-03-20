@@ -46,8 +46,9 @@
 
 - `default_contact_limit`：默认联系人上限（默认 3）
 - `contact_request_expiration_days`：联系人请求过期时间（默认 3 天）
-- `square_recommend_count`：广场每次推荐数量（默认 10）
-- `square_refresh_interval`：广场刷新间隔（默认 60 秒）
+- `square_page_size`：广场分页每页数量（默认 20）
+- `square_rate_limit_requests`：广场窗口期允许请求次数（默认 1）
+- `square_rate_limit_window_seconds`：广场限流窗口秒数（默认 10）
 
 ### 系统配置
 

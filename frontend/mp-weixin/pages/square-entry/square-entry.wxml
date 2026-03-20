@@ -17,15 +17,15 @@
     <view class="square-entry-list">
       <view
         wx:for="{{entryCards}}"
-        wx:key="key"
-        class="square-entry-card square-entry-card--{{item.theme}}"
+        wx:key="categoryKey"
+        class="square-entry-card square-entry-card--{{item.themeClass}}"
         bindtap="handleCardTap"
-        data-category="{{item.category}}">
+        data-category-key="{{item.categoryKey}}">
         <view class="square-entry-card__icon">
-          <t-icon name="{{item.icon}}" size="var(--icon-sm)" color="#ffffff" />
+          <t-icon name="{{item.iconName}}" size="var(--icon-sm)" color="#ffffff" />
         </view>
         <view class="square-entry-card__content">
-          <text class="square-entry-card__title">{{item.title}}</text>
+          <text class="square-entry-card__title">{{item.label}}</text>
           <text class="square-entry-card__desc">{{item.description}}</text>
         </view>
       </view>

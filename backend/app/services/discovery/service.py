@@ -4,12 +4,16 @@ Discovery service business logic.
 This module provides business logic for discovery page operations.
 """
 
+from datetime import UTC, datetime, timedelta
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.system import system_configs
-from app.enums import SquareCategory
+from app.enums import SquareCategoryTheme
 from app.schemas.discovery import (
     PaginationInfo,
+    SquareCategoryItem,
+    SquareCategoryListResponse,
     SquareContactListResponse,
     SquareContactResponse,
     StrangerProfileResponse,
@@ -22,11 +26,31 @@ from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+_ERR_RATE_LIMIT_PREFIX = "RATE_LIMIT:"
+_ERR_INVALID_CATEGORY = "INVALID_CATEGORY_KEY"
+
+
+async def get_square_categories(db: AsyncSession) -> SquareCategoryListResponse:
+    """Get active square categories for clients."""
+
+    categories = await discovery_data.get_active_square_categories(db)
+    items = [
+        SquareCategoryItem(
+            category_key=item.category_key,
+            title=item.title,
+            description=item.description,
+            theme_key=SquareCategoryTheme(item.theme_key),
+            icon_ref=item.icon_ref,
+        )
+        for item in categories
+    ]
+    return SquareCategoryListResponse(items=items)
+
 
 async def get_square_contacts(
     db: AsyncSession,
     user_qiao_id: str,
-    category: SquareCategory | None = None,
+    category_key: str,
     page: int = 1,
     page_size: int | None = None,
 ) -> SquareContactListResponse:
@@ -36,28 +60,30 @@ async def get_square_contacts(
     Args:
         db: Database session
         user_qiao_id: Current user's qiao_id
-        category: Optional category filter (SquareCategory enum)
+        category_key: Required category key filter
         page: Page number (1-indexed)
         page_size: Items per page (None = use config default)
 
     Returns:
-        SquareContactListResponse with pagination info
+        SquareContactListResponse with pagination info and refresh time
 
     Raises:
-        ValueError: Rate limit exceeded
+        ValueError: Invalid category key or rate limit exceeded
     """
     try:
-        # Load page_size from config if not provided
         if page_size is None:
-            page_size = _coerce_page_size(
+            page_size = _coerce_positive_int(
                 await system_configs.get_config_value(
                     db, config_key="square_page_size", default_value=20
                 ),
                 default=20,
             )
 
-        # Check rate limit
-        category_key = category.name if category else "all"
+        categories = await discovery_data.get_active_square_categories(db)
+        category_keys = {item.category_key for item in categories}
+        if category_key not in category_keys:
+            raise ValueError(_ERR_INVALID_CATEGORY)
+
         rate_key = f"{user_qiao_id}:{category_key}"
         allowed, _error_code, retry_after = await check_rate_limit(
             identifier=rate_key, group="square", db=db
@@ -67,109 +93,98 @@ async def get_square_contacts(
             logger.warning(
                 "square_rate_limit",
                 user_qiao_id=user_qiao_id,
-                category=category,
+                category_key=category_key,
                 retry_after=retry_after,
             )
-            raise ValueError(f"Request too frequent, wait {retry_after} seconds")
+            raise ValueError(f"{_ERR_RATE_LIMIT_PREFIX}{retry_after or 0}")
 
-        # Query square entries with pagination
-        category_value = category.value if category else None
         entries, total = await discovery_data.get_random_persona_entries(
             db=db,
             user_qiao_id=user_qiao_id,
-            category=category_value,
+            category_key=category_key,
             page=page,
             page_size=page_size,
         )
 
-        # Transform to response format
         profiles = [profile for _, _, profile in entries if profile]
         avatar_urls = await get_avatar_urls_batch(profiles)
 
-        items = []
-        for entry, persona, profile in entries:
-            category_api = None
-            if entry.square_category is not None:
-                try:
-                    category_api = SquareCategory(entry.square_category).value
-                except ValueError:
-                    category_api = None
-
-            avatar_url = avatar_urls.get(profile.id) if profile else None
-
-            items.append(
-                SquareContactResponse(
-                    qiao_id=persona.qiao_id,
-                    type_id=entry.type_id,
-                    category=category_api,
-                    nickname=getattr(profile, "nickname", None),
-                    gender=getattr(profile, "gender", None),
-                    avatar_url=avatar_url,
-                    bio=getattr(profile, "bio", None),
-                    region=getattr(profile, "region", None),
-                )
+        items = [
+            SquareContactResponse(
+                qiao_id=persona.qiao_id,
+                type_id=entry.type_id,
+                category_key=entry.category_key,
+                nickname=getattr(profile, "nickname", None),
+                gender=getattr(profile, "gender", None),
+                avatar_url=avatar_urls.get(profile.id) if profile else None,
+                bio=getattr(profile, "bio", None),
+                region=getattr(profile, "region", None),
             )
+            for entry, persona, profile in entries
+        ]
 
-        # Build pagination info
         has_more = (page * page_size) < total
         pagination = PaginationInfo(page=page, page_size=page_size, total=total, has_more=has_more)
+
+        refresh_available_at = await _resolve_refresh_available_at(db)
 
         logger.info(
             "square_contacts_retrieved",
             user_qiao_id=user_qiao_id,
             count=len(items),
-            category=category,
+            category_key=category_key,
             page=page,
             total=total,
+            refresh_available_at=(
+                refresh_available_at.isoformat() if refresh_available_at else None
+            ),
         )
 
-        return SquareContactListResponse(items=items, pagination=pagination)
+        return SquareContactListResponse(
+            items=items,
+            pagination=pagination,
+            refresh_available_at=refresh_available_at,
+        )
 
     except ValueError:
         raise
-    except Exception as e:
+    except Exception as exc:
         logger.error(
             "square_contacts_service_error",
             user_qiao_id=user_qiao_id,
-            category=category,
-            error=str(e),
+            category_key=category_key,
+            error=str(exc),
         )
-        raise RuntimeError(f"Failed to get square contacts: {e!s}")
+        raise RuntimeError(f"Failed to get square contacts: {exc!s}") from exc
 
 
-async def get_stranger_profile(db: AsyncSession, qiao_id: str) -> StrangerProfileResponse | None:
+async def get_stranger_profile(
+    db: AsyncSession,
+    qiao_id: str,
+    *,
+    category_key: str | None = None,
+) -> StrangerProfileResponse | None:
     """
     Get stranger profile by qiao_id.
 
-    This is a public endpoint that returns basic persona metadata (profiles + square entries)
-    without requiring authentication.
-
-    Args:
-        db: Database session
-        qiao_id: Profile qiao_id to query
-
-    Returns:
-        StrangerProfileResponse or None if not found
+    This is a public endpoint that returns basic persona metadata.
     """
     try:
-        profile, category = await discovery_data.get_persona_profile_by_qiao_id(
-            db=db, qiao_id=qiao_id
+        (
+            profile,
+            valid_category_key,
+            category_title,
+        ) = await discovery_data.get_persona_profile_by_qiao_id(
+            db=db,
+            qiao_id=qiao_id,
+            category_key=category_key,
         )
 
         if not profile:
             logger.warning("stranger_profile_not_found", qiao_id=qiao_id)
             return None
 
-        # Transform to response format
-        category_api = None
-        if category is not None:
-            try:
-                category_api = SquareCategory(category).value
-            except ValueError:
-                category_api = None
-
         avatar_url = await get_avatar_url(profile)
-
         response = StrangerProfileResponse(
             qiao_id=profile.owner_qiao_id,
             nickname=profile.nickname,
@@ -177,20 +192,47 @@ async def get_stranger_profile(db: AsyncSession, qiao_id: str) -> StrangerProfil
             avatar_url=avatar_url,
             bio=profile.bio,
             region=profile.region,
-            category=category_api,
+            category_key=valid_category_key,
+            category_title=category_title,
         )
 
-        logger.info("stranger_profile_retrieved", qiao_id=qiao_id)
+        logger.info(
+            "stranger_profile_retrieved",
+            qiao_id=qiao_id,
+            category_key=valid_category_key,
+        )
         return response
+    except Exception as exc:
+        logger.error(
+            "stranger_profile_service_error",
+            qiao_id=qiao_id,
+            category_key=category_key,
+            error=str(exc),
+        )
+        raise RuntimeError(f"Failed to get stranger profile: {exc!s}") from exc
 
-    except Exception as e:
-        logger.error("stranger_profile_service_error", qiao_id=qiao_id, error=str(e))
-        raise RuntimeError(f"Failed to get stranger profile: {e!s}")
+
+async def _resolve_refresh_available_at(db: AsyncSession) -> datetime | None:
+    """Resolve next refresh availability timestamp from rate-limit window config."""
+
+    window_seconds = _coerce_non_negative_int(
+        await system_configs.get_config_value(
+            db,
+            config_key="square_rate_limit_window_seconds",
+            default_value=0,
+        ),
+        default=0,
+    )
+    if window_seconds <= 0:
+        return None
+    return datetime.now(UTC) + timedelta(seconds=window_seconds)
 
 
-def _coerce_page_size(value: JSONValue | None, *, default: int) -> int:
+def _coerce_non_negative_int(value: JSONValue | None, *, default: int) -> int:
     if value is None:
         return default
+    if isinstance(value, bool):
+        return int(value)
     if isinstance(value, int):
         return value
     if isinstance(value, float):
@@ -199,5 +241,12 @@ def _coerce_page_size(value: JSONValue | None, *, default: int) -> int:
         try:
             return int(value)
         except ValueError as exc:
-            raise ValueError(f"Invalid square_page_size configuration: {value!r}") from exc
-    raise ValueError(f"Unsupported square_page_size type: {type(value).__name__}")
+            raise ValueError(f"Invalid integer configuration: {value!r}") from exc
+    raise ValueError(f"Unsupported integer configuration type: {type(value).__name__}")
+
+
+def _coerce_positive_int(value: JSONValue | None, *, default: int) -> int:
+    coerced = _coerce_non_negative_int(value, default=default)
+    if coerced <= 0:
+        raise ValueError(f"Expected positive integer configuration, got {coerced!r}")
+    return coerced

@@ -1,29 +1,71 @@
-# 发现页面接口
+# 发现页接口
 
 ## 接口列表
 
-- [获取广场随机联系人](#获取广场随机联系人) - `GET /api/v1/discovery/square`
+- [获取广场分类](#获取广场分类) - `GET /api/v1/discovery/square-categories`
+- [获取广场联系人](#获取广场联系人) - `GET /api/v1/discovery/square`
 - [获取陌生人详情](#获取陌生人详情) - `GET /api/v1/discovery/profile/{qiao_id}`
-
 
 ---
 
-## 获取广场随机联系人
+## 获取广场分类
+
+### 基本信息
+
+- **路径**: `GET /api/v1/discovery/square-categories`
+- **认证**: Bearer Token（必需）
+
+### 请求参数
+
+无
+
+### 成功响应 (200)
+
+```json
+{
+  "items": [
+    {
+      "category_key": "friend",
+      "title": "交友",
+      "description": "结识同频的人，聊聊日常和心情",
+      "theme_key": "ocean",
+      "icon_ref": "tdesign:user-filled"
+    }
+  ]
+}
+```
+
+### 字段说明
+
+- `items` (array)
+  - `category_key` (string) - 分类键（kebab-case）
+  - `title` (string) - 分类标题
+  - `description` (string|null) - 分类描述
+  - `theme_key` (string) - 主题键
+  - `icon_ref` (string) - 图标引用（`tdesign:<icon-name>`）
+
+### 业务规则
+
+- 仅返回 `status=active` 的分类。
+- 排序规则：`sort_order ASC`，`category_key ASC`。
+
+---
+
+## 获取广场联系人
 
 ### 基本信息
 
 - **路径**: `GET /api/v1/discovery/square`
 - **认证**: Bearer Token（必需）
-- **速率限制**: 由配置控制，默认60秒
+- **速率限制**: 按 `user_qiao_id + category_key` 维度生效
 
 ### 请求参数
 
 **查询参数**:
 
-- `category` (integer, 可选) - 分类筛选
-  - 可选值: 1=交友, 2=恋爱, 3=倾诉, 4=闺蜜, 5=同好
-  - 默认为1（交友）
-- `force_refresh` (boolean, 可选) - 强制刷新，跳过频率限制（仅测试用）
+- `category_key` (string, 必填) - 分类键
+- `page` (integer, 可选) - 页码，默认 `1`
+- `page_size` (integer, 可选) - 每页数量，默认取系统配置
 
 ### 成功响应 (200)
 
@@ -32,59 +74,48 @@
   "items": [
     {
       "qiao_id": "qiao_xm001",
-      "username": "xiaomeng",
-      "category": 1,
+      "type_id": 101,
+      "category_key": "friend",
       "nickname": "小萌",
       "gender": 2,
       "avatar_url": "https://cdn.example.com/personas/qiao_xm001.webp",
       "bio": "喜欢音乐和电影",
-      "tags": ["音乐", "电影"],
       "region": "上海"
     }
   ],
-  "refresh_available_at": "2024-01-01T12:01:00Z"
+  "pagination": {
+    "page": 1,
+    "page_size": 20,
+    "total": 128,
+    "has_more": true
+  },
+  "refresh_available_at": "2026-03-20T12:01:00Z"
 }
 ```
 
-**字段说明**:
+### 字段说明
 
-- `items` (array) - 推荐的联系人列表
-  - `qiao_id` (string) - 联系人的qiao_id
-  - `username` (string) - AI 用户名（用于搜索添加）
-  - `category` (integer) - 分类
-  - `nickname` (string) - 昵称
-  - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
-  - `avatar_url` (string) - 动态生成的头像 CDN URL
-  - `bio` (string) - 个性签名
-  - `tags` (array) - 标签列表
-  - `region` (string) - 地区展示快照
-
-- `refresh_available_at` (string) - 下次可刷新的时间（ISO 8601格式）
+- `items` (array)
+  - `qiao_id` (string) - 联系人 qiao_id
+  - `type_id` (integer) - AI 类型 ID
+  - `category_key` (string) - 分类键
+  - `nickname` (string|null) - 昵称
+  - `gender` (integer|null) - 性别
+  - `avatar_url` (string|null) - 头像 URL
+  - `bio` (string|null) - 个性签名
+  - `region` (string|null) - 地区
+- `pagination` (object)
+  - `page` (integer)
+  - `page_size` (integer)
+  - `total` (integer)
+  - `has_more` (boolean)
+- `refresh_available_at` (string|null) - 下次可刷新时间（ISO 8601）
 
 ### 错误响应
 
-**429 Too Many Requests**:
-
-- `"刷新过于频繁，请稍后再试"` - 超过速率限制
-
-**500 Internal Server Error**:
-
-- `"系统错误（error_code）"` - 服务器内部错误
-
-### 业务说明
-
-**配置项**（system_configs表）:
-
-- `square_recommend_count` (NUMBER) - 每次推荐的联系人数量，默认10
-- `square_refresh_interval` (NUMBER) - 刷新间隔（秒），默认60
-
-**推荐逻辑**:
-
-- 每次返回随机的联系人列表
-- 推荐数量由配置控制
-- 刷新频率由配置控制
-- `force_refresh=true` 可跳过频率限制（仅测试用）
-- 仅返回**已绑定 Profile 的活跃 Persona**
+- `400` - 请求参数错误
+- `429` - 请求过于频繁
+- `500` - 系统错误
 
 ---
 
@@ -94,53 +125,48 @@
 
 - **路径**: `GET /api/v1/discovery/profile/{qiao_id}`
 - **认证**: 无需认证
-- **说明**: 公开访问，用于分享和外链
 
 ### 路径参数
 
-- `qiao_id` (string, 必填) - 陌生人的qiao_id
+- `qiao_id` (string, 必填) - 陌生人 qiao_id
+
+### 查询参数
+
+- `category_key` (string, 可选) - 来源分类键
 
 ### 成功响应 (200)
 
 ```json
 {
   "qiao_id": "qiao_abc123",
-  "username": "xiaoqiao",
   "nickname": "小乔",
   "gender": 2,
   "avatar_url": "https://cdn.example.com/personas/qiao_abc123.webp",
   "bio": "喜欢和大家聊天",
   "region": "北京",
-  "category": 1
+  "category_key": "friend",
+  "category_title": "交友"
 }
 ```
 
-**字段说明**:
+### 字段说明
 
-- `qiao_id` (string) - 联系人的qiao_id
-- `username` (string) - AI 用户名（用于搜索添加）
-- `nickname` (string) - 昵称
-- `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
-- `avatar_url` (string) - 动态生成的头像 CDN URL
-- `bio` (string) - 个性签名
-- `region` (string) - 地区展示快照
-- `category` (integer) - 分类
+- `qiao_id` (string)
+- `nickname` (string|null)
+- `gender` (integer|null)
+- `avatar_url` (string|null)
+- `bio` (string|null)
+- `region` (string|null)
+- `category_key` (string|null) - 分类键
+- `category_title` (string|null) - 分类标题
+
+### 业务规则
+
+- 未传 `category_key` 时，返回 `category_key=null`、`category_title=null`。
+- 传入无效或下线 `category_key` 时，返回 `category_key=null`、`category_title=null`。
 
 ### 错误响应
 
-**400 Bad Request**:
-
-- `"操作异常"` - 用户不存在
-
-**500 Internal Server Error**:
-
-- `"系统错误（error_code）"` - 服务器内部错误
-
-### 业务说明
-
-- 公开访问，无需认证
-- 返回 profiles 视图数据
-- 只返回 active 状态的资料
-- 不返回是否已添加联系人的状态
-- 用于发现页面点击联系人后查看详情
-- 支持分享和外链直达
+- `400` - 参数错误
+- `404` - 目标不存在
+- `500` - 系统错误

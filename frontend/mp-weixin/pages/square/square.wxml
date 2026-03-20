@@ -14,10 +14,10 @@
       <view class="square-tabs__list">
         <view
           wx:for="{{categories}}"
-          wx:key="key"
-          class="square-tabs__item square-tabs__item--{{item.theme}} {{currentCategory === item.key ? 'square-tabs__item--active' : ''}}"
+          wx:key="categoryKey"
+          class="square-tabs__item square-tabs__item--{{item.themeClass}} {{currentCategoryKey === item.categoryKey ? 'square-tabs__item--active' : ''}}"
           bindtap="selectCategory"
-          data-category="{{item.key}}">
+          data-category-key="{{item.categoryKey}}">
           {{item.label}}
         </view>
       </view>

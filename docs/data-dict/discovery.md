@@ -1,21 +1,40 @@
 # 发现页（Square）
 
-管理发现页的AI类型曝光配置。
+管理发现页分类与上架映射。
 
-## square_type_entries
+## square_categories
 
-Square 曝光表，决定哪些 `type_id` 被上架到 Square 以及采用何种曝光策略。
+Square 分类配置表。
 
 ```txt
-id -- 自增ID
-square_category -- Square 分类枚举：backend/app/enums/common.py
-type_id -- 关联 ai_types.id，代表被曝光的type
-exposure_strategy -- 曝光策略枚举：common.py
-status -- common.py（inactive 时该 type_id 不出现在 Square）
+id -- bigint 主键
+category_key -- 分类键（kebab-case，唯一）
+title -- 分类标题
+description -- 分类描述
+theme_key -- 主题键（取值集合见 backend/app/enums/common.py 的 SquareCategoryTheme）
+icon_ref -- 图标引用（tdesign:<icon-name>）
+sort_order -- 排序值（升序）
+status -- 状态：1=active, 2=inactive
 created_at
 updated_at
 ```
 
-## 业务说明
+## square_type_entries
 
-Square 只消费该表的数据，与模板库存隔离；模板体系的状态不会直接影响 Square 曝光。接口端会根据 `type_id` 实时选择可用 persona/qiao_id，并直接复用 persona/profile 的展示信息。每个 Square 分类下，每个 AI 类型只能出现一次（UNIQUE 约束：square_category, type_id）。
+Square 上架映射表，决定分类内的 `type_id` 曝光。
+
+```txt
+id -- 自增ID
+category_key -- 关联 square_categories.category_key
+type_id -- 关联 ai_types.id
+exposure_strategy -- 曝光策略枚举：common.py
+status -- 状态：1=active, 2=inactive
+created_at
+updated_at
+```
+
+## 约束
+
+- `square_categories.category_key` 唯一。
+- `square_type_entries` 上 `(category_key, type_id)` 唯一。
+- `square_type_entries` 上 `status=1` 条件下 `type_id` 唯一。

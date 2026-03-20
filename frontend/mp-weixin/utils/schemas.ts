@@ -253,19 +253,58 @@ export const PaginationSchema = z.object({
 
 export type Pagination = z.infer<typeof PaginationSchema>;
 
+// Source of truth: backend/app/enums/common.py -> SquareCategoryTheme
+export const SquareThemeKeySchema = z.enum([
+  'ocean',
+  'sky',
+  'mint',
+  'forest',
+  'lime',
+  'amber',
+  'sunset',
+  'rose',
+  'grape',
+  'slate',
+]);
+export type SquareThemeKey = z.infer<typeof SquareThemeKeySchema>;
+
+export const SquareCategorySchema = z.object({
+  category_key: z.string(),
+  title: z.string(),
+  description: z.string().optional().nullable(),
+  theme_key: SquareThemeKeySchema,
+  icon_ref: z.string(),
+});
+export type SquareCategory = z.infer<typeof SquareCategorySchema>;
+
+export const SquareCategoriesResponseSchema = z.object({
+  items: z.array(SquareCategorySchema),
+});
+export type SquareCategoriesResponse = z.infer<typeof SquareCategoriesResponseSchema>;
+
+export const SquarePaginationSchema = z.object({
+  page: z.number().int().positive(),
+  page_size: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+  has_more: z.boolean(),
+});
+export type SquarePagination = z.infer<typeof SquarePaginationSchema>;
+
 export const SquareContactSchema = z.object({
   qiao_id: z.string(),
+  type_id: z.number().int().positive(),
+  category_key: z.string(),
   nickname: z.string().optional().nullable(),
   avatar_url: z.string().optional().nullable(),
   gender: z.number().optional().nullable(),
   bio: z.string().optional().nullable(),
   region: z.string().optional().nullable(),
-  category: z.number().optional().nullable(),
 });
 export type SquareContact = z.infer<typeof SquareContactSchema>;
 
 export const SquareApiResponseSchema = z.object({
   items: z.array(SquareContactSchema),
+  pagination: SquarePaginationSchema,
   refresh_available_at: z.string().optional().nullable(),
 });
 export type SquareApiResponse = z.infer<typeof SquareApiResponseSchema>;
@@ -276,7 +315,8 @@ export const StrangerProfileResponseSchema = z.object({
   nickname: z.string().optional().nullable(),
   avatar_url: z.string().optional().nullable(),
   gender: z.number().optional().nullable(),
-  category: z.number().optional().nullable(),
+  category_key: z.string().optional().nullable(),
+  category_title: z.string().optional().nullable(),
   bio: z.string().optional().nullable(),
   region: z.string().optional().nullable(),
 });

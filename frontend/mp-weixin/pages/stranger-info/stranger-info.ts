@@ -73,11 +73,14 @@ const pickString = (record: Record<string, unknown>, key: string): string | unde
   return typeof value === 'string' ? value : undefined;
 };
 
-const pickCategory = (record: Record<string, unknown>): string | number | null | undefined => {
-  if (typeof record.category === 'string' || typeof record.category === 'number') {
-    return record.category;
+const pickCategory = (record: Record<string, unknown>): string | null | undefined => {
+  if (typeof record.categoryKey === 'string') {
+    return record.categoryKey;
   }
-  if (record.category === null) {
+  if (typeof record.category_key === 'string') {
+    return record.category_key;
+  }
+  if (record.categoryKey === null || record.category_key === null) {
     return null;
   }
   return undefined;
@@ -102,10 +105,10 @@ const hasRenderableEntryPayload = (payload: StrangerEntryPayload | null): boolea
   if (typeof payload.gender === 'number' && payload.gender > 0) {
     return true;
   }
-  if (typeof payload.category === 'number' && payload.category > 0) {
+  if (typeof payload.categoryKey === 'string' && payload.categoryKey.trim().length > 0) {
     return true;
   }
-  if (typeof payload.category === 'string' && payload.category.trim().length > 0) {
+  if (typeof payload.categoryTitle === 'string' && payload.categoryTitle.trim().length > 0) {
     return true;
   }
   return false;
@@ -148,7 +151,10 @@ Page<StrangerInfoPageData, StrangerInfoPageCustom>({
     if (typeof record.gender === 'number' || record.gender === null) {
       payload.gender = record.gender;
     }
-    payload.category = pickCategory(record);
+    const categoryKey = pickCategory(record);
+    payload.categoryKey = typeof categoryKey === 'string' ? categoryKey : null;
+    payload.categoryTitle =
+      pickString(record, 'categoryTitle') ?? pickString(record, 'category_title');
     payload.bio = pickString(record, 'bio');
     payload.region = pickString(record, 'region');
     return payload;
@@ -243,7 +249,7 @@ Page<StrangerInfoPageData, StrangerInfoPageCustom>({
       refreshState: 'refreshing',
     });
 
-    const result = await this.strangerInfoService.refresh(qiaoId, profile);
+    const result = await this.strangerInfoService.refresh(qiaoId, profile, profile.categoryKey);
     if (result === null) {
       return;
     }
@@ -283,6 +289,8 @@ Page<StrangerInfoPageData, StrangerInfoPageCustom>({
       await sendContactRequest({
         qiaoId: this.data.qiaoId,
         message,
+        categoryKey: this.data.profile?.categoryKey,
+        alias: this.data.profile?.displayName,
       });
 
       void wx.hideLoading();

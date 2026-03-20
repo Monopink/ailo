@@ -1,18 +1,17 @@
 import { requireAuth } from '../../utils/auth-guard';
-import { getLogger } from '../../utils/logger';
+import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 import { promptContactRequestMessage, sendContactRequest } from '../../utils/contact-request';
+import {
+  SQUARE_CATEGORIES_CACHE_STALE_PERIOD_MS,
+  SQUARE_CATEGORIES_CACHE_TTL_MS,
+} from '../../utils/discovery-service';
 import squareDiscoveryService, { type SquareContactViewModel } from '../../utils/discovery-service';
+import { isValidCategoryKey, type SquareCategoryCard } from '../../utils/constants/square';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { isNonEmptyString } from '../../utils/guards';
-import {
-  SQUARE_CATEGORY,
-  SQUARE_CATEGORY_ITEMS,
-  type SquareCategory,
-  type SquareCategoryItem,
-} from '../../utils/constants/square';
+import { getLogger } from '../../utils/logger';
 import { type ScreenModel } from '../../services/pages/page-state';
 import { createSquarePageService } from '../../services/pages/square-service';
-import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 
 const logger = getLogger('Square');
 
@@ -23,8 +22,8 @@ type AuthGuardPage = WechatMiniprogram.Page.Instance<
 
 interface SquarePageData {
   pageLayoutData: PageLayoutData;
-  categories: readonly SquareCategoryItem[];
-  currentCategory: SquareCategory;
+  categories: SquareCategoryCard[];
+  currentCategoryKey: string;
   contacts: SquareContactViewModel[];
   loading: boolean;
   nextRefreshAvailableAt: number | null;
@@ -41,7 +40,8 @@ interface StrangerEntryPayload {
   nickname?: string;
   avatarUrl?: string;
   gender?: number | null;
-  category?: string | number | null;
+  categoryKey?: string | null;
+  categoryTitle?: string;
   bio?: string;
   region?: string;
 }
@@ -49,8 +49,17 @@ interface StrangerEntryPayload {
 interface SquarePageCustom {
   squarePageService: ReturnType<typeof createSquarePageService>;
   _blankFailureToastShown: boolean;
+  _requestedCategoryKey: string | null;
   applyScreenModel(screenModel: ScreenModel): void;
   notifyBlankLoadFailed(message: string): void;
+  switchToEntry(toastMessage?: string): Promise<void>;
+  applyCategories(
+    categories: SquareCategoryCard[],
+    preferredKey?: string | null,
+    strictPreferred?: boolean
+  ): boolean;
+  bootstrapCategories(): void;
+  refreshCategories(): Promise<boolean>;
   displayCachedContacts(): boolean;
   loadContactsWithCache(): void;
   revalidateCache(): Promise<void>;
@@ -90,27 +99,9 @@ const getDatasetValue = (event: WechatMiniprogram.BaseEvent, key: string): unkno
   return dataset?.[key];
 };
 
-const SQUARE_CATEGORY_VALUES = new Set<number>(Object.values(SQUARE_CATEGORY));
-
-const isSquareCategory = (value: number): value is SquareCategory =>
-  SQUARE_CATEGORY_VALUES.has(value);
-
-const toSquareCategory = (value: unknown): SquareCategory | null => {
-  if (value === null || value === undefined) {
-    return null;
-  }
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return isSquareCategory(value) ? value : null;
-  }
-  if (typeof value === 'string') {
-    if (value === 'null' || value === '') {
-      return null;
-    }
-    const parsed = Number.parseInt(value, 10);
-    if (Number.isNaN(parsed)) {
-      return null;
-    }
-    return isSquareCategory(parsed) ? parsed : null;
+const toCategoryKey = (value: unknown): string | null => {
+  if (typeof value === 'string' && isValidCategoryKey(value)) {
+    return value;
   }
   return null;
 };
@@ -147,17 +138,18 @@ Page<SquarePageData, SquarePageCustom>({
       },
       emptyMessage: '暂无联系人',
     }),
-    categories: SQUARE_CATEGORY_ITEMS,
-    currentCategory: SQUARE_CATEGORY.FRIEND,
+    categories: squareDiscoveryService.getFallbackCategories(),
+    currentCategoryKey: 'friend',
     contacts: [],
     loading: false,
     nextRefreshAvailableAt: null,
   },
 
   _blankFailureToastShown: false,
+  _requestedCategoryKey: null,
   squarePageService: null as unknown as ReturnType<typeof createSquarePageService>,
 
-  applyScreenModel(screenModel: ScreenModel) {
+  applyScreenModel(screenModel) {
     this.setData(buildPageLayoutScreenModelPayload(screenModel));
   },
 
@@ -169,11 +161,109 @@ Page<SquarePageData, SquarePageCustom>({
     showToast(message);
   },
 
+  async switchToEntry(toastMessage?: string) {
+    await new Promise<void>((resolve) => {
+      void wx.switchTab({
+        url: '/pages/square-entry/square-entry',
+        success: () => {
+          if (isNonEmptyString(toastMessage)) {
+            showToast(toastMessage);
+          }
+          resolve();
+        },
+        fail: () => {
+          if (isNonEmptyString(toastMessage)) {
+            showToast(toastMessage);
+          }
+          resolve();
+        },
+      });
+    });
+  },
+
+  applyCategories(categories, preferredKey = null, strictPreferred = false) {
+    const normalized = categories.filter((item) => isValidCategoryKey(item.categoryKey));
+    if (normalized.length === 0) {
+      void this.switchToEntry('暂无内容');
+      return false;
+    }
+
+    const availableKeys = new Set(normalized.map((item) => item.categoryKey));
+    const currentKey = this.data.currentCategoryKey;
+    let nextKey = currentKey;
+    const preferred =
+      typeof preferredKey === 'string' && preferredKey.length > 0 ? preferredKey : null;
+
+    if (
+      strictPreferred &&
+      preferred !== null &&
+      isValidCategoryKey(preferred) &&
+      !availableKeys.has(preferred)
+    ) {
+      void this.switchToEntry('暂无内容');
+      return false;
+    }
+
+    if (preferred !== null && availableKeys.has(preferred)) {
+      nextKey = preferred;
+    } else if (!availableKeys.has(currentKey)) {
+      nextKey = normalized[0].categoryKey;
+    }
+
+    this.setData({
+      categories: normalized,
+      currentCategoryKey: nextKey,
+    });
+    return true;
+  },
+
+  bootstrapCategories() {
+    const cache = squareDiscoveryService.getCategoriesCacheEntry();
+    const fallback = squareDiscoveryService.getFallbackCategories();
+    let categories = fallback;
+    if (cache !== null && Array.isArray(cache.items) && cache.items.length > 0) {
+      const age = Date.now() - cache.timestamp;
+      const isFresh = age < SQUARE_CATEGORIES_CACHE_TTL_MS;
+      const isStale =
+        age < SQUARE_CATEGORIES_CACHE_TTL_MS + SQUARE_CATEGORIES_CACHE_STALE_PERIOD_MS;
+      if (isFresh || isStale) {
+        categories = cache.items;
+      }
+    }
+    this.applyCategories(categories, this._requestedCategoryKey, false);
+  },
+
+  async refreshCategories() {
+    try {
+      const result = await squareDiscoveryService.loadCategories();
+      const preferredKey = this._requestedCategoryKey ?? this.data.currentCategoryKey;
+      const applied = this.applyCategories(result.items, preferredKey, true);
+      if (applied) {
+        this._requestedCategoryKey = null;
+      }
+      return applied;
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      logger.warn('Square categories refresh failed', { error: err.message });
+      return true;
+    }
+  },
+
   onLoad(options?: Record<string, string | undefined>) {
     this.squarePageService = createSquarePageService();
-    const category = toSquareCategory(options?.category) ?? SQUARE_CATEGORY.FRIEND;
+    const requestedCategory = options?.category_key;
+    if (isNonEmptyString(requestedCategory)) {
+      if (!isValidCategoryKey(requestedCategory)) {
+        void this.switchToEntry('暂无内容');
+        return;
+      }
+      this._requestedCategoryKey = requestedCategory;
+    } else {
+      this._requestedCategoryKey = null;
+    }
+
     this._blankFailureToastShown = false;
-    this.setData({ currentCategory: category });
+    this.bootstrapCategories();
   },
 
   async onShow() {
@@ -181,14 +271,21 @@ Page<SquarePageData, SquarePageCustom>({
     if (!isAuth) {
       return;
     }
+
+    const categoriesReady = await this.refreshCategories();
+    if (!categoriesReady) {
+      return;
+    }
+
     void this.loadContacts({
       respectCooldown: false,
       silentOnCooldown: true,
       showGlobalLoading: this.data.contacts.length === 0,
     });
   },
+
   displayCachedContacts() {
-    const cacheResult = this.squarePageService.resolveCache(this.data.currentCategory);
+    const cacheResult = this.squarePageService.resolveCache(this.data.currentCategoryKey);
     if (cacheResult === null) {
       return false;
     }
@@ -228,12 +325,17 @@ Page<SquarePageData, SquarePageCustom>({
     if (respectCooldown && !this.canRefreshNow()) {
       if (!silentOnCooldown) {
         const waitSeconds = this.getRefreshWaitSeconds();
-        showToast(waitSeconds > 0 ? '请' + waitSeconds + '秒后再试' : '还不能刷新');
+        showToast(waitSeconds > 0 ? `请${waitSeconds}秒后再试` : '还不能刷新');
       }
       return;
     }
 
     if (this.data.loading) {
+      return;
+    }
+
+    if (!isValidCategoryKey(this.data.currentCategoryKey)) {
+      await this.switchToEntry('暂无内容');
       return;
     }
 
@@ -251,7 +353,7 @@ Page<SquarePageData, SquarePageCustom>({
         : null),
     });
 
-    const result = await this.squarePageService.load(this.data.currentCategory, {
+    const result = await this.squarePageService.load(this.data.currentCategoryKey, {
       hasCurrentContent: this.data.contacts.length > 0,
       currentContacts: this.data.contacts,
     });
@@ -262,6 +364,11 @@ Page<SquarePageData, SquarePageCustom>({
     if (result.authInvalid) {
       this.setData({ loading: false });
       await showAuthExpiredModalAndRelogin();
+      return;
+    }
+    if (result.errorMessage.includes('无效的分类参数')) {
+      this.setData({ loading: false });
+      await this.switchToEntry('暂无内容');
       return;
     }
 
@@ -299,13 +406,18 @@ Page<SquarePageData, SquarePageCustom>({
   },
 
   selectCategory(event) {
-    const category = toSquareCategory(getDatasetValue(event, 'category'));
-    if (category === null || category === this.data.currentCategory) {
+    const categoryKey = toCategoryKey(getDatasetValue(event, 'categoryKey'));
+    if (categoryKey === null || categoryKey === this.data.currentCategoryKey) {
+      return;
+    }
+
+    const exists = this.data.categories.some((item) => item.categoryKey === categoryKey);
+    if (!exists) {
       return;
     }
 
     this.setData({
-      currentCategory: category,
+      currentCategoryKey: categoryKey,
       contacts: [],
       nextRefreshAvailableAt: null,
       ...buildPageLayoutScreenModelPayload({
@@ -333,7 +445,11 @@ Page<SquarePageData, SquarePageCustom>({
     if (!isNonEmptyString(qiaoId)) {
       return;
     }
+
     const contact = this.data.contacts.find((item) => item.qiao_id === qiaoId) ?? null;
+    const currentCategory =
+      this.data.categories.find((item) => item.categoryKey === this.data.currentCategoryKey) ??
+      null;
 
     void wx.navigateTo({
       url: `/pages/stranger-info/stranger-info?id=${qiaoId}`,
@@ -346,7 +462,8 @@ Page<SquarePageData, SquarePageCustom>({
           nickname: contact.nickname,
           avatarUrl: contact.avatar_url,
           gender: contact.gender,
-          category: contact.category,
+          categoryKey: this.data.currentCategoryKey,
+          categoryTitle: currentCategory?.label,
           bio: contact.bio,
           region: contact.region,
         };
@@ -365,7 +482,7 @@ Page<SquarePageData, SquarePageCustom>({
     if (!isNonEmptyString(qiaoId)) {
       return;
     }
-
+    const targetContact = this.data.contacts.find((item) => item.qiao_id === qiaoId) ?? null;
     const originalContacts = [...this.data.contacts];
     const message = await promptContactRequestMessage();
     if (message === null) {
@@ -375,7 +492,12 @@ Page<SquarePageData, SquarePageCustom>({
     void wx.showLoading({ title: '发送中...', mask: true });
 
     try {
-      await sendContactRequest({ qiaoId, message });
+      await sendContactRequest({
+        qiaoId,
+        message,
+        categoryKey: this.data.currentCategoryKey,
+        alias: targetContact?.nickname,
+      });
 
       void wx.hideLoading();
       showToast('请求已发送', 'success');
@@ -390,7 +512,7 @@ Page<SquarePageData, SquarePageCustom>({
         }),
       });
 
-      squareDiscoveryService.clearCache(this.data.currentCategory);
+      squareDiscoveryService.clearCache(this.data.currentCategoryKey);
 
       void this.loadContacts({ silentOnCooldown: true, showGlobalLoading: false }).catch(
         (error) => {
@@ -399,7 +521,10 @@ Page<SquarePageData, SquarePageCustom>({
         }
       );
 
-      logger.info('Contact request sent', { to_qiao_id: qiaoId });
+      logger.info('Contact request sent', {
+        to_qiao_id: qiaoId,
+        category_key: this.data.currentCategoryKey,
+      });
     } catch (error) {
       const err = normalizeError(error);
       void wx.hideLoading();

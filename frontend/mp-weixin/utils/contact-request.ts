@@ -1,4 +1,5 @@
 import { post } from './api';
+import { isValidCategoryKey } from './constants/square';
 import defaultLogger from './logger';
 import { isNonEmptyString } from './guards';
 
@@ -13,6 +14,9 @@ interface ContactRequestPromptOptions {
 interface SendContactRequestOptions {
   qiaoId: string;
   message: string;
+  categoryKey?: string | null;
+  alias?: string;
+  tags?: string[];
 }
 
 export function promptContactRequestMessage(
@@ -33,8 +37,7 @@ export function promptContactRequestMessage(
         }
         const content = res.content;
         const trimmedContent = isNonEmptyString(content) ? content.trim() : '';
-        const finalMessage =
-          trimmedContent.length > 0 ? trimmedContent : defaultMessage;
+        const finalMessage = trimmedContent.length > 0 ? trimmedContent : defaultMessage;
         resolve(finalMessage);
       },
       fail: (error) => {
@@ -48,14 +51,34 @@ export function promptContactRequestMessage(
 export async function sendContactRequest({
   qiaoId,
   message,
+  categoryKey,
+  alias,
+  tags,
 }: SendContactRequestOptions): Promise<void> {
   if (!isNonEmptyString(qiaoId)) {
     throw new Error('Missing qiaoId');
   }
 
-  await post('/contact-requests', {
+  const payload: {
+    to_qiao_id: string;
+    message: string;
+    category_key?: string;
+    alias?: string;
+    tags?: string[];
+  } = {
     to_qiao_id: qiaoId,
     message,
-  });
+  };
+  if (isValidCategoryKey(categoryKey)) {
+    payload.category_key = categoryKey;
+  }
+  if (isNonEmptyString(alias)) {
+    payload.alias = alias.trim();
+  }
+  if (Array.isArray(tags) && tags.length > 0) {
+    payload.tags = tags.filter((item) => isNonEmptyString(item)).map((item) => item.trim());
+  }
+
+  await post('/contact-requests', payload);
   logger.info('contact_request_sent', { qiao_id: qiaoId });
 }

@@ -42,7 +42,10 @@ from_id -- 申请发起者内部ID
 to_qiao_id -- 申请接收者外部ID
 to_type -- 申请接收者类型：1=user (包括所有用户类型), 2=ai
 to_id -- 申请接收者内部ID
-message -- 附加申请说明（例如"我是xxx"）
+message -- 附加申请说明
+category_key -- 来源分类键（kebab-case，可为空）
+alias -- 申请时备注（可为空）
+tags -- 申请时标签数组（jsonb，可为空）
 source -- 来源渠道：1=search, 2=admin, 3=system, 4=recommend
 status -- 申请状态：1=pending, 2=accepted, 3=ignored, 8=processing, 9=failed
 failure_code -- 模板不足等业务失败原因（挂起记录会填写）

@@ -239,6 +239,18 @@ class ContactRequest(SnowflakeModel):
 
     message: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Application message")
 
+    category_key: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="Source square category key (kebab-case)"
+    )
+
+    alias: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, comment="Requested alias/remark name"
+    )
+
+    tags: Mapped[JSONDict | None] = mapped_column(
+        JSONB, nullable=True, comment="Requested contact tags"
+    )
+
     source: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Source: 1=search, 2=admin, 3=system, 4=recommend"
     )

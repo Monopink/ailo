@@ -1,5 +1,6 @@
 import { requestValidated } from '../../utils/api';
 import { getAvatarUrl } from '../../utils/avatar';
+import { isValidCategoryKey } from '../../utils/constants/square';
 import { classifyError } from '../../utils/error-classifier';
 import { firstNonEmptyString, isNonEmptyString } from '../../utils/guards';
 import { getLogger } from '../../utils/logger';
@@ -15,14 +16,6 @@ const GENDER_SYMBOL_MAP: Record<number, string> = {
   3: '⚧',
 };
 
-const CATEGORY_TEXT_MAP: Record<string, string> = {
-  '1': '交友',
-  '2': '恋爱',
-  '3': '倾诉',
-  '4': '闺蜜',
-  '5': '同好',
-};
-
 type GenderType = 'success' | 'danger' | 'default';
 
 export interface StrangerProfileView {
@@ -33,6 +26,7 @@ export interface StrangerProfileView {
   gender: number;
   genderText: string;
   genderType: GenderType;
+  categoryKey: string;
   categoryText: string;
   regionText: string;
   bioText: string;
@@ -44,7 +38,8 @@ export interface StrangerEntryPayload {
   nickname?: string;
   avatarUrl?: string;
   gender?: number | null;
-  category?: string | number | null;
+  categoryKey?: string | null;
+  categoryTitle?: string;
   bio?: string;
   region?: string;
 }
@@ -59,16 +54,6 @@ export interface StrangerInfoRefreshResult {
   profile: StrangerProfileView | null;
   authInvalid: boolean;
 }
-
-const toCategoryKey = (value: StrangerEntryPayload['category']): string => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return String(value);
-  }
-  if (typeof value === 'string') {
-    return value;
-  }
-  return '';
-};
 
 const normalizeGender = (
   value: number | null | undefined
@@ -85,25 +70,35 @@ const normalizeGender = (
   return { gender: 0, genderType: 'default' };
 };
 
-const toCategoryText = (category: string): string => CATEGORY_TEXT_MAP[category] ?? '';
+const normalizeCategoryKey = (value: string | null | undefined): string => {
+  if (!isValidCategoryKey(value ?? '')) {
+    return '';
+  }
+  return value ?? '';
+};
+
+const normalizeText = (value: string | null | undefined, fallback = ''): string =>
+  firstNonEmptyString(value ?? '', fallback) ?? fallback;
 
 const buildEntryProfile = (
   qiaoId: string,
   entryPayload: StrangerEntryPayload | null
 ): StrangerProfileView => {
   const genderState = normalizeGender(entryPayload?.gender ?? null);
-  const displayName = firstNonEmptyString(entryPayload?.nickname ?? '', qiaoId) ?? qiaoId;
+  const displayName = normalizeText(entryPayload?.nickname, qiaoId);
+  const categoryKey = normalizeCategoryKey(entryPayload?.categoryKey);
   return {
     qiaoId,
-    username: firstNonEmptyString(entryPayload?.username ?? '', '') ?? '',
+    username: normalizeText(entryPayload?.username),
     avatarUrl: getAvatarUrl(entryPayload?.avatarUrl ?? ''),
     displayName,
     gender: genderState.gender,
     genderText: GENDER_SYMBOL_MAP[genderState.gender] ?? '',
     genderType: genderState.genderType,
-    categoryText: toCategoryText(toCategoryKey(entryPayload?.category ?? null)),
-    regionText: firstNonEmptyString(entryPayload?.region ?? '', '') ?? '',
-    bioText: firstNonEmptyString(entryPayload?.bio ?? '', '') ?? '',
+    categoryKey,
+    categoryText: normalizeText(entryPayload?.categoryTitle),
+    regionText: normalizeText(entryPayload?.region),
+    bioText: normalizeText(entryPayload?.bio),
   };
 };
 
@@ -114,27 +109,35 @@ const normalizeProfile = (
     nickname?: string | null;
     avatar_url?: string | null;
     gender?: number | null;
-    category?: string | number | null;
+    category_key?: string | null;
+    category_title?: string | null;
     bio?: string | null;
     region?: string | null;
   },
   fallback: StrangerProfileView
 ): StrangerProfileView => {
   const genderState = normalizeGender(profile.gender ?? null);
+  const categoryKey = normalizeCategoryKey(profile.category_key);
   return {
     qiaoId: profile.qiao_id,
-    username: firstNonEmptyString(profile.username ?? '', fallback.username) ?? fallback.username,
+    username: normalizeText(profile.username, fallback.username),
     avatarUrl: getAvatarUrl(profile.avatar_url),
-    displayName:
-      firstNonEmptyString(profile.nickname ?? '', fallback.displayName) ?? fallback.displayName,
+    displayName: normalizeText(profile.nickname, fallback.displayName),
     gender: genderState.gender,
     genderText: GENDER_SYMBOL_MAP[genderState.gender] ?? '',
     genderType: genderState.genderType,
-    categoryText: toCategoryText(toCategoryKey(profile.category ?? null)),
-    regionText:
-      firstNonEmptyString(profile.region ?? '', fallback.regionText) ?? fallback.regionText,
-    bioText: firstNonEmptyString(profile.bio ?? '', fallback.bioText) ?? fallback.bioText,
+    categoryKey,
+    categoryText: normalizeText(profile.category_title, fallback.categoryText),
+    regionText: normalizeText(profile.region, fallback.regionText),
+    bioText: normalizeText(profile.bio, fallback.bioText),
   };
+};
+
+const buildProfileUrl = (qiaoId: string, categoryKey: string): string => {
+  if (!isValidCategoryKey(categoryKey)) {
+    return `/discovery/profile/${qiaoId}`;
+  }
+  return `/discovery/profile/${qiaoId}?category_key=${encodeURIComponent(categoryKey)}`;
 };
 
 export class StrangerInfoPageService extends BasePageService {
@@ -185,7 +188,8 @@ export class StrangerInfoPageService extends BasePageService {
 
   async refresh(
     qiaoId: string,
-    fallbackProfile: StrangerProfileView
+    fallbackProfile: StrangerProfileView,
+    categoryKey: string
   ): Promise<StrangerInfoRefreshResult | null> {
     if (!isNonEmptyString(qiaoId)) {
       return {
@@ -198,7 +202,7 @@ export class StrangerInfoPageService extends BasePageService {
     const seq = this.startRequest();
     try {
       const profile = await requestValidated(StrangerProfileResponseSchema, {
-        url: `/discovery/profile/${qiaoId}`,
+        url: buildProfileUrl(qiaoId, categoryKey),
         method: 'GET',
         auth: false,
       });

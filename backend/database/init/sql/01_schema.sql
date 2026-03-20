@@ -271,6 +271,9 @@ CREATE TABLE IF NOT EXISTS contact_requests (
     to_type INTEGER NOT NULL,
     to_id BIGINT,  -- Allow NULL: AI instance not created yet when request is created
     message TEXT,
+    category_key VARCHAR(64),
+    alias VARCHAR(100),
+    tags JSONB,
     source INTEGER NOT NULL,
     status INTEGER NOT NULL DEFAULT 1,
     failure_code VARCHAR(50),
@@ -673,29 +676,67 @@ COMMENT ON COLUMN ai_types.display_name IS 'Display name for admin dashboard';
 -- Square Discovery Tables
 -- ============================================================================
 
+-- Square categories - dynamic categories exposed to clients
+CREATE TABLE IF NOT EXISTS square_categories (
+    id BIGSERIAL PRIMARY KEY,
+    category_key VARCHAR(64) NOT NULL UNIQUE,
+    title VARCHAR(50) NOT NULL,
+    description TEXT,
+    theme_key VARCHAR(20) NOT NULL,
+    icon_ref VARCHAR(100) NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 100,
+    status INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT ck_square_categories_category_key_format
+        CHECK (category_key ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+    CONSTRAINT ck_square_categories_theme_key
+        CHECK (theme_key IN ('ocean', 'sky', 'mint', 'forest', 'lime', 'amber', 'sunset', 'rose', 'grape', 'slate')),
+    CONSTRAINT ck_square_categories_icon_ref_format
+        CHECK (icon_ref ~ '^tdesign:[a-z0-9-]+$'),
+    CONSTRAINT ck_square_categories_status
+        CHECK (status IN (1, 2))
+);
+
+COMMENT ON TABLE square_categories IS 'Square category definitions for dynamic discovery tabs';
+COMMENT ON COLUMN square_categories.category_key IS 'Stable category key in kebab-case';
+COMMENT ON COLUMN square_categories.title IS 'Category display title';
+COMMENT ON COLUMN square_categories.description IS 'Category description';
+COMMENT ON COLUMN square_categories.theme_key IS 'Theme key used by client design tokens';
+COMMENT ON COLUMN square_categories.icon_ref IS 'TDesign icon reference: tdesign:<icon-name>';
+COMMENT ON COLUMN square_categories.sort_order IS 'Ascending sort priority';
+COMMENT ON COLUMN square_categories.status IS '1=active, 2=inactive';
+
+CREATE INDEX idx_square_categories_status_sort ON square_categories(status, sort_order, category_key);
+
 -- Square type entries - decouple Square exposure from persona inventory
 CREATE TABLE IF NOT EXISTS square_type_entries (
     id SERIAL PRIMARY KEY,
-    square_category INTEGER NOT NULL,
+    category_key VARCHAR(64) NOT NULL,
     type_id INTEGER NOT NULL,
     exposure_strategy INTEGER NOT NULL DEFAULT 1,
     status INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    UNIQUE(square_category, type_id)
+    UNIQUE(category_key, type_id),
+    CONSTRAINT ck_square_type_entries_status CHECK (status IN (1, 2))
 );
 
 COMMENT ON TABLE square_type_entries IS 'Square discovery entries - decoupled from template/profile inventory';
-COMMENT ON COLUMN square_type_entries.square_category IS 'Square category enum: 1=friend, 2=love, 3=talk, 4=bestie, 5=hobby';
+COMMENT ON COLUMN square_type_entries.category_key IS 'Square category key (references square_categories.category_key)';
 COMMENT ON COLUMN square_type_entries.exposure_strategy IS 'Exposure strategy enum: 1=random';
 COMMENT ON COLUMN square_type_entries.status IS '1=active, 2=inactive';
 COMMENT ON COLUMN square_type_entries.type_id IS 'AI type exposed in this slot (references ai_types)';
 
 CREATE INDEX idx_square_type_entries_status ON square_type_entries(status);
-CREATE INDEX idx_square_type_entries_category ON square_type_entries(square_category);
+CREATE INDEX idx_square_type_entries_category_key ON square_type_entries(category_key);
 CREATE INDEX idx_square_type_entries_ai_type ON square_type_entries(type_id);
+CREATE UNIQUE INDEX uq_square_type_entries_active_type_id
+ON square_type_entries(type_id) WHERE status = 1;
 
--- Add foreign key constraint for square_type_entries
+-- Add foreign key constraints for square_type_entries
+ALTER TABLE square_type_entries ADD CONSTRAINT fk_square_type_entries_category
+    FOREIGN KEY (category_key) REFERENCES square_categories(category_key) ON DELETE RESTRICT;
 ALTER TABLE square_type_entries ADD CONSTRAINT fk_square_type_entries_type
     FOREIGN KEY (type_id) REFERENCES ai_types(id) ON DELETE RESTRICT;
 
@@ -1567,6 +1608,17 @@ COMMENT ON COLUMN llm_test_logs.thinking_mode IS 'Thinking mode: enabled/disable
 -- Database Functions and Triggers
 -- ============================================================================
 
+-- Function to keep square_categories.category_key immutable
+CREATE OR REPLACE FUNCTION prevent_square_category_key_update()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.category_key <> OLD.category_key THEN
+        RAISE EXCEPTION 'square_categories.category_key is immutable';
+    END IF;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
 -- Function to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -1585,6 +1637,8 @@ DROP TRIGGER IF EXISTS update_user_tokens_updated_at ON user_tokens;
 DROP TRIGGER IF EXISTS update_user_auths_updated_at ON user_auths;
 DROP TRIGGER IF EXISTS update_contacts_updated_at ON contacts;
 DROP TRIGGER IF EXISTS update_contact_requests_updated_at ON contact_requests;
+DROP TRIGGER IF EXISTS prevent_square_category_key_update_trigger ON square_categories;
+DROP TRIGGER IF EXISTS update_square_categories_updated_at ON square_categories;
 DROP TRIGGER IF EXISTS update_square_type_entries_updated_at ON square_type_entries;
 DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
 DROP TRIGGER IF EXISTS update_message_devices_updated_at ON message_devices;
@@ -1622,6 +1676,8 @@ CREATE TRIGGER update_user_tokens_updated_at BEFORE UPDATE ON user_tokens FOR EA
 CREATE TRIGGER update_user_auths_updated_at BEFORE UPDATE ON user_auths FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_contacts_updated_at BEFORE UPDATE ON contacts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_contact_requests_updated_at BEFORE UPDATE ON contact_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER prevent_square_category_key_update_trigger BEFORE UPDATE ON square_categories FOR EACH ROW EXECUTE FUNCTION prevent_square_category_key_update();
+CREATE TRIGGER update_square_categories_updated_at BEFORE UPDATE ON square_categories FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_square_type_entries_updated_at BEFORE UPDATE ON square_type_entries FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_message_devices_updated_at BEFORE UPDATE ON message_devices FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

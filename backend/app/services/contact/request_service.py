@@ -150,6 +150,25 @@ def _coerce_int(value: JSONValue | None) -> int | None:
     return None
 
 
+def _build_request_tags_payload(tags: list[str] | None) -> JSONDict | None:
+    if not tags:
+        return None
+    normalized_tags: list[JSONValue] = list(tags)
+    return {"tags": normalized_tags}
+
+
+def _extract_request_tags(tags_payload: JSONValue | None) -> list[str] | None:
+    if tags_payload is None:
+        return None
+    if isinstance(tags_payload, list):
+        return [item for item in tags_payload if isinstance(item, str)]
+    if isinstance(tags_payload, dict):
+        raw_tags = tags_payload.get("tags")
+        if isinstance(raw_tags, list):
+            return [item for item in raw_tags if isinstance(item, str)]
+    return None
+
+
 def _map_request_source_to_contact(source: int | None) -> ContactSource:
     """Normalize contact request source enum into contacts.source enum."""
     if source is None:
@@ -593,6 +612,9 @@ async def _check_and_update_pending_request(
     # Update existing pending/processing request
     try:
         existing_request.message = request.message
+        existing_request.category_key = request.category_key
+        existing_request.alias = request.alias
+        existing_request.tags = _build_request_tags_payload(request.tags)
         existing_request.source = request.source
         # Extend expiry window
         expiry_days = await _get_contact_expiration_days(db)
@@ -721,6 +743,9 @@ async def _create_request_record(
         to_type=target_type,
         to_id=None,
         message=request.message,
+        category_key=request.category_key,
+        alias=request.alias,
+        tags=_build_request_tags_payload(request.tags),
         source=request.source,
         status=ContactRequestStatus.PENDING,
         expires_at=expires_at,
@@ -830,13 +855,15 @@ async def retry_pending_contact_request(
     await db.commit()
 
     try:
+        effective_alias = alias if alias is not None else contact_request.alias
+        effective_tags = tags if tags is not None else _extract_request_tags(contact_request.tags)
         await _process_ai_contact_request(
             db=db,
             user_qiao_id=contact_request.from_qiao_id,
             user_id=contact_request.from_id,
             contact_request=contact_request,
-            alias=alias,
-            tags=tags,
+            alias=effective_alias,
+            tags=effective_tags,
         )
         logger.info(
             "contact_request_retry",

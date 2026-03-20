@@ -7,14 +7,35 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.enums import ExposureStrategy, SquareCategory
+from app.enums import ExposureStrategy, SquareCategoryTheme
+
+
+class SquareCategoryItem(BaseModel):
+    """Square category item returned to clients."""
+
+    category_key: str = Field(..., description="Category key (kebab-case)")
+    title: str = Field(..., description="Category display title")
+    description: str | None = Field(None, description="Category description")
+    theme_key: SquareCategoryTheme = Field(..., description="Theme key")
+    icon_ref: str = Field(..., description="Icon reference (tdesign:<icon-name>)")
+
+    class Config:
+        """Configuration for discovery schema population."""
+
+        from_attributes = True
+
+
+class SquareCategoryListResponse(BaseModel):
+    """Square category list response."""
+
+    items: list[SquareCategoryItem] = Field(..., description="Square categories")
 
 
 class SquareContactResponse(BaseModel):
     """Square page contact response."""
 
     qiao_id: str = Field(..., description="Contact qiao_id")
-    category: int | None = Field(None, description="Category (1-5)")
+    category_key: str = Field(..., description="Category key (kebab-case)")
     type_id: int = Field(..., description="AI type identifier backing this entry")
     nickname: str | None = Field(None, description="Persona nickname")
     gender: int | None = Field(None, description="Gender: 1=male, 2=female, 3=other, 4=unknown")
@@ -44,13 +65,20 @@ class SquareContactListResponse(BaseModel):
 
     items: list[SquareContactResponse] = Field(..., description="Contact list")
     pagination: PaginationInfo = Field(..., description="Pagination information")
+    refresh_available_at: datetime | None = Field(
+        None, description="Next allowed refresh time in ISO 8601"
+    )
 
 
 class SquareEntryBase(BaseModel):
     """Base schema for Square exposure entries."""
 
-    square_category: SquareCategory = Field(
-        ..., description="Square category (1=friend, 2=love, 3=talk, 4=bestie, 5=hobby)"
+    category_key: str = Field(
+        ...,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        description="Square category key (kebab-case)",
     )
     type_id: int = Field(..., description="AI type exposed in this slot")
     exposure_strategy: ExposureStrategy = Field(
@@ -66,7 +94,13 @@ class SquareEntryCreate(SquareEntryBase):
 class SquareEntryUpdate(BaseModel):
     """Schema for updating Square exposure entries."""
 
-    square_category: SquareCategory | None = Field(None, description="Square category (1-5)")
+    category_key: str | None = Field(
+        None,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        description="Square category key (kebab-case)",
+    )
     type_id: int | None = Field(None, description="AI type exposed in this slot")
     exposure_strategy: ExposureStrategy | None = Field(
         None, description="Exposure strategy (1=random)"
@@ -105,7 +139,8 @@ class StrangerProfileResponse(BaseModel):
     )
     bio: str | None = Field(None, description="Bio/description")
     region: str | None = Field(None, description="Region/location")
-    category: int | None = Field(None, description="Category (1-5)")
+    category_key: str | None = Field(None, description="Source category key")
+    category_title: str | None = Field(None, description="Source category title")
 
     class Config:
         """Configuration for discovery filters schema population."""

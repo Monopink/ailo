@@ -1,104 +1,158 @@
-/**
- * Square discovery constants and enums
- *
- * IMPORTANT: All enum values MUST match backend definitions
- */
+import type { SquareCategory, SquareThemeKey } from '../schemas';
 
-/** Square category enum - MUST match backend SquareCategory */
-export const SQUARE_CATEGORY = {
-  FRIEND: 1,
-  LOVE: 2,
-  TALK: 3,
-  BESTIE: 4,
-  HOBBY: 5,
-} as const;
+export type SquareThemeClass = 'friend' | 'love' | 'talk' | 'bestie' | 'hobby';
 
-export type SquareCategory = (typeof SQUARE_CATEGORY)[keyof typeof SQUARE_CATEGORY];
+export interface SquareCategoryCard {
+  categoryKey: string;
+  label: string;
+  description?: string;
+  themeClass: SquareThemeClass;
+  themeKey: SquareThemeKey;
+  iconName: string;
+  iconRef: string;
+}
 
-/** Square category labels for UI */
-export const SQUARE_CATEGORY_LABELS: Record<SquareCategory, string> = {
-  [SQUARE_CATEGORY.FRIEND]: '交友',
-  [SQUARE_CATEGORY.LOVE]: '恋爱',
-  [SQUARE_CATEGORY.TALK]: '倾诉',
-  [SQUARE_CATEGORY.BESTIE]: '闺蜜',
-  [SQUARE_CATEGORY.HOBBY]: '同好',
+const CATEGORY_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const ICON_REF_PATTERN = /^tdesign:[a-z0-9-]+$/;
+const TDESIGN_PREFIX = 'tdesign:';
+
+export const DEFAULT_SQUARE_ICON = 'chat';
+
+// Source of truth: backend/app/enums/common.py -> SquareCategoryTheme
+export const SQUARE_THEME_KEYS: readonly SquareThemeKey[] = [
+  'ocean',
+  'sky',
+  'mint',
+  'forest',
+  'lime',
+  'amber',
+  'sunset',
+  'rose',
+  'grape',
+  'slate',
+];
+
+const THEME_CLASS_BY_THEME_KEY: Record<SquareThemeKey, SquareThemeClass> = {
+  ocean: 'friend',
+  sky: 'hobby',
+  mint: 'talk',
+  forest: 'hobby',
+  lime: 'friend',
+  amber: 'love',
+  sunset: 'love',
+  rose: 'bestie',
+  grape: 'bestie',
+  slate: 'talk',
 };
 
-/** Square category list for tabs */
-export const SQUARE_CATEGORY_ITEMS = [
+const FALLBACK_CATEGORY_CARDS: readonly SquareCategoryCard[] = [
   {
-    key: SQUARE_CATEGORY.FRIEND,
-    label: SQUARE_CATEGORY_LABELS[SQUARE_CATEGORY.FRIEND],
-    theme: 'friend',
-  },
-  {
-    key: SQUARE_CATEGORY.LOVE,
-    label: SQUARE_CATEGORY_LABELS[SQUARE_CATEGORY.LOVE],
-    theme: 'love',
-  },
-  {
-    key: SQUARE_CATEGORY.TALK,
-    label: SQUARE_CATEGORY_LABELS[SQUARE_CATEGORY.TALK],
-    theme: 'talk',
-  },
-  {
-    key: SQUARE_CATEGORY.BESTIE,
-    label: SQUARE_CATEGORY_LABELS[SQUARE_CATEGORY.BESTIE],
-    theme: 'bestie',
-  },
-  {
-    key: SQUARE_CATEGORY.HOBBY,
-    label: SQUARE_CATEGORY_LABELS[SQUARE_CATEGORY.HOBBY],
-    theme: 'hobby',
-  },
-] as const;
-
-export type SquareCategoryItem = (typeof SQUARE_CATEGORY_ITEMS)[number];
-
-export type SquareEntryTheme = 'friend' | 'love' | 'talk' | 'bestie' | 'hobby';
-
-/** Square entry cards for the entry page */
-export const SQUARE_ENTRY_CARDS = [
-  {
-    key: 'friend',
-    theme: 'friend',
-    category: SQUARE_CATEGORY.FRIEND,
-    title: '交友',
+    categoryKey: 'friend',
+    label: '交友',
     description: '结识同频的人，聊聊日常和心情',
-    icon: 'user-filled',
+    themeClass: 'friend',
+    themeKey: 'ocean',
+    iconName: 'user-filled',
+    iconRef: 'tdesign:user-filled',
   },
   {
-    key: 'love',
-    theme: 'love',
-    category: SQUARE_CATEGORY.LOVE,
-    title: '恋爱',
+    categoryKey: 'love',
+    label: '恋爱',
     description: '遇见心动对象，把故事慢慢说给TA',
-    icon: 'chat-filled',
+    themeClass: 'love',
+    themeKey: 'amber',
+    iconName: 'chat-filled',
+    iconRef: 'tdesign:chat-filled',
   },
   {
-    key: 'talk',
-    theme: 'talk',
-    category: SQUARE_CATEGORY.TALK,
-    title: '倾诉',
+    categoryKey: 'talk',
+    label: '倾诉',
     description: '想说的话有人听，情绪不必独自消化',
-    icon: 'chat',
+    themeClass: 'talk',
+    themeKey: 'grape',
+    iconName: 'chat',
+    iconRef: 'tdesign:chat',
   },
   {
-    key: 'bestie',
-    theme: 'bestie',
-    category: SQUARE_CATEGORY.BESTIE,
-    title: '闺蜜',
+    categoryKey: 'bestie',
+    label: '闺蜜',
     description: '找个懂你的闺蜜，分享秘密与小确幸',
-    icon: 'user',
+    themeClass: 'bestie',
+    themeKey: 'rose',
+    iconName: 'user',
+    iconRef: 'tdesign:user',
   },
   {
-    key: 'hobby',
-    theme: 'hobby',
-    category: SQUARE_CATEGORY.HOBBY,
-    title: '同好',
+    categoryKey: 'hobby',
+    label: '同好',
     description: '一起聊兴趣爱好，把话题聊到尽兴',
-    icon: 'earth',
+    themeClass: 'hobby',
+    themeKey: 'sky',
+    iconName: 'earth',
+    iconRef: 'tdesign:earth',
   },
-] as const;
+];
 
-export type SquareEntryCard = (typeof SQUARE_ENTRY_CARDS)[number];
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim().length > 0;
+
+const SQUARE_THEME_KEY_SET = new Set<SquareThemeKey>(SQUARE_THEME_KEYS);
+
+const isSquareThemeKey = (value: unknown): value is SquareThemeKey =>
+  typeof value === 'string' && SQUARE_THEME_KEY_SET.has(value as SquareThemeKey);
+
+const normalizeThemeClass = (themeKey: string): SquareThemeClass =>
+  isSquareThemeKey(themeKey) ? THEME_CLASS_BY_THEME_KEY[themeKey] : 'friend';
+
+const normalizeThemeKey = (themeKey: string): SquareThemeKey =>
+  isSquareThemeKey(themeKey) ? themeKey : 'ocean';
+
+export const resolveSquareIconName = (iconRef: string | null | undefined): string => {
+  if (!isNonEmptyString(iconRef)) {
+    return DEFAULT_SQUARE_ICON;
+  }
+  const normalized = iconRef.trim();
+  if (!ICON_REF_PATTERN.test(normalized)) {
+    return DEFAULT_SQUARE_ICON;
+  }
+  return normalized.slice(TDESIGN_PREFIX.length);
+};
+
+export const isValidCategoryKey = (value: unknown): value is string =>
+  isNonEmptyString(value) && CATEGORY_KEY_PATTERN.test(value.trim());
+
+export const toSquareCategoryCard = (category: SquareCategory): SquareCategoryCard => ({
+  categoryKey: category.category_key,
+  label: category.title,
+  description: isNonEmptyString(category.description) ? category.description.trim() : undefined,
+  themeClass: normalizeThemeClass(category.theme_key),
+  themeKey: normalizeThemeKey(category.theme_key),
+  iconName: resolveSquareIconName(category.icon_ref),
+  iconRef: isNonEmptyString(category.icon_ref)
+    ? category.icon_ref
+    : `tdesign:${DEFAULT_SQUARE_ICON}`,
+});
+
+export const buildSquareCategoryCards = (
+  categories: readonly SquareCategory[]
+): SquareCategoryCard[] => {
+  const items: SquareCategoryCard[] = [];
+  const seen = new Set<string>();
+  categories.forEach((item) => {
+    const key = item.category_key.trim();
+    if (!isValidCategoryKey(key) || seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    items.push(toSquareCategoryCard(item));
+  });
+
+  if (items.length > 0) {
+    return items;
+  }
+  return [];
+};
+
+export const getFallbackSquareCategoryCards = (): SquareCategoryCard[] => [
+  ...FALLBACK_CATEGORY_CARDS,
+];

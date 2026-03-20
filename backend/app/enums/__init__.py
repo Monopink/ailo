@@ -9,6 +9,8 @@ All enum values correspond to the integer values defined in the database schema.
 # and LLM Service.
 from .client import ClientType, LocaleCode
 from .common import (
+    SQUARE_CATEGORY_THEME_KEY_SET,
+    SQUARE_CATEGORY_THEME_KEYS,
     AdminLoginResult,
     AdminOperationType,
     AdminRole,
@@ -69,12 +71,14 @@ from .common import (
     ReusableStatus,
     RiskLevel,
     SeverityLevel,
-    SquareCategory,
+    SquareCategoryStatus,
+    SquareCategoryTheme,
     SquareEntryStatus,
     UploaderType,
     UserStatus,
     UserType,
     ViolationType,
+    is_valid_square_category_theme,
 )
 from .templates import CHAT_INFO_TEMPLATES
 
@@ -121,7 +125,11 @@ __all__ = [
     "ProfileOwnerType",
     "ProfileModifierType",
     # AI System
-    "SquareCategory",
+    "SQUARE_CATEGORY_THEME_KEYS",
+    "SQUARE_CATEGORY_THEME_KEY_SET",
+    "is_valid_square_category_theme",
+    "SquareCategoryStatus",
+    "SquareCategoryTheme",
     "ExposureStrategy",
     "AIInstanceCreator",
     "AIInstanceStatus",

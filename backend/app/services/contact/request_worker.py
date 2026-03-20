@@ -20,7 +20,7 @@ from app.core.database import get_sessionmaker
 from app.crud.contact import contact_request as contact_request_crud
 from app.enums import ContactRequestStatus, ContactType
 from app.models.contact import ContactRequest
-from app.services.contact.request_service import _process_ai_contact_request
+from app.services.contact.request_service import _extract_request_tags, _process_ai_contact_request
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -84,8 +84,8 @@ async def _process_one(db: AsyncSession, req: ContactRequest) -> None:
             user_qiao_id=user_qiao_id,
             user_id=user_id,
             contact_request=req,
-            alias=None,
-            tags=None,
+            alias=req.alias,
+            tags=_extract_request_tags(req.tags),
         )
 
         updated_req = await contact_request_crud.get(db, record_id=req.id)

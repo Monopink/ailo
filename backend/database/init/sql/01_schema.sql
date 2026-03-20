@@ -818,7 +818,7 @@ CREATE TABLE IF NOT EXISTS ai_instances (
     user_id BIGINT NOT NULL,
     user_qiao_id VARCHAR(32) NOT NULL,
     qiao_id VARCHAR(32) NOT NULL,
-    username VARCHAR(20),
+    persona_id BIGINT,
     creation_metadata JSONB NOT NULL,
     style_id INTEGER NOT NULL,
     personality_id INTEGER NOT NULL,
@@ -833,19 +833,17 @@ CREATE TABLE IF NOT EXISTS ai_instances (
     created_by INTEGER NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_ai_instances_user_qiao UNIQUE (user_id, qiao_id),
-    CONSTRAINT ck_ai_instances_manual_username_null
-        CHECK ((creation_metadata->>'source') <> 'admin_manual' OR username IS NULL)
+    CONSTRAINT uq_ai_instances_user_qiao UNIQUE (user_id, qiao_id)
 );
 
 -- Create indexes for ai_instances table
 CREATE INDEX idx_ai_instances_user_id ON ai_instances(user_id);
 CREATE INDEX idx_ai_instances_user_qiao_id ON ai_instances(user_qiao_id);
-CREATE INDEX idx_ai_instances_user_username ON ai_instances(user_id, username);
 CREATE INDEX idx_ai_instances_qiao_id ON ai_instances(qiao_id);
 CREATE INDEX idx_ai_instances_style_id ON ai_instances(style_id);
 CREATE INDEX idx_ai_instances_personality_id ON ai_instances(personality_id);
 CREATE INDEX idx_ai_instances_llm_config ON ai_instances(llm_config_id) WHERE llm_config_id IS NOT NULL;
+CREATE INDEX idx_ai_instances_persona_id ON ai_instances(persona_id) WHERE persona_id IS NOT NULL;
 CREATE INDEX idx_ai_instances_creation_persona ON ai_instances USING gin((creation_metadata -> 'persona_id'));
 
 -- Add foreign key constraints for ai_instances
@@ -855,13 +853,15 @@ ALTER TABLE ai_instances ADD CONSTRAINT fk_ai_instances_style
     FOREIGN KEY (style_id) REFERENCES ai_styles(id) ON DELETE RESTRICT;
 ALTER TABLE ai_instances ADD CONSTRAINT fk_ai_instances_personality
     FOREIGN KEY (personality_id) REFERENCES ai_personalities(id) ON DELETE RESTRICT;
+ALTER TABLE ai_instances ADD CONSTRAINT fk_ai_instances_persona
+    FOREIGN KEY (persona_id) REFERENCES ai_personas(id) ON DELETE RESTRICT;
 ALTER TABLE ai_instances ADD CONSTRAINT fk_ai_instances_relationship
     FOREIGN KEY (relationship_id) REFERENCES ai_relationships(id) ON DELETE RESTRICT;
 
 -- Add comments for fields
 COMMENT ON TABLE ai_instances IS 'AI instances - created when users add personas';
 COMMENT ON COLUMN ai_instances.qiao_id IS 'External persona identifier (multiple users can add same persona)';
-COMMENT ON COLUMN ai_instances.username IS 'Runtime username snapshot; source=persona should equal persona.username, source=admin_manual must be NULL';
+COMMENT ON COLUMN ai_instances.persona_id IS 'Owning persona ID for source=persona; NULL for admin_manual instances';
 COMMENT ON COLUMN ai_instances.creation_metadata IS 'Immutable snapshot at creation time (persona_id, persona_qiao_id, persona_type_id, persona_type_name, template_id, template_display_name, etc.)';
 COMMENT ON COLUMN ai_instances.user_id IS 'Owning user ID (each row belongs to exactly one user)';
 COMMENT ON COLUMN ai_instances.user_qiao_id IS 'Owning user qiao_id (redundant for query convenience)';

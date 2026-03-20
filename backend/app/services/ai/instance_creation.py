@@ -197,7 +197,7 @@ async def create_manual_instance(
             user_id=validated_user_id,
             user_qiao_id=validated_user_qiao_id,
             qiao_id=normalized_qiao_id,
-            username=None,
+            persona_id=None,
             creation_metadata=metadata,
             style_id=validated_style_id,
             personality_id=validated_personality_id,
@@ -331,6 +331,7 @@ async def create_instance_from_persona(
         return getattr(ai_type, "display_name", None) if ai_type is not None else None
 
     creation_metadata = {
+        "source": "persona",
         "persona_id": persona.id,
         "persona_qiao_id": persona.qiao_id,
         "persona_type_id": persona.type_id,
@@ -355,7 +356,7 @@ async def create_instance_from_persona(
         user_id=user_id,
         user_qiao_id=user_qiao_id,
         qiao_id=persona.qiao_id,
-        username=persona.username,
+        persona_id=persona.id,
         creation_metadata=creation_metadata,
         style_id=template.style_id,
         personality_id=template.personality_id,

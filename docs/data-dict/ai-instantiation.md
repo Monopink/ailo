@@ -76,7 +76,7 @@ id -- Snowflake ID
 user_id -- 关联 users.id
 user_qiao_id -- 用户的 qiao_id
 qiao_id -- persona 的对外 ID（可重复，多个用户可添加同一 persona）
-username -- AI 用户名冗余字段；source=persona 时必须等于 persona.username，source=admin_manual 时必须为 NULL
+persona_id -- 关联 ai_personas.id；source=persona 时必须存在，source=admin_manual 时必须为 NULL
 style_id -- 关联 ai_styles.id
 personality_id -- 关联 ai_personalities.id
 status -- 状态：1=active, 2=inactive, 3=blocking

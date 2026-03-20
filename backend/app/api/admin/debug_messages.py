@@ -18,6 +18,7 @@ from app.enums import ContactType
 from app.models.ai.instance import AIInstance
 from app.models.ai.log import AIRequestLog
 from app.models.ai.memory import AIInstanceMemory
+from app.models.ai.template import AIPersona
 from app.models.contact import Contact
 from app.models.message import MessageHistory
 from app.services.ai.queries import get_instance_context
@@ -138,7 +139,8 @@ class DebugInstanceSnapshotResponse(BaseModel):
 
     instance_id: int
     instance_qiao_id: str
-    instance_username: str | None
+    persona_id: int | None
+    contact_username: str | None
     user_qiao_id: str
     conversation_id: str | None
     profile: ProfileInfo | None
@@ -498,15 +500,24 @@ async def get_instance_snapshot(
     style = context["style"]
     personality = context["personality"]
     relationship = context.get("current_relationship")
-    instance_username_result = await db.execute(
-        select(AIInstance.username).where(AIInstance.id == context["instance_id"])
+    identity_result = await db.execute(
+        select(AIInstance.persona_id, AIPersona.username)
+        .select_from(AIInstance)
+        .outerjoin(AIPersona, AIInstance.persona_id == AIPersona.id)
+        .where(AIInstance.id == context["instance_id"])
     )
-    instance_username = instance_username_result.scalar_one_or_none()
+    identity_row = identity_result.first()
+    persona_id: int | None = None
+    contact_username: str | None = None
+    if identity_row is not None:
+        persona_id = identity_row[0] if isinstance(identity_row[0], int) else None
+        contact_username = identity_row[1] if isinstance(identity_row[1], str) else None
 
     return DebugInstanceSnapshotResponse(
         instance_id=context["instance_id"],
         instance_qiao_id=context["instance_qiao_id"],
-        instance_username=instance_username,
+        persona_id=persona_id,
+        contact_username=contact_username,
         user_qiao_id=context["user_qiao_id"],
         conversation_id=conversation_id,
         profile=context.get("profile"),

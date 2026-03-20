@@ -76,7 +76,7 @@ export function createViewRuntimeController({
     }
     const profile = detail && detail.profile ? detail.profile : contact.profile || {};
     const snapshotUsername =
-      snapshot && typeof snapshot.instance_username === 'string' ? snapshot.instance_username.trim() : '';
+      snapshot && typeof snapshot.contact_username === 'string' ? snapshot.contact_username.trim() : '';
     el.peerName.textContent = contact.alias || profile.nickname || contact.contact_qiao_id || '-';
     el.peerIdentifier.textContent = contact.contact_qiao_id || '-';
     el.peerUsername.textContent = snapshotUsername || '-';

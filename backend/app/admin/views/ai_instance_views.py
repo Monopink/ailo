@@ -232,7 +232,6 @@ class AIInstanceView(ModelView):
         "id",
         "user_id",
         "user_qiao_id",
-        "username",
         "created_by",
         "created_at",
         "updated_at",
@@ -248,7 +247,6 @@ class AIInstanceView(ModelView):
         "user",
         "user_id",
         "user_qiao_id",
-        "username",
         "created_by",
         "created_at",
         "updated_at",
@@ -336,7 +334,7 @@ class AIInstanceView(ModelView):
         if isinstance(obj.creation_metadata, dict):
             source = obj.creation_metadata.get("source")
             if source == "admin_manual":
-                obj.username = None
+                obj.persona_id = None
 
         # Validate required foreign keys
         errors = {}
@@ -357,7 +355,7 @@ class AIInstanceView(ModelView):
             raise FormValidationError({"personality": contract_error})
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["qiao_id", "username", "user_qiao_id"]
+    searchable_fields: ClassVar[list[str]] = ["qiao_id", "user_qiao_id"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "user_id",
@@ -384,10 +382,10 @@ class AIInstanceView(ModelView):
             help_text="Optional external AI identifier; leave blank to auto-generate",
             required=False,
         ),
-        StringField(
-            "username",
-            label="Username",
-            help_text="Runtime username snapshot; admin manual creation keeps this empty",
+        IntegerField(
+            "persona_id",
+            label="Persona ID",
+            help_text="Owning ai_personas.id for source=persona; admin manual keeps this empty",
             required=False,
         ),
         _ProfileRelatedStringField(

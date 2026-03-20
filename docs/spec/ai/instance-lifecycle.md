@@ -58,8 +58,8 @@
 **职责**：
 
 - 继承 persona 的 qiao_id（不生成新 qiao_id）
-- `source=persona` 时继承 persona 的 username（实例冗余字段，强一致）
-- `source=admin_manual` 时 username 必须为 NULL
+- `source=persona` 时写入 `persona_id` 绑定 persona；username 展示统一来源于 persona.username
+- `source=admin_manual` 时 `persona_id` 必须为 `NULL`；username 展示为空
 - 存储用户特定的状态（memory、relationship_counts 等）
 - 关联到 contacts 表（用户联系人）
 
@@ -132,7 +132,7 @@
 创建 ai_instances 记录：
 
 - qiao_id = persona.qiao_id（继承，不生成新值）
-- username = persona.username（该流程固定 creation_metadata.source = "persona"）
+- persona_id = persona.id（该流程固定 creation_metadata.source = "persona"）
 - template_id = 选中的 template.id
 - user_qiao_id = 当前用户的 qiao_id
 - status = 1
@@ -169,11 +169,10 @@
 
 ### Username 规则
 
-- `ai_personas.username` 是 AI 搜索主数据源。
-- `ai_instances.username` 是运行态冗余字段，仅用于查询/展示加速。
-- `creation_metadata.source=persona`：必须与 persona 强一致；persona 改名时同事务同步更新所有关联实例。
-- `creation_metadata.source=admin_manual`：`ai_instances.username` 必须为 `NULL`，不参与一致性校验。
-- 禁止直接修改 `ai_instances.username`；若同步失败，整笔事务回滚，禁止降级为“部分成功”。
+- `ai_personas.username` 是 AI username 唯一真相源（搜索与展示）。
+- `ai_instances` 不存 username；通过 `persona_id` 关联读取 persona.username。
+- `creation_metadata.source=persona`：`ai_instances.persona_id` 必须非空且指向有效 persona。
+- `creation_metadata.source=admin_manual`：`ai_instances.persona_id` 必须为 `NULL`，username 展示为空。
 
 **步骤 7：发送消息**
 
@@ -237,7 +236,8 @@ blocked (2)
 - `qiao_id` 可由管理员手动填写；留空时系统自动生成
 - 手动填写的 `qiao_id` 必须未被现有 persona 或 instance profile 占用
 - `relationship_id` 由系统根据 style 自动初始化
-- `username` 固定为 NULL（手动实例不绑定 persona.username）
+- `persona_id` 固定为 `NULL`（手动实例不绑定 persona）
+- username 展示为空
 - 拥有独立的 profile（owner_type=3）
 - 不受 persona/template 复用规则限制
 
@@ -261,6 +261,6 @@ blocked (2)
 
 **数据一致性**：
 
-- `creation_metadata.source=persona` 时：`instance.qiao_id` 必须等于 `persona.qiao_id`，`instance.username` 必须等于 `persona.username`
-- `creation_metadata.source=admin_manual` 时：`instance.username` 必须为 `NULL`
+- `creation_metadata.source=persona` 时：`instance.qiao_id` 必须等于 `persona.qiao_id`，`instance.persona_id` 必须等于 `persona.id`
+- `creation_metadata.source=admin_manual` 时：`instance.persona_id` 必须为 `NULL`
 - 对话运行时允许 profile 缺失降级（`self_profile` 置空），但创建链路必须强制补齐 profile

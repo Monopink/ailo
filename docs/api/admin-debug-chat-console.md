@@ -130,9 +130,8 @@
 {
   "instance_id": 1001,
   "instance_qiao_id": "qiao_ai_001",
-  "instance_username": "xiaoju",
-  "persona_username": "xiaoju",
-  "username_consistency_status": "consistent",
+  "persona_id": 2001,
+  "contact_username": "xiaoju",
   "user_qiao_id": "qiao_user_001",
   "conversation_id": "conv_abc123",
   "profile": {
@@ -167,9 +166,9 @@
 
 ### 行为约束
 
-- 返回 `instance_username`、`persona_username` 与 `username_consistency_status`，用于管理端一致性排障
-- `username_consistency_status` 枚举：`consistent` / `mismatch` / `not_applicable`
-- `not_applicable` 表示 `creation_metadata.source=admin_manual`，此时 `instance_username` 应为 `null`
+- 返回 `persona_id` 与 `contact_username`，用于管理端展示（username 单一真相源）
+- `persona_id` 为 `NULL` 表示手动实例（`creation_metadata.source=admin_manual`）
+- `contact_username` 当 `persona_id` 存在时为 persona.username，否则为 `null`
 - `memory_items` 为摘要视图，条数与内容长度受服务端限制
 - 返回内容仅用于管理端联调，不应暴露敏感内部字段
 - 若定位目标不存在，返回 `404`

@@ -54,13 +54,10 @@ class AIInstance(SnowflakeQiaoModel):
         nullable=False,
         comment="External persona identifier (multiple users can add same persona)",
     )
-    username: Mapped[str | None] = mapped_column(
-        String(20),
+    persona_id: Mapped[int | None] = mapped_column(
+        BigInteger,
         nullable=True,
-        comment=(
-            "Runtime username snapshot; source=persona must equal persona.username, "
-            "source=admin_manual must be NULL"
-        ),
+        comment="Owning persona ID for source=persona; NULL for admin_manual instances",
     )
 
     user_id: Mapped[int] = mapped_column(
@@ -187,13 +184,13 @@ class AIInstance(SnowflakeQiaoModel):
     # Note: qiao_id is indexed for lookup
     __table_args__ = (
         UniqueConstraint("user_id", "qiao_id", name="uq_ai_instances_user_qiao"),
-        CheckConstraint(
-            "(creation_metadata->>'source') <> 'admin_manual' OR username IS NULL",
-            name="ck_ai_instances_manual_username_null",
-        ),
         Index("idx_ai_instances_user_id", "user_id"),
         Index("idx_ai_instances_user_qiao_id", "user_qiao_id"),
-        Index("idx_ai_instances_user_username", "user_id", "username"),
+        Index(
+            "idx_ai_instances_persona_id",
+            "persona_id",
+            postgresql_where=text("persona_id IS NOT NULL"),
+        ),
         Index("idx_ai_instances_style_id", "style_id"),
         Index("idx_ai_instances_personality_id", "personality_id"),
     )

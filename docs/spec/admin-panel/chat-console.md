@@ -36,7 +36,7 @@
 
 - 列表：`GET /api/v1/contacts?limit=100`
 - 详情：`GET /api/v1/contacts/{conversation_id}`
-- `contact_username` 统一来源于 snapshot.identity.instance_username；仅当 `username_consistency_status=not_applicable`（手动实例）允许为空
+- `contact_username` 统一来源于 snapshot.contact_username（服务端通过 persona.username 计算）；手动实例（persona_id=NULL）允许为空
 
 ---
 
@@ -75,8 +75,7 @@ Chat Console 使用单一聚合调试接口：
 展示字段最小集合：
 
 - instance：`instance_id`、`instance_qiao_id`、`user_qiao_id`、`conversation_id`
-- identity：`persona_username`、`instance_username`、`username_consistency_status`（`consistent` / `mismatch` / `not_applicable`）
-- 当 `username_consistency_status=not_applicable` 时，允许 `persona_username`、`instance_username` 为 `null`
+- identity：`contact_username`（来自 persona.username；手动实例为 `null`）
 - profile：`nickname/avatar_url/bio/region/gender`
 - style：`id/display_name`
 - personality：`id/display_name`
@@ -93,8 +92,6 @@ Chat Console 使用单一聚合调试接口：
 
 - 仅管理端 debug 展示
 - 必须 `admin session` 鉴权
-- 若 `username_consistency_status=mismatch`，必须在 Debug 区高亮，并提供“跳转实例/角色管理页”入口
-- 若 `username_consistency_status=not_applicable`，显示“manual instance（username 为 NULL）”提示，不计入异常
 
 ---
 

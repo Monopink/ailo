@@ -261,7 +261,7 @@ class InstanceAdvancedEditView(CustomView):
         return {
             "id": instance.id,
             "qiao_id": instance.qiao_id,
-            "username": instance.username,
+            "persona_id": instance.persona_id,
             "personality_display_name": (
                 instance.personality.display_name if instance.personality else "N/A"
             ),

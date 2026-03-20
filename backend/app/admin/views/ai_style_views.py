@@ -3,8 +3,9 @@
 This module contains Starlette-Admin views for AI style and relationship system.
 """
 
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
+from sqlalchemy import select
 from starlette.requests import Request
 from starlette_admin import (
     DateTimeField,
@@ -31,6 +32,17 @@ from app.models.ai.style import (
 )
 
 
+def _extract_relation_id(value: object) -> int | None:
+    """Extract a relation primary key from a HasOne field value."""
+    relation_id = getattr(value, "id", value)
+    if relation_id is None:
+        return None
+    try:
+        return int(cast(Any, relation_id))
+    except (TypeError, ValueError):
+        return None
+
+
 class _DimensionDisplayNameField(StringField):
     """Computed field to display the dimension display_name."""
 
@@ -40,11 +52,15 @@ class _DimensionDisplayNameField(StringField):
         self.searchable = False
         self.orderable = False
 
-    async def parse_obj(self, _request: Request, obj: Any) -> str:
+    async def parse_obj(self, request: Request, obj: Any) -> str:
         try:
-            if hasattr(obj, "dimension") and obj.dimension is not None:
-                return str(getattr(obj.dimension, "display_name", "") or "")
-            return ""
+            dimension_id = getattr(obj, "dimension_id", None)
+            if dimension_id is None:
+                return ""
+
+            stmt = select(AIDimension.display_name).where(AIDimension.id == dimension_id)
+            display_name = (await request.state.session.execute(stmt)).scalar_one_or_none()
+            return str(display_name or "")
         except Exception:
             return ""
 
@@ -452,9 +468,7 @@ class AIStyleDimensionView(ModelView):
 
     async def before_create(self, _request: Request, _data: dict[str, Any], obj: Any) -> None:
         """Auto-fill foreign keys before creating dimension."""
-        # Auto-fill style_id from HasOne relationship
-        if hasattr(obj, "style") and obj.style is not None:
-            obj.style_id = obj.style.id
+        obj.style_id = _extract_relation_id(_data.get("style"))
 
         # Validate required foreign key
         if not hasattr(obj, "style_id") or obj.style_id is None:
@@ -469,9 +483,8 @@ class AIStyleDimensionView(ModelView):
 
     async def before_edit(self, _request: Request, _data: dict[str, Any], obj: Any) -> None:
         """Auto-fill foreign keys before editing dimension."""
-        # Auto-fill style_id from HasOne relationship
-        if hasattr(obj, "style") and obj.style is not None:
-            obj.style_id = obj.style.id
+        if "style" in _data:
+            obj.style_id = _extract_relation_id(_data.get("style"))
 
         # Validate initial_position range (0-1000 permille)
         errors: dict[str, str] = {}
@@ -549,12 +562,8 @@ class AIDimensionRelationshipMappingView(ModelView):
 
     async def before_create(self, _request: Request, _data: dict[str, Any], obj: Any) -> None:
         """Auto-fill foreign keys before creating mapping."""
-        # Auto-fill foreign keys from HasOne relationships
-        if hasattr(obj, "dimension") and obj.dimension is not None:
-            obj.dimension_id = obj.dimension.id
-            # No separate name column stored; use relation only
-        if hasattr(obj, "relationship") and obj.relationship is not None:
-            obj.relationship_id = obj.relationship.id
+        obj.dimension_id = _extract_relation_id(_data.get("dimension"))
+        obj.relationship_id = _extract_relation_id(_data.get("relationship"))
 
         # Validate required foreign keys
         errors: dict[str, str] = {}
@@ -574,14 +583,10 @@ class AIDimensionRelationshipMappingView(ModelView):
 
     async def before_edit(self, _request: Request, _data: dict[str, Any], obj: Any) -> None:
         """Auto-fill foreign keys before editing mapping."""
-        # Auto-fill foreign keys from HasOne relationships
-        if hasattr(obj, "dimension") and obj.dimension is not None:
-            obj.dimension_id = obj.dimension.id
-            # Auto-fill dimension_name from dimension object
-            if hasattr(obj.dimension, "name"):
-                obj.dimension_name = obj.dimension.name
-        if hasattr(obj, "relationship") and obj.relationship is not None:
-            obj.relationship_id = obj.relationship.id
+        if "dimension" in _data:
+            obj.dimension_id = _extract_relation_id(_data.get("dimension"))
+        if "relationship" in _data:
+            obj.relationship_id = _extract_relation_id(_data.get("relationship"))
 
         errors: dict[str, str] = {}
         start_position = getattr(obj, "start_position", None)

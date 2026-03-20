@@ -26,7 +26,7 @@ from app.enums import AIInstanceCreator, AIInstanceStatus, Gender, ProfileOwnerT
 from app.models.ai import AIInstanceDimension
 from app.models.ai.instance import AIInstance
 from app.models.ai.memory import AIInstanceMemory
-from app.models.ai.style import AIStyleDimension
+from app.models.ai.style import AIDimension, AIRelationship, AIStyleDimension
 from app.models.profile import Profile
 from app.services.ai.instance_creation import (
     ManualAIInstanceCreateError,
@@ -43,6 +43,17 @@ POSITION_MIN = 0
 POSITION_MAX = 1000
 SCORE_MIN = 0
 SCORE_MAX = 1000
+
+
+def _extract_relation_id(value: object) -> int | None:
+    """Extract a relation primary key from a HasOne field value."""
+    relation_id = getattr(value, "id", value)
+    if relation_id is None:
+        return None
+    try:
+        return int(cast(Any, relation_id))
+    except (TypeError, ValueError):
+        return None
 
 
 class MemoryStatus(IntEnum):
@@ -186,20 +197,16 @@ class _RelationshipDisplayNameField(StringField):
         self.searchable = False
         self.orderable = False
 
-    async def parse_obj(self, _request: Request, obj: AIInstance) -> str | None:
+    async def parse_obj(self, request: Request, obj: AIInstance) -> str | None:
         try:
-            # Check if relationship exists
-            if not hasattr(obj, "relationship"):
-                return "(No Relationship Attr)"
+            relationship_id = getattr(obj, "relationship_id", None)
+            if relationship_id is None:
+                return None
 
-            # Relationship is None (not assigned)
-            if obj.relationship is None:
-                return None  # Framework will display as -null-
-
-            # Relationship exists, get display_name
-            display_name = getattr(obj.relationship, "display_name", None)
+            stmt = select(AIRelationship.display_name).where(AIRelationship.id == relationship_id)
+            display_name = (await request.state.session.execute(stmt)).scalar_one_or_none()
             if display_name is None:
-                return None  # Framework will display as -null-
+                return None
             if display_name == "":
                 return "(Empty)"
             return str(display_name)
@@ -216,13 +223,17 @@ class _DimensionDisplayNameField(StringField):
         self.searchable = False
         self.orderable = False
 
-    async def parse_obj(self, _request: Request, obj: AIInstanceDimension) -> str:
+    async def parse_obj(self, request: Request, obj: AIInstanceDimension) -> str:
         try:
-            if hasattr(obj, "dimension") and obj.dimension is not None:
-                return str(getattr(obj.dimension, "display_name", "") or "")
+            dimension_id = getattr(obj, "dimension_id", None)
+            if dimension_id is None:
+                return ""
+
+            stmt = select(AIDimension.display_name).where(AIDimension.id == dimension_id)
+            display_name = (await request.state.session.execute(stmt)).scalar_one_or_none()
+            return str(display_name or "")
         except Exception:
             return ""
-        return ""
 
 
 class AIInstanceView(ModelView):
@@ -276,13 +287,7 @@ class AIInstanceView(ModelView):
     @staticmethod
     def _extract_relation_id(value: object) -> int | None:
         """Extract a relation primary key from a HasOne field value."""
-        relation_id = getattr(value, "id", value)
-        if relation_id is None:
-            return None
-        try:
-            return int(cast(Any, relation_id))
-        except (TypeError, ValueError):
-            return None
+        return _extract_relation_id(value)
 
     async def create(self, request: Request, data: FormData) -> AIInstance:
         """Create a manual AI instance through the application service."""
@@ -312,19 +317,15 @@ class AIInstanceView(ModelView):
 
     async def before_edit(self, _request: Request, _data: FormData, obj: AIInstance) -> None:
         """Auto-fill foreign keys before editing instance."""
-        # Auto-fill foreign keys from HasOne relationships
-        if hasattr(obj, "style") and obj.style is not None:
-            obj.style_id = obj.style.id
-        if hasattr(obj, "personality") and obj.personality is not None:
-            obj.personality_id = obj.personality.id
-        if hasattr(obj, "relationship") and obj.relationship is not None:
-            obj.relationship_id = obj.relationship.id
-        else:
-            obj.relationship_id = None
-        if hasattr(obj, "llm_config") and obj.llm_config is not None:
-            obj.llm_config_id = obj.llm_config.id
-        else:
-            obj.llm_config_id = None
+        # Read relation IDs from submitted form data to avoid async lazy-loading on ORM relations.
+        if "style" in _data:
+            obj.style_id = self._extract_relation_id(_data.get("style"))
+        if "personality" in _data:
+            obj.personality_id = self._extract_relation_id(_data.get("personality"))
+        if "relationship" in _data:
+            obj.relationship_id = self._extract_relation_id(_data.get("relationship"))
+        if "llm_config" in _data:
+            obj.llm_config_id = self._extract_relation_id(_data.get("llm_config"))
 
         if hasattr(obj, "timezone") and (obj.timezone is None or obj.timezone == ""):
             obj.timezone = "Asia/Shanghai"
@@ -587,11 +588,9 @@ class AIInstanceDimensionView(ModelView):
         self, request: Request, data: FormData, obj: AIInstanceDimension
     ) -> None:
         """Auto-fill FKs, validate uniqueness, and compute default position if missing."""
-        # Auto-fill foreign keys from HasOne relationships
-        if hasattr(obj, "instance") and obj.instance is not None:
-            obj.instance_id = obj.instance.id
-        if hasattr(obj, "dimension") and obj.dimension is not None:
-            obj.dimension_id = obj.dimension.id
+        # Auto-fill foreign keys from submitted relation fields.
+        obj.instance_id = _extract_relation_id(data.get("instance"))
+        obj.dimension_id = _extract_relation_id(data.get("dimension"))
 
         # Validate required foreign keys
         errors = {}
@@ -792,13 +791,25 @@ class AIInstanceMemoryView(ModelView):
     ) -> None:
         """Ensure foreign keys/user metadata stay in sync."""
         errors = {}
-        if hasattr(obj, "instance") and obj.instance is not None:
-            obj.instance_id = obj.instance.id
-            obj.instance_qiao_id = getattr(obj.instance, "qiao_id", obj.instance_qiao_id)
-            obj.user_id = obj.instance.user_id
-            obj.user_qiao_id = obj.instance.user_qiao_id
+
+        obj.instance_id = _extract_relation_id(_data.get("instance"))
         if not getattr(obj, "instance_id", None):
             errors["instance"] = "Instance is required"
+        else:
+            stmt = select(
+                AIInstance.qiao_id,
+                AIInstance.user_id,
+                AIInstance.user_qiao_id,
+            ).where(AIInstance.id == obj.instance_id)
+            row = (await _request.state.session.execute(stmt)).first()
+            if row is None:
+                errors["instance"] = "Selected instance not found"
+            else:
+                instance_qiao_id, user_id, user_qiao_id = row
+                obj.instance_qiao_id = instance_qiao_id
+                obj.user_id = user_id
+                obj.user_qiao_id = user_qiao_id
+
         if not getattr(obj, "user_id", None):
             errors["instance"] = "Owning user missing on selected instance"
         if not getattr(obj, "instance_qiao_id", None):
@@ -815,11 +826,25 @@ class AIInstanceMemoryView(ModelView):
         obj: AIInstanceMemory,
     ) -> None:
         """Disallow editing ownership; keep derived fields synced."""
-        if hasattr(obj, "instance") and obj.instance is not None:
-            obj.instance_id = obj.instance.id
-            obj.instance_qiao_id = getattr(obj.instance, "qiao_id", obj.instance_qiao_id)
-            obj.user_id = obj.instance.user_id
-            obj.user_qiao_id = obj.instance.user_qiao_id
+        if "instance" in _data:
+            obj.instance_id = _extract_relation_id(_data.get("instance"))
+
+        if not getattr(obj, "instance_id", None):
+            raise FormValidationError({"instance": "Instance is required"})
+
+        stmt = select(
+            AIInstance.qiao_id,
+            AIInstance.user_id,
+            AIInstance.user_qiao_id,
+        ).where(AIInstance.id == obj.instance_id)
+        row = (await _request.state.session.execute(stmt)).first()
+        if row is None:
+            raise FormValidationError({"instance": "Selected instance not found"})
+
+        instance_qiao_id, user_id, user_qiao_id = row
+        obj.instance_qiao_id = instance_qiao_id
+        obj.user_id = user_id
+        obj.user_qiao_id = user_qiao_id
 
 
 # Create view instances

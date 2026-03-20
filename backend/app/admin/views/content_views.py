@@ -3,8 +3,9 @@
 Provides admin tooling for app-facing content tables.
 """
 
-from typing import Any
+from typing import Any, cast
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from starlette.requests import Request
 from starlette_admin import DateTimeField, EnumField, HasOne, StringField, TextAreaField
@@ -25,12 +26,24 @@ from app.enums import (
     SquareCategory,
     SquareEntryStatus,
 )
+from app.models.ai.template import AIType
 from app.models.content import AppPage, SquareTypeEntry
 from app.services.pages import service as app_page_service
 from app.utils.admin_logs import create_operation_log
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def _extract_relation_id(value: object) -> int | None:
+    """Extract a relation primary key from a HasOne field value."""
+    relation_id = getattr(value, "id", value)
+    if relation_id is None:
+        return None
+    try:
+        return int(cast(Any, relation_id))
+    except (TypeError, ValueError):
+        return None
 
 
 class _AITypeDisplayNameField(StringField):
@@ -44,9 +57,13 @@ class _AITypeDisplayNameField(StringField):
 
     async def parse_obj(self, request: Request, obj: Any) -> str:
         try:
-            if hasattr(obj, "ai_type") and obj.ai_type is not None:
-                return str(getattr(obj.ai_type, "display_name", "") or "")
-            return ""
+            type_id = getattr(obj, "type_id", None)
+            if type_id is None:
+                return ""
+
+            stmt = select(AIType.display_name).where(AIType.id == type_id)
+            display_name = (await request.state.session.execute(stmt)).scalar_one_or_none()
+            return str(display_name or "")
         except Exception:
             return ""
 
@@ -115,33 +132,16 @@ class SquareTypeEntryView(ModelView):
     ]
 
     async def before_create(self, request: Request, data: dict[str, Any], obj: Any) -> None:
-        self._sync_ai_type(obj)
+        self._sync_ai_type(obj, data)
 
     async def before_edit(self, request: Request, data: dict[str, Any], obj: Any) -> None:
-        self._sync_ai_type(obj)
+        self._sync_ai_type(obj, data)
 
-    def _sync_ai_type(self, obj: Any) -> None:
-        """Keep `type_id` aligned with the selected AI type relation."""
-        selected = getattr(obj, "ai_type", None)
-        if selected is None:
+    def _sync_ai_type(self, obj: Any, data: dict[str, Any]) -> None:
+        """Keep `type_id` aligned with the submitted AI type relation."""
+        if "ai_type" not in data:
             return
-
-        # Admin sends HasOne selections as primary key strings; fall back to object.id.
-        type_id_candidate = None
-        if isinstance(selected, dict):
-            type_id_candidate = selected.get("id") or selected.get("value")
-        elif hasattr(selected, "id"):
-            type_id_candidate = selected.id
-        else:
-            type_id_candidate = selected
-
-        if type_id_candidate is None:
-            return
-
-        try:
-            obj.type_id = int(type_id_candidate)
-        except (TypeError, ValueError):
-            obj.type_id = type_id_candidate
+        obj.type_id = _extract_relation_id(data.get("ai_type"))
 
     def get_create_defaults(self, request: Request) -> dict[str, Any]:
         """Ensure new square entries default to active status."""

@@ -4,7 +4,7 @@ This module contains Starlette-Admin views for AI instance configuration and per
 """
 
 from collections.abc import MutableMapping, Sequence
-from typing import ClassVar
+from typing import Any, ClassVar, cast
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,6 +47,17 @@ from app.services.security.username import (
 FormData = MutableMapping[str, object]
 
 
+def _extract_relation_id(value: object) -> int | None:
+    """Extract a relation primary key from a HasOne field value."""
+    relation_id = getattr(value, "id", value)
+    if relation_id is None:
+        return None
+    try:
+        return int(cast(Any, relation_id))
+    except (TypeError, ValueError):
+        return None
+
+
 class AITemplateView(ModelView):
     """Enhanced AI Template view with proper field configuration."""
 
@@ -84,17 +95,10 @@ class AITemplateView(ModelView):
 
     async def before_create(self, _request: Request, _data: FormData, obj: AITemplate) -> None:
         """Auto-fill foreign keys before creating template."""
-        # Auto-fill foreign keys from HasOne relationships
-        if hasattr(obj, "ai_type") and obj.ai_type is not None:
-            obj.type_id = obj.ai_type.id
-        if hasattr(obj, "style") and obj.style is not None:
-            obj.style_id = obj.style.id
-        if hasattr(obj, "personality") and obj.personality is not None:
-            obj.personality_id = obj.personality.id
-        if hasattr(obj, "llm_config") and obj.llm_config is not None:
-            obj.llm_config_id = obj.llm_config.id
-        else:
-            obj.llm_config_id = None
+        obj.type_id = _extract_relation_id(_data.get("ai_type"))
+        obj.style_id = _extract_relation_id(_data.get("style"))
+        obj.personality_id = _extract_relation_id(_data.get("personality"))
+        obj.llm_config_id = _extract_relation_id(_data.get("llm_config"))
 
         if hasattr(obj, "timezone") and (obj.timezone is None or obj.timezone == ""):
             obj.timezone = "Asia/Shanghai"
@@ -121,16 +125,14 @@ class AITemplateView(ModelView):
 
     async def before_edit(self, _request: Request, _data: FormData, obj: AITemplate) -> None:
         """Auto-fill foreign keys before editing template."""
-        if hasattr(obj, "ai_type") and obj.ai_type is not None:
-            obj.type_id = obj.ai_type.id
-        if hasattr(obj, "style") and obj.style is not None:
-            obj.style_id = obj.style.id
-        if hasattr(obj, "personality") and obj.personality is not None:
-            obj.personality_id = obj.personality.id
-        if hasattr(obj, "llm_config") and obj.llm_config is not None:
-            obj.llm_config_id = obj.llm_config.id
-        else:
-            obj.llm_config_id = None
+        if "ai_type" in _data:
+            obj.type_id = _extract_relation_id(_data.get("ai_type"))
+        if "style" in _data:
+            obj.style_id = _extract_relation_id(_data.get("style"))
+        if "personality" in _data:
+            obj.personality_id = _extract_relation_id(_data.get("personality"))
+        if "llm_config" in _data:
+            obj.llm_config_id = _extract_relation_id(_data.get("llm_config"))
 
         if hasattr(obj, "timezone") and (obj.timezone is None or obj.timezone == ""):
             obj.timezone = "Asia/Shanghai"
@@ -431,9 +433,10 @@ class AIPersonaView(ModelView):
 
         return await super().create(request, data)
 
-    def _sync_ai_type(self, obj: AIPersona) -> None:
-        if hasattr(obj, "ai_type") and obj.ai_type is not None:
-            obj.type_id = getattr(obj.ai_type, "id", obj.type_id)
+    def _sync_ai_type(self, obj: AIPersona, data: FormData) -> None:
+        if "ai_type" not in data:
+            return
+        obj.type_id = _extract_relation_id(data.get("ai_type"))
 
     def can_delete(self, _request: Request) -> bool:
         return False
@@ -496,7 +499,7 @@ class AIPersonaView(ModelView):
 
     async def before_create(self, request: Request, _data: FormData, obj: AIPersona) -> None:
         """Ensure ai_type is set before creating a persona."""
-        self._sync_ai_type(obj)
+        self._sync_ai_type(obj, _data)
         errors = {}
         if not hasattr(obj, "type_id") or obj.type_id is None:
             errors["ai_type"] = "AI Type is required"
@@ -523,7 +526,7 @@ class AIPersonaView(ModelView):
 
     async def before_edit(self, request: Request, _data: FormData, obj: AIPersona) -> None:
         """Keep ai_type synchronized when editing."""
-        self._sync_ai_type(obj)
+        self._sync_ai_type(obj, _data)
         errors = {}
         if not hasattr(obj, "type_id") or obj.type_id is None:
             errors["ai_type"] = "AI Type is required"
@@ -613,9 +616,8 @@ class AITemplateMemoryView(ModelView):
     async def before_create(
         self, _request: Request, _data: FormData, obj: AITemplateMemory
     ) -> None:
-        """Ensure template_id is synced from relationship."""
-        if hasattr(obj, "template") and obj.template is not None:
-            obj.template_id = obj.template.id
+        """Ensure template_id is synced from submitted relation field."""
+        obj.template_id = _extract_relation_id(_data.get("template"))
 
         errors = {}
         if not getattr(obj, "template_id", None):
@@ -630,8 +632,8 @@ class AITemplateMemoryView(ModelView):
         obj: AITemplateMemory,
     ) -> None:
         """Ensure template relationship stays synchronized."""
-        if hasattr(obj, "template") and obj.template is not None:
-            obj.template_id = obj.template.id
+        if "template" in _data:
+            obj.template_id = _extract_relation_id(_data.get("template"))
 
 
 # Create view instances

@@ -124,10 +124,19 @@
 
 ### 行为约束
 
-- 该接口只负责人格侧保存；style/personality 组合契约匹配在模板绑定接口校验。
 - 保存为单事务：`prompt`、`json_schema`、placeholder 更新/新增/删除全部成功才提交。
 - 更新/删除 placeholder 时必须校验 `personality_id` 归属，禁止跨人格写入。
+- 当当前 personality 已被任意 instance 或 template 引用时，禁止变更 `score` 维度名称集合（新增、删除、改名）。
 - 任一校验失败时返回错误且不产生部分提交。
+
+### 典型错误
+
+- `404 Personality not found`
+- `400 schema_config is required`
+- `400 dimensions are required`
+- `400 duplicate dimension name: <name>`
+- `400 cannot change personality score dimension set because this personality is referenced by instances or templates`
+- `400 placeholder id cannot be both updated and deleted: [<id>]`
 
 ---
 

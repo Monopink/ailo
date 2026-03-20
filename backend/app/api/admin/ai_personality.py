@@ -10,7 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.crud.ai import ai_personality_placeholder as placeholder_crud
+from app.models.ai.instance import AIInstance
 from app.models.ai.personality import AIPersonality, AIPersonalityPlaceholder
+from app.models.ai.template import AITemplate
 from app.services.ai.response_schema import generate_json_schema
 from app.utils.logging import get_logger
 
@@ -29,6 +31,51 @@ _RESERVED_FIELD_NAMES = {
     "outgoing_messages",
     "score",
 }
+
+
+def _extract_score_dimension_names(schema: object, *, field_name: str) -> set[str]:
+    """Extract score dimension names from JSON schema with strict structure checks."""
+    if not isinstance(schema, dict):
+        raise HTTPException(status_code=400, detail=f"{field_name} must be an object")
+
+    properties_raw = schema.get("properties")
+    if not isinstance(properties_raw, dict):
+        raise HTTPException(status_code=400, detail=f"{field_name}.properties is required")
+
+    score_raw = properties_raw.get("score")
+    if not isinstance(score_raw, dict):
+        raise HTTPException(status_code=400, detail=f"{field_name}.properties.score is required")
+
+    score_properties_raw = score_raw.get("properties")
+    if not isinstance(score_properties_raw, dict) or not score_properties_raw:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{field_name}.properties.score.properties is required",
+        )
+
+    names: set[str] = set()
+    for raw_name in score_properties_raw:
+        if not isinstance(raw_name, str) or not raw_name.strip():
+            raise HTTPException(
+                status_code=400,
+                detail=f"{field_name}.properties.score.properties has invalid dimension name",
+            )
+        names.add(raw_name.strip())
+    return names
+
+
+async def _personality_has_references(db: AsyncSession, personality_id: int) -> bool:
+    """Return True if any instance or template references this personality."""
+    instance_ref = await db.execute(
+        select(AIInstance.id).where(AIInstance.personality_id == personality_id).limit(1)
+    )
+    if instance_ref.scalar_one_or_none() is not None:
+        return True
+
+    template_ref = await db.execute(
+        select(AITemplate.id).where(AITemplate.personality_id == personality_id).limit(1)
+    )
+    return template_ref.scalar_one_or_none() is not None
 
 
 def _parse_int_id(value: object, *, field_name: str) -> int:
@@ -332,6 +379,25 @@ async def save_personality_all(
         json_schema = generate_json_schema(schema_config)
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=f"invalid schema_config: {exc!s}") from exc
+
+    personality_has_references = await _personality_has_references(db, personality_id)
+    if personality_has_references:
+        existing_dimension_names = _extract_score_dimension_names(
+            personality.json_schema,
+            field_name="current personality json_schema",
+        )
+        requested_dimension_names = _extract_score_dimension_names(
+            json_schema,
+            field_name="generated personality json_schema",
+        )
+        if existing_dimension_names != requested_dimension_names:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "cannot change personality score dimension set because this personality "
+                    "is referenced by instances or templates"
+                ),
+            )
 
     placeholders = _validate_placeholders(data.get("placeholders", []))
     deleted_placeholder_ids = _validate_deleted_placeholder_ids(

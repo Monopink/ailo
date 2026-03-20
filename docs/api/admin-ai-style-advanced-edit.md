@@ -122,6 +122,7 @@
 - position 区间允许重叠。
 - 保存前会检查每个 dimension 的 `initial_position` 是否能在命中的 mappings 中唯一决出最优先级关系。
 - 若某个 dimension 的 `initial_position` 命中多个 mapping，且最小 `priority` 对应多个候选，则返回 `400` 并阻止保存。
+- 当当前 style 已被任意 instance 或 template 引用时，禁止新增或移除 dimension 关联；仅允许不改变 dimension 集合的保存。
 - 维度与 style 关联先提交，随后再处理 mappings。
 
 ### 典型错误
@@ -135,6 +136,7 @@
 - `400 end_position is required for mapping`
 - `400 relationship_id is required for mapping`
 - `400 Invalid start/end position for mapping`
+- `400 cannot change style dimension set because this style is referenced by instances or templates`
 - `400 Initial position 50 for dimension 友情-周成 matches multiple highest-priority mappings (priority=1): relationship_id=9 range=0-50, relationship_id=10 range=50-150`
 
 ---

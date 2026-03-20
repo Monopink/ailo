@@ -11,12 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.constants import POSITION_MAX_VALUE
 from app.core.database import get_db
 from app.crud.ai import ai_style as style_crud
+from app.models.ai.instance import AIInstance
 from app.models.ai.style import (
     AIDimension,
     AIDimensionRelationshipMapping,
     AIStyle,
     AIStyleDimension,
 )
+from app.models.ai.template import AITemplate
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -33,6 +35,68 @@ def _resolve_dimension_key(dimension_data: dict[str, Any]) -> int | None:
         return int(raw_key)
     except (TypeError, ValueError):
         return None
+
+
+def _parse_dimension_id(raw_value: object) -> int | None:
+    """Parse dimension IDs from payload, returning None for invalid values."""
+    if raw_value is None or isinstance(raw_value, bool):
+        return None
+
+    if isinstance(raw_value, int):
+        parsed = raw_value
+    elif isinstance(raw_value, str):
+        text = raw_value.strip()
+        if text == "":
+            return None
+        try:
+            parsed = int(text)
+        except ValueError:
+            return None
+    else:
+        return None
+
+    return parsed if parsed > 0 else None
+
+
+async def _style_has_references(db: AsyncSession, style_id: int) -> bool:
+    """Return True if any instance or template references this style."""
+    instance_ref = await db.execute(
+        select(AIInstance.id).where(AIInstance.style_id == style_id).limit(1)
+    )
+    if instance_ref.scalar_one_or_none() is not None:
+        return True
+
+    template_ref = await db.execute(
+        select(AITemplate.id).where(AITemplate.style_id == style_id).limit(1)
+    )
+    return template_ref.scalar_one_or_none() is not None
+
+
+def _collect_dimension_set_changes(
+    *,
+    dimensions_data: list[dict[str, Any]],
+    removed_association_dimension_ids: list[Any],
+    existing_dimension_ids: set[int],
+) -> tuple[set[int], set[int], bool]:
+    """Return added_existing_ids, removed_existing_ids, has_new_dimension_creation."""
+    added_existing_ids: set[int] = set()
+    has_new_dimension_creation = False
+
+    for dim_data in dimensions_data:
+        dimension_id = _parse_dimension_id(dim_data.get("dimension_id"))
+        if dimension_id is None:
+            has_new_dimension_creation = True
+            continue
+        if dimension_id not in existing_dimension_ids:
+            added_existing_ids.add(dimension_id)
+
+    removed_ids = {
+        parsed
+        for parsed in (_parse_dimension_id(raw_id) for raw_id in removed_association_dimension_ids)
+        if parsed is not None
+    }
+    removed_existing_ids = removed_ids.intersection(existing_dimension_ids)
+    return added_existing_ids, removed_existing_ids, has_new_dimension_creation
 
 
 def _validate_initial_position_priority_uniqueness(
@@ -168,6 +232,29 @@ async def save_style_complete(
     removed_association_dimension_ids = data.get("removed_association_dimension_ids", []) or []
     mappings_data = data.get("mappings", []) or []
     deleted_mapping_ids = data.get("deleted_mapping_ids", []) or []
+
+    original_assoc_result = await db.execute(
+        select(AIStyleDimension.dimension_id).where(AIStyleDimension.style_id == style_id)
+    )
+    original_dimension_ids = {row[0] for row in original_assoc_result.fetchall()}
+
+    style_has_references = await _style_has_references(db, style_id)
+    if style_has_references:
+        added_existing_ids, removed_existing_ids, has_new_dimension_creation = (
+            _collect_dimension_set_changes(
+                dimensions_data=dimensions_data,
+                removed_association_dimension_ids=removed_association_dimension_ids,
+                existing_dimension_ids=original_dimension_ids,
+            )
+        )
+        if added_existing_ids or removed_existing_ids or has_new_dimension_creation:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "cannot change style dimension set because this style is referenced "
+                    "by instances or templates"
+                ),
+            )
 
     uniqueness_errors = _validate_initial_position_priority_uniqueness(
         dimensions_data=dimensions_data,

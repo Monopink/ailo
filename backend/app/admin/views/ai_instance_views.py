@@ -239,6 +239,7 @@ class AIInstanceView(ModelView):
         "profile_nickname",
         "profile_gender",
         "profile_owner_type",
+        "relationship",
         "relationship_display_name",
     ]
     exclude_fields_from_edit: ClassVar[list[str]] = [
@@ -254,6 +255,7 @@ class AIInstanceView(ModelView):
         "profile_nickname",
         "profile_gender",
         "profile_owner_type",
+        "relationship",
         "relationship_display_name",
     ]
     exclude_fields_from_list: ClassVar[list[str]] = [
@@ -406,13 +408,6 @@ class AIInstanceView(ModelView):
             label="AI Personality",
             help_text="AI personality for this instance",
             required=True,
-        ),
-        HasOne(
-            "relationship",
-            identity="ai_relationship",
-            label="Current Relationship",
-            help_text="Leave blank to auto-initialize; select one to keep it as the current relationship",
-            required=False,
         ),
         StringField(
             "timezone",

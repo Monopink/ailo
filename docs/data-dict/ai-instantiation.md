@@ -23,6 +23,8 @@ id -- Snowflake ID
 qiao_id -- qiao_+随机字符，外部使用，唯一标识
 username -- AI 用户名（用于搜索添加），5-20 位，规则同 users.username；在 ai_personas 域内按 LOWER(username) 唯一
 type_id -- 关联ai_types.id（内部管理）
+tags -- 预设联系人标签数组（JSON数组），用于写入 contacts.tags
+remark -- 预设联系人备注描述（TEXT），用于写入 contacts.remark
 is_reusable -- 是否可以复用：1=reusable（多用户可添加）, 0=single_use（仅一个用户可添加）
 status -- 状态：1=active, 2=inactive, 3=used
 created_at

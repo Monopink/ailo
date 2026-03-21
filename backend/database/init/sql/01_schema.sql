@@ -690,8 +690,25 @@ CREATE TABLE IF NOT EXISTS square_categories (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT ck_square_categories_category_key_format
         CHECK (category_key ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+    CONSTRAINT ck_square_categories_title_length
+        CHECK (char_length(title) <= 20),
     CONSTRAINT ck_square_categories_theme_key
-        CHECK (theme_key IN ('ocean', 'sky', 'mint', 'forest', 'lime', 'amber', 'sunset', 'rose', 'grape', 'slate')),
+        CHECK (
+            theme_key IN (
+                'blue',
+                'cyan',
+                'teal',
+                'green',
+                'lime',
+                'yellow',
+                'amber',
+                'orange',
+                'red',
+                'pink',
+                'purple',
+                'gray'
+            )
+        ),
     CONSTRAINT ck_square_categories_icon_ref_format
         CHECK (icon_ref ~ '^tdesign:[a-z0-9-]+$'),
     CONSTRAINT ck_square_categories_status
@@ -830,6 +847,8 @@ CREATE TABLE IF NOT EXISTS ai_personas (
     qiao_id VARCHAR(32) NOT NULL UNIQUE,
     username VARCHAR(20) NOT NULL,
     type_id INTEGER NOT NULL,
+    tags JSONB,
+    remark TEXT,
     is_reusable INTEGER NOT NULL DEFAULT 1,
     status INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -840,6 +859,8 @@ COMMENT ON TABLE ai_personas IS 'AI personas - manages unique qiao_id inventory 
 COMMENT ON COLUMN ai_personas.qiao_id IS 'External unique identifier, visible to users in Square';
 COMMENT ON COLUMN ai_personas.username IS 'Public AI username, unique in ai_personas (case-insensitive)';
 COMMENT ON COLUMN ai_personas.type_id IS 'AI type ID (internal management), NOT related to Square categories';
+COMMENT ON COLUMN ai_personas.tags IS 'Preset contact tags written into contacts.tags on add';
+COMMENT ON COLUMN ai_personas.remark IS 'Preset contact remark written into contacts.remark on add';
 COMMENT ON COLUMN ai_personas.is_reusable IS '1=reusable (multiple users can add), 0=non-reusable (only one user can add)';
 COMMENT ON COLUMN ai_personas.status IS '1=active (visible), 2=inactive (hidden), 3=used (single-use consumed)';
 

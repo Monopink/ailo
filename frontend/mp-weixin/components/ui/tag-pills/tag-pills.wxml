@@ -1,0 +1,24 @@
+<view wx:if="{{hasTags}}" class="tag-pills__row">
+  <view class="tag-pills__track {{align === 'center' ? 'tag-pills__track--center' : ''}}">
+    <view
+      wx:for="{{visibleTags}}"
+      wx:key="index"
+      class="tag-pills__pill {{visibleTagToneClasses[index]}}">
+      <text class="tag-pills__pill-text">{{item}}</text>
+    </view>
+    <view
+      wx:if="{{hiddenTagCount > 0}}"
+      class="tag-pills__pill tag-pills__pill--overflow">
+      <text class="tag-pills__pill-text">+{{hiddenTagCount}}</text>
+    </view>
+  </view>
+
+  <view class="tag-pills__measure">
+    <view
+      wx:for="{{measureItems}}"
+      wx:key="key"
+      class="tag-pills__measure-item tag-pills__pill {{item.kind === 'overflow' ? 'tag-pills__pill--overflow' : ''}}">
+      <text class="tag-pills__pill-text">{{item.text}}</text>
+    </view>
+  </view>
+</view>

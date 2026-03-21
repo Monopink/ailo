@@ -21,13 +21,46 @@ from app.schemas.discovery import (
 from app.services.discovery import data as discovery_data
 from app.services.profile.avatar import get_avatar_url, get_avatar_urls_batch
 from app.services.security.rate_limiter import check_rate_limit
+from app.services.system_config import get_config_int
 from app.type_defs import JSONValue
+from app.utils.contact_tags import extract_tags_payload, normalize_tags, validate_tags
 from app.utils.logging import get_logger
+from app.utils.text_limits import CONTACT_REMARK_RULE, validate_text_limit
 
 logger = get_logger(__name__)
 
 _ERR_RATE_LIMIT_PREFIX = "RATE_LIMIT:"
 _ERR_INVALID_CATEGORY = "INVALID_CATEGORY_KEY"
+
+
+def _build_preset_tags(
+    *, category_title: str | None, persona_tags_payload: JSONValue | None
+) -> list[str]:
+    combined: list[str] = []
+    if isinstance(category_title, str) and category_title.strip():
+        combined.append(category_title)
+
+    if persona_tags_payload is not None:
+        persona_tags = extract_tags_payload(persona_tags_payload)
+        if persona_tags is None:
+            raise RuntimeError("CONTACT_PRESET_INVALID")
+        combined.extend(persona_tags)
+
+    normalized = normalize_tags(combined) or []
+    if validate_tags(normalized) is not None:
+        raise RuntimeError("CONTACT_PRESET_INVALID")
+    return normalized
+
+
+def _normalize_preset_remark(raw_remark: str | None) -> str | None:
+    if raw_remark is None:
+        return None
+    if raw_remark.strip() == "":
+        return None
+    remark_error = validate_text_limit(raw_remark, CONTACT_REMARK_RULE)
+    if remark_error is not None:
+        raise RuntimeError("CONTACT_PRESET_INVALID")
+    return raw_remark
 
 
 async def get_square_categories(db: AsyncSession) -> SquareCategoryListResponse:
@@ -108,6 +141,10 @@ async def get_square_contacts(
 
         profiles = [profile for _, _, profile in entries if profile]
         avatar_urls = await get_avatar_urls_batch(profiles)
+        category_title = next(
+            (item.title for item in categories if item.category_key == category_key),
+            None,
+        )
 
         items = [
             SquareContactResponse(
@@ -117,6 +154,11 @@ async def get_square_contacts(
                 nickname=getattr(profile, "nickname", None),
                 gender=getattr(profile, "gender", None),
                 avatar_url=avatar_urls.get(profile.id) if profile else None,
+                tags=_build_preset_tags(
+                    category_title=category_title,
+                    persona_tags_payload=persona.tags,
+                ),
+                remark=_normalize_preset_remark(persona.remark),
                 bio=getattr(profile, "bio", None),
                 region=getattr(profile, "region", None),
             )
@@ -171,6 +213,7 @@ async def get_stranger_profile(
     """
     try:
         (
+            persona,
             profile,
             valid_category_key,
             category_title,
@@ -180,7 +223,7 @@ async def get_stranger_profile(
             category_key=category_key,
         )
 
-        if not profile:
+        if not profile or not persona:
             logger.warning("stranger_profile_not_found", qiao_id=qiao_id)
             return None
 
@@ -190,6 +233,11 @@ async def get_stranger_profile(
             nickname=profile.nickname,
             gender=profile.gender,
             avatar_url=avatar_url,
+            tags=_build_preset_tags(
+                category_title=category_title,
+                persona_tags_payload=persona.tags,
+            ),
+            remark=_normalize_preset_remark(persona.remark),
             bio=profile.bio,
             region=profile.region,
             category_key=valid_category_key,

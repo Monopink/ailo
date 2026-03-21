@@ -28,7 +28,7 @@
       "category_key": "friend",
       "title": "交友",
       "description": "结识同频的人，聊聊日常和心情",
-      "theme_key": "ocean",
+      "theme_key": "blue",
       "icon_ref": "tdesign:user-filled"
     }
   ]
@@ -44,10 +44,9 @@
   - `theme_key` (string) - 主题键
   - `icon_ref` (string) - 图标引用（`tdesign:<icon-name>`）
 
-### 业务规则
+### 相关文档
 
-- 仅返回 `status=active` 的分类。
-- 排序规则：`sort_order ASC`，`category_key ASC`。
+分类的筛选与排序规则见：`docs/spec/contact/square.md`
 
 ---
 
@@ -79,6 +78,8 @@
       "nickname": "小萌",
       "gender": 2,
       "avatar_url": "https://cdn.example.com/personas/qiao_xm001.webp",
+      "tags": ["交友", "朋友", "聊天"],
+      "remark": null,
       "bio": "喜欢音乐和电影",
       "region": "上海"
     }
@@ -102,6 +103,8 @@
   - `nickname` (string|null) - 昵称
   - `gender` (integer|null) - 性别
   - `avatar_url` (string|null) - 头像 URL
+  - `tags` (array) - 预设标签（写入联系人时的默认 tags）
+  - `remark` (string|null) - 预设描述（写入联系人时的默认 remark）
   - `bio` (string|null) - 个性签名
   - `region` (string|null) - 地区
 - `pagination` (object)
@@ -110,6 +113,10 @@
   - `total` (integer)
   - `has_more` (boolean)
 - `refresh_available_at` (string|null) - 下次可刷新时间（ISO 8601）
+
+### 相关文档
+
+Square 列表的预设字段（`tags`、`remark`）生成规则见：`docs/spec/contact/square.md`
 
 ### 错误响应
 
@@ -142,6 +149,8 @@
   "nickname": "小乔",
   "gender": 2,
   "avatar_url": "https://cdn.example.com/personas/qiao_abc123.webp",
+  "tags": ["交友", "朋友", "聊天"],
+  "remark": null,
   "bio": "喜欢和大家聊天",
   "region": "北京",
   "category_key": "friend",
@@ -155,15 +164,21 @@
 - `nickname` (string|null)
 - `gender` (integer|null)
 - `avatar_url` (string|null)
+- `tags` (array) - 预设标签（写入联系人时的默认 tags）
+- `remark` (string|null) - 预设描述（写入联系人时的默认 remark）
 - `bio` (string|null)
 - `region` (string|null)
 - `category_key` (string|null) - 分类键
 - `category_title` (string|null) - 分类标题
 
-### 业务规则
+### 相关文档
 
 - 未传 `category_key` 时，返回 `category_key=null`、`category_title=null`。
-- 传入无效或下线 `category_key` 时，返回 `category_key=null`、`category_title=null`。
+- `category_key` 格式非法时返回 `400`（请求参数错误）。
+- `category_key` 格式合法但无效或下线时，返回 `category_key=null`、`category_title=null`。
+- `tags` 永远返回数组；无预设时返回 `[]`。
+- `remark` 字段永远存在；无预设时返回 `null`。
+- 预设字段生成规则见：`docs/spec/contact/square.md`
 
 ### 错误响应
 

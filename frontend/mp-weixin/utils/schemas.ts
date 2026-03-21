@@ -255,16 +255,18 @@ export type Pagination = z.infer<typeof PaginationSchema>;
 
 // Source of truth: backend/app/enums/common.py -> SquareCategoryTheme
 export const SquareThemeKeySchema = z.enum([
-  'ocean',
-  'sky',
-  'mint',
-  'forest',
+  'blue',
+  'cyan',
+  'teal',
+  'green',
   'lime',
+  'yellow',
   'amber',
-  'sunset',
-  'rose',
-  'grape',
-  'slate',
+  'orange',
+  'red',
+  'pink',
+  'purple',
+  'gray',
 ]);
 export type SquareThemeKey = z.infer<typeof SquareThemeKeySchema>;
 
@@ -297,6 +299,8 @@ export const SquareContactSchema = z.object({
   nickname: z.string().optional().nullable(),
   avatar_url: z.string().optional().nullable(),
   gender: z.number().optional().nullable(),
+  tags: z.array(z.string()),
+  remark: z.string().nullable(),
   bio: z.string().optional().nullable(),
   region: z.string().optional().nullable(),
 });
@@ -317,6 +321,8 @@ export const StrangerProfileResponseSchema = z.object({
   gender: z.number().optional().nullable(),
   category_key: z.string().optional().nullable(),
   category_title: z.string().optional().nullable(),
+  tags: z.array(z.string()),
+  remark: z.string().nullable(),
   bio: z.string().optional().nullable(),
   region: z.string().optional().nullable(),
 });

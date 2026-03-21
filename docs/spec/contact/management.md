@@ -31,15 +31,12 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 - conversation_id（对话 ID）- 保持消息历史连续性
 - contact_qiao_id - 联系人标识
 - contact_type - 联系人类型
-
-**不保留内容**：
-
-- remark（描述）- 清空，用户可重新填写
+- tags（标签）
+- remark（描述）
 
 **更新内容**：
 
-- alias（备注）- 使用新值
-- tags（标签）- 使用新值
+- alias（备注）- 仅在请求携带时更新
 - is_deleted - 设置为 0
 - deleted_at - 清空
 
@@ -59,8 +56,7 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 2. **部分更新**：
    - 只更新传入的字段
    - 未传入的字段保持不变
-   - 支持显式传入 `null` 清空字段（`alias`、`remark`、`tags`、`avatar_file_id`）
-   - `tags` 也支持传入空数组 `[]` 作为清空语义
+   - 支持显式清空与部分更新（入参语义见：`docs/api/contacts.md` - 更新联系人信息）
    - `avatar_file_id` 传入非空值时更新备注头像（写入 `custom_avatar_key`、`custom_avatar_media_id`）
    - `avatar_display_mode` 取值：`1=original`、`2=custom`
    - 首次设置备注头像且未传入 `avatar_display_mode` 时，系统自动将模式设为 `2`
@@ -162,9 +158,9 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 2. **恢复联系人关系**：
    - 设置 is_deleted=0
    - 清空 deleted_at
-   - 更新 alias（使用新值）
-   - 更新 tags（使用新值）
-   - 清空 remark（不保留旧值）
+   - 更新 alias（仅在请求携带时更新）
+   - 保留 tags
+   - 保留 remark
    - 保留 conversation_id（保持消息历史连续性）
    - 更新 updated_at
 
@@ -177,8 +173,8 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 **恢复**（is_deleted=1 存在）：
 
 - 保留 conversation_id
-- 更新 alias 和 tags
-- 清空 remark
+- 更新 alias（仅在请求携带时更新）
+- 保留 tags、remark
 - 立即生效，无需等待接受
 
 **新建**（不存在或已过期）：

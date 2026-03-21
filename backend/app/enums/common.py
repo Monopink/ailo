@@ -134,16 +134,18 @@ class SquareCategoryStatus(IntEnum):
 class SquareCategoryTheme(StrEnum):
     """Square category theme keys (source of truth for square_categories.theme_key)."""
 
-    OCEAN = "ocean"
-    SKY = "sky"
-    MINT = "mint"
-    FOREST = "forest"
+    BLUE = "blue"
+    CYAN = "cyan"
+    TEAL = "teal"
+    GREEN = "green"
     LIME = "lime"
+    YELLOW = "yellow"
     AMBER = "amber"
-    SUNSET = "sunset"
-    ROSE = "rose"
-    GRAPE = "grape"
-    SLATE = "slate"
+    ORANGE = "orange"
+    RED = "red"
+    PINK = "pink"
+    PURPLE = "purple"
+    GRAY = "gray"
 
 
 SQUARE_CATEGORY_THEME_KEYS: tuple[str, ...] = tuple(item.value for item in SquareCategoryTheme)

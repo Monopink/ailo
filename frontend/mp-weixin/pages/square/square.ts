@@ -42,6 +42,8 @@ interface StrangerEntryPayload {
   gender?: number | null;
   categoryKey?: string | null;
   categoryTitle?: string;
+  tags?: string[];
+  remark?: string | null;
   bio?: string;
   region?: string;
 }
@@ -464,6 +466,8 @@ Page<SquarePageData, SquarePageCustom>({
           gender: contact.gender,
           categoryKey: this.data.currentCategoryKey,
           categoryTitle: currentCategory?.label,
+          tags: contact.tags,
+          remark: contact.remark,
           bio: contact.bio,
           region: contact.region,
         };

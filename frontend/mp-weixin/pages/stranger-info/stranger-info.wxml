@@ -26,6 +26,9 @@
           敲敲号：{{profile.username}}
         </text>
         <text wx:if="{{profile.categoryText}}" class="stranger-info__category">{{profile.categoryText}}</text>
+        <view wx:if="{{profile.tags.length}}" class="stranger-info__tags">
+          <tag-pills tags="{{profile.tags}}" align="center" />
+        </view>
       </view>
 
       <!-- Cards Section -->
@@ -38,6 +41,18 @@
               t-class-title="profile-cell__title"
               t-class-center="profile-cell__center">
               <text slot="description" class="profile-cell__description">{{profile.bioText}}</text>
+            </t-cell>
+          </t-cell-group>
+        </view>
+
+        <!-- Remark Card -->
+        <view wx:if="{{profile.remarkText}}" class="card-wrapper">
+          <t-cell-group theme="card">
+            <t-cell
+              title="备注"
+              t-class-title="profile-cell__title"
+              t-class-center="profile-cell__center">
+              <text slot="description" class="profile-cell__description">{{profile.remarkText}}</text>
             </t-cell>
           </t-cell-group>
         </view>

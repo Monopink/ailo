@@ -28,6 +28,8 @@ export interface StrangerProfileView {
   genderType: GenderType;
   categoryKey: string;
   categoryText: string;
+  tags: string[];
+  remarkText: string;
   regionText: string;
   bioText: string;
 }
@@ -40,6 +42,8 @@ export interface StrangerEntryPayload {
   gender?: number | null;
   categoryKey?: string | null;
   categoryTitle?: string;
+  tags?: string[];
+  remark?: string | null;
   bio?: string;
   region?: string;
 }
@@ -80,6 +84,29 @@ const normalizeCategoryKey = (value: string | null | undefined): string => {
 const normalizeText = (value: string | null | undefined, fallback = ''): string =>
   firstNonEmptyString(value ?? '', fallback) ?? fallback;
 
+const normalizeTags = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const result: string[] = [];
+  value.forEach((item) => {
+    if (typeof item !== 'string') {
+      return;
+    }
+    const tag = item.trim();
+    if (!isNonEmptyString(tag)) {
+      return;
+    }
+    if (seen.has(tag)) {
+      return;
+    }
+    seen.add(tag);
+    result.push(tag);
+  });
+  return result;
+};
+
 const buildEntryProfile = (
   qiaoId: string,
   entryPayload: StrangerEntryPayload | null
@@ -97,6 +124,8 @@ const buildEntryProfile = (
     genderType: genderState.genderType,
     categoryKey,
     categoryText: normalizeText(entryPayload?.categoryTitle),
+    tags: normalizeTags(entryPayload?.tags),
+    remarkText: normalizeText(entryPayload?.remark ?? undefined),
     regionText: normalizeText(entryPayload?.region),
     bioText: normalizeText(entryPayload?.bio),
   };
@@ -111,6 +140,8 @@ const normalizeProfile = (
     gender?: number | null;
     category_key?: string | null;
     category_title?: string | null;
+    tags?: string[];
+    remark?: string | null;
     bio?: string | null;
     region?: string | null;
   },
@@ -128,6 +159,8 @@ const normalizeProfile = (
     genderType: genderState.genderType,
     categoryKey,
     categoryText: normalizeText(profile.category_title, fallback.categoryText),
+    tags: normalizeTags(profile.tags),
+    remarkText: normalizeText(profile.remark ?? undefined),
     regionText: normalizeText(profile.region, fallback.regionText),
     bioText: normalizeText(profile.bio, fallback.bioText),
   };

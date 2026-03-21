@@ -133,7 +133,7 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         conversation_id: str,
     ) -> Contact:
         """Create contact with user information."""
-        tags_payload = {"tags": obj_in.tags} if obj_in.tags else None
+        tags_payload = None if obj_in.tags is None else {"tags": obj_in.tags}
 
         contact_data = {
             "id": generate_snowflake_id(),
@@ -218,17 +218,15 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         *,
         contact: Contact,
         alias: str | None = None,
-        tags: dict[str, Any] | None = None,
     ) -> Contact:
-        """Restore a soft-deleted contact with new settings.
+        """Restore a soft-deleted contact.
 
-        Strategy: Do not preserve old settings (alias, tags, remark).
+        Strategy: Preserve existing tags/remark. Only update alias when provided.
 
         Args:
             db: Database session
             contact: Contact object to restore
             alias: New alias (optional)
-            tags: New tags (optional)
 
         Returns:
             Restored contact
@@ -236,9 +234,8 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
         """
         contact.is_deleted = 0
         contact.deleted_at = None
-        contact.alias = alias
-        contact.tags = tags
-        contact.remark = None  # Reset remark
+        if alias is not None:
+            contact.alias = alias
 
         db.add(contact)
         await db.commit()

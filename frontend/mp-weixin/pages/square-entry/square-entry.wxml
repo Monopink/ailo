@@ -18,7 +18,7 @@
       <view
         wx:for="{{entryCards}}"
         wx:key="categoryKey"
-        class="square-entry-card square-entry-card--{{item.themeClass}}"
+        class="square-entry-card square-entry-card--{{item.themeKey}}"
         bindtap="handleCardTap"
         data-category-key="{{item.categoryKey}}">
         <view class="square-entry-card__icon">

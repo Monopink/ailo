@@ -28,6 +28,8 @@ export interface SquareContactViewModel {
   nickname?: string;
   gender: number | null;
   avatar_url: string;
+  tags: string[];
+  remark: string | null;
   bio?: string;
   region?: string;
   categoryKey: string;
@@ -212,6 +214,12 @@ class SquareDiscoveryService {
       nickname: isNonEmptyString(contact.nickname) ? contact.nickname.trim() : undefined,
       gender: typeof contact.gender === 'number' ? contact.gender : null,
       avatar_url: getAvatarUrl(contact.avatar_url ?? null),
+      tags: Array.isArray(contact.tags)
+        ? contact.tags
+            .filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0)
+            .map((tag) => tag.trim())
+        : [],
+      remark: isNonEmptyString(contact.remark) ? contact.remark.trim() : null,
       bio: isNonEmptyString(contact.bio) ? contact.bio.trim() : undefined,
       region: isNonEmptyString(contact.region) ? contact.region.trim() : undefined,
     };

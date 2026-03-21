@@ -15,7 +15,7 @@
         <view
           wx:for="{{categories}}"
           wx:key="categoryKey"
-          class="square-tabs__item square-tabs__item--{{item.themeClass}} {{currentCategoryKey === item.categoryKey ? 'square-tabs__item--active' : ''}}"
+          class="square-tabs__item square-tabs__item--{{item.themeKey}} {{currentCategoryKey === item.categoryKey ? 'square-tabs__item--active' : ''}}"
           bindtap="selectCategory"
           data-category-key="{{item.categoryKey}}">
           {{item.label}}
@@ -44,10 +44,13 @@
           class="list-row__avatar" />
 
         <!-- Info -->
-        <view class="list-row__info">
+          <view class="list-row__info">
           <view class="square-item__header">
             <text class="square-item__name list-text-primary">{{item.nickname}}</text>
             <gender-badge wx:if="{{item.gender}}" gender="{{item.gender}}" />
+          </view>
+          <view wx:if="{{item.tags.length}}" class="square-item__tags">
+            <tag-pills tags="{{item.tags}}" />
           </view>
           <text wx:if="{{item.bio}}" class="square-item__bio list-text-secondary">{{item.bio}}</text>
           <text wx:if="{{item.region}}" class="square-item__region list-text-secondary">{{item.region}}</text>

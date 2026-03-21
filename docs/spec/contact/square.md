@@ -28,11 +28,10 @@ Square（发现页）用于展示可添加的 AI 联系人。
 
 ## 列表查询规则
 
-- `GET /api/v1/discovery/square` 必须携带 `category_key`。
+- Square 联系人列表按 `category_key` 维度查询与限流（接口定义见：`docs/api/discovery.md`）。
 - 列表仅返回目标分类下 ACTIVE 的上架记录。
-- 每条联系人卡片回传 `category_key`。
-- 接口响应包含 `pagination` 与 `refresh_available_at`。
-- 限流按 `user_qiao_id + category_key` 维度计算。
+- 每条联系人卡片回传 `category_key` 用于来源回显。
+- 分页与 `refresh_available_at` 的字段定义见：`docs/api/discovery.md`。
 
 ## Persona 选择与展示字段
 
@@ -43,13 +42,22 @@ Square（发现页）用于展示可添加的 AI 联系人。
   - `nickname`
   - `avatar_url`
   - `gender`
+  - `tags`
+  - `remark`
   - `bio`
   - `region`
   - `type_id`
   - `category_key`
 
+## 预设联系人字段
+
+- Square 列表回传 `tags` 与 `remark`，作为用户添加联系人时写入 `contacts.tags` 与 `contacts.remark` 的预设数据。
+- 预设字段生成规则与联系人写入规则对齐，见：`docs/spec/contact/ai-creation.md` - tags 写入规则
+- `square_categories.title` 作为预设 tags 的候选项时满足联系人标签校验规则，见：`docs/api/contacts.md` - 更新联系人信息 - `tags`
+
 ## 陌生人详情分类回显
 
-- `GET /api/v1/discovery/profile/{qiao_id}` 支持可选 `category_key`。
+- 陌生人详情接口支持可选 `category_key`（接口定义见：`docs/api/discovery.md`）。
 - 返回 `category_key` 与 `category_title`。
 - 未传入、无效或下线分类时，`category_key` 与 `category_title` 返回 `null`。
+- 同时返回 `tags` 与 `remark`，规则见：`docs/spec/contact/ai-creation.md` - tags 写入规则

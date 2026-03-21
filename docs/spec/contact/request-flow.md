@@ -191,7 +191,7 @@ stateDiagram-v2
 
 ### 2. 目标用户接受
 
-**用户操作**：调用 `POST /api/v1/contact-requests/{id}/accept`
+**用户操作**：调用 `POST /api/v1/contact-requests/{request_id}/accept`
 
 **后端处理**：
 
@@ -221,7 +221,7 @@ stateDiagram-v2
 
 ### 3. 目标用户拒绝
 
-**用户操作**：调用 `POST /api/v1/contact-requests/{id}/ignore`
+**用户操作**：调用 `POST /api/v1/contact-requests/{request_id}/ignore`
 
 **后端处理**：
 
@@ -252,28 +252,6 @@ stateDiagram-v2
 ## 联系人恢复逻辑
 
 详见：[management.md](management.md) 的"删除和恢复"
-
-**场景**：用户之前删除过联系人（is_deleted=1），现在想重新添加
-
-**流程**：
-
-1. 检查联系人关系（包括已删除的）
-2. 如果 is_deleted=1，调用恢复逻辑
-3. 恢复联系人关系，更新 alias 和 tags
-4. 返回统一响应：`{"message": "请求已发送"}`
-
-**保留内容**：
-
-- conversation_id（对话 ID）
-
-**不保留内容**：
-
-- remark（描述）
-
-**更新内容**：
-
-- alias（备注）
-- tags（标签）
 
 ## 异常处理
 
@@ -323,8 +301,8 @@ stateDiagram-v2
 详见：[api/contact-requests.md](../../api/contact-requests.md)
 
 - POST /api/v1/contact-requests - 发送联系人请求
-- POST /api/v1/contact-requests/{id}/accept - 接受请求
-- POST /api/v1/contact-requests/{id}/ignore - 忽略请求
+- POST /api/v1/contact-requests/{request_id}/accept - 接受请求
+- POST /api/v1/contact-requests/{request_id}/ignore - 忽略请求
 
 ### 管理后台重试 API
 

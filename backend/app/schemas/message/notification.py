@@ -23,7 +23,10 @@ class NotificationData(BaseModel):
 class ContactRequestNotificationData(NotificationData):
     """Data for contact request notifications."""
 
-    request_id: int = Field(..., description="Contact request ID")
+    request_id: str = Field(
+        ...,
+        description="Contact request ID (Snowflake bigint; use string to avoid JS precision loss)",
+    )
     from_qiao_id: str = Field(..., description="Sender's qiao_id")
     from_nickname: str = Field(..., description="Sender's nickname")
     from_avatar: str = Field(..., description="Sender's avatar URL")

@@ -13,7 +13,7 @@ from sqlalchemy.orm import relationship as orm_relationship
 from starlette.requests import Request
 
 from app.models.base import AutoIncrementModel, SnowflakeQiaoModel
-from app.type_defs import JSONDict
+from app.type_defs import JSONDict, JSONValue
 
 if TYPE_CHECKING:
     from app.models.ai.personality import AIPersonality
@@ -169,6 +169,16 @@ class AIPersona(SnowflakeQiaoModel):
         String(20),
         nullable=False,
         comment="Public AI username, unique in ai_personas (case-insensitive)",
+    )
+    tags: Mapped[JSONValue | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Preset contact tags written into contacts.tags on add",
+    )
+    remark: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Preset contact remark written into contacts.remark on add",
     )
     is_reusable: Mapped[int] = mapped_column(
         Integer,

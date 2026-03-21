@@ -47,7 +47,21 @@ logger = get_logger(__name__)
 
 _CATEGORY_KEY_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _ICON_REF_PATTERN = re.compile(r"^tdesign:[a-z0-9-]+$")
-_THEME_CHOICES = [(item, item.replace("-", " ").title()) for item in SQUARE_CATEGORY_THEME_KEYS]
+_THEME_LABEL_BY_KEY: dict[str, str] = {
+    "blue": "蓝色",
+    "cyan": "青色",
+    "teal": "青绿色",
+    "green": "绿色",
+    "lime": "柠檬绿",
+    "yellow": "黄色",
+    "amber": "琥珀色",
+    "orange": "橙色",
+    "red": "红色",
+    "pink": "粉色",
+    "purple": "紫色",
+    "gray": "灰色",
+}
+_THEME_CHOICES = [(item, _THEME_LABEL_BY_KEY[item]) for item in SQUARE_CATEGORY_THEME_KEYS]
 
 
 def _extract_relation_id(value: object) -> int | None:
@@ -157,7 +171,7 @@ class SquareCategoryView(ModelView):
         return {
             "status": SquareCategoryStatus.ACTIVE,
             "sort_order": 100,
-            "theme_key": SquareCategoryTheme.OCEAN.value,
+            "theme_key": SquareCategoryTheme.BLUE.value,
             "icon_ref": "tdesign:chat",
         }
 

@@ -36,5 +36,6 @@ updated_at
 ## 约束
 
 - `square_categories.category_key` 唯一。
+- `square_categories.title` 长度上限为 20 字符。
 - `square_type_entries` 上 `(category_key, type_id)` 唯一。
 - `square_type_entries` 上 `status=1` 条件下 `type_id` 唯一。

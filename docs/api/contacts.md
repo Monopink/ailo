@@ -78,10 +78,9 @@
   - `bio` (string) - 个性签名（可选）
   - `region` (string) - 地区展示快照（可选）
 
-### 业务说明
+### 相关文档
 
-- 返回列表默认排序：`last_message_time DESC`，`conversation_id ASC`
-- `cursor` 为不透明字符串（Base64 编码的偏移量），前端只需在下一页请求中透传
+联系人列表排序与分页规则见：`docs/spec/contact/management.md`
 
 ---
 
@@ -188,7 +187,10 @@
 
 - `tags` (array, 可选)
   - 标签列表
-  - 每个标签最长20字符
+  - 校验规则：
+    - 单个标签长度上限：20 字符
+    - 标签数量上限：20
+    - 标签总字符上限：200（按 `tags.join(', ')` 计算）
   - 传入 `[]` 或 `null` 可清空标签
 
 - `remark` (string, 可选)
@@ -251,13 +253,9 @@
 
 - `"系统错误（error_code）"` - 服务器内部错误
 
-### 业务说明
+### 相关文档
 
-- 所有字段可选，支持部分更新
-- 只更新传入的字段
-- 未传入的字段保持不变
-- `avatar_display_mode=2` 时，返回 `avatar_url=remark_avatar_url`
-- `avatar_display_mode=1` 时，返回 `avatar_url=original_avatar_url`
+联系人字段更新规则见：`docs/spec/contact/management.md`
 
 ---
 
@@ -290,11 +288,9 @@
 
 - `"系统错误（error_code）"` - 服务器内部错误
 
-### 业务说明
+### 相关文档
 
-- 屏蔽后不会收到对方的消息
-- 不会删除联系人关系
-- 不会删除聊天记录
+联系人屏蔽规则见：`docs/spec/contact/management.md`
 
 ---
 
@@ -358,8 +354,6 @@
 
 - `"系统错误（error_code）"` - 服务器内部错误
 
-### 业务说明
+### 相关文档
 
-- 删除联系人关系
-- 不删除聊天记录（客户端本地管理）
-- 如果再次添加该联系人，会恢复联系人关系
+联系人删除与恢复规则见：`docs/spec/contact/management.md`

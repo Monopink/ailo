@@ -96,6 +96,12 @@ const hasRenderableEntryPayload = (payload: StrangerEntryPayload | null): boolea
   if (isNonEmptyString(payload.avatarUrl)) {
     return true;
   }
+  if (Array.isArray(payload.tags) && payload.tags.length > 0) {
+    return true;
+  }
+  if (isNonEmptyString(typeof payload.remark === 'string' ? payload.remark : '')) {
+    return true;
+  }
   if (isNonEmptyString(payload.bio)) {
     return true;
   }
@@ -155,6 +161,12 @@ Page<StrangerInfoPageData, StrangerInfoPageCustom>({
     payload.categoryKey = typeof categoryKey === 'string' ? categoryKey : null;
     payload.categoryTitle =
       pickString(record, 'categoryTitle') ?? pickString(record, 'category_title');
+    if (Array.isArray(record.tags)) {
+      payload.tags = record.tags.filter((tag): tag is string => typeof tag === 'string');
+    }
+    if (typeof record.remark === 'string' || record.remark === null) {
+      payload.remark = record.remark;
+    }
     payload.bio = pickString(record, 'bio');
     payload.region = pickString(record, 'region');
     return payload;

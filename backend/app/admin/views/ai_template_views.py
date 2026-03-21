@@ -43,6 +43,14 @@ from app.services.security.username import (
     UsernameValidationConfigError,
     validate_username_or_error,
 )
+from app.utils.contact_tags import (
+    TAG_MAX_COUNT,
+    TAG_MAX_LENGTH,
+    TAG_MAX_TOTAL_LENGTH,
+    compute_total_length,
+    normalize_tags,
+)
+from app.utils.text_limits import CONTACT_REMARK_RULE, validate_text_limit
 
 FormData = MutableMapping[str, object]
 
@@ -479,6 +487,16 @@ class AIPersonaView(ModelView):
             help_text="Select the AI type that owns this persona",
             required=True,
         ),
+        JSONField(
+            "tags",
+            label="Preset Tags",
+            help_text='JSON array of strings (e.g. ["朋友","聊天"]). Used to populate contacts.tags on add.',
+        ),
+        TextAreaField(
+            "remark",
+            label="Preset Remark",
+            help_text="Used to populate contacts.remark on add.",
+        ),
         IntegerEnumField(
             "is_reusable",
             enum=ReusableStatus,
@@ -521,6 +539,35 @@ class AIPersonaView(ModelView):
                     exists_result = await request.state.session.execute(exists_stmt)
                     if exists_result.scalar_one_or_none() is not None:
                         errors["username"] = "Username already exists"
+
+        raw_tags = getattr(obj, "tags", None)
+        if raw_tags is not None:
+            if (not isinstance(raw_tags, list)) or any(
+                not isinstance(item, str) for item in raw_tags
+            ):
+                errors["tags"] = "Preset Tags must be a JSON array of strings"
+            else:
+                normalized = normalize_tags(raw_tags) or []
+                if any(len(tag) > TAG_MAX_LENGTH for tag in normalized):
+                    errors["tags"] = f"Each tag must be at most {TAG_MAX_LENGTH} characters"
+                elif len(normalized) > TAG_MAX_COUNT:
+                    errors["tags"] = f"Tag count must be at most {TAG_MAX_COUNT}"
+                elif compute_total_length(normalized) > TAG_MAX_TOTAL_LENGTH:
+                    errors["tags"] = f"Total tags length must be at most {TAG_MAX_TOTAL_LENGTH}"
+                else:
+                    obj.tags = normalized
+
+        raw_remark = getattr(obj, "remark", None)
+        if isinstance(raw_remark, str) and raw_remark.strip() == "":
+            obj.remark = None
+            raw_remark = None
+        if raw_remark is not None:
+            if not isinstance(raw_remark, str):
+                errors["remark"] = "Preset Remark must be a string"
+            else:
+                remark_error = validate_text_limit(raw_remark, CONTACT_REMARK_RULE)
+                if remark_error is not None:
+                    errors["remark"] = remark_error
         if errors:
             raise FormValidationError(errors)
 
@@ -549,6 +596,35 @@ class AIPersonaView(ModelView):
                     exists_result = await request.state.session.execute(exists_stmt)
                     if exists_result.scalar_one_or_none() is not None:
                         errors["username"] = "Username already exists"
+
+        raw_tags = getattr(obj, "tags", None)
+        if raw_tags is not None:
+            if (not isinstance(raw_tags, list)) or any(
+                not isinstance(item, str) for item in raw_tags
+            ):
+                errors["tags"] = "Preset Tags must be a JSON array of strings"
+            else:
+                normalized = normalize_tags(raw_tags) or []
+                if any(len(tag) > TAG_MAX_LENGTH for tag in normalized):
+                    errors["tags"] = f"Each tag must be at most {TAG_MAX_LENGTH} characters"
+                elif len(normalized) > TAG_MAX_COUNT:
+                    errors["tags"] = f"Tag count must be at most {TAG_MAX_COUNT}"
+                elif compute_total_length(normalized) > TAG_MAX_TOTAL_LENGTH:
+                    errors["tags"] = f"Total tags length must be at most {TAG_MAX_TOTAL_LENGTH}"
+                else:
+                    obj.tags = normalized
+
+        raw_remark = getattr(obj, "remark", None)
+        if isinstance(raw_remark, str) and raw_remark.strip() == "":
+            obj.remark = None
+            raw_remark = None
+        if raw_remark is not None:
+            if not isinstance(raw_remark, str):
+                errors["remark"] = "Preset Remark must be a string"
+            else:
+                remark_error = validate_text_limit(raw_remark, CONTACT_REMARK_RULE)
+                if remark_error is not None:
+                    errors["remark"] = remark_error
         if errors:
             raise FormValidationError(errors)
 

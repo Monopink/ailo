@@ -56,6 +56,12 @@
   color: var(--color-text-secondary);
 }
 
+.stranger-info__tags {
+  margin-top: var(--space-sm);
+  width: 100%;
+  max-width: 600rpx;
+}
+
 /* Cards Section */
 .stranger-info__cards {
   margin-top: var(--space-md);

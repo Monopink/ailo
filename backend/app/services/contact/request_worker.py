@@ -78,6 +78,9 @@ async def _process_one(db: AsyncSession, req: ContactRequest) -> None:
         # Cache primitive values to avoid expired attributes later
         user_qiao_id = req.from_qiao_id
         user_id = req.from_id
+        extracted_tags = _extract_request_tags(req.tags)
+        if req.tags is not None and extracted_tags is None:
+            raise RuntimeError("contact_request_tags_invalid")
 
         await _process_ai_contact_request(
             db=db,
@@ -85,7 +88,7 @@ async def _process_one(db: AsyncSession, req: ContactRequest) -> None:
             user_id=user_id,
             contact_request=req,
             alias=req.alias,
-            tags=_extract_request_tags(req.tags),
+            tags=extracted_tags,
         )
 
         updated_req = await contact_request_crud.get(db, record_id=req.id)

@@ -117,7 +117,7 @@
       "target": "contact_requests"
     },
     "data": {
-      "request_id": "req_123",
+      "request_id": "223788765171154968",
       "from_qiao_id": "qiao_user001",
       "from_nickname": "小明",
       "from_avatar": "https://cdn.example.com/avatars/from.webp",
@@ -232,8 +232,8 @@
    - 显示"接受"和"忽略"按钮
 
 3. **处理申请**：
-   - 点击"接受" → 调用 POST /api/v1/contact-requests/{id}/accept
-   - 点击"忽略" → 调用 POST /api/v1/contact-requests/{id}/ignore
+   - 点击"接受" → 调用 POST /api/v1/contact-requests/{request_id}/accept
+   - 点击"忽略" → 调用 POST /api/v1/contact-requests/{request_id}/ignore
    - 成功后从本地数据库删除该记录
 
 ### 接收 CHAT_INFO

@@ -146,23 +146,34 @@ async def get_persona_profile_by_qiao_id(
     *,
     qiao_id: str,
     category_key: str | None = None,
-) -> tuple[Profile | None, str | None, str | None]:
+) -> tuple[AIPersona | None, Profile | None, str | None, str | None]:
     """
     Load the AI persona profile and validate optional category context.
     """
     try:
-        profile_stmt = select(Profile).where(
-            Profile.owner_qiao_id == qiao_id,
-            Profile.owner_type == ProfileOwnerType.AI_PERSONA,
+        stmt = (
+            select(AIPersona, Profile)
+            .join(
+                Profile,
+                and_(
+                    Profile.owner_qiao_id == AIPersona.qiao_id,
+                    Profile.owner_type == ProfileOwnerType.AI_PERSONA,
+                ),
+            )
+            .where(
+                AIPersona.qiao_id == qiao_id,
+                AIPersona.status == AIPersonaStatus.ACTIVE,
+            )
+            .limit(1)
         )
-        profile_result = await db.execute(profile_stmt)
-        profile = profile_result.scalar_one_or_none()
-
-        if not profile:
-            return None, None, None
+        result = await db.execute(stmt)
+        row = result.first()
+        if row is None:
+            return None, None, None, None
+        persona, profile = row
 
         if category_key is None:
-            return profile, None, None
+            return persona, profile, None, None
 
         category_stmt = (
             select(SquareCategory.category_key, SquareCategory.title)
@@ -176,8 +187,8 @@ async def get_persona_profile_by_qiao_id(
         category_result = await db.execute(category_stmt)
         category_row = category_result.first()
         if category_row is None:
-            return profile, None, None
-        return profile, category_row[0], category_row[1]
+            return persona, profile, None, None
+        return persona, profile, category_row[0], category_row[1]
     except Exception as exc:
         logger.error(
             "fetch_persona_profile_failed",

@@ -42,6 +42,14 @@ class SquareContactResponse(BaseModel):
     avatar_url: str | None = Field(
         None, description="Dynamically generated avatar CDN URL (not stored in database)"
     )
+    tags: list[str] = Field(
+        default_factory=list,
+        description="Preset tags written into contacts.tags when the user adds this persona",
+    )
+    remark: str | None = Field(
+        None,
+        description="Preset remark written into contacts.remark when the user adds this persona",
+    )
     bio: str | None = Field(None, description="Bio/description")
     region: str | None = Field(None, description="Region/location")
 
@@ -136,6 +144,14 @@ class StrangerProfileResponse(BaseModel):
     gender: int | None = Field(None, description="Gender: 1=male, 2=female, 3=other, 4=unknown")
     avatar_url: str | None = Field(
         None, description="Dynamically generated avatar CDN URL (not stored in database)"
+    )
+    tags: list[str] = Field(
+        default_factory=list,
+        description="Preset tags written into contacts.tags when the user adds this persona",
+    )
+    remark: str | None = Field(
+        None,
+        description="Preset remark written into contacts.remark when the user adds this persona",
     )
     bio: str | None = Field(None, description="Bio/description")
     region: str | None = Field(None, description="Region/location")

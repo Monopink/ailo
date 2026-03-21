@@ -257,11 +257,11 @@ content 字段直接存储最终显示文本。
     "type": "navigate",
     "target": "contact_requests",
     "params": {
-      "request_id": "req_123"
+      "request_id": "223788765171154968"
     }
   },
   "data": {
-    "request_id": "req_123",
+    "request_id": "223788765171154968",
     "from_qiao_id": "qiao_user_a",
     "from_nickname": "用户A",
     "from_avatar": "https://cdn.example.com/users/qiao_user_a.webp",

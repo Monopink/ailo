@@ -108,7 +108,7 @@ async def send_contact_request_notification(
             target=NotificationTarget.CONTACT_REQUESTS.value,
         ),
         data=ContactRequestNotificationData(
-            request_id=request_id,
+            request_id=str(request_id),
             from_qiao_id=from_qiao_id,
             from_nickname=from_nickname or "",
             from_avatar=from_avatar or "",

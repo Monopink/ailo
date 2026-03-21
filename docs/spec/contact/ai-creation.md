@@ -137,7 +137,10 @@ Worker 处理 contact_request 时，首先验证 AI 是否可用：
    - contact_id = instance.id
    - contact_qiao_id = instance.qiao_id（即 persona.qiao_id）
    - alias = 申请时提供的 alias
-   - tags = 申请时提供的 tags
+   - tags：
+     - 若 contact_request.tags 不为 NULL：使用 contact_request.tags（去重、清洗后写入；不插入 category_title）
+     - 否则：使用 [category_title] + persona.tags（去重、清洗后写入）
+   - remark = persona.remark
    - source = contact_request.source
 
 2. **生成 conversation_id**：
@@ -145,6 +148,20 @@ Worker 处理 contact_request 时，首先验证 AI 是否可用：
    - 用于标识对话
 
 3. **提交事务**
+
+**tags 写入规则**：
+
+- category_title 来源：
+  - 当 contact_request.category_key 非空，且存在匹配的 square_categories 记录（category_key 相同，status=active）时，取 square_categories.title 作为 category_title
+  - 当 category_key 为空、无效或下线时，不写入 category_title
+- contact_request.tags：
+  - 若不为 NULL：作为 contacts.tags 的唯一来源（覆盖系统预设）
+- 系统预设 tags：
+  - 当 contact_request.tags 为 NULL 时：以 category_title 作为首位 tag（若存在），再按 persona.tags 原顺序追加
+- 数据规范：
+  - 丢弃空字符串与纯空白字符串
+  - 精确匹配去重（保留第一次出现的顺序）
+  - 标签与描述的校验规则与联系人编辑一致，见：`docs/api/contacts.md` - 更新联系人信息 - `tags` / `remark`
 
 ### 5. 更新请求状态
 

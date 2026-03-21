@@ -30,6 +30,7 @@ from app.enums.templates import CHAT_INFO_TEMPLATES
 from app.models.ai.instance import AIInstance
 from app.models.ai.template import AIPersona
 from app.models.contact import Contact, ContactRequest
+from app.models.content import SquareCategory
 from app.schemas.contact import (
     ContactCreate,
     ContactDetailResponse,
@@ -45,8 +46,10 @@ from app.services.contact.service import get_contact_with_profile
 from app.services.message.outbound.helpers import send_chat_info, send_contact_request_notification
 from app.services.profile.avatar import get_avatar_url
 from app.type_defs import JSONDict, JSONValue
+from app.utils.contact_tags import normalize_tags, validate_tags
 from app.utils.logging import get_logger
 from app.utils.snowflake import generate_snowflake_id
+from app.utils.text_limits import CONTACT_REMARK_RULE, validate_text_limit
 
 logger = get_logger(__name__)
 
@@ -151,7 +154,7 @@ def _coerce_int(value: JSONValue | None) -> int | None:
 
 
 def _build_request_tags_payload(tags: list[str] | None) -> JSONDict | None:
-    if not tags:
+    if tags is None:
         return None
     normalized_tags: list[JSONValue] = list(tags)
     return {"tags": normalized_tags}
@@ -167,6 +170,61 @@ def _extract_request_tags(tags_payload: JSONValue | None) -> list[str] | None:
         if isinstance(raw_tags, list):
             return [item for item in raw_tags if isinstance(item, str)]
     return None
+
+
+def _normalize_contact_tags(raw_tags: list[str] | None) -> list[str] | None:
+    return normalize_tags(raw_tags)
+
+
+async def _get_active_square_category_title(
+    db: AsyncSession, *, category_key: str | None
+) -> str | None:
+    if not category_key:
+        return None
+    result = await db.execute(
+        select(SquareCategory.title).where(
+            SquareCategory.category_key == category_key,
+            SquareCategory.status == 1,
+        )
+    )
+    title = result.scalar_one_or_none()
+    return title if isinstance(title, str) else None
+
+
+def _build_ai_contact_tags(
+    *,
+    override_tags: list[str] | None,
+    category_title: str | None,
+    persona_tags_payload: JSONValue | None,
+) -> list[str] | None:
+    if override_tags is not None:
+        normalized = _normalize_contact_tags(override_tags) or []
+        tag_error = validate_tags(normalized)
+        if tag_error is not None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=tag_error)
+        return normalized
+
+    combined: list[str] = []
+    if category_title is not None and category_title.strip() != "":
+        combined.append(category_title)
+
+    if persona_tags_payload is not None:
+        persona_tags = _extract_request_tags(persona_tags_payload)
+        if persona_tags is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={"message": "CONTACT_PRESET_INVALID"},
+            )
+        combined.extend(persona_tags)
+
+    normalized = _normalize_contact_tags(combined) or []
+    tag_error = validate_tags(normalized)
+    if tag_error is not None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"message": "CONTACT_PRESET_INVALID"},
+        )
+    return normalized
 
 
 def _map_request_source_to_contact(source: int | None) -> ContactSource:
@@ -198,6 +256,7 @@ async def _create_contact_record(
     conversation_id: str,
     alias: str | None,
     tags: list[str] | None,
+    remark: str | None,
     source: ContactSource | None,
 ) -> Contact:
     """
@@ -213,6 +272,7 @@ async def _create_contact_record(
         conversation_id: Conversation identifier
         alias: Contact alias
         tags: Contact tags
+        remark: Contact remark
 
     Returns:
         Created contact
@@ -224,7 +284,7 @@ async def _create_contact_record(
         custom_avatar_key=None,
         custom_avatar_media_id=None,
         tags=tags,
-        remark=None,
+        remark=remark,
         source=source if source is not None else ContactSource.UNKNOWN,
     )
 
@@ -323,6 +383,27 @@ async def _process_ai_contact_request(
 
         conversation_id = f"conv_{generate_snowflake_id()}"
 
+        category_title = (
+            await _get_active_square_category_title(db, category_key=contact_request.category_key)
+            if tags is None
+            else None
+        )
+        effective_tags = _build_ai_contact_tags(
+            override_tags=tags,
+            category_title=category_title,
+            persona_tags_payload=decision.persona.tags,
+        )
+        preset_remark = decision.persona.remark
+        if isinstance(preset_remark, str) and preset_remark.strip() == "":
+            preset_remark = None
+        if preset_remark is not None:
+            remark_error = validate_text_limit(preset_remark, CONTACT_REMARK_RULE)
+            if remark_error is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail={"message": "CONTACT_PRESET_INVALID"},
+                )
+
         contact = await _create_contact_record(
             db=db,
             user_qiao_id=user_qiao_id,
@@ -332,7 +413,8 @@ async def _process_ai_contact_request(
             contact_type=ContactType.AI,
             conversation_id=conversation_id,
             alias=alias,
-            tags=tags,
+            tags=effective_tags,
+            remark=preset_remark,
             source=_map_request_source_to_contact(contact_request.source),
         )
 
@@ -492,12 +574,10 @@ async def _check_and_restore_contact(
 
     if existing.is_deleted == 1:
         # Restore deleted contact
-        tags_dict = {"tags": request.tags} if request.tags else None
         restored_contact = await contact_crud.restore_contact(
             db,
             contact=existing,
             alias=request.alias,
-            tags=tags_dict,
         )
         logger.info(
             "contact_restored",
@@ -558,7 +638,6 @@ async def _check_ai_persona_duplicate(
                 db,
                 contact=existing_contact,
                 alias=request.alias,
-                tags={"tags": request.tags} if request.tags else None,
             )
             logger.info(
                 "contact_restored_via_persona",
@@ -855,8 +934,22 @@ async def retry_pending_contact_request(
     await db.commit()
 
     try:
+        normalized_override_tags = _normalize_contact_tags(tags) if tags is not None else None
+        if normalized_override_tags is not None:
+            tag_error = validate_tags(normalized_override_tags)
+            if tag_error is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=tag_error,
+                )
         effective_alias = alias if alias is not None else contact_request.alias
-        effective_tags = tags if tags is not None else _extract_request_tags(contact_request.tags)
+        extracted_stored_tags = _extract_request_tags(contact_request.tags)
+        if tags is None and contact_request.tags is not None and extracted_stored_tags is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={"message": "CONTACT_PRESET_INVALID"},
+            )
+        effective_tags = normalized_override_tags if tags is not None else extracted_stored_tags
         await _process_ai_contact_request(
             db=db,
             user_qiao_id=contact_request.from_qiao_id,

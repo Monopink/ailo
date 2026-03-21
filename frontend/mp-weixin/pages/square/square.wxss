@@ -41,6 +41,9 @@
 }
 
 .square-tabs__item {
+  --square-tabs-active-bg: var(--color-primary);
+  --square-tabs-active-color: var(--color-text-on-brand);
+
   padding: var(--space-xs) var(--space-md);
   border-radius: var(--radius-full);
   font-size: var(--font-size-base);
@@ -51,34 +54,69 @@
 }
 
 .square-tabs__item--active {
-  color: var(--color-text-on-brand);
-  background-color: var(--color-primary);
+  color: var(--square-tabs-active-color);
+  background: var(--square-tabs-active-bg);
   font-weight: var(--font-weight-medium);
 }
 
-.square-tabs__item--friend.square-tabs__item--active {
-  color: var(--color-text-inverse);
-  background: var(--square-entry-card-friend-gradient);
+.square-tabs__item--blue {
+  --square-tabs-active-bg: var(--square-entry-card-blue-gradient);
+  --square-tabs-active-color: var(--color-text-inverse);
 }
 
-.square-tabs__item--love.square-tabs__item--active {
-  color: var(--color-text-inverse);
-  background: var(--square-entry-card-love-gradient);
+.square-tabs__item--cyan {
+  --square-tabs-active-bg: var(--square-entry-card-cyan-gradient);
+  --square-tabs-active-color: var(--color-text-inverse);
 }
 
-.square-tabs__item--talk.square-tabs__item--active {
-  color: var(--color-text-inverse);
-  background: var(--square-entry-card-talk-gradient);
+.square-tabs__item--teal {
+  --square-tabs-active-bg: var(--square-entry-card-teal-gradient);
+  --square-tabs-active-color: var(--color-text-inverse);
 }
 
-.square-tabs__item--bestie.square-tabs__item--active {
-  color: var(--color-text-inverse);
-  background: var(--square-entry-card-bestie-gradient);
+.square-tabs__item--green {
+  --square-tabs-active-bg: var(--square-entry-card-green-gradient);
+  --square-tabs-active-color: var(--color-text-inverse);
 }
 
-.square-tabs__item--hobby.square-tabs__item--active {
-  color: var(--color-text-inverse);
-  background: var(--square-entry-card-hobby-gradient);
+.square-tabs__item--lime {
+  --square-tabs-active-bg: var(--square-entry-card-lime-gradient);
+  --square-tabs-active-color: var(--color-text-inverse);
+}
+
+.square-tabs__item--yellow {
+  --square-tabs-active-bg: var(--square-entry-card-yellow-gradient);
+  --square-tabs-active-color: var(--color-text-on-brand);
+}
+
+.square-tabs__item--amber {
+  --square-tabs-active-bg: var(--square-entry-card-amber-gradient);
+  --square-tabs-active-color: var(--color-text-on-brand);
+}
+
+.square-tabs__item--orange {
+  --square-tabs-active-bg: var(--square-entry-card-orange-gradient);
+  --square-tabs-active-color: var(--color-text-inverse);
+}
+
+.square-tabs__item--red {
+  --square-tabs-active-bg: var(--square-entry-card-red-gradient);
+  --square-tabs-active-color: var(--color-text-inverse);
+}
+
+.square-tabs__item--pink {
+  --square-tabs-active-bg: var(--square-entry-card-pink-gradient);
+  --square-tabs-active-color: var(--color-text-inverse);
+}
+
+.square-tabs__item--purple {
+  --square-tabs-active-bg: var(--square-entry-card-purple-gradient);
+  --square-tabs-active-color: var(--color-text-inverse);
+}
+
+.square-tabs__item--gray {
+  --square-tabs-active-bg: var(--square-entry-card-gray-gradient);
+  --square-tabs-active-color: var(--color-text-inverse);
 }
 
 /* Contact list - iOS style direct list */
@@ -105,6 +143,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.square-item__tags {
+  margin-top: var(--space-xs);
+  width: 100%;
+  min-width: 0;
 }
 
 .square-item__button {

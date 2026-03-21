@@ -25,6 +25,7 @@ from app.services.contact import (
     unblock_contact,
     update_contact,
 )
+from app.utils.contact_tags import normalize_tags, validate_tags
 from app.utils.logging import get_logger
 from app.utils.text_limits import CONTACT_ALIAS_RULE, CONTACT_REMARK_RULE, validate_text_limit
 
@@ -36,8 +37,10 @@ CONTACTS_LIMIT_MIN = 1
 CONTACTS_LIMIT_MAX = 100
 
 
-def _validate_contact_update_payload_or_raise(update_data: ContactUpdate) -> None:
-    """Validate user-editable contact text fields."""
+def _normalize_and_validate_contact_update_payload_or_raise(
+    update_data: ContactUpdate,
+) -> ContactUpdate:
+    """Validate and normalize user-editable contact fields."""
     provided_fields = update_data.model_fields_set
 
     if "alias" in provided_fields and update_data.alias is not None:
@@ -56,6 +59,16 @@ def _validate_contact_update_payload_or_raise(update_data: ContactUpdate) -> Non
                 detail=remark_error,
             )
 
+    if "tags" in provided_fields and update_data.tags is not None:
+        normalized_tags = normalize_tags(update_data.tags) or []
+        tag_error = validate_tags(normalized_tags)
+        if tag_error is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=tag_error,
+            )
+        update_data = update_data.model_copy(update={"tags": normalized_tags})
+
     if "avatar_file_id" in provided_fields and update_data.avatar_file_id == "":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -67,6 +80,7 @@ def _validate_contact_update_payload_or_raise(update_data: ContactUpdate) -> Non
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="参数错误",
         )
+    return update_data
 
 
 def _decode_cursor(cursor: str | None) -> int:
@@ -263,7 +277,7 @@ async def update_contact_info(
 
     """
     try:
-        _validate_contact_update_payload_or_raise(update_data)
+        update_data = _normalize_and_validate_contact_update_payload_or_raise(update_data)
 
         updated_contact = await update_contact(
             db=db,

@@ -8,6 +8,7 @@
     "t-avatar": "tdesign-miniprogram/avatar/avatar",
     "t-cell": "tdesign-miniprogram/cell/cell",
     "t-button": "tdesign-miniprogram/button/button",
-    "gender-badge": "/components/ui/gender-badge/gender-badge"
+    "gender-badge": "/components/ui/gender-badge/gender-badge",
+    "tag-pills": "/components/ui/tag-pills/tag-pills"
   }
 }

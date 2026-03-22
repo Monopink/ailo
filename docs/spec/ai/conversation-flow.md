@@ -94,8 +94,8 @@
 ### 阶段 8：响应处理
 
 - 安全副作用始终生效：`attack_detected -> should_block`。
-- 安全副作用失败时终止发送路径。
-- `attack_detected=true` 时必须标记本轮用户消息为上下文排除。
+- `attack_detected=true` 时执行上下文排除、审计落库与风险统计更新；三者为 best-effort，失败记录 ERROR，不终止消息流程。
+- `should_block` 状态更新失败时终止发送路径。
 - `should_reply=false` 时不得发送 `outgoing_messages` 与 `followup_messages`。
 
 详见：[`llm-interaction.md`](llm-interaction.md#处理顺序)

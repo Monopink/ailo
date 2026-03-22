@@ -210,7 +210,7 @@ LLM 输出 attack_detected = true 时触发
 
 ### 处理逻辑
 
-更新该 buffer 关联的所有用户消息：
+更新触发该请求的用户消息记录（单条）：
 
 - 设置 is_excluded_from_context = 1
 

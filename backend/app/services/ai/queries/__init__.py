@@ -29,6 +29,9 @@ from .profile_queries import get_instance_profile, get_profile_by_owner, get_use
 # Relationship scoring query functions
 from .relationship_queries import get_instance_relationship_scores, get_relationship_score_ranges
 
+# Security-related updates
+from .security_updates import create_attack_detected_violation_log
+
 # Complex transactions
 from .transactions import save_ai_request_log
 
@@ -67,4 +70,6 @@ __all__ = [
     "update_instance_status",
     # Transactions
     "save_ai_request_log",
+    # Security updates
+    "create_attack_detected_violation_log",
 ]

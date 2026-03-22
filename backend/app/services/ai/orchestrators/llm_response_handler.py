@@ -15,6 +15,7 @@ from app.models.ai import AIInstance
 from app.services.ai.memory import process_memory_operations
 from app.services.ai.queries.instance_queries import get_instance_relationship_config
 from app.services.ai.queries.relationship_queries import get_instance_relationship_scores
+from app.services.ai.queries.security_updates import create_attack_detected_violation_log
 from app.services.ai.queries.transactions import save_ai_request_log
 from app.services.ai.queries.updates import (
     mark_conversation_item_as_excluded,
@@ -65,10 +66,28 @@ async def process_llm_response(
     llm_request_id: int | None = None
     try:
         if ai_response.get("attack_detected") and user_message_item_id:
-            await mark_conversation_item_as_excluded(db, user_message_item_id)
+            excluded_ok = await mark_conversation_item_as_excluded(db, user_message_item_id)
+            if not excluded_ok:
+                logger.error(
+                    "attack_detected_exclude_mark_failed",
+                    user_qiao_id=user_qiao_id,
+                    instance_qiao_id=instance_qiao_id,
+                    conversation_item_id=user_message_item_id,
+                )
+
+            violation_ok = await create_attack_detected_violation_log(
+                db,
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+                instance_id=int(instance_context["instance_id"]),
+                conversation_item_id=int(user_message_item_id),
+            )
+            _ = violation_ok
 
         if ai_response.get("should_block"):
-            await update_instance_status(db, instance_context["instance_id"], status=3)
+            blocked_ok = await update_instance_status(db, instance_context["instance_id"], status=3)
+            if not blocked_ok:
+                raise RuntimeError("failed_to_apply_should_block")
 
         llm_request_id = await save_ai_request_log(
             db=db,

@@ -319,24 +319,28 @@ async def mark_conversation_item_as_excluded(db: AsyncSession, conversation_item
     Flag a conversation item so it is omitted from future LLM prompts.
     """
     try:
-        result = await db.execute(
-            select(AIConversationItem).where(AIConversationItem.id == conversation_item_id)
-        )
-        item = result.scalar_one_or_none()
+        async with db.begin_nested():
+            result = await db.execute(
+                select(AIConversationItem).where(AIConversationItem.id == conversation_item_id)
+            )
+            item = result.scalar_one_or_none()
 
-        if not item:
-            logger.warning("conversation_item_not_found_for_flagging", item_id=conversation_item_id)
-            return False
+            if not item:
+                logger.warning(
+                    "conversation_item_not_found_for_flagging",
+                    item_id=conversation_item_id,
+                )
+                return False
 
-        item.is_excluded_from_context = int(ConversationItemContextStatus.EXCLUDED)
-        await db.flush()
+            item.is_excluded_from_context = int(ConversationItemContextStatus.EXCLUDED)
+            await db.flush()
 
-        logger.info(
-            "conversation_item_marked_excluded",
-            item_id=conversation_item_id,
-            user_qiao_id=item.user_qiao_id,
-            instance_qiao_id=item.instance_qiao_id,
-        )
+            logger.info(
+                "conversation_item_marked_excluded",
+                item_id=conversation_item_id,
+                user_qiao_id=item.user_qiao_id,
+                instance_qiao_id=item.instance_qiao_id,
+            )
     except Exception as exc:
         logger.error(
             "conversation_item_exclude_failed",

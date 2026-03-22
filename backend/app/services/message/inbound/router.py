@@ -7,10 +7,13 @@ Routes messages to appropriate handlers.
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.contact import contact as contact_crud
+from app.crud.message import message as message_crud
 from app.enums import MessageType
 from app.models.message import MessageHistory
 from app.services.message.dispatch.outbox import enqueue_timeline_fanout
 from app.services.message.dispatch.realtime import fanout_typing_event
+from app.services.message.inbound.business_rejection import maybe_reject_inbound_message
+from app.services.message.outbound.helpers import send_chat_info
 from app.services.message.processing import buffer
 from app.services.message.schemas import InboundMessageEvent
 from app.services.message.storage.persistence import store_message
@@ -51,6 +54,20 @@ async def route_message(db: AsyncSession, event: InboundMessageEvent) -> Message
             logger.error("contact_not_found_in_router", conversation_id=event.conversation_id)
             return None
 
+        existing = await message_crud.get_by_conversation_and_client_id(
+            db,
+            conversation_id=event.conversation_id,
+            msg_id_client=event.msg_id_client,
+        )
+        if existing is not None:
+            if isinstance(contact.user_id, int) and existing.msg_id_server:
+                await enqueue_timeline_fanout(
+                    db,
+                    msg_id_server=existing.msg_id_server,
+                    owner_user_id=contact.user_id,
+                )
+            return existing
+
         # Determine if message is for AI
         is_for_ai = contact.contact_type == CONTACT_TYPE_AI
         is_buffer_event = event.message_type in (
@@ -72,6 +89,29 @@ async def route_message(db: AsyncSession, event: InboundMessageEvent) -> Message
                 msg_id_server=stored.msg_id_server,
                 owner_user_id=contact.user_id,
             )
+
+        if stored is not None:
+            rejection = await maybe_reject_inbound_message(
+                db,
+                event=event,
+                contact=contact,
+                is_for_ai=is_for_ai,
+            )
+            if rejection is not None:
+                await send_chat_info(
+                    db,
+                    to_qiao_id=event.from_qiao_id,
+                    conversation_id=event.conversation_id,
+                    content=rejection.content,
+                    action=rejection.action,
+                )
+                logger.info(
+                    "message_business_rejected",
+                    conversation_id=contact.conversation_id,
+                    msg_id_client=event.msg_id_client,
+                    reason=rejection.action.get("reason"),
+                )
+                return stored
 
         if event.message_type in _TYPING_MESSAGE_TYPES and isinstance(contact.user_id, int):
             typing_state = "start" if event.message_type == MessageType.TYPING_START else "end"

@@ -18,10 +18,12 @@
 
 ### 业务层面失败（拒收）
 
-- 用户被屏蔽（contacts.is_blocked = 1）→ 发送 CHAT_INFO，不重试
-- AI 屏蔽用户（ai_instances.status = 3）→ 发送 CHAT_INFO，不重试
-- 用户不是好友（contacts 表无记录）→ 发送 CHAT_INFO，不重试
-- 拒收分支返回 `business_rejected` 业务结果，不抛异常中断主流程
+- 用户被屏蔽（contacts.is_blocked = 1）→ 发送 CHAT_INFO（含 `mark_message_failed`），不重试
+- AI 屏蔽用户（ai_instances.status = 3）→ 发送 CHAT_INFO（含 `mark_message_failed`），不重试
+- 用户不是好友（contacts 表无记录）→ 发送 CHAT_INFO（含 `mark_message_failed`），不重试
+- 消息字数超过限制 → 发送 CHAT_INFO（含 `mark_message_failed`），不重试
+- 消息过频率 → 发送 CHAT_INFO（含 `mark_message_failed`），不重试
+- 拒收分支不抛异常中断主流程；拒收后不得进入 AI 上下文与 LLM 链路
 
 详见 [special-types.md](special-types.md#block-功能和消息拒收)
 

@@ -103,6 +103,9 @@ TYPING 消息仅用于实时输入状态，不写入 message_history。
 
 - type - 操作类型（mark_message_failed）
 - target_msg_id - 目标消息ID（客户端生成的消息ID）
+- reason - 可选，机器可读原因码（客户端分支不得依赖 content 文案）
+- retry_after_seconds - 可选，频控场景的重试等待秒数
+- max_message_length_chars - 可选，超长场景的服务端最大字符数
 
 ### 架构设计
 
@@ -149,6 +152,20 @@ content 字段直接存储最终显示文本。
 
 当用户向未添加自己为联系人的对方发送消息时，系统自动发送此消息。
 
+### 业务失败统一反馈（标记失败 + chat_info）
+
+当服务端接收入站用户消息后，命中业务拒绝（如拒收、超长、频控）时，必须通过时间线发送 `CHAT_INFO` 并携带 `action=mark_message_failed`，用于客户端将对应 `msg_id_client` 的消息标记为失败（感叹号）。
+
+约束：
+
+- `action.target_msg_id` 必须等于该条用户消息的 `msg_id_client`。
+- 客户端不得依赖 `content` 文案分支，必须依赖 `action.reason` 等机器字段。
+- `CHAT_INFO` 作为时间线消息存储到 `message_history` 并通过 fanout 多端同步。
+
+示例：
+
+- 超长：`reason=MESSAGE_TOO_LONG` + `max_message_length_chars`
+- 频控：`reason=MESSAGE_RATE_LIMITED` + `retry_after_seconds`
 ### 客户端显示规则
 
 **聊天窗口内显示**：
@@ -184,24 +201,21 @@ content 字段直接存储最终显示文本。
 
 - 用户在联系人详情页点击"屏蔽"按钮
 - 更新 contacts.is_blocked = 1
-- 用户发送消息时，只存储消息和上下文，不进行 AI 处理
-- 发送 CHAT_INFO 消息：`"消息已发出，但对方拒收了"`
-- 返回 `business_rejected` 业务结果，不抛异常
+- 用户发送消息时，入站用户消息写入 message_history；不进入 AI 上下文与 LLM 链路
+- 发送 CHAT_INFO 消息并携带 `action=mark_message_failed`：`"消息已发出，但对方拒收了"`
 
 **场景2：AI 实例 Block 用户**
 
 - LLM 响应中包含 block_user 动作
 - 更新 ai_instances.status = 3 (blocked)
-- 用户发送消息时，只存储消息和上下文，不进行 AI 处理
-- 发送 CHAT_INFO 消息：`"消息已发出，但对方拒收了"`
-- 返回 `business_rejected` 业务结果，不抛异常
+- 用户发送消息时，入站用户消息写入 message_history；不进入 AI 上下文与 LLM 链路
+- 发送 CHAT_INFO 消息并携带 `action=mark_message_failed`：`"消息已发出，但对方拒收了"`
 
 **场景3：用户不是 AI 实例的所有者（不是对方好友）**
 
 - 在 contacts 表中检查是否存在有效联系人记录
-- 如果没有有效联系人，只存储消息和上下文
-- 发送 CHAT_INFO 消息：`"对方还没有添加你为联系人"`
-- 返回 `business_rejected` 业务结果，不抛异常
+- 如果没有有效联系人，入站用户消息写入 message_history；不进入 AI 上下文与 LLM 链路
+- 发送 CHAT_INFO 消息并携带 `action=mark_message_failed`：`"对方还没有添加你为联系人"`
 
 ### 处理流程
 
@@ -212,8 +226,8 @@ content 字段直接存储最终显示文本。
    - 如果 is_blocked → 场景1：发送 MESSAGE_BLOCKED 提示
 2. 检查 AI 实例状态
    - 如果 status == 3 (blocked) → 场景2：发送 MESSAGE_BLOCKED 提示
-3. 命中拒收场景时，返回 `business_rejected`，流程结束
-4. 未命中拒收场景时，正常处理消息
+3. 命中拒收场景时，发送 CHAT_INFO（含 `mark_message_failed`），流程结束
+4. 未命中拒收场景时，正常处理消息（进入 buffer/AI 管线）
 
 ## NOTIFICATION 系统通知
 

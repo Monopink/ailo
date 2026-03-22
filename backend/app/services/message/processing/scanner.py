@@ -263,7 +263,7 @@ async def _process_conversation_async(
                 task_turn_version=task_turn_version,
             )
 
-            if bool(conversation_result.get("business_rejected")):
+            if bool(conversation_result.get("rejected")):
                 logger.info(
                     "ai_processing_business_rejected",
                     buffer_id=buffer_id,

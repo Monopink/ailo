@@ -19,7 +19,7 @@ from app.enums.common import AIMessageBufferState, ContactType
 from app.enums.templates import CHAT_INFO_TEMPLATES, ChatInfoType
 from app.exceptions import AIConversationError, AIInstanceInactiveError, AIInstanceNotFoundError
 from app.exceptions.llm import ConfigNotVerifiedError, JSONSchemaNotSupportedError
-from app.models.ai.instance import AIInstance
+from app.models.ai.instance import AIInstance, AIMessageBuffer
 from app.models.contact import Contact
 from app.services.ai.context_archiving import archive_old_contexts
 from app.services.ai.conversation_prompt import build_conversation_context, build_system_prompt
@@ -55,23 +55,13 @@ logger = get_logger(__name__)
 # Exception classes moved to exceptions/business.py for consistency
 
 
-def _build_business_rejected_result(
-    *,
-    buffer_id: int | None,
-    error_code: str,
-    reason: str,
-    chat_info_type: ChatInfoType,
-    chat_info_sent: bool,
-) -> JSONDict:
-    return {
-        "success": True,
-        "business_rejected": True,
-        "buffer_id": buffer_id,
-        "error_code": error_code,
-        "reason": reason,
-        "chat_info_type": int(chat_info_type),
-        "chat_info_sent": chat_info_sent,
+def _action_reason_from_chat_info_type(chat_info_type: ChatInfoType) -> str:
+    mapping: dict[ChatInfoType, str] = {
+        ChatInfoType.MESSAGE_BLOCKED: "MESSAGE_BLOCKED",
+        ChatInfoType.NOT_FRIEND: "NOT_FRIEND",
+        ChatInfoType.CONTACT_ADDED: "CONTACT_ADDED",
     }
+    return mapping[chat_info_type]
 
 
 async def _reject_as_business_result(
@@ -108,6 +98,19 @@ async def _reject_as_business_result(
             message=f"Missing CHAT_INFO template for type={int(template_key)}",
         )
 
+    action: JSONDict | None = None
+    if locked_buffer_id is not None:
+        result = await db.execute(
+            select(AIMessageBuffer.last_msg_id_client).where(AIMessageBuffer.id == locked_buffer_id)
+        )
+        target_msg_id = result.scalar_one_or_none()
+        if isinstance(target_msg_id, str) and target_msg_id:
+            action = {
+                "type": "mark_message_failed",
+                "target_msg_id": target_msg_id,
+                "reason": _action_reason_from_chat_info_type(template_key),
+            }
+
     chat_info_sent = False
     if conversation_id:
         await send_chat_info(
@@ -115,6 +118,7 @@ async def _reject_as_business_result(
             to_qiao_id=user_qiao_id,
             conversation_id=conversation_id,
             content=content,
+            action=action,
         )
         chat_info_sent = True
     else:
@@ -134,13 +138,15 @@ async def _reject_as_business_result(
 
     await db.commit()
 
-    return _build_business_rejected_result(
-        buffer_id=locked_buffer_id,
-        error_code=error_code,
-        reason=reason,
-        chat_info_type=template_key,
-        chat_info_sent=chat_info_sent,
-    )
+    return {
+        "success": True,
+        "rejected": True,
+        "buffer_id": locked_buffer_id,
+        "error_code": error_code,
+        "reason": reason,
+        "chat_info_type": int(template_key),
+        "chat_info_sent": chat_info_sent,
+    }
 
 
 async def process_conversation(

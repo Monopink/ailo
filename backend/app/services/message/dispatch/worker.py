@@ -143,7 +143,7 @@ async def _claim_pending_tasks(db: AsyncSession, *, now: datetime) -> list[int]:
                 MessageDispatchOutbox.next_retry_at <= now,
             ),
         )
-        .order_by(MessageDispatchOutbox.created_at.asc())
+        .order_by(MessageDispatchOutbox.created_at.asc(), MessageDispatchOutbox.id.asc())
         .limit(_BATCH_SIZE)
         .with_for_update(skip_locked=True)
     )

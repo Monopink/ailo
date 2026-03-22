@@ -70,8 +70,6 @@ WebSocket Provider 的传输载荷统一为 JSON；客户端以 `device_id` 作�
 - 服务端推送消息时，统一以内部事件或其等价字段输出（便于测试页实时渲染）
 - 自研通道（WebSocket）允许 `msg_id_provider_inbound` 为空；第三方通道必须填写
  - 客户端标识为 `device_id`；服务端内部路由/投递目标以 Presence endpoint（`endpoint_id`）为准，禁止仅用 `device_id` 作为内部路由键（避免多账号复用同一 device_id 时串线）
-- 代码目录分层：provider sender 位于 `services/message/providers/websocket/*`；连接与状态管理位于 `services/message/websocket/*`
-- WS 入站字段适配（payload -> `InboundMessageEvent`）位于 `services/message/providers/websocket/*`；API 层仅处理帧级协议与鉴权。
 
 ## 消息ID设计
 
@@ -107,7 +105,7 @@ message_history 表存储多个ID字段（完整定义见 [message.md](../../dat
 - msg_id_server - 服务端统一生成的消息ID（形如 `msg_{snowflake}`）- 示例：`msg_223788765171154945`
 - msg_id_client - 客户端生成的ID（仅用户消息有值）- 示例：`client_1710001111222_abc123`
 - msg_id_provider_inbound - 第三方入站消息ID（第三方通道必填，自研通道可为空）- 示例：`nYH9iBSBS_uogCEgvZwE7Q`
-- Provider 出站回执 - 统一记录在 `message_deliveries.provider_msg_id`（不再存入 `message_history`）
+- Provider 出站回执 - 记录在 `message_deliveries.provider_msg_id`
 
 ### 使用场景
 
@@ -121,6 +119,11 @@ message_history 表存储多个ID字段（完整定义见 [message.md](../../dat
 
 系统在 Webhook → 管线 → 缓冲/AI → 发送 各阶段共享统一的事件结构。
 
+说明：
+
+- 本节定义的是服务端内部事件结构（pipeline），字段名以服务端实现为准。
+- 对外接口（HTTP 离线拉取、WebSocket 推送）的字段名以对应 API 文档为准。
+
 ### 版本与命名
 
 - `schema_version`: 当前版本 `1.0.0`（语义化版本号）
@@ -132,7 +135,7 @@ message_history 表存储多个ID字段（完整定义见 [message.md](../../dat
 
 说明：
 
-- 对外事件/接口中的时间戳字段统一为 UTC 的 Unix epoch 毫秒时间戳；服务端落库可使用 `TIMESTAMP WITH TIME ZONE`。
+- 时间戳值统一为 UTC 的 Unix epoch 毫秒时间戳（整数）；对外 API 的时间字段命名规范见 `../time-format.md`。
 
 - schema_version (string, 必填) - 文档版本 `1.0.0`
 - event_type (string, 必填) - `inbound_message` / `outbound_message`
@@ -141,8 +144,7 @@ message_history 表存储多个ID字段（完整定义见 [message.md](../../dat
 - from_qiao_id (string, 必填) - 发送方 qiao_id
 - to_qiao_id (string, 必填) - 接收方 qiao_id
 - content (string, 必填) - 文本内容（typing 类可为空）
-- sent_time_ms (int, 必填) - 发送时间（毫秒）
-- sent_time_ms 由服务端认定（用于排序、离线游标推进与审计）；client_sent_time_ms 仅为客户端上送时间（用于展示/调试）。
+- sent_at_ms (int, 必填) - 事件时间（毫秒，内部事件结构字段名；对外等价字段名为 `sent_time_ms`）
 - msg_id_server (string, 必填) - 服务端消息ID（形如 `msg_{snowflake}`）
 - msg_id_client (string/null, 条件必填) - 客户端ID（仅用户消息必填）
 - msg_id_provider_inbound (string/null, 条件必填) - 第三方入站ID（第三方通道必填，自研通道可为空）
@@ -169,7 +171,7 @@ message_history 表存储多个ID字段（完整定义见 [message.md](../../dat
   "from_qiao_id": "qiao_user001",
   "to_qiao_id": "qiao_xm001",
   "content": "你好",
-  "sent_time_ms": 1710001111222,
+  "sent_at_ms": 1710001111222,
   "msg_id_server": "msg_223788765171154945",
   "msg_id_client": "client_1710001111222_abc123",
   "msg_id_provider_inbound": "nYH9iBSBS_uogCEgvZwE7Q",
@@ -193,7 +195,7 @@ message_history 表存储多个ID字段（完整定义见 [message.md](../../dat
   "from_qiao_id": "qiao_xm001",
   "to_qiao_id": "qiao_user001",
   "content": "我在呢，刚才看到你发的消息啦～",
-  "sent_time_ms": 1710002222333,
+  "sent_at_ms": 1710002222333,
   "msg_id_server": "msg_223788765171155999",
   "msg_id_client": null,
   "msg_id_provider_inbound": null,

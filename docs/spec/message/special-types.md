@@ -2,13 +2,15 @@
 
 本文档说明非 TEXT 消息的处理规则，包括输入状态、对话提示、系统通知。
 
-## 消息类型概览
+## 消息类型与存储规则概览
 
-- TEXT (1) - 文本消息 - 存储到 message_history
-- TYPING_START (2) - 开始输入 - 不存储到 message_history
-- TYPING_END (3) - 结束输入 - 不存储到 message_history
-- CHAT_INFO (4) - 对话提示信息 - 存储到 message_history
-- NOTIFICATION (9) - 系统通知 - 不存储到 message_history
+消息类型枚举值见 [schema.md](schema.md#消息类型枚举)。
+
+- TEXT - 文本消息 - 存储到 message_history
+- TYPING_START - 开始输入 - 不存储到 message_history
+- TYPING_END - 结束输入 - 不存储到 message_history
+- CHAT_INFO - 对话提示信息 - 存储到 message_history
+- NOTIFICATION - 系统通知 - 不存储到 message_history
 
 ## TYPING 输入状态
 
@@ -20,35 +22,10 @@
 
 ### 消息结构
 
-**TYPING_START**：
+字段约束（相对 TEXT）：
 
-```json
-{
-  "msg_id": "client_1710001111222_abc123",
-  "from_qiao_id": "qiao_user001",
-  "to_qiao_id": "qiao_xm001",
-  "conversation_id": "conv_xyz789",
-  "content": "",
-  "message_type": 2,
-  "supports_typing": true,
-  "sent_time": 1710001111222
-}
-```
-
-**TYPING_END**：
-
-```json
-{
-  "msg_id": "client_1710001111333_def456",
-  "from_qiao_id": "qiao_user001",
-  "to_qiao_id": "qiao_xm001",
-  "conversation_id": "conv_xyz789",
-  "content": "",
-  "message_type": 3,
-  "supports_typing": true,
-  "sent_time": 1710001111333
-}
-```
+- `message_type`：TYPING_START 或 TYPING_END（枚举值见 [schema.md](schema.md#消息类型枚举)）
+- `content`：空字符串
 
 ### 服务端处理
 
@@ -66,7 +43,7 @@ TYPING 消息仅用于实时输入状态，不写入 message_history。
 
 **传输（LeanCloud）**：
 
-- `message_type=2|3` 的消息以 `transient=true` 发送。
+- TYPING_START/TYPING_END 必须以 `transient=true` 发送（约束见 [schema.md](schema.md) 与 [leancloud.md](leancloud.md)）。
 
 ### 客户端处理
 

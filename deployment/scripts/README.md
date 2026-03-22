@@ -49,6 +49,12 @@ cd /opt/ailo-<env>/ailo/deployment/<env>/scripts
 ./deploy.sh logs <service>
 ```
 
+## Nginx 网关模板
+
+- Nginx 使用 `nginx/entrypoint.sh` 渲染模板到容器内 `default.conf`。
+- 默认模板为 `nginx/conf.d/app.conf`。
+- 可通过环境变量 `NGINX_TEMPLATE` 选择其它模板文件名。
+
 ## AI 失灵应急
 
 代码回滚：

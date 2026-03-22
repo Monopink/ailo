@@ -127,10 +127,8 @@
 
 ## 消息服务约束
 
-- optimistic 消息必须携带 `msg_id_client`
-- 时间线消息去重主键固定为 `msg_id_server`
-- 收到 self echo 且命中 `(conv_id, msg_id_client)` 时，消息状态执行替换收敛到 `msg_id_server`
-- `POST /api/v1/messages/ack` 的游标推进基于 `msg_id_server`
+- 消息 ID 语义与客户端对齐规则见：`../../message/schema.md`。
+- 离线补偿与 ACK 规则见：`../../message/delivery-reliability.md` 与 `../../../api/messages-offline.md`。
 
 ## 参考实现
 

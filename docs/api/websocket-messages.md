@@ -2,8 +2,6 @@
 
 本文档定义通用 WebSocket 消息通道（transport only）的 API 视角协议，用于实时收发消息与事件。
 
-该通道是消息系统的一种 Provider，实现目标是：在不改变业务逻辑的前提下替换/共存不同传输层。
-
 ---
 
 ## 端点
@@ -63,10 +61,9 @@ WebSocket 连接建立后，客户端必须先发送 `auth` 消息完成鉴权�
 
 约束：
 
-- `device_id` 必须是稳定 UUID（设备/安装级）。
+- `device_id` 必须是稳定 UUID（设备/安装级）；生成与持久化规范见 `../spec/client/base/device-id.md`。
 - `access_token` 为 **裸 JWT**（不带 `Bearer ` 前缀）。
 - 服务端会按 (user_id, device_id) 注册 Presence endpoint 并续租。
-- 服务端会将该连接注册为该 (user_id, device_id) 的 Presence endpoint，并根据配置续租 lease。
 
 成功响应：
 
@@ -120,10 +117,8 @@ WebSocket 连接建立后，客户端必须先发送 `auth` 消息完成鉴权�
 
 - `msg_id_client` 必填，用于幂等去重。
 - `conversation_id` 必填（等于 `contacts.conversation_id`），作为入站业务定位键；服务端通过该值查找 contact/instance 并进入统一消息管线。
-- `client_sent_time_ms` 由客户端生成（Unix 毫秒时间戳，UTC）。
-- ID 口径：
-  - `msg_id_client` 由客户端生成，仅用于入站幂等与本地对齐（发送瞬间可用作临时渲染 key）。
-  - `msg_id_server` 由服务端生成，是时间线消息的唯一标识（客户端最终以 `msg_id_server` 去重与 ACK）。
+- `client_sent_time_ms` 可选；时间字段命名规范见 `../spec/time-format.md`。
+- `msg_id_server` / `msg_id_client` 的语义与用法见 `../spec/message/schema.md`。
 
 成功响应：
 
@@ -163,12 +158,12 @@ WebSocket 连接建立后，客户端必须先发送 `auth` 消息完成鉴权�
 
 - `typing` 是实时输入状态事件，服务端可用于驱动 buffer 策略与推送给对端。
 - `typing` 上报必须包含 `conversation_id` 与 `typing_state`；身份信息由服务端基于鉴权身份 + `conversation_id` 推导。
-- `typing_state=start/end` 会在服务端分别映射为内部消息类型 `TYPING_START (2)` / `TYPING_END (3)`（见 `docs/spec/message/schema.md` 与 `docs/spec/message/special-types.md`）。
+- `typing_state=start/end` 会在服务端分别映射为内部消息类型 `TYPING_START (2)` / `TYPING_END (3)`（见 `../spec/message/schema.md` 与 `../spec/message/special-types.md`）。
 - `typing` 不写入 `message_history`（仅用于实时与 buffer 策略）。
 - `typing` 不等同于“发送消息”，也不承载投递确认；投递确认仍使用 HTTP ACK。
 - 若客户端额外携带 `from_qiao_id/to_qiao_id`，服务端应忽略该字段，防止客户端伪造身份。
 - 服务端不强制发送 `typing_state=end`；客户端应在收到 TEXT 消息或超时后自行隐藏输入态。
-- 客户端发送与展示统一规则见 `docs/spec/message/typing.md`（含 `typing_start` 1 秒 buffer）。
+- 客户端发送与展示统一规则见 `../spec/message/typing.md`（含 `typing_start` 1 秒 buffer）。
 
 成功响应：`ack`。
 
@@ -242,8 +237,7 @@ assistant/系统消息示例：
 
 说明：
 
-- `sent_time_ms` 为服务端认定的事件时间；`client_sent_time_ms` 仅为客户端上送时间（用于展示/调试）。
-- 发送端收到带 `msg_id_client` 的 self echo 时，以 `(conversation_id, msg_id_client)` 对齐本地 optimistic 消息并收敛到 `msg_id_server`。
+- 时间字段命名规范见 `../spec/time-format.md`。
 
 #### event: typing
 

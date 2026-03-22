@@ -19,9 +19,3 @@
 - AI 使用情况：基于 `stats_ai_daily/weekly/monthly`
 - 请求量分析：AI 请求数、成功率、响应时间
 - 热门 AI：最受欢迎的 AI 实例和模板
-
-## 收入统计（未来功能）
-
-- 收入趋势：基于 `stats_revenue_daily/weekly/monthly`
-- 订单分析：订单量、平均订单金额
-- 用户价值：付费用户分析、ARPU

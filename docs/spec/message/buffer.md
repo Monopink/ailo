@@ -58,8 +58,8 @@
 
 从 system_configs 表获取配置：
 
-- CONTENT_TYPING - message_buffer_normal_wait_ms - 默认 3000ms
-- CONTENT_NO_TYPING - message_buffer_no_typing_wait_ms - 默认 8000ms
+- content_typing - message_buffer_normal_wait_ms - 默认 3000ms
+- content_no_typing - message_buffer_no_typing_wait_ms - 默认 8000ms
 - typing_start.short - message_buffer_typing_short_wait_ms - 默认 16000ms
 - typing_start.total - message_buffer_typing_total_wait_ms - 默认 32000ms
 - typing_end - message_buffer_typing_end_wait_ms - 默认 3000ms
@@ -68,27 +68,27 @@
 
 #### 无上一条消息（last_message_category = NULL）
 
-- CONTENT_TYPING → 设置微计时器（message_buffer_normal_wait_ms）
-- CONTENT_NO_TYPING → 设置微计时器（message_buffer_no_typing_wait_ms）
+- content_typing → 设置微计时器（message_buffer_normal_wait_ms）
+- content_no_typing → 设置微计时器（message_buffer_no_typing_wait_ms）
 
-#### 上一条为 CONTENT_TYPING
+#### 上一条为 content_typing
 
-- CONTENT_TYPING → 设置微计时器
+- content_typing → 设置微计时器
 - typing_start → 设置微计时器（typing_short_wait_ms）并设置宏计时器（typing_total_wait_ms）
 
 #### 上一条为 typing_start
 
-- CONTENT_TYPING → 取消宏计时器，设置微计时器
+- content_typing → 取消宏计时器，设置微计时器
 - typing_end → 设置微计时器（message_buffer_typing_end_wait_ms）
 
 #### 上一条为 typing_end
 
-- CONTENT_TYPING → 设置微计时器
+- content_typing → 设置微计时器
 - typing_start → 设置微计时器（typing_short_wait_ms）
 
-#### 上一条为 CONTENT_NO_TYPING
+#### 上一条为 content_no_typing
 
-- CONTENT_NO_TYPING → 设置微计时器
+- content_no_typing → 设置微计时器
 
 #### 其他情况组合
 
@@ -140,8 +140,7 @@
 
 ### 与现有流程的关系
 
-- 唤醒机制是 buffer 调度的一部分，不再作为“先晋升再聚合”的独立阶段
-- Scanner 不做 `WAITING_WAKEUP -> OPEN` 晋升分支
+- 唤醒机制是 buffer 调度的一部分
 - 锁定候选来自“已到期窗口”（`WAITING_WAKEUP` 或 `OPEN`）
 - 初次对话（无历史 COMPLETE buffer）跳过唤醒，直接创建 OPEN buffer
 
@@ -165,7 +164,7 @@
 
 ### 2. 到期扫描与锁定（scheduler tick）
 
-**周期性扫描**（建议 100ms-1s；当前默认 100ms）
+**周期性扫描**（间隔 100ms）
 
 **对每个会话执行事务内锁定**（事务内）
 
@@ -219,7 +218,7 @@
 ## 并发与时钟
 
 - 并发安全：依赖数据库事务 + 唯一部分索引；不需要进程内 per-conversation 锁
-- 时钟一致性：建议到期时间的写入与扫描均用 DB 时钟，避免多实例时间漂移
+- 时钟一致性：到期时间的写入与扫描优先使用 DB 时钟；若获取失败，使用进程时钟并记录 WARNING（见 `docs/spec/error-handling.md`）
 
 ## 错误与恢复
 
@@ -229,10 +228,4 @@
 
 **异常滞留**：
 
-定期清理长时间 LOCKED 的窗口（超限置 CANCELLED 或回到 OPEN），避免卡死（可在后续迭代加入）。
-
-## 可选扩展（非 MVP）
-
-- 处理轨迹审计：如需，可增加 locked_at/canceled_at 等审计列（当前不必需）
-- 归档策略：定期将 ai_conversation_items 中超过 14 天的记录迁移到 ai_conversation_items_archive
-- 归档后立即从主表删除对应记录，并执行 VACUUM ANALYZE ai_conversation_items 保持索引健康
+启动时会将 `WAITING_WAKEUP` / `OPEN` / `LOCKED` 的窗口统一置为 `CANCELLED`，用于释放滞留状态。

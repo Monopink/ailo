@@ -65,7 +65,7 @@
 
 - `source` (integer, 可选)
   - 请求来源，默认 `1`
-  - 枚举值定义见：`backend/app/enums/common.py` - `ContactRequestSource`
+  - 枚举值定义见：`backend/app/enums/` - `ContactRequestSource`
 
 ### 成功响应 (200)
 
@@ -159,7 +159,7 @@
 - `profile` (object) - 联系人资料信息
   - `nickname` (string) - 昵称
   - `avatar_url` (string) - 动态生成的头像 CDN URL
-  - `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
+  - `gender` (integer) - 性别，枚举值见：`backend/app/enums/` - `Gender`
   - `bio` (string) - 个性签名
 
 ### 错误响应

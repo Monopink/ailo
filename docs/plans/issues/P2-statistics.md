@@ -385,9 +385,3 @@ async def backfill_statistics(start_date: date, end_date: date):
 - 按时间顺序回填（从早到晚）
 - 回填过程中监控数据库性能
 - 回填后进行数据一致性检查
-
-## 相关文档
-
-- [数据字典 - 统计报表](../data-dict/system-stats.md)
-- [数据库迁移操作](./MIGRATION.md)
-- [后端开发规范](../../backend/AGENTS.md)

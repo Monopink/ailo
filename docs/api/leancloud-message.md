@@ -54,7 +54,6 @@ LeanCloud 专用的客户端 IM 接口统一放在 `lc-im` 命名空间下，涵
 ### 业务说明
 
 - `im_conv_id` 由系统配置中心维护并可随时变更，客户端应在应用启动和重连时主动拉取
-- 如果后续切换消息服务，可直接调整该接口返回的 LeanCloud 配置字段，无需额外改动。
 
 ---
 
@@ -158,7 +157,7 @@ LeanCloud 专用的客户端 IM 接口统一放在 `lc-im` 命名空间下，涵
 
 - `endpoint_id` (integer) - `message_endpoints.id`
 - `client_id` (string) - 注册的 LeanCloud client_id
-- `lease_ttl_days` (integer) - endpoint 租约天数（代码常量，当前为 365）
+- `lease_ttl_days` (integer) - endpoint 租约天数（固定为 365）
 - `lease_expires_at_ms` (integer) - 租约到期时间戳（毫秒）
 
 ### 错误响应
@@ -221,7 +220,7 @@ LeanCloud 专用的客户端 IM 接口统一放在 `lc-im` 命名空间下，涵
 
 ### 内层 `_lcattrs` 规范
 
-Webhook 解析后得到的业务字段与 `docs/spec/message/schema.md` 定义一致：
+Webhook 解析后得到的 `_lcattrs` 为 LeanCloud Provider 入站载荷；服务端会将其映射为内部事件结构（见 `../spec/message/schema.md`）：
 
 | 字段 | 说明 |
 | --- | --- |

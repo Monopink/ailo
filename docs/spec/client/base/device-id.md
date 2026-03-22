@@ -14,7 +14,7 @@
 ## 持久化
 
 - 小程序本地存储（`wx.setStorageSync`）
-- 建议 Key：`device_id`
+- Key：`device_id`
 
 ## 生命周期
 

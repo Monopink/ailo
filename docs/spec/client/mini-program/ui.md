@@ -8,7 +8,7 @@
 - 基础 UI 统一使用 TDesign，自绘组件仅限 `ui-gender-badge`
 - 需要导航栏的页面使用 `t-navbar`，并配置 `navigationStyle: "custom"`
 - TabBar 使用 custom tabbar 机制，custom-tab-bar 内部必须使用 TDesign `t-tab-bar`
-- 暗色模式跟随系统，暂不考虑手动切换
+- 暗色模式跟随系统，不提供手动切换入口
 
 ## 页面结构
 

@@ -10,12 +10,12 @@
 id -- Snowflake ID
 user_qiao_id -- 用户 external ID
 instance_qiao_id -- AI external ID
-aggregate_state -- 0=WAKE, 1=OPEN, 2=LOCKED, 3=COMPLETE, 4=CANCELLED
+aggregate_state -- 聚合状态（enum: AIMessageBufferState）
 micro_expires_at_ms -- 微计时器到期时间（毫秒）
 macro_expires_at_ms -- 宏计时器到期时间（毫秒，可为空）
 buffer_expires_at_ms -- 统一调度截止时间（毫秒），由 micro/macro 与 wake 门控共同决定
 wake_expires_at_ms -- Wake 门控截止时间（毫秒），未启用门控时为 NULL
-last_message_category -- VARCHAR(32)，CONTENT_TYPING / CONTENT_NO_TYPING / typing_start / typing_end
+last_message_category -- 缓冲消息分类（enum: BufferMessageCategory）
 first_msg_id_client -- 窗口内第一条客户端消息ID
 last_msg_id_client -- 窗口内最后一条客户端消息ID
 message_count -- 窗口内消息条数，默认1
@@ -60,14 +60,14 @@ updated_at
 id -- Snowflake ID
 user_qiao_id -- 用户 external ID
 instance_qiao_id -- AI external ID
-role -- system / user / assistant
-message_type -- text / image / audio
+role -- 角色（enum: ConversationRole）
+message_type -- 消息类型（enum: ConversationItemMessageType）
 text_content -- 文本内容（message_type=text 必填）
 media_url -- 媒体地址（message_type=image/audio 必填）
 media_metadata -- JSONB 元数据（如宽高、时长、transcript 等）
 client_msg_ids -- 聚合的客户端消息ID
 buffer_id -- 关联 ai_message_buffer.id，user 必填、assistant 可选
-is_excluded_from_context -- 上下文状态：0=包含，1=排除（默认 0）
+is_excluded_from_context -- 上下文状态（enum: ConversationItemContextStatus，默认 INCLUDED）
 created_at
 ```
 
@@ -79,14 +79,14 @@ created_at
 id -- Snowflake ID
 user_qiao_id -- 用户 external ID
 instance_qiao_id -- AI external ID
-role -- system / user / assistant
-message_type -- text / image / audio
+role -- 角色（enum: ConversationRole）
+message_type -- 消息类型（enum: ConversationItemMessageType）
 text_content -- 文本内容
 media_url -- 媒体地址
 media_metadata -- 媒体元数据
 client_msg_ids -- 客户端消息ID
 buffer_id -- 原始缓冲窗口ID
-is_excluded_from_context -- 上下文状态：0=包含，1=排除
+is_excluded_from_context -- 上下文状态（enum: ConversationItemContextStatus）
 created_at -- 原始创建时间
 archived_at -- 归档时间
 ```
@@ -102,14 +102,14 @@ user_id -- 关联users.id
 user_qiao_id -- 用户 external ID
 style_id -- 关联ai_styles.id
 personality_id -- 关联ai_personalities.id
-request_type -- 请求类型：production（生产环境）或test（测试环境），默认production
+request_type -- 请求类型（enum: AIRequestType）
 provider_name -- LLM提供商名称（如doubao, openai, mock等）
 model_name -- 使用的模型名称
 response_id -- Provider侧响应ID（可为空）
 cache_hit -- 是否命中缓存（bool）
 request -- 请求内容，JSONB格式
 response -- 原始响应内容，JSONB格式
-status -- 请求状态：1=success, 2=failed, 3=timeout
+status -- 请求状态（enum: AIRequestStatus）
 token_count -- 消耗的token数量
 response_time -- 响应时间（毫秒）
 llm_config_id -- 使用的LLM配置ID
@@ -128,13 +128,13 @@ instance_id -- 关联ai_instances.id
 instance_qiao_id -- AI external ID
 user_id -- 关联users.id
 user_qiao_id -- 用户 external ID
-memory_type -- 记忆类型：core（核心记忆，永久保留）、recent（近期记忆，会遗忘）
+memory_type -- 记忆类型（enum: MemoryType）
 content -- 记忆内容，简洁的一句话描述
 importance -- 重要性1-10，决定寿命（重要性×10=天数）
 created_at -- 记忆创建时间
 refreshed_at -- AI续期时间，如果有值则从这个时间开始计算寿命
 expires_at -- 预计算的过期时间（仅recent类型，通过触发器自动计算，性能优化）
 source_message_id -- 触发创建这条记忆的消息ID（溯源用）
-status -- 状态：1=active（活跃），2=archived（已归档/遗忘）
+status -- 状态（enum: AIInstanceMemoryStatus）
 updated_at
 ```

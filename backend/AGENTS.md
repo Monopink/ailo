@@ -9,7 +9,6 @@
 
 - API 文档：`../docs/api/`
 - 数据字典：`../docs/data-dict/`
-- 迁移文档：`../docs/tech/MIGRATION.md`
 - 参考资料：`../docs/references/`
 - Admin 规则：`app/admin/AGENTS.md`（修改 `app/admin/` 前必读）
 

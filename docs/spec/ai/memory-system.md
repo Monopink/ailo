@@ -4,8 +4,8 @@
 
 ## 数据模型
 
-- 模板记忆：`docs/data-dict/ai-instantiation.md#ai_template_memories`
-- 实例记忆：`docs/data-dict/ai-conversation.md#ai_instance_memories`
+- 模板记忆：`../../data-dict/ai-instantiation.md#ai_template_memories`
+- 实例记忆：`../../data-dict/ai-conversation.md#ai_instance_memories`
 
 模板表用于静态种子数据，实例创建时按 `display_order` 拷贝到 `ai_instance_memories`，并补全 user/instance 字段。运行期的所有记忆都存放在实例表中。 `ai_instance_memories` 强制使用唯一的（instance_id，content）对，这样重复的文本就不会出现在同一个 instance 中。
 实例创建入口通过 `copy_template_memories_to_instance` helper 以 `display_order` 顺序落库模板记忆。模板记忆复制异常时，实例创建事务回滚。
@@ -21,14 +21,14 @@
 
 ## 配置与数量限制
 
-限制仅作用在检索阶段，写入淘汰暂不实现。
+数量限制仅在检索阶段生效；写入阶段按原样写入。
 
 ```
 ai_instances.request_params.memory_limits
-    ↓（缺失/非法）
+    ↓（缺失/非法：记录 WARNING 并使用下一来源）
 llm_configs.extra_params.memory_limits
     ↓
-DEFAULT_MEMORY_LIMITS（代码常量，core=30，recent=50）
+硬上限（固定值）：core=30，recent=50
 ```
 
 模板/运行期超过上限只会在读取时被裁剪。
@@ -47,7 +47,7 @@ DEFAULT_MEMORY_LIMITS（代码常量，core=30，recent=50）
    - <25%：`[极模糊]`
 5. 输出 Markdown，引导 AI 在“较模糊”及以上标签时使用“我记得”“好像”等措辞。
 
-检索过程只读数据库，不会在此阶段修改 `status` 或其他字段；如需批量归档过期记录，后续单独交给后台任务。
+检索过程只读数据库，不会在此阶段修改 `status` 或其他字段。
 
 ## 记忆操作协议
 

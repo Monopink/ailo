@@ -11,10 +11,10 @@ id -- bigint 主键
 category_key -- 分类键（kebab-case，唯一）
 title -- 分类标题
 description -- 分类描述
-theme_key -- 主题键（取值集合见 backend/app/enums/common.py 的 SquareCategoryTheme）
+theme_key -- 主题键（enum: SquareCategoryTheme）
 icon_ref -- 图标引用（tdesign:<icon-name>）
 sort_order -- 排序值（升序）
-status -- 状态：1=active, 2=inactive
+status -- 状态（enum: SquareCategoryStatus）
 created_at
 updated_at
 ```
@@ -27,8 +27,8 @@ Square 上架映射表，决定分类内的 `type_id` 曝光。
 id -- 自增ID
 category_key -- 关联 square_categories.category_key
 type_id -- 关联 ai_types.id
-exposure_strategy -- 曝光策略枚举：common.py
-status -- 状态：1=active, 2=inactive
+exposure_strategy -- 曝光策略（enum: ExposureStrategy）
+status -- 状态（enum: SquareEntryStatus）
 created_at
 updated_at
 ```

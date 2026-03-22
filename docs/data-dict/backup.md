@@ -6,7 +6,7 @@
 
 ```txt
 id -- 自增ID
-status -- 状态：1=running, 2=success, 3=failed
+status -- 状态（enum: BackupJobStatus）
 started_at -- 开始时间
 finished_at -- 结束时间
 duration_ms -- 耗时毫秒

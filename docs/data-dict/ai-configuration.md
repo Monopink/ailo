@@ -9,7 +9,7 @@ AI风格表，定义 AI 实例的风格类型和评分维度。
 ```txt
 id -- 自增ID
 display_name -- 用于显示的名称
-status -- 状态：1=active, 2=inactive
+status -- 状态（enum: AIStyleStatus）
 created_at
 updated_at
 ```
@@ -63,10 +63,10 @@ AI关系类型表，定义 AI 实例的关系类型。
 id -- 自增ID
 display_name -- 显示名称
 prompt_fragment -- 提示词片段
-status -- 状态：1=active, 2=inactive
+status -- 状态（enum: AIRelationshipStatus）
 wake_time_min_ms -- INTEGER NOT NULL DEFAULT 3000，微计时器下限（毫秒），CHECK >= 500
 wake_time_max_ms -- INTEGER NOT NULL DEFAULT 3000，微计时器上限（毫秒），CHECK >= wake_time_min_ms
-wake_time_bias -- VARCHAR(20) NOT NULL DEFAULT 'balanced'，响应时间倾向，CHECK IN ('balanced', 'centered', 'fast', 'slow', 'very_fast', 'very_slow')
+wake_time_bias -- VARCHAR(20) NOT NULL DEFAULT 'balanced'，响应时间倾向
 wake_window_ms -- INTEGER NOT NULL DEFAULT 60000，跳过唤醒窗口（毫秒），CHECK >= 0
 wake_time_adjustment -- VARCHAR(20) NOT NULL DEFAULT 'random_half'，等待时间调整策略
 no_reply_probability -- DECIMAL(3,2) NOT NULL DEFAULT 0.00，不回复概率（0.00-1.00），CHECK >= 0 AND <= 1
@@ -84,7 +84,7 @@ id -- 自增ID
 display_name -- 显示名称
 prompt -- 人格提示词模板
 json_schema -- JSON Schema 定义
-status -- 状态：1=active, 2=inactive
+status -- 状态（enum: AIPersonalityStatus）
 created_at
 updated_at
 ```
@@ -100,7 +100,7 @@ placeholder_key -- 占位符键名
 display_name -- 显示名称
 description -- 描述说明
 example_value -- 示例值
-is_required -- 是否必填：1=required, 0=optional
+is_required -- 是否必填（enum: RequiredStatus）
 created_at
 updated_at
 ```

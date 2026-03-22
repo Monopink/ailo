@@ -5,12 +5,13 @@
 ## 职责边界
 
 - 端到端编排：本文档
+- 错误处理与降级：[`../error-handling.md`](../error-handling.md)
 - 缓冲与计时：[`../message/buffer.md`](../message/buffer.md)
 - Prompt 构建：[`prompt-building.md`](prompt-building.md)
 - LLM 调用与响应字段：[`llm-interaction.md`](llm-interaction.md)
 - 关系计算：[`relationship-system.md`](relationship-system.md)
 - 消息发送：[`message-sending.md`](message-sending.md)
-- Provider 传递：[`../message/leancloud.md`](../message/leancloud.md)
+- Provider 传递：[`../message/leancloud.md`](../message/leancloud.md)、[`../message/websocket.md`](../message/websocket.md)
 - 失败投递：[`../message/failure-handling.md`](../message/failure-handling.md)
 
 ## 主流程
@@ -33,11 +34,11 @@
 
 ### 阶段 1：消息接收
 
-- 入口固定为 LeanCloud Webhook。
+- 入口为统一入站消息事件（由 Provider 适配产生），支持 LeanCloud Webhook 与 WebSocket。
 - 必须完成 token 校验、消息格式校验、解密（如启用）。
 - 验证失败必须终止流程，消息不得进入上下文与缓冲。
 
-详见：[`../message/leancloud.md`](../message/leancloud.md)
+详见：[`../message/leancloud.md`](../message/leancloud.md)、[`../message/websocket.md`](../message/websocket.md)
 
 ### 阶段 2：安全检测
 

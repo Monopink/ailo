@@ -10,7 +10,7 @@ Square（发现页）用于展示可添加的 AI 联系人。
 - 字段：`category_key`、`title`、`description`、`theme_key`、`icon_ref`、`sort_order`、`status`
 - 约束：
   - `category_key` 唯一且不可修改
-  - `theme_key` 取值集合由 `backend/app/enums/common.py` 的 `SquareCategoryTheme` 定义
+  - `theme_key` 取值集合由 `backend/app/enums/` 的 `SquareCategoryTheme` 定义
   - `icon_ref` 格式为 `tdesign:<icon-name>`
 
 ### 上架表

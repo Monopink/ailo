@@ -196,7 +196,3 @@ Assistant 消息在实际发送时写入（不是在 buffer 完成时）。
 6. 记录真实发送时间（created_at）
 
 详见 spec/ai/message-sending.md
-
-## 归档策略（非 MVP）
-
-定期将超过 14 天的记录迁移到 ai_conversation_items_archive

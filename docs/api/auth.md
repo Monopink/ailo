@@ -2,29 +2,26 @@
 
 ## 接口列表
 
-- [发送短信验证码（暂不开放）](#发送短信验证码暂不开放) - `POST /api/v1/auth/send-sms`
-- [手机号登录（暂不开放）](#手机号登录暂不开放) - `POST /api/v1/auth/phone`
+- [发送短信验证码](#发送短信验证码) - `POST /api/v1/auth/send-sms`
+- [手机号登录](#手机号登录) - `POST /api/v1/auth/phone`
 - [微信登录](#微信登录) - `POST /api/v1/auth/wechat/login`
 - [微信手机号绑定](#2-绑定手机号) - `POST /api/v1/auth/wechat/bind-phone`
 - [微信手机号更新](#微信手机号更新) - `POST /api/v1/auth/wechat/refresh-phone`
 - [账号密码登录](#账号密码登录) - `POST /api/v1/auth/login`
+- [刷新令牌](#刷新令牌) - `POST /api/v1/auth/refresh-token`
 - [退出登录](#退出登录) - `POST /api/v1/auth/logout`
 
-> **MVP 说明**：小程序只开放“微信授权登录 + 获取手机号”链路；短信验证码与纯手机号登录接口暂不对外，仅保留以便未来 App/H5 直接复用。
-
-> **登录统一约束**：所有登录签发接口都必须上送 `device_id`（UUID）并稳定复用；服务端与客户端都禁止记录 access_token/refresh_token（包括任何片段）。
+> **登录统一约束**：所有登录签发接口都必须上送 `device_id`（UUID）并稳定复用；`device_id` 生成与持久化规范见 `../spec/client/base/device-id.md`。
 
 ---
 
-## 发送短信验证码（暂不开放）
-
-> 仅保留给未来多端使用；当前小程序不会发起短信验证码请求，也不会展示相关 UI。
+## 发送短信验证码
 
 ### 基本信息
 
 - **路径**: `POST /api/v1/auth/send-sms`
 - **认证**: 无需认证
-- **速率限制**: 1次/60秒（同一号码）
+- **速率限制**: 受限流保护
 
 ### 请求参数
 
@@ -39,7 +36,7 @@
 - `phone` (string, 必填)
   - E.164格式手机号
   - 前端可传入 `13800138000` 或 `+8613800138000`，后端自动规范化
-  - MVP阶段只支持+86（中国大陆）手机号
+  - 当前仅支持 +86（中国大陆）手机号
 
 ### 成功响应 (200)
 
@@ -52,30 +49,24 @@
 
 **字段说明**:
 
-- `expires_in` (integer) - 验证码有效期（秒），取 `system_configs.sms_code_expires_in_seconds`
+- `expires_in` (integer) - 验证码有效期（秒），由服务端配置决定
 - `cooldown_seconds` (integer) - 冷却时间（秒），用于客户端倒计时
 
 ### 错误响应
 
 **400 Bad Request**:
 
-- `"请30秒后再试"` - 超过速率限制
+- `"手机号格式无效"` - 手机号格式错误
+- `"仅支持中国大陆手机号"` - 非中国大陆手机号
+- `"请30秒后再试"` - 触发限流保护
 
 **500 Internal Server Error**:
 
 - `"系统错误（error_code）"` - 服务器内部错误
 
-### 业务说明
-
-- 服务端强制验证速率限制
-- 返回冷却时间供客户端倒计时显示
-- 支持白名单号码（不受速率限制，用于测试）
-
 ---
 
-## 手机号登录（暂不开放）
-
-> 统一手机号登录/注册入口目前仅为 App/H5 预留。小程序不会调用该接口，也不会通过短信验证码兜底。
+## 手机号登录
 
 ### 基本信息
 
@@ -98,10 +89,10 @@
 - `phone` (string, 必填)
   - E.164格式手机号
   - 前端可传入 `13800138000` 或 `+8613800138000`，后端自动规范化
-  - MVP阶段只支持+86手机号
+  - 当前仅支持 +86（中国大陆）手机号
 
 - `sms_code` (string, 必填)
-  - 短信验证码位数为代码常量（当前为 6 位）
+  - 短信验证码固定为 6 位
 
 - `device_id` (string, 必填)
   - 设备/安装级 UUID
@@ -139,8 +130,11 @@
 
 **400 Bad Request**:
 
-- `"验证码错误"` - 验证码不正确
-- `"验证码已过期"` - 验证码已失效
+- `"验证码有误，请重新输入"` - 验证码不正确
+- `"验证码已失效，请重新获取"` - 验证码已失效
+- `"手机号格式无效"` - 手机号格式错误
+- `"仅支持中国大陆手机号"` - 非中国大陆手机号
+- `"账号已被禁用"`
 
 **500 Internal Server Error**:
 
@@ -150,11 +144,6 @@
 
 - **登录注册合一**：手机号首次登录会自动创建 `users` 与 `profiles` stub，并立即返回 JWT；之后再次登录将复用同一个账号。
 - **资料补全标记**：`needs_profile_setup=true` 时客户端需要强制跳转到 Setup 页面，通过 `PUT /api/v1/user/profile` 填写昵称、头像等信息，完成后该标记会被清零。
-- **客户端约束**：MVP 阶段仅保留该接口，不提供短信登录 UI，也不允许从微信授权链路跳转至此接口兜底。
-
-## 完成注册（410 Gone）
-
-> 旧版 `POST /api/v1/auth/complete-registration` 依赖 `verified_phone_token` 的流程已废弃。调用该接口将返回 **410 Gone**，客户端必须改为在 `PUT /api/v1/user/profile` 中补全资料。
 
 ## 微信登录（两段式）
 
@@ -286,11 +275,11 @@
 **业务说明**
 
 - 该接口只在用户同意手机号授权后调用。
-- `device_id` 为必填 UUID，必须与客户端本地持久化值一致。
+- `device_id` 必须稳定复用；生成与持久化规范见 `../spec/client/base/device-id.md`。
 - `phone_code` 与 `encrypted_data + iv` 为互斥协议载荷，调用时二选一。
 - 仅支持中国大陆手机号；国际号码直接返回 400。
 - 手机号已存在时会解绑旧微信并绑定到当前微信，轻提示用户；旧微信下次按未绑定流程处理，无需特殊分支。
-- 开发/测试可用虚拟手机号 Mock：`system_configs` 配置 `wechat_phone_mock_enabled=true` 与 `wechat_phone_mock_number`（仅数字，例如 `13812341234`），生产环境不开启。
+- 开发/测试环境可启用虚拟手机号 Mock（生产环境关闭）；当启用时，微信手机号授权将返回固定手机号。
 
 ## 微信手机号更新
 
@@ -348,8 +337,7 @@
 - 接口会验证 openid 与当前账号的绑定关系，不允许交叉绑定；
 - 与登录接口相同，`login_code` 与 `phone_code` 必须同时有效；用户拒绝授权时直接在前端提示“需要授权手机号才能更新”。
 - 更新成功后返回脱敏手机号及最新的用户信息，等同于重新登录后的 `user` 结构；
-- 该接口是 MVP 阶段唯一的手机号更新方式，不需要短信验证码。
-- 如果在开发者工具中使用虚拟账号，可复用 `system_configs` 的 `wechat_phone_mock_enabled` 与 `wechat_phone_mock_number`（仅填写数字）配置，让 1206660000x 号码自动替换为指定的中国大陆手机号以便调试。
+- 该接口是小程序手机号更新方式，不需要短信验证码。
 
 ## 账号密码登录
 
@@ -378,7 +366,7 @@
   - 其他：按 username 登录
 - `password` (string, 必填)：密码明文（HTTPS 传输）
 - `device_id` (string, 必填)：设备/安装级 UUID（用于离线消息游标与端点管理）
-- `device_type` (int, 必填)：设备类型（见 `backend/app/enums/common.py::DeviceType`）
+- `device_type` (int, 必填)：设备类型（见 `backend/app/enums/` - `DeviceType`）
 
 ### 成功响应 (200)
 
@@ -408,15 +396,44 @@
 ### 业务说明
 
 - 登录成功后，客户端使用 `access_token` 访问需要认证的 API。
-- `device_id` 必须稳定持久化；Web 客户端使用 `localStorage`。
-- username 规则见 `docs/spec/user/username.md`。
+- `device_id` 必须稳定持久化；见 `../spec/client/base/device-id.md`。
+- username 规则见 `../spec/user/username.md`。
 
-### 安全约束
+---
 
-- 服务端与客户端都禁止在日志/埋点中记录 access_token/refresh_token（包括任何片段）。
-- 客户端调试日志同样禁止记录 token 前缀、截断值或可逆还原片段。
-- 登录失败提示应避免泄露“账号是否存在”等敏感信息（可能统一失败文案）。
-- 账号密码/微信/手机号登录接口均强制 `device_id`（UUID）。
+## 刷新令牌
+
+### 基本信息
+
+- **路径**: `POST /api/v1/auth/refresh-token`
+- **认证**: 无需认证
+- **说明**: 使用 `refresh_token` 换取新的 `access_token`
+
+### 请求体
+
+```json
+{
+  "refresh_token": "refresh_token_here"
+}
+```
+
+### 成功响应 (200)
+
+```json
+{
+  "access_token": "jwt_token_here",
+  "expires_in": 86400
+}
+```
+
+### 错误响应
+
+- `400 Bad Request`
+  - `"登录已失效，请重新登录"`
+- `401 Unauthorized`
+  - `"登录失效"`
+- `500 Internal Server Error`
+  - `"系统错误（error_code）"`
 
 ---
 

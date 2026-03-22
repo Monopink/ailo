@@ -2,17 +2,9 @@
 
 ## 接口列表
 
-- [发送验证码](#发送验证码) - `POST /api/v1/user/verify/send-code`
-- [确认验证码](#确认验证码) - `POST /api/v1/user/verify/confirm`
-- [修改密码](#修改密码) - `PUT /api/v1/user/password`
-- [重置密码](#重置密码) - `POST /api/v1/user/password/reset`
-- [发送邮箱验证码](#发送邮箱验证码) - `POST /api/v1/user/email/send-code`
-- [绑定邮箱](#绑定邮箱) - `POST /api/v1/user/email`
-- [修改邮箱](#修改邮箱) - `PUT /api/v1/user/email`
-- [解绑邮箱](#解绑邮箱) - `DELETE /api/v1/user/email`
-- [修改手机号（暂不开放）](#修改手机号暂不开放) - `PUT /api/v1/user/phone`
-
-> **MVP 说明**：短信验证码、操作令牌等统一验证流仅为未来 App/H5 保留。小程序不会调用本页短信接口，手机号修改完全依赖 `/api/v1/auth/wechat/refresh-phone` 的微信授权链路。
+- [发送验证码](#发送验证码) - `POST /api/v1/auth/user/verify/send-code`
+- [确认验证码](#确认验证码) - `POST /api/v1/auth/user/verify/confirm`
+- [修改手机号](#修改手机号) - `PUT /api/v1/user/phone`
 
 ---
 
@@ -22,9 +14,9 @@
 
 #### 基本信息
 
-- **路径**: `POST /api/v1/user/verify/send-code`
+- **路径**: `POST /api/v1/auth/user/verify/send-code`
 - **认证**: Bearer Token（必需）
-- **速率限制**: 60秒/次
+- **速率限制**: 受限流保护
 
 #### 请求参数
 
@@ -39,12 +31,12 @@
 
 - `verify_type` (string, 必填)
   - 验证类型
-  - 可选值: `phone` | `email`
+  - 可选值: `phone`
 
 - `target` (string, 可选)
-  - 目标手机号或邮箱
-  - 默认为当前用户的手机号/邮箱
-  - 用于修改手机号/邮箱时，可以指定新的target
+  - 目标手机号
+  - 默认为当前用户手机号
+  - 用于修改手机号时，可以指定新的手机号作为 target
 
 #### 成功响应 (200)
 
@@ -60,11 +52,10 @@
 
 #### 错误响应
 
-**429 Too Many Requests**:
-
-- `"请60秒后再试"` - 超过速率限制
-
 **400 Bad Request**:
+
+- `"请先绑定手机号"`
+- `"请30秒后再试"` - 触发限流保护
 
 **500 Internal Server Error**:
 
@@ -76,7 +67,7 @@
 
 #### 基本信息
 
-- **路径**: `POST /api/v1/user/verify/confirm`
+- **路径**: `POST /api/v1/auth/user/verify/confirm`
 - **认证**: Bearer Token（必需）
 
 #### 请求参数
@@ -92,10 +83,10 @@
 
 - `verify_type` (string, 必填)
   - 验证类型
-  - 可选值: `phone` | `email`
+  - 可选值: `phone`
 
 - `code` (string, 必填)
-  - 验证码位数为代码常量（当前为 6 位）
+- 验证码固定为 6 位
 
 #### 成功响应 (200)
 
@@ -108,15 +99,16 @@
 
 **字段说明**:
 
-- `operation_token` (string) - 操作令牌，用于后续敏感操作
+- `operation_token` (string) - 操作令牌，用于敏感操作
 - `expires_in` (integer) - 有效期（秒），默认5分钟
 
 #### 错误响应
 
 **400 Bad Request**:
 
-- `"验证码错误"` - 验证码不正确
-- `"验证码已过期"` - 验证码已失效
+- `"请先绑定手机号"`
+- `"验证码有误，请重新输入"` - 验证码不正确
+- `"验证码已失效，请重新获取"` - 验证码已失效
 
 **500 Internal Server Error**:
 
@@ -126,21 +118,11 @@
 
 - 验证成功返回 `operation_token`
 - `operation_token` 有效期5分钟
-- 用于后续敏感操作（修改密码、修改手机号、修改邮箱等）
+- 用于敏感操作（修改手机号等）
 
 ---
 
-## 密码管理（规划中）
-
-> 账号密码登录暂未开放，对应的密码设置/重置能力将在未来版本发布。
-
-## 邮箱管理（规划中）
-
-> 邮箱绑定、修改与解绑能力尚未开放；上述接口将在未来迭代中提供。
-
-## 修改手机号（暂不开放）
-
-> MVP 阶段小程序通过 `/api/v1/auth/wechat/refresh-phone` 重新授权手机号，本节接口仅为多端保留，暂不对小程序开放。
+## 修改手机号
 
 ### 修改手机号
 
@@ -188,9 +170,10 @@
 
 **400 Bad Request**:
 
-- `"操作令牌无效"` - operation_token 无效或已过期
-- `"验证码错误"` - 新手机号验证码不正确
-- `"手机号已被使用"` - 新手机号已被其他用户使用
+- `"验证失败，请重试"` - operation_token 无效或已过期
+- `"验证码有误，请重新输入"` - 新手机号验证码不正确
+- `"验证码已失效，请重新获取"` - 新手机号验证码已失效
+- `"该手机号已被使用"` - 新手机号已被其他用户使用
 
 **500 Internal Server Error**:
 

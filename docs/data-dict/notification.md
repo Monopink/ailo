@@ -11,9 +11,9 @@
 ```txt
 id -- Snowflake ID
 to_qiao_id -- 接收者 qiao_id
-notification_type -- 通知类型：1=contact_request
+notification_type -- 通知类型（enum: NotificationType）
 action_data -- 操作数据（action + data），JSONB类型
-status -- 状态：1=sent, 2=failed
+status -- 状态（enum: NotificationStatus）
 error_message -- 错误信息（失败时），TEXT类型
 created_at
 updated_at

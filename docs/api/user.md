@@ -38,17 +38,17 @@
 
 **字段说明**:
 
-- `qiao_id` (string) - 系统内部ID，注册时生成，不可修改
+- `qiao_id` (string) - 对外稳定ID，注册时生成，不可修改
 - `username` (string, nullable) - 用户敲敲号，未设置时为 `null`；首次设置成功后不可修改
 - `nickname` (string) - 昵称
-- `gender` (integer) - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
+- `gender` (integer) - 性别，枚举值见：`backend/app/enums/` - `Gender`
 - `avatar_url` (string) - 动态生成的头像 CDN URL，基于后台存储的 `avatar_file_id`
 - `bio` (string) - 个性签名
 - `region` (string) - 服务端生成的地区展示快照
 
 ### 业务说明
 
-- 只返回用户资料信息（profiles表内容）+ username字段
+- 只返回用户资料字段与 username 字段
 - 不包括账户安全信息（手机号、邮箱等）
 - region 展示规范见 `docs/spec/client/base/profile-and-settings.md`
 
@@ -139,7 +139,7 @@
   - 不支持传入 `null` 或空字符串清空
 
 - `gender` (integer, 可选)
-  - 性别，枚举值见：`backend/app/enums/common.py` - `Gender`
+  - 性别，枚举值见：`backend/app/enums/` - `Gender`
 
 - `avatar_file_id` (string, 可选)
   - 头像文件ID（例如 `file_custom_avatar_123`）
@@ -252,7 +252,7 @@
 
 **字段说明**:
 
-- `qiao_id` (string) - 系统内部ID
+- `qiao_id` (string) - 对外稳定ID
 - `username` (string, nullable) - 用户名，用于登录；未设置时为 `null`
 - `phone` (string) - 手机号（脱敏显示）
 - `email` (string, nullable) - 邮箱（脱敏显示），未绑定时为null

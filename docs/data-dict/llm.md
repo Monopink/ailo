@@ -32,19 +32,19 @@ model_name -- 具体模型名称，可选
 temperature -- 温度参数，0.0-2.0
 max_tokens -- 最大token数
 timeout_seconds -- 超时时间（秒）
-thinking_mode -- 思考模式：enabled（强制开启）/disabled（强制关闭）/auto（由模型决定）
+thinking_mode -- 思考模式（enum: ThinkingMode）
 top_p -- Nucleus Sampling 阈值，[0,1]
 frequency_penalty -- 频率惩罚系数，[-2,2]
 presence_penalty -- 存在惩罚系数，[-2,2]
 stop_sequences -- 停止序列（JSONB，字符串数组）
 json_schema_mode -- JSON Schema支持状态
 default_tools -- 默认工具定义（JSONB数组），如[{"type": "web_search"}]
-default_tool_choice -- 工具选择策略：auto（自动）/none（不使用）/required（必须使用），默认auto
+default_tool_choice -- 工具选择策略（enum: ToolChoice）
 parallel_tool_calls -- 是否允许并行工具调用：1=yes, 0=no，默认0
 max_tool_calls -- 单次请求最大工具调用次数，默认1
 default_extra_headers -- 默认额外请求头（JSONB），如{"ark-beta-web-search": "true"}
 default_extra_query -- 默认额外查询参数（JSONB）
-status -- 状态：1=active, 2=inactive
+status -- 状态（enum: LLMConfigStatus）
 priority -- 优先级，数字越小优先级越高，用于故障转移
 extra_params -- 扩展参数（JSONB格式）
 created_at
@@ -68,7 +68,7 @@ thinking_mode -- 思考模式：enabled / disabled / auto
 enable_json_schema -- 是否启用json_schema
 request -- 完整请求payload，JSONB格式
 response -- 完整响应数据，JSONB格式
-status -- 状态：1=success, 2=failed, 3=timeout
+status -- 状态（enum: LLMTestStatus）
 error_message -- 错误信息（如果失败），TEXT类型
 response_time_ms -- 响应时间（毫秒）
 prompt_tokens -- 提示词token数

@@ -57,5 +57,6 @@
 ## 命名约定
 
 - **ISO8601 字段**：使用 `_at` 后缀（如 `created_at`）
-- **毫秒时间戳字段**：优先使用 `*_time_ms`（如 `sent_time_ms`、`client_sent_time_ms`）或 `timestamp`
-- **禁止**在对外 API 字段中新增 `_at_ms` 命名（如 `sent_at_ms`）
+- **毫秒时间戳字段**：优先使用 `*_time_ms`（如 `sent_time_ms`、`client_sent_time_ms`）、`time_ms` 或 `timestamp`
+- **到期/截止时间字段**：允许使用 `*_expires_at_ms`（如 `lease_expires_at_ms`、`buffer_expires_at_ms`）
+- **对外 API 命名约束**：禁止新增通用 `_at_ms` 字段命名（如 `sent_at_ms`）；内部事件结构字段名允许使用 `_at_ms`

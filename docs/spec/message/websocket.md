@@ -8,11 +8,11 @@
 - 所有业务处理复用统一消息管线：验证/解密 → buffer → context → LLM → 响应处理 → 发送
 - 与 LeanCloud Provider 并存（详见 `leancloud.md`）
 
-代码分层（目录约束）：
+分层职责：
 
-- `backend/app/services/message/providers/websocket/*`：Provider 语义（endpoint sender、入站 payload 适配）
-- `backend/app/services/message/websocket/*`：Transport 运行时（连接管理、状态维护、发送队列）
-- `backend/app/api/ws/messages.py`：协议接入（握手鉴权、帧级协议处理、调用统一业务入口）
+- Provider：入站 payload 适配、按 endpoint 投递语义
+- Transport：连接管理、状态维护、发送队列
+- API 接入：握手鉴权、帧级协议处理、调用统一业务入口
 
 ---
 
@@ -51,25 +51,24 @@ Presence endpoint 的活跃状态由 lease 管理（见下文“Lease”）。
 - 用于 WebSocket 在线活跃
 - 由 `ping` 或服务端内部心跳续租
 
-默认值：
+固定值：
 
-- TTL：90 秒（代码常量）
+- TTL：90 秒（协议固定值）
 
 2) Registration lease（长）
 
 - 用于第三方通道 installation/register 绑定
 
-默认值：
+固定值：
 
-- TTL：365 天（代码常量）
+- TTL：365 天（协议固定值）
 
 ---
 
 ## 幂等与去重
 
-- 入站 `send_message` 的幂等键：`(conversation_id, msg_id_client)`（服务端仍会校验发送者为当前登录用户）
-- 客户端重复发送相同 `msg_id_client` 时，服务端必须幂等处理
-- `msg_id_server` 为服务端生成的时间线消息唯一标识（inbound/outbound 均有值）；客户端最终按 `msg_id_server` 去重与 ACK。
+- 幂等键与幂等行为见：`../../api/websocket-messages.md`。
+- 消息 ID 语义与用法见：`schema.md`。
 
 ---
 
@@ -79,7 +78,7 @@ WS 的 `ack` 语义：
 
 - 表示“服务端已接收该 WS 帧并完成校验/入队”
 - 不表示“消息已投递/已读”
-- 对于 `send_message`，`ack.payload` 需返回 `msg_id_server`（可选 `sent_time_ms`），用于客户端对齐与后续 HTTP ACK 推游标；幂等重发必须返回同一 `msg_id_server`。
+- 对于 `send_message`，`ack.payload` 返回字段见：`../../api/websocket-messages.md`。
 
 投递确认使用 HTTP ACK：
 
@@ -97,7 +96,6 @@ WS 的 `ack` 语义：
 
 - 广播范围仅限当前用户（user_id 维度）的活跃 endpoints；不得跨 user 广播，避免串线。
 - 广播应包含“用户自己发送消息”的回显（用于多端同步与拿到 `msg_id_server` 的统一路径）。
-- 用户自发消息的回显在有值时回传 `msg_id_client`，用于发送端将 optimistic 消息收敛到 `msg_id_server`；assistant/系统消息的 `msg_id_client` 为空或省略。
 - 业务层按 endpoint 的 `provider` 执行 fanout；仅当目标 endpoint.provider=WebSocket 时，通过本通道推送 `event: message`。
 - WS 推送允许重复（at-least-once）；客户端按 `msg_id_server` 去重。
 

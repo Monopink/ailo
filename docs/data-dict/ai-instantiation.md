@@ -25,8 +25,8 @@ username -- AI 用户名（用于搜索添加），5-20 位，规则同 users.us
 type_id -- 关联ai_types.id（内部管理）
 tags -- 预设联系人标签数组（JSON数组），用于写入 contacts.tags
 remark -- 预设联系人备注描述（TEXT），用于写入 contacts.remark
-is_reusable -- 是否可以复用：1=reusable（多用户可添加）, 0=single_use（仅一个用户可添加）
-status -- 状态：1=active, 2=inactive, 3=used
+is_reusable -- 是否可以复用（enum: ReusableStatus）
+status -- 状态（enum: AIPersonaStatus）
 created_at
 updated_at
 ```
@@ -47,9 +47,9 @@ llm_config_id -- 软引用到 llm_configs.id，NULL 表示实例化时走系统�
 timezone -- 默认 IANA 时区标识（如 Asia/Shanghai），用于实例化拷贝
 typing_speed_wpm -- 模板层的打字速度（词/分钟，整数，必填），实例创建时拷贝，运行阶段若遇到非法值再退回 35 WPM
 position_mapping_config -- JSON格式，存储各维度的mapping配置
-is_reusable -- 是否可以复用：1=reusable（可创建多个实例）, 0=single_use（仅创建一次）
+is_reusable -- 是否可以复用（enum: ReusableStatus）
 priority -- 优先级，数字越小优先级越高（不可复用模板优先）
-status -- 状态：1=active, 2=inactive, 3=used（仅单次模板会被置为已使用）
+status -- 状态（enum: AITemplateStatus）
 created_at
 updated_at
 ```
@@ -81,7 +81,7 @@ qiao_id -- persona 的对外 ID（可重复，多个用户可添加同一 person
 persona_id -- 关联 ai_personas.id；source=persona 时必须存在，source=admin_manual 时必须为 NULL
 style_id -- 关联 ai_styles.id
 personality_id -- 关联 ai_personalities.id
-status -- 状态：1=active, 2=inactive, 3=blocking
+status -- 状态（enum: AIInstanceStatus）
 relationship_id -- 当前关系ID
 relationship_counts -- 各关系类型使用次数统计，JSONB，如 {"friend":5,"lover":2}
 prompt_variables -- 实例级占位符覆盖
@@ -90,7 +90,7 @@ llm_config_id -- 实例自定义的 llm_configs.id，NULL 时运行期回落到�
 typing_speed_wpm -- 打字速度（词/分钟），默认沿用模板值
 timezone -- IANA时区标识（如 Asia/Shanghai）
 creation_metadata -- JSONB，创建时的完整快照（不可变），包含 source、persona_id、persona_qiao_id、persona_type_id、persona_type_name、persona_is_reusable、template_id、template_display_name、template_priority、assigned_at、assigned_by 等字段
-created_by -- 创建者类型：1=user, 2=admin, 3=system
+created_by -- 创建者类型（enum: AIInstanceCreator）
 created_at
 updated_at
 ```
@@ -105,7 +105,7 @@ instance_id -- 关联 ai_instances.id
 dimension_id -- 关联 ai_dimensions.id
 score -- 当前分数值
 position -- 千分比位置（0-1000）
-position_mapping_algorithm -- 位置映射算法：1=直接映射, 2=V1独立双向偏移
+position_mapping_algorithm -- 位置映射算法（enum: PositionMappingAlgorithm）
 position_mapping_params -- 位置映射参数
 created_at
 updated_at

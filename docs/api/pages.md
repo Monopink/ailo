@@ -46,7 +46,7 @@
 **字段说明**:
 
 - `page_key` (string) - 页面标识
-- `page_category` (int) - 页面分类（见 `backend/app/enums/common.py::AppPageCategory`）
+- `page_category` (int) - 页面分类（见 `backend/app/enums/` - `AppPageCategory`）
 - `title` (string) - 页面标题
 - `locale` (string) - 语言，当前固定 `zh-CN`
 - `content_rendered_format` (string) - 渲染格式，当前固定 `html`

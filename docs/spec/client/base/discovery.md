@@ -35,5 +35,5 @@
 - 分类图标来源 `icon_ref`。
 - 仅解析 `tdesign:<icon-name>`。
 - 解析失败时使用默认图标 `tdesign:chat`。
-- `theme_key` 取值集合来源 `backend/app/enums/common.py` 的 `SquareCategoryTheme`。
+- `theme_key` 取值集合来源 `backend/app/enums/` 的 `SquareCategoryTheme`。
 - 主题样式由 `theme_key` 映射本地 design tokens。

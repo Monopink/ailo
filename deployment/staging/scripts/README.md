@@ -1,6 +1,6 @@
 # Staging Deployment (Admin)
 
-通用流程见：deployment/README.md
+通用流程见：deployment/scripts/README.md
 
 ## 环境信息
 

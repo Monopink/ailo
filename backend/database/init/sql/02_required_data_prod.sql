@@ -28,32 +28,40 @@ ON CONFLICT (username) DO NOTHING;
 
 -- Insert default system configuration
 INSERT INTO system_configs (config_key, config_value, default_value, config_type, description, group_name, allowed_values) VALUES
--- Business configurations
-('default_contact_limit', '3', '3', 2, 'Default contact limit per user', 'business', NULL),
-('contact_request_expiration_days', '3', '3', 2, 'Contact request expiration time in days (default: 3 days)', 'business', NULL),
-('square_page_size', '20', '20', 2, 'Square page size (items per page)', 'business', NULL),
-('max_message_length_chars', '49', '49', 2, 'Maximum message length in characters', 'business', NULL),
+-- Contacts configurations
+('default_contact_limit', '3', '3', 2, 'Default contact limit per user', 'contacts', NULL),
+('contact_request_expiration_days', '3', '3', 2, 'Contact request expiration time in days (default: 3 days)', 'contacts', NULL),
+
+-- Discovery configurations
+('square_page_size', '20', '20', 2, 'Square page size (items per page)', 'discovery_square', NULL),
+
+-- Messaging configurations
+('max_message_length_chars', '49', '49', 2, 'Maximum message length in characters', 'messaging', NULL),
 
 -- Authentication configurations
 ('jwt_token_expires_in_days', '14', '14', 2, 'JWT token expiration time in days', 'auth', NULL),
 ('refresh_token_expires_in_days', '90', '90', 2, 'Refresh token expiration time in days', 'auth', NULL),
 ('wechat_phone_mock_enabled', 'false', 'false', 3, 'Enable WeChat phone mock (non-production environments only)', 'auth', NULL),
 ('wechat_phone_mock_number', '', '', 1, 'Mock phone number for WeChat virtual accounts (E.164 format)', 'auth', NULL),
-('username_reserved_words', '["admin","root","system","support","operator","moderator","service","official","help","security"]', '["admin","root","system","support","operator","moderator","service","official","help","security"]', 4, 'Reserved usernames (lowercase), JSON array', 'auth', NULL),
+
+-- Username configurations
+('username_reserved_words', '["admin","root","system","support","operator","moderator","service","official","help","security"]', '["admin","root","system","support","operator","moderator","service","official","help","security"]', 4, 'Reserved usernames (lowercase), JSON array', 'username', NULL),
 
 -- LeanCloud IM configurations (must be configured via admin dashboard)
-('leancloud_im_server_url', 'https://chat.qiaoqiaoai.cn', '', 1, 'LeanCloud IM server URL', 'leancloud', NULL),
-('leancloud_im_service_conversation_id', '', '', 1, 'LeanCloud IM system conversation ID for message routing', 'leancloud', NULL),
-('leancloud_im_webhook_token', '', '', 1, 'LeanCloud IM webhook security token (24-character URL-safe string)', 'leancloud', NULL),
-('api_base_url', 'https://synapse.qiaoqiaoai.cn', '', 1, 'Base URL for API (e.g., https://example.com)', 'system', NULL),
+('leancloud_im_server_url', 'https://chat.qiaoqiaoai.cn', '', 1, 'LeanCloud IM server URL', 'im_leancloud', NULL),
+('leancloud_im_service_conversation_id', '', '', 1, 'LeanCloud IM system conversation ID for message routing', 'im_leancloud', NULL),
+('leancloud_im_webhook_token', '', '', 1, 'LeanCloud IM webhook security token (24-character URL-safe string)', 'im_leancloud', NULL),
+
+-- API configurations
+('api_base_url', 'https://synapse.qiaoqiaoai.cn', '', 1, 'Base URL for API (e.g., https://example.com)', 'api', NULL),
 ('media_public_base_url', 'https://cortex.qiaoqiaoai.cn', '', 1, 'Authoritative public base URL for serving media files (CDN or COS bucket domain)', 'media', NULL),
 
 -- Message buffer configurations
-('message_buffer_normal_wait_ms', '3000', '3000', 2, 'Normal wait time in milliseconds for message buffering', 'message_buffer', NULL),
-('message_buffer_typing_short_wait_ms', '16000', '16000', 2, 'Typing short wait in milliseconds after typing_start', 'message_buffer', NULL),
-('message_buffer_typing_total_wait_ms', '32000', '32000', 2, 'Typing session total wait in milliseconds after typing_start', 'message_buffer', NULL),
-('message_buffer_typing_end_wait_ms', '3000', '3000', 2, 'Short wait time in milliseconds after typing ends', 'message_buffer', NULL),
-('message_buffer_no_typing_wait_ms', '8000', '8000', 2, 'Wait time in milliseconds for clients without typing support', 'message_buffer', NULL),
+('message_buffer_normal_wait_ms', '3000', '3000', 2, 'Normal wait time in milliseconds for message buffering', 'messaging', NULL),
+('message_buffer_typing_short_wait_ms', '16000', '16000', 2, 'Typing short wait in milliseconds after typing_start', 'messaging', NULL),
+('message_buffer_typing_total_wait_ms', '32000', '32000', 2, 'Typing session total wait in milliseconds after typing_start', 'messaging', NULL),
+('message_buffer_typing_end_wait_ms', '3000', '3000', 2, 'Short wait time in milliseconds after typing ends', 'messaging', NULL),
+('message_buffer_no_typing_wait_ms', '8000', '8000', 2, 'Wait time in milliseconds for clients without typing support', 'messaging', NULL),
 
 -- Message transport configurations
 -- AI conversation archive configurations (values in seconds unless otherwise noted)
@@ -63,56 +71,56 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('ai_conversation_archive_threshold', '80', '80', 2, 'Trigger immediate archive when AI conversation items exceed this threshold', 'ai_conversation', NULL),
 
 -- API rate limit configuration
-('api_rate_limit_requests', '100', '100', 2, 'API requests per window', 'rate_limit', NULL),
-('api_rate_limit_window_seconds', '60', '60', 2, 'API window in seconds', 'rate_limit', NULL),
+('api_rate_limit_requests', '100', '100', 2, 'API requests per window', 'api', NULL),
+('api_rate_limit_window_seconds', '60', '60', 2, 'API window in seconds', 'api', NULL),
 
 -- Admin authentication rate limit and security
-('admin_auth_rate_limit_requests', '20', '20', 2, 'Admin auth requests per window', 'rate_limit', NULL),
-('admin_auth_rate_limit_window_seconds', '60', '60', 2, 'Admin auth window in seconds', 'rate_limit', NULL),
-('admin_auth_max_failures', '5', '5', 2, 'Max admin failures before lockout', 'security', NULL),
-('admin_auth_lockout_duration_minutes', '60', '60', 2, 'Admin lockout duration in minutes', 'security', NULL),
-('admin_auth_whitelist', '', '', 1, 'Admin whitelist IPs (comma separated)', 'security', NULL),
+('admin_auth_rate_limit_requests', '20', '20', 2, 'Admin auth requests per window', 'admin_auth', NULL),
+('admin_auth_rate_limit_window_seconds', '60', '60', 2, 'Admin auth window in seconds', 'admin_auth', NULL),
+('admin_auth_max_failures', '5', '5', 2, 'Max admin failures before lockout', 'admin_auth', NULL),
+('admin_auth_lockout_duration_minutes', '60', '60', 2, 'Admin lockout duration in minutes', 'admin_auth', NULL),
+('admin_auth_whitelist', '', '', 1, 'Admin whitelist IPs (comma separated)', 'admin_auth', NULL),
 
 -- User authentication rate limit and security
-('auth_password_rate_limit_short_requests', '3', '5', 2, 'Password login short-window requests (per ip+identifier)', 'rate_limit', NULL),
-('auth_password_rate_limit_short_window_seconds', '10', '10', 2, 'Password login short window in seconds', 'rate_limit', NULL),
-('auth_password_rate_limit_long_requests', '10', '20', 2, 'Password login long-window requests (per ip+identifier)', 'rate_limit', NULL),
-('auth_password_rate_limit_long_window_seconds', '60', '60', 2, 'Password login long window in seconds', 'rate_limit', NULL),
-('auth_password_max_failures', '3', '5', 2, 'Password login max failures before lockout (per ip+identifier)', 'security', NULL),
-('auth_password_failure_window_seconds', '1800', '1800', 2, 'Password login failure counting window in seconds', 'security', NULL),
-('auth_password_lockout_duration_seconds', '1800', '900', 2, 'Password login lockout duration in seconds', 'security', NULL),
+('auth_password_rate_limit_short_requests', '3', '5', 2, 'Password login short-window requests (per ip+identifier)', 'auth_password', NULL),
+('auth_password_rate_limit_short_window_seconds', '10', '10', 2, 'Password login short window in seconds', 'auth_password', NULL),
+('auth_password_rate_limit_long_requests', '10', '20', 2, 'Password login long-window requests (per ip+identifier)', 'auth_password', NULL),
+('auth_password_rate_limit_long_window_seconds', '60', '60', 2, 'Password login long window in seconds', 'auth_password', NULL),
+('auth_password_max_failures', '3', '5', 2, 'Password login max failures before lockout (per ip+identifier)', 'auth_password', NULL),
+('auth_password_failure_window_seconds', '1800', '1800', 2, 'Password login failure counting window in seconds', 'auth_password', NULL),
+('auth_password_lockout_duration_seconds', '1800', '900', 2, 'Password login lockout duration in seconds', 'auth_password', NULL),
 
 -- Username rate limit configuration
-('username_check_rate_limit_short_requests', '5', '5', 2, 'Username check short-window requests (per user)', 'rate_limit', NULL),
-('username_check_rate_limit_short_window_seconds', '10', '10', 2, 'Username check short window in seconds', 'rate_limit', NULL),
-('username_check_rate_limit_long_requests', '20', '20', 2, 'Username check long-window requests (per user)', 'rate_limit', NULL),
-('username_check_rate_limit_long_window_seconds', '60', '60', 2, 'Username check long window in seconds', 'rate_limit', NULL),
-('username_submit_rate_limit_requests', '3', '3', 2, 'Username submit requests (per user)', 'rate_limit', NULL),
-('username_submit_rate_limit_window_seconds', '60', '60', 2, 'Username submit window in seconds', 'rate_limit', NULL),
+('username_check_rate_limit_short_requests', '5', '5', 2, 'Username check short-window requests (per user)', 'username', NULL),
+('username_check_rate_limit_short_window_seconds', '10', '10', 2, 'Username check short window in seconds', 'username', NULL),
+('username_check_rate_limit_long_requests', '20', '20', 2, 'Username check long-window requests (per user)', 'username', NULL),
+('username_check_rate_limit_long_window_seconds', '60', '60', 2, 'Username check long window in seconds', 'username', NULL),
+('username_submit_rate_limit_requests', '3', '3', 2, 'Username submit requests (per user)', 'username', NULL),
+('username_submit_rate_limit_window_seconds', '60', '60', 2, 'Username submit window in seconds', 'username', NULL),
 
 -- SMS rate limit configuration
-('sms_rate_limit_requests', '1', '1', 2, 'SMS requests per window', 'rate_limit', NULL),
-('sms_rate_limit_window_seconds', '60', '60', 2, 'SMS window in seconds', 'rate_limit', NULL),
-('sms_whitelist', '', '', 1, 'SMS whitelist phones (comma separated)', 'rate_limit', NULL),
+('sms_rate_limit_requests', '1', '1', 2, 'SMS requests per window', 'sms', NULL),
+('sms_rate_limit_window_seconds', '60', '60', 2, 'SMS window in seconds', 'sms', NULL),
+('sms_whitelist', '', '', 1, 'SMS whitelist phones (comma separated)', 'sms', NULL),
 
 -- SMS provider configuration (must be configured via admin dashboard)
 ('sms_provider', 'mock', 'mock', 1, 'SMS provider', 'sms', '["mock"]'::jsonb),
 ('sms_code_expires_in_seconds', '300', '300', 2, 'SMS code expiration time in seconds', 'sms', NULL),
 
 -- Admin CAPTCHA configuration
-('admin_captcha_provider', 'turnstile', 'turnstile', 5, 'Admin captcha provider', 'captcha', '["none","turnstile"]'::jsonb),
-('admin_captcha_threshold_failures', '1', '1', 2, 'Admin captcha trigger threshold (failures)', 'captcha', NULL),
-('admin_captcha_mode', 'strict', 'strict', 5, 'Admin CAPTCHA verification mode: strict (block on any error) or fallback (allow on service errors)', 'captcha', '["strict", "fallback"]'::jsonb),
+('admin_captcha_provider', 'turnstile', 'turnstile', 5, 'Admin captcha provider', 'admin_auth', '["none","turnstile"]'::jsonb),
+('admin_captcha_threshold_failures', '1', '1', 2, 'Admin captcha trigger threshold (failures)', 'admin_auth', NULL),
+('admin_captcha_mode', 'strict', 'strict', 5, 'Admin CAPTCHA verification mode: strict (block on any error) or fallback (allow on service errors)', 'admin_auth', '["strict", "fallback"]'::jsonb),
 
 -- Message rate limit configuration
-('message_rate_limit_short_requests', '5', '5', 2, 'Max messages per short window', 'rate_limit', NULL),
-('message_rate_limit_short_window_seconds', '10', '10', 2, 'Short window in seconds', 'rate_limit', NULL),
-('message_rate_limit_long_requests', '20', '20', 2, 'Max messages per long window', 'rate_limit', NULL),
-('message_rate_limit_long_window_seconds', '60', '60', 2, 'Long window in seconds', 'rate_limit', NULL),
+('message_rate_limit_short_requests', '5', '5', 2, 'Max messages per short window', 'messaging', NULL),
+('message_rate_limit_short_window_seconds', '10', '10', 2, 'Short window in seconds', 'messaging', NULL),
+('message_rate_limit_long_requests', '20', '20', 2, 'Max messages per long window', 'messaging', NULL),
+('message_rate_limit_long_window_seconds', '60', '60', 2, 'Long window in seconds', 'messaging', NULL),
 
 -- Square rate limit configuration
-('square_rate_limit_requests', '1', '1', 2, 'Square refresh requests per window', 'rate_limit', NULL),
-('square_rate_limit_window_seconds', '10', '10', 2, 'Square refresh window in seconds', 'rate_limit', NULL),
+('square_rate_limit_requests', '1', '1', 2, 'Square refresh requests per window', 'discovery_square', NULL),
+('square_rate_limit_window_seconds', '10', '10', 2, 'Square refresh window in seconds', 'discovery_square', NULL),
 
 -- Media upload configuration
 ('avatar_max_size_mb', '2', '2', 2, 'Maximum avatar file size in MB', 'media', NULL),
@@ -123,8 +131,8 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('avatar_upload_daily_size_quota_mb', '10', '10', 2, 'Maximum total avatar upload size per user per day (MB)', 'media', NULL),
 
 -- Media upload rate limit configuration
-('media_upload_rate_limit_requests', '10', '10', 2, 'Media upload requests per window', 'rate_limit', NULL),
-('media_upload_rate_limit_window_seconds', '60', '60', 2, 'Media upload window in seconds', 'rate_limit', NULL)
+('media_upload_rate_limit_requests', '10', '10', 2, 'Media upload requests per window', 'media', NULL),
+('media_upload_rate_limit_window_seconds', '60', '60', 2, 'Media upload window in seconds', 'media', NULL)
 ON CONFLICT (config_key) DO UPDATE SET
     config_value = EXCLUDED.config_value,
     default_value = EXCLUDED.default_value,

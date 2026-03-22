@@ -7,7 +7,7 @@ contexts to ai_conversation_items_archive based on configured policies.
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.config import config_service
+from app.services.system_config import get_config_int
 from app.utils.logging import get_logger
 
 from .queries import get_items_for_archiving
@@ -32,11 +32,11 @@ async def archive_old_contexts(db: AsyncSession, user_qiao_id: str, instance_qia
     try:
         # Keep archive retention readable (config stored in days)
         # but convert to seconds for queries.
-        archive_time_days = await config_service.get_int(db, "ai_conversation_archive_time_days")
+        archive_time_days = await get_config_int(db, key="ai_conversation_archive_time_days")
         archive_time_seconds = archive_time_days * 86400
-        archive_max_count = await config_service.get_int(db, "ai_conversation_archive_max_count")
-        archive_min_count = await config_service.get_int(db, "ai_conversation_archive_min_count")
-        archive_threshold = await config_service.get_int(db, "ai_conversation_archive_threshold")
+        archive_max_count = await get_config_int(db, key="ai_conversation_archive_max_count")
+        archive_min_count = await get_config_int(db, key="ai_conversation_archive_min_count")
+        archive_threshold = await get_config_int(db, key="ai_conversation_archive_threshold")
 
         items_to_archive, total_count = await get_items_for_archiving(
             db,

@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.system import system_configs
 from app.enums import MessageType
-from app.services.config import config_service
 from app.services.message.providers.base import MessageResult
 from app.services.message.providers.leancloud.adapter import build_outbound_typed_message
 from app.services.message.providers.leancloud.client import (
@@ -22,7 +21,9 @@ from app.services.message.providers.leancloud.client import (
     subscribe_user_to_conversation,
     unsubscribe_user_from_conversation,
 )
+from app.services.message.providers.leancloud.config import get_leancloud_runtime_config
 from app.services.message.providers.leancloud.health import check_leancloud_health
+from app.services.system_config import SystemConfigService, get_config
 from app.type_defs import JSONDict
 from app.utils.logging import get_logger
 from app.utils.snowflake import generate_snowflake_id
@@ -35,9 +36,18 @@ logger = get_logger(__name__)
 
 def _get_non_empty_str(value: Any) -> str | None:
     """Return the value if it is a non-empty string, otherwise None."""
-    if isinstance(value, str) and value:
-        return value
+    if isinstance(value, str):
+        normalized = value.strip()
+        return normalized or None
     return None
+
+
+def _coerce_optional_str(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return _get_non_empty_str(value)
+    return _get_non_empty_str(str(value))
 
 
 async def ensure_system_conversation(db: AsyncSession, existing_conv_id: str | None = None) -> str:
@@ -54,19 +64,24 @@ async def ensure_system_conversation(db: AsyncSession, existing_conv_id: str | N
     Raises:
         ValueError: If conversation cannot be ensured
     """
-    leancloud_config = await config_service.get_leancloud_config(db)
-    app_id = _get_non_empty_str(leancloud_config.get("app_id"))
-    master_key = _get_non_empty_str(leancloud_config.get("master_key"))
-    base_url = _get_non_empty_str(leancloud_config.get("base_url"))
+    leancloud_config = await get_leancloud_runtime_config(db, required=False)
+    app_id = _get_non_empty_str(leancloud_config.app_id)
+    master_key = _get_non_empty_str(leancloud_config.master_key)
+    base_url = _get_non_empty_str(leancloud_config.base_url)
 
     if app_id is None or master_key is None or base_url is None:
         logger.error("leancloud_config_incomplete_for_ensure")
         raise ValueError("LeanCloud configuration incomplete")
 
+    stored_conv_id = await get_config(
+        db, key="leancloud_im_service_conversation_id", required=False
+    )
     conversation_id = _get_non_empty_str(
         existing_conv_id
-        or await system_configs.get_config_value(
-            db, config_key="leancloud_im_service_conversation_id"
+        or (
+            stored_conv_id
+            if isinstance(stored_conv_id, str)
+            else (str(stored_conv_id) if stored_conv_id is not None else "")
         )
     )
 
@@ -124,12 +139,12 @@ async def initialize_service(db: AsyncSession) -> bool:
     """
     try:
         # Get LeanCloud configuration
-        leancloud_config = await config_service.get_leancloud_config(db)
+        leancloud_config = await get_leancloud_runtime_config(db, required=False)
 
         # Check if required configuration is available
-        app_id = _get_non_empty_str(leancloud_config.get("app_id"))
-        master_key = _get_non_empty_str(leancloud_config.get("master_key"))
-        base_url = _get_non_empty_str(leancloud_config.get("base_url"))
+        app_id = _get_non_empty_str(leancloud_config.app_id)
+        master_key = _get_non_empty_str(leancloud_config.master_key)
+        base_url = _get_non_empty_str(leancloud_config.base_url)
 
         if app_id is None or master_key is None or base_url is None:
             logger.error(
@@ -141,17 +156,19 @@ async def initialize_service(db: AsyncSession) -> bool:
             return False
 
         # Check if system conversation ID already exists
-        existing_conv_id = await system_configs.get_config_value(
-            db, config_key="leancloud_im_service_conversation_id"
+        existing_conv_id_value = await get_config(
+            db, key="leancloud_im_service_conversation_id", required=False
         )
+        existing_conv_id = _coerce_optional_str(existing_conv_id_value)
 
         if existing_conv_id:
             logger.info("leancloud_system_conversation_exists", conversation_id=existing_conv_id)
 
             # Also check and generate webhook token if needed
-            existing_webhook_token = await system_configs.get_config_value(
-                db, config_key="leancloud_im_webhook_token"
+            existing_webhook_token_value = await get_config(
+                db, key="leancloud_im_webhook_token", required=False
             )
+            existing_webhook_token = _coerce_optional_str(existing_webhook_token_value)
 
             if not existing_webhook_token:
                 webhook_token = secrets.token_urlsafe(18)
@@ -166,6 +183,7 @@ async def initialize_service(db: AsyncSession) -> bool:
                     logger.info(
                         "leancloud_webhook_token_generated", token_length=len(webhook_token)
                     )
+                    await SystemConfigService.reload_cache(db)
                 else:
                     logger.warning("leancloud_webhook_token_generation_failed")
 
@@ -204,12 +222,15 @@ async def initialize_service(db: AsyncSession) -> bool:
             )
             return False
 
+        await SystemConfigService.reload_cache(db)
+
         logger.info("leancloud_service_initialized", conversation_id=conversation_id)
 
         # Generate webhook token if not exists
-        existing_webhook_token = await system_configs.get_config_value(
-            db, config_key="leancloud_im_webhook_token"
+        existing_webhook_token_value = await get_config(
+            db, key="leancloud_im_webhook_token", required=False
         )
+        existing_webhook_token = _coerce_optional_str(existing_webhook_token_value)
 
         if not existing_webhook_token:
             # Generate 24-character URL-safe token
@@ -225,6 +246,7 @@ async def initialize_service(db: AsyncSession) -> bool:
 
             if updated_token_config:
                 logger.info("leancloud_webhook_token_generated", token_length=len(webhook_token))
+                await SystemConfigService.reload_cache(db)
             else:
                 logger.warning("leancloud_webhook_token_generation_failed")
         else:
@@ -257,11 +279,11 @@ async def refresh_system_conversation(db: AsyncSession) -> tuple[bool, str | Non
     """
     try:
         # Get LeanCloud configuration
-        leancloud_config = await config_service.get_leancloud_config(db)
+        leancloud_config = await get_leancloud_runtime_config(db, required=False)
 
-        app_id = _get_non_empty_str(leancloud_config.get("app_id"))
-        master_key = _get_non_empty_str(leancloud_config.get("master_key"))
-        base_url = _get_non_empty_str(leancloud_config.get("base_url"))
+        app_id = _get_non_empty_str(leancloud_config.app_id)
+        master_key = _get_non_empty_str(leancloud_config.master_key)
+        base_url = _get_non_empty_str(leancloud_config.base_url)
 
         if app_id is None or master_key is None or base_url is None:
             error_msg = "LeanCloud configuration incomplete"
@@ -305,6 +327,8 @@ async def refresh_system_conversation(db: AsyncSession) -> tuple[bool, str | Non
             )
             return False, error_msg
 
+        await SystemConfigService.reload_cache(db)
+
         logger.info("leancloud_system_conversation_refreshed", new_conversation_id=conversation_id)
         return True, conversation_id
 
@@ -331,16 +355,15 @@ async def initialize_user(qiao_id: str, db: AsyncSession) -> bool:
     """
     try:
         # Get LeanCloud configuration
-        leancloud_config = await config_service.get_leancloud_config(db)
+        leancloud_config = await get_leancloud_runtime_config(db, required=False)
 
-        app_id = _get_non_empty_str(leancloud_config.get("app_id"))
-        master_key = _get_non_empty_str(leancloud_config.get("master_key"))
-        base_url = _get_non_empty_str(leancloud_config.get("base_url"))
-        conversation_id = _get_non_empty_str(
-            await system_configs.get_config_value(
-                db, config_key="leancloud_im_service_conversation_id"
-            )
+        app_id = _get_non_empty_str(leancloud_config.app_id)
+        master_key = _get_non_empty_str(leancloud_config.master_key)
+        base_url = _get_non_empty_str(leancloud_config.base_url)
+        conversation_id_value = await get_config(
+            db, key="leancloud_im_service_conversation_id", required=False
         )
+        conversation_id = _coerce_optional_str(conversation_id_value)
 
         if app_id is None or master_key is None or base_url is None or conversation_id is None:
             logger.error("leancloud_config_incomplete_for_user_init", qiao_id=qiao_id)
@@ -387,16 +410,15 @@ async def deinitialize_user(qiao_id: str, db: AsyncSession) -> bool:
     """
     try:
         # Get LeanCloud configuration
-        leancloud_config = await config_service.get_leancloud_config(db)
+        leancloud_config = await get_leancloud_runtime_config(db, required=False)
 
-        app_id = _get_non_empty_str(leancloud_config.get("app_id"))
-        master_key = _get_non_empty_str(leancloud_config.get("master_key"))
-        base_url = _get_non_empty_str(leancloud_config.get("base_url"))
-        conversation_id = _get_non_empty_str(
-            await system_configs.get_config_value(
-                db, config_key="leancloud_im_service_conversation_id"
-            )
+        app_id = _get_non_empty_str(leancloud_config.app_id)
+        master_key = _get_non_empty_str(leancloud_config.master_key)
+        base_url = _get_non_empty_str(leancloud_config.base_url)
+        conversation_id_value = await get_config(
+            db, key="leancloud_im_service_conversation_id", required=False
         )
+        conversation_id = _coerce_optional_str(conversation_id_value)
 
         if app_id is None or master_key is None or base_url is None or conversation_id is None:
             logger.error("leancloud_config_incomplete_for_user_deinit", qiao_id=qiao_id)
@@ -430,13 +452,14 @@ async def deinitialize_user(qiao_id: str, db: AsyncSession) -> bool:
 
 async def _load_send_config(db: AsyncSession) -> tuple[str, str, str, str] | None:
     """Load LeanCloud send configuration."""
-    leancloud_config = await config_service.get_leancloud_config(db)
-    app_id = _get_non_empty_str(leancloud_config.get("app_id"))
-    master_key = _get_non_empty_str(leancloud_config.get("master_key"))
-    base_url = _get_non_empty_str(leancloud_config.get("base_url"))
-    lc_conv_id = _get_non_empty_str(
-        await system_configs.get_config_value(db, config_key="leancloud_im_service_conversation_id")
+    leancloud_config = await get_leancloud_runtime_config(db, required=False)
+    app_id = _get_non_empty_str(leancloud_config.app_id)
+    master_key = _get_non_empty_str(leancloud_config.master_key)
+    base_url = _get_non_empty_str(leancloud_config.base_url)
+    lc_conv_id_value = await get_config(
+        db, key="leancloud_im_service_conversation_id", required=False
     )
+    lc_conv_id = _coerce_optional_str(lc_conv_id_value)
     if app_id is None or master_key is None or base_url is None or lc_conv_id is None:
         return None
     return app_id, master_key, base_url, lc_conv_id
@@ -663,11 +686,11 @@ async def check_health(db: AsyncSession) -> tuple[bool, str | None]:
     """
     try:
         # Get LeanCloud configuration
-        leancloud_config = await config_service.get_leancloud_config(db)
+        leancloud_config = await get_leancloud_runtime_config(db, required=False)
 
-        app_id = _get_non_empty_str(leancloud_config.get("app_id"))
-        master_key = _get_non_empty_str(leancloud_config.get("master_key"))
-        base_url = _get_non_empty_str(leancloud_config.get("base_url"))
+        app_id = _get_non_empty_str(leancloud_config.app_id)
+        master_key = _get_non_empty_str(leancloud_config.master_key)
+        base_url = _get_non_empty_str(leancloud_config.base_url)
 
         # Validate configuration
         if app_id is None or master_key is None or base_url is None:

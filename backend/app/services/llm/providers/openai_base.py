@@ -8,11 +8,11 @@ template method that orchestrates request handling.
 
 from __future__ import annotations
 
-import os
 from abc import ABC, abstractmethod
 
 from openai import AsyncOpenAI
 
+from app.core.config import get_settings
 from app.exceptions.llm import LLMConfigurationError
 from app.models.llm import LLMConfig, LLMProvider
 from app.type_defs import JSONDict, LLMProviderResult, LLMRequestOptions, PreemptionChecker
@@ -134,9 +134,9 @@ class OpenAIBaseAdapter(ABC):
         Resolve API key from explicitly configured env var or fallback pattern.
         """
         if provider.api_key_env:
-            value = os.getenv(provider.api_key_env)
+            value = get_settings().get_env(provider.api_key_env)
             if value:
                 return value
 
         default_env_name = f"{provider.name.upper()}_API_KEY"
-        return os.getenv(default_env_name)
+        return get_settings().get_env(default_env_name)

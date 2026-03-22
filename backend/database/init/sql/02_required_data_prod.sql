@@ -56,9 +56,6 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('message_buffer_no_typing_wait_ms', '8000', '8000', 2, 'Wait time in milliseconds for clients without typing support', 'message_buffer', NULL),
 
 -- Message transport configurations
-('ws_presence_lease_ttl_seconds', '90', '90', 2, 'WebSocket presence lease TTL in seconds', 'message_transport', NULL),
-('registration_lease_ttl_days', '365', '365', 2, 'Registration lease TTL in days (e.g., LeanCloud installation binding)', 'message_transport', NULL),
-
 -- AI conversation archive configurations (values in seconds unless otherwise noted)
 ('ai_conversation_archive_time_days', '7', '7', 2, 'Archive AI conversation items older than this many days', 'ai_conversation', NULL),
 ('ai_conversation_archive_max_count', '50', '50', 2, 'Archive AI conversation items when count exceeds this limit', 'ai_conversation', NULL),
@@ -101,7 +98,6 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 -- SMS provider configuration (must be configured via admin dashboard)
 ('sms_provider', 'mock', 'mock', 1, 'SMS provider', 'sms', '["mock"]'::jsonb),
 ('sms_code_expires_in_seconds', '300', '300', 2, 'SMS code expiration time in seconds', 'sms', NULL),
-('sms_code_length_digits', '6', '6', 2, 'SMS code length in digits', 'sms', NULL),
 
 -- Admin CAPTCHA configuration
 ('admin_captcha_provider', 'turnstile', 'turnstile', 5, 'Admin captcha provider', 'captcha', '["none","turnstile"]'::jsonb),

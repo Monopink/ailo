@@ -32,8 +32,9 @@ from app.services.message.providers.websocket import (
     parse_typing_payload,
 )
 from app.services.message.websocket.manager import ws_manager
-from app.services.system_config import get_config_int
 from app.utils.logging import get_logger
+
+WS_PRESENCE_LEASE_TTL_SECONDS = 90
 
 logger = get_logger(__name__)
 
@@ -240,18 +241,7 @@ async def _handle_auth(
         user_id = int(user.id)
         user_qiao_id = str(user.qiao_id)
 
-        try:
-            lease_ttl_seconds = await get_config_int(db, key="ws_presence_lease_ttl_seconds")
-        except Exception:
-            logger.exception("ws_presence_config_error")
-            await _close_ws_with_error(
-                ws,
-                ws_frame_id=ws_frame_id,
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="系统配置异常",
-                close_code=1011,
-            )
-            return None
+        lease_ttl_seconds = WS_PRESENCE_LEASE_TTL_SECONDS
 
         device = await _get_or_create_device(
             db,
@@ -288,18 +278,7 @@ async def _handle_ping(
     ctx: _WSContext,
 ) -> None:
     async with session_factory() as db:
-        try:
-            lease_ttl_seconds = await get_config_int(db, key="ws_presence_lease_ttl_seconds")
-        except Exception:
-            logger.exception("ws_presence_config_error")
-            await _close_ws_with_error(
-                ws,
-                ws_frame_id=ws_frame_id,
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="系统配置异常",
-                close_code=1011,
-            )
-            return
+        lease_ttl_seconds = WS_PRESENCE_LEASE_TTL_SECONDS
 
         endpoint = await upsert_websocket_presence_endpoint(
             db,

@@ -28,7 +28,7 @@ async def upsert_websocket_presence_endpoint(
 ) -> MessageEndpoint:
     """Create or renew WebSocket DEVICE-scope presence endpoint."""
     if lease_ttl_seconds <= 0:
-        raise ValueError("ws_presence_lease_ttl_seconds must be positive")
+        raise ValueError("lease_ttl_seconds must be positive")
 
     return await _upsert_presence_endpoint(
         db,
@@ -54,7 +54,7 @@ async def upsert_leancloud_presence_endpoint(
 ) -> MessageEndpoint:
     """Create or renew LeanCloud USER-scope presence endpoint."""
     if lease_ttl_days <= 0:
-        raise ValueError("registration_lease_ttl_days must be positive")
+        raise ValueError("lease_ttl_days must be positive")
     if not client_id:
         raise ValueError("client_id is required for LeanCloud presence")
 

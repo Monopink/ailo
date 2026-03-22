@@ -10,8 +10,8 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud.system import system_configs
 from app.enums import MessageTransportProvider
+from app.services.system_config import get_config_str
 from app.type_defs import JSONDict, JSONValue
 from app.utils.logging import get_logger
 
@@ -64,9 +64,7 @@ async def parse_webhook_to_dict(db: AsyncSession, webhook_payload: JSONDict) -> 
             raise ValueError("missing_required_fields")
 
         # Verify LeanCloud conversation ID matches system conversation
-        system_conv_id = await system_configs.get_config_value(
-            db, config_key="leancloud_im_service_conversation_id"
-        )
+        system_conv_id = await get_config_str(db, key="leancloud_im_service_conversation_id")
 
         if lc_conv_id != system_conv_id:
             logger.warning(

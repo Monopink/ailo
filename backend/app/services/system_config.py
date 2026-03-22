@@ -9,7 +9,7 @@ After updating configs through CRUD, call SystemConfigService.reload_cache() to 
 """
 
 import json
-from typing import TypedDict
+from typing import TypedDict, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -82,13 +82,17 @@ class SystemConfigService:
         if key in _config_state["cache"]:
             return _config_state["cache"][key]
 
+        # Cache miss: fetch single key from database and backfill cache.
+        db_value = await SystemConfigService._get_config_value_from_db(db, key)
+        if db_value is not None:
+            _config_state["cache"][key] = db_value
+            logger.info("system_config_cache_miss_db_hit", key=key)
+            return db_value
+
+        logger.warning("system_config_cache_miss_db_miss", key=key)
+
         # Missing configuration
         if required:
-            logger.warning("system_config_missing_retry_reload", key=key)
-            await SystemConfigService.reload_cache(db)
-            if key in _config_state["cache"]:
-                logger.info("system_config_loaded_after_reload", key=key)
-                return _config_state["cache"][key]
             logger.error("system_config_missing", key=key)
             raise MissingConfigurationError(config_key=key)
 
@@ -100,14 +104,11 @@ class SystemConfigService:
         db: AsyncSession,
         key: str,
         *,
-        default: int | None = None,
         required: bool = True,
     ) -> int:
         """Get a configuration value as an integer."""
         value = await SystemConfigService.get_config(db, key, required=required)
         if value is None:
-            if default is not None:
-                return default
             raise MissingConfigurationError(config_key=key)
 
         numeric_value = _ensure_numeric_config_value(value, key)
@@ -125,14 +126,11 @@ class SystemConfigService:
         db: AsyncSession,
         key: str,
         *,
-        default: str | None = None,
         required: bool = True,
     ) -> str:
         """Get a configuration value as a string."""
         value = await SystemConfigService.get_config(db, key, required=required)
         if value is None:
-            if default is not None:
-                return default
             raise MissingConfigurationError(config_key=key)
 
         return _ensure_string_config_value(value, key)
@@ -228,7 +226,7 @@ class SystemConfigService:
             cache.clear()
             for config in configs:
                 value = SystemConfigService._convert_from_db_format(
-                    config.config_value, config.config_type
+                    config.config_value, config.config_type, config_key=config.config_key
                 )
                 cache[config.config_key] = value
 
@@ -238,6 +236,23 @@ class SystemConfigService:
         except Exception as e:
             logger.error("system_configs_cache_load_error", error=str(e), exc_info=True)
             _config_state["loaded"] = False
+            raise
+
+    @staticmethod
+    async def _get_config_value_from_db(db: AsyncSession, key: str) -> ConfigValue:
+        """Fetch and convert one configuration value directly from database."""
+        result = await db.execute(
+            select(SystemConfig).where(SystemConfig.config_key == key).limit(1)
+        )
+        config = result.scalar_one_or_none()
+        if config is None:
+            return None
+
+        return SystemConfigService._convert_from_db_format(
+            config.config_value,
+            config.config_type,
+            config_key=config.config_key,
+        )
 
     @staticmethod
     def _convert_to_db_format(value: ConfigValue) -> tuple[str, int]:
@@ -257,7 +272,12 @@ class SystemConfigService:
         return str(value), 1
 
     @staticmethod
-    def _convert_from_db_format(value: str | None, config_type: int) -> ConfigValue:
+    def _convert_from_db_format(
+        value: str | None,
+        config_type: int,
+        *,
+        config_key: str,
+    ) -> ConfigValue:
         """
         Convert database value to Python type.
 
@@ -271,27 +291,29 @@ class SystemConfigService:
         if value is None:
             return None
 
-        try:
-            if config_type == ConfigType.STRING:
-                converted: ConfigValue = value
-            elif config_type == ConfigType.NUMBER:
-                converted = int(value)
-            elif config_type == ConfigType.BOOLEAN:
-                converted = value.lower() in ("true", "1", "yes", "on")
-            elif config_type == ConfigType.JSON:
-                converted = json.loads(value)
-            else:
-                converted = value
-        except (ValueError, json.JSONDecodeError) as e:
-            logger.warning(
-                "system_configs_conversion_error",
-                value=value,
-                config_type=config_type,
-                error=str(e),
-            )
-            converted = value
-
-        return converted
+        if config_type == ConfigType.STRING:
+            return value
+        if config_type == ConfigType.NUMBER:
+            try:
+                return int(value)
+            except (ValueError, TypeError) as exc:
+                raise ConfigurationError(
+                    message="Configuration expects an integer value.",
+                    config_key=config_key,
+                    details={"value": value, "config_type": int(config_type)},
+                ) from exc
+        if config_type == ConfigType.BOOLEAN:
+            return value.lower() in ("true", "1", "yes", "on")
+        if config_type == ConfigType.JSON:
+            try:
+                return cast(JSONValue, json.loads(value))
+            except (ValueError, json.JSONDecodeError) as exc:
+                raise ConfigurationError(
+                    message="Configuration expects a valid JSON value.",
+                    config_key=config_key,
+                    details={"value": value, "config_type": int(config_type)},
+                ) from exc
+        return value
 
 
 # Convenience functions
@@ -304,14 +326,12 @@ async def get_config_int(
     db: AsyncSession,
     key: str,
     *,
-    default: int | None = None,
     required: bool = True,
 ) -> int:
     """Get configuration value as an integer."""
     return await SystemConfigService.get_config_int(
         db,
         key,
-        default=default,
         required=required,
     )
 
@@ -320,14 +340,12 @@ async def get_config_str(
     db: AsyncSession,
     key: str,
     *,
-    default: str | None = None,
     required: bool = True,
 ) -> str:
     """Get configuration value as a string."""
     return await SystemConfigService.get_config_str(
         db,
         key,
-        default=default,
         required=required,
     )
 

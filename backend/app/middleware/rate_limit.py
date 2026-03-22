@@ -62,8 +62,26 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Get configuration from app state (loaded on startup)
-        requests = getattr(request.app.state, "api_rate_limit_requests", 100)
-        window_seconds = getattr(request.app.state, "api_rate_limit_window_seconds", 60)
+        requests = getattr(request.app.state, "api_rate_limit_requests", None)
+        window_seconds = getattr(request.app.state, "api_rate_limit_window_seconds", None)
+        if not isinstance(requests, int) or not isinstance(window_seconds, int):
+            logger.critical(
+                "api_rate_limit_config_missing",
+                has_requests=isinstance(requests, int),
+                has_window_seconds=isinstance(window_seconds, int),
+            )
+            request_id = self._get_or_create_request_id(request)
+            message = "系统错误"
+            error_code = build_error_code(path=request.url.path, status_code=500, detail=message)
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error_code": error_code,
+                    "message": message,
+                    "request_id": request_id,
+                },
+                headers={REQUEST_ID_HEADER: request_id},
+            )
 
         try:
             ip = get_client_ip(request)

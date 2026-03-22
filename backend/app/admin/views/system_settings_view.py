@@ -9,8 +9,8 @@ from starlette_admin import CustomView
 
 from app.crud.system import system_configs
 from app.enums import AdminRole
-from app.services.config import config_service
 from app.services.media.config import refresh_media_base_url
+from app.services.message.providers.leancloud.config import get_leancloud_config_status
 from app.services.message.providers.leancloud.url_builder import (
     build_leancloud_webhook_url,
 )
@@ -53,26 +53,13 @@ class SystemSettingsView(CustomView):
             missing_configs = await SystemConfigService.check_missing_configs(db, displayed_keys)
 
             # Get webhook and LeanCloud IM data for System Management section
-            webhook_token = await system_configs.get_config_value(
-                db, config_key="leancloud_im_webhook_token"
-            )
-            api_base_url = await system_configs.get_config_value(db, config_key="api_base_url")
-            conversation_id = await system_configs.get_config_value(
-                db, config_key="leancloud_im_service_conversation_id"
+            webhook_token = await get_config(db, key="leancloud_im_webhook_token", required=False)
+            api_base_url = await get_config(db, key="api_base_url", required=False)
+            conversation_id = await get_config(
+                db, key="leancloud_im_service_conversation_id", required=False
             )
 
-            # Get LeanCloud config
-            leancloud_raw_config = await config_service.get_leancloud_config(db)
-            leancloud_status = {
-                "configured": bool(
-                    leancloud_raw_config.get("app_id")
-                    and leancloud_raw_config.get("master_key")
-                    and leancloud_raw_config.get("base_url")
-                ),
-                "has_app_id": bool(leancloud_raw_config.get("app_id")),
-                "has_master_key": bool(leancloud_raw_config.get("master_key")),
-                "has_base_url": bool(leancloud_raw_config.get("base_url")),
-            }
+            leancloud_status = await get_leancloud_config_status(db)
 
             # Construct webhook URL
             webhook_url = None
@@ -147,6 +134,7 @@ class SystemSettingsView(CustomView):
                                         config_value=value_str,
                                         updated_by=admin_user_id,
                                         validate_enum=True,
+                                        commit=False,
                                     )
 
                                     if config:
@@ -161,25 +149,15 @@ class SystemSettingsView(CustomView):
                                             media_config_updated = True
                                 except ValueError as ve:
                                     # Enum validation failed
+                                    await db.rollback()
                                     context["error"] = str(ve)
                                     return templates.TemplateResponse(
                                         "custom_views/system_settings.html", context
                                     )
 
-                    # Create operation logs for each change
-                    for change in changes:
-                        await create_operation_log(
-                            db=db,
-                            admin_user_id=admin_user_id,
-                            operation_type=2,  # UPDATE
-                            resource_type="system_config",
-                            resource_id=change["config_key"],
-                            resource_name=change["config_key"].replace("_", " ").title(),
-                            operation_desc=f"Updated from '{change['old_value']}' to '{change['new_value']}'",
-                            request=request,
-                        )
-
                     if changes:
+                        await db.commit()
+
                         # Reload cache to sync changes to Service layer
                         await SystemConfigService.reload_cache(db)
 
@@ -187,6 +165,19 @@ class SystemSettingsView(CustomView):
                             await refresh_media_base_url(db)
                             reload_storage_backend()
                             logger.info("media_public_base_url_reloaded")
+
+                        # Create operation logs for each change
+                        for change in changes:
+                            await create_operation_log(
+                                db=db,
+                                admin_user_id=admin_user_id,
+                                operation_type=2,  # UPDATE
+                                resource_type="system_config",
+                                resource_id=change["config_key"],
+                                resource_name=change["config_key"].replace("_", " ").title(),
+                                operation_desc=f"Updated from '{change['old_value']}' to '{change['new_value']}'",
+                                request=request,
+                            )
 
                         context["success"] = f"Successfully updated {len(changes)} configuration(s)"
                         logger.info(
@@ -200,20 +191,21 @@ class SystemSettingsView(CustomView):
                         )
 
                 except Exception as e:
+                    await db.rollback()
                     logger.error("system_settings_error", error=str(e), exc_info=True)
                     context["error"] = f"Failed to update settings: {e!s}"
 
                 # Reload configurations to show updated values
                 config_groups = await get_configs_by_group(db)
                 context["config_groups"] = config_groups
-                webhook_token = await system_configs.get_config_value(
-                    db, config_key="leancloud_im_webhook_token"
+                webhook_token = await get_config(
+                    db, key="leancloud_im_webhook_token", required=False
                 )
-                api_base_url = await system_configs.get_config_value(db, config_key="api_base_url")
-                conversation_id = await system_configs.get_config_value(
-                    db, config_key="leancloud_im_service_conversation_id"
+                api_base_url = await get_config(db, key="api_base_url", required=False)
+                conversation_id = await get_config(
+                    db, key="leancloud_im_service_conversation_id", required=False
                 )
-                leancloud_raw_config = await config_service.get_leancloud_config(db)
+                leancloud_status = await get_leancloud_config_status(db)
                 webhook_url = None
                 if webhook_token and api_base_url:
                     webhook_url = build_leancloud_webhook_url(
@@ -224,16 +216,7 @@ class SystemSettingsView(CustomView):
                 context["webhook_token"] = webhook_token
                 context["token_length"] = len(webhook_token) if webhook_token else 0
                 context["conversation_id"] = conversation_id
-                context["leancloud_config"] = {
-                    "configured": bool(
-                        leancloud_raw_config.get("app_id")
-                        and leancloud_raw_config.get("master_key")
-                        and leancloud_raw_config.get("base_url")
-                    ),
-                    "has_app_id": bool(leancloud_raw_config.get("app_id")),
-                    "has_master_key": bool(leancloud_raw_config.get("master_key")),
-                    "has_base_url": bool(leancloud_raw_config.get("base_url")),
-                }
+                context["leancloud_config"] = leancloud_status
 
             return templates.TemplateResponse("custom_views/system_settings.html", context)
 

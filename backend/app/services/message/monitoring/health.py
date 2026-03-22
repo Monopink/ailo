@@ -9,9 +9,9 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud.system import system_configs
-from app.services.config import config_service
 from app.services.message.providers.leancloud import create_leancloud_provider
+from app.services.message.providers.leancloud.config import get_leancloud_runtime_config
+from app.services.system_config import get_config
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -108,20 +108,16 @@ async def get_message_service_status(db: AsyncSession) -> dict[str, Any]:
     """
     try:
         # Check configuration completeness
-        leancloud_config = await config_service.get_leancloud_config(db)
-        config_complete = all(
-            [
-                leancloud_config.get("app_id"),
-                leancloud_config.get("master_key"),
-                leancloud_config.get("base_url"),
-            ]
+        leancloud_config = await get_leancloud_runtime_config(db, required=False)
+        config_complete = bool(
+            leancloud_config.app_id and leancloud_config.master_key and leancloud_config.base_url
         )
 
         # Check service initialization
-        conversation_id = await system_configs.get_config_value(
-            db, config_key="leancloud_im_service_conversation_id"
+        conversation_id = await get_config(
+            db, key="leancloud_im_service_conversation_id", required=False
         )
-        service_initialized = bool(conversation_id)
+        service_initialized = bool(isinstance(conversation_id, str) and conversation_id.strip())
 
         # Check API accessibility
         health_result = await check_message_service_health(db)

@@ -53,11 +53,7 @@ Presence endpoint 的活跃状态由 lease 管理（见下文“Lease”）。
 
 默认值：
 
-- TTL：90 秒
-
-对应配置项（system_configs）：
-
-- `ws_presence_lease_ttl_seconds`
+- TTL：90 秒（代码常量）
 
 2) Registration lease（长）
 
@@ -65,11 +61,7 @@ Presence endpoint 的活跃状态由 lease 管理（见下文“Lease”）。
 
 默认值：
 
-- TTL：365 天
-
-对应配置项（system_configs）：
-
-- `registration_lease_ttl_days`
+- TTL：365 天（代码常量）
 
 ---
 

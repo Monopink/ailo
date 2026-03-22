@@ -158,7 +158,7 @@ LeanCloud 专用的客户端 IM 接口统一放在 `lc-im` 命名空间下，涵
 
 - `endpoint_id` (integer) - `message_endpoints.id`
 - `client_id` (string) - 注册的 LeanCloud client_id
-- `lease_ttl_days` (integer) - endpoint 租约天数（系统配置 `registration_lease_ttl_days`）
+- `lease_ttl_days` (integer) - endpoint 租约天数（代码常量，当前为 365）
 - `lease_expires_at_ms` (integer) - 租约到期时间戳（毫秒）
 
 ### 错误响应

@@ -30,7 +30,9 @@ class SystemConfig(AutoIncrementModel):
     )
 
     config_type: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Value type: 1=string, 2=number, 3=boolean, 4=json"
+        Integer,
+        nullable=False,
+        comment="Value type: 1=string, 2=number, 3=boolean, 4=json, 5=enum",
     )
 
     description: Mapped[str | None] = mapped_column(

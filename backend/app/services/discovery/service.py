@@ -8,7 +8,6 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud.system import system_configs
 from app.enums import SquareCategoryTheme
 from app.schemas.discovery import (
     PaginationInfo,
@@ -105,12 +104,9 @@ async def get_square_contacts(
     """
     try:
         if page_size is None:
-            page_size = _coerce_positive_int(
-                await system_configs.get_config_value(
-                    db, config_key="square_page_size", default_value=20
-                ),
-                default=20,
-            )
+            page_size = await get_config_int(db, key="square_page_size")
+            if page_size <= 0:
+                raise ValueError(f"Expected positive integer configuration, got {page_size!r}")
 
         categories = await discovery_data.get_active_square_categories(db)
         category_keys = {item.category_key for item in categories}
@@ -263,38 +259,7 @@ async def get_stranger_profile(
 async def _resolve_refresh_available_at(db: AsyncSession) -> datetime | None:
     """Resolve next refresh availability timestamp from rate-limit window config."""
 
-    window_seconds = _coerce_non_negative_int(
-        await system_configs.get_config_value(
-            db,
-            config_key="square_rate_limit_window_seconds",
-            default_value=0,
-        ),
-        default=0,
-    )
+    window_seconds = await get_config_int(db, key="square_rate_limit_window_seconds")
     if window_seconds <= 0:
         return None
     return datetime.now(UTC) + timedelta(seconds=window_seconds)
-
-
-def _coerce_non_negative_int(value: JSONValue | None, *, default: int) -> int:
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    if isinstance(value, str):
-        try:
-            return int(value)
-        except ValueError as exc:
-            raise ValueError(f"Invalid integer configuration: {value!r}") from exc
-    raise ValueError(f"Unsupported integer configuration type: {type(value).__name__}")
-
-
-def _coerce_positive_int(value: JSONValue | None, *, default: int) -> int:
-    coerced = _coerce_non_negative_int(value, default=default)
-    if coerced <= 0:
-        raise ValueError(f"Expected positive integer configuration, got {coerced!r}")
-    return coerced

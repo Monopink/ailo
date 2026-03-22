@@ -24,7 +24,7 @@ LeanCloud 作为消息传输层，与系统解耦，便于未来替换。
 
 所有消息都在一个 LeanCloud 系统对话中发送：
 
-- 对话 ID 存储在 system_configs 表（`leancloud_im_conv_id`）
+- 对话 ID 存储在 system_configs 表（`leancloud_im_service_conversation_id`）
 - 客户端启动时通过 `/api/v1/lc-im/config` 获取
 - 可随时变更，客户端应在重连时主动拉取
 - `im_conv_id` 的权威来源是 `/api/v1/lc-im/config`
@@ -190,78 +190,14 @@ signature = HMAC_SHA1(app_secret, message)
 - `msg_id_client`：可选字段；当该时间线消息来自用户入站时回传原客户端 ID。
 - assistant/系统消息：`msg_id_client` 为空或省略。
 
-### REST API 调用
-
-**端点**：`POST https://{server}/1.2/rtm/service-conversations/{conv_id}/messages`
-
-**请求头**：
-
-- X-LC-Id: {app_id}
-- X-LC-Key: {master_key},master
-- Content-Type: application/json
-
-**请求体**：
-
-```json
-{
-  "from_client": "qiao_xm001",
-  "to_clients": ["qiao_user001"],
-  "transient": false,
-  "message": "{\"_lctype\":1,\"_lcattrs\":{\"msg_id\":\"msg_223788765171154945\",\"msg_id_client\":\"client_1710001111222_abc123\",\"from_qiao_id\":\"qiao_xm001\",\"to_qiao_id\":\"qiao_user001\",\"conversation_id\":\"conv_xyz789\",\"content\":\"你好\",\"message_type\":1,\"sent_time\":1710001111222}}"
-}
-```
-
-### 发送结果处理
-
-**成功响应**：
-
-```json
-{
-  "msg-id": "xYz9iBSBS_uogCEgvZwE8R",
-  "timestamp": 1710001111333
-}
-```
-
-**后续操作**：
-
-将返回的 msg-id 写入 `message_deliveries.provider_msg_id`
-
 ## 配置管理
 
 ### system_configs 配置项
 
-- leancloud_app_id - LeanCloud App ID
-- leancloud_app_key - LeanCloud App Key
-- leancloud_master_key - LeanCloud Master Key
-- leancloud_im_conv_id - 系统对话 ID
-- leancloud_webhook_token - Webhook 安全令牌
-- leancloud_signature_ttl_ms - 签名有效期（毫秒）
-
-### 配置获取
-
-**返回格式**：
-
-```json
-{
-  "provider": "leancloud",
-  "im_conv_id": "68edda0a554ecc6e8843b246",
-  "signature_algorithm": "HMAC-SHA1",
-  "signature_version": "v1",
-  "signature_ttl_ms": 3600000
-}
-```
-
-## 错误处理
-
-### Webhook 错误
-
-**处理原则**：Webhook 必须返回 200，否则 LeanCloud 会重试
-
-- webhook_token 无效 → 返回 200，记录日志，告警
-- payload 格式错误 → 返回 200，记录日志，告警
-- 对话 ID 不匹配 → 返回 200，记录日志，告警
-- 解密失败 → 返回 200，记录日志，回退到原文
-- 业务处理失败 → 返回 200，记录日志，写入投递记录（message_deliveries）
+- leancloud_im_server_url - LeanCloud IM server URL
+- leancloud_im_service_conversation_id - 系统对话 ID
+- leancloud_im_webhook_token - Webhook 安全令牌
+- api_base_url - API base URL（用于构造 webhook URL）
 
 ### 发送错误
 

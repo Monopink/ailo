@@ -24,12 +24,12 @@ from app.enums.common import AIMessageBufferState, ConversationRole
 from app.models.ai.instance import AIConversationItem, AIMessageBuffer
 from app.services.ai.queries.instance_queries import get_instance_relationship_config
 from app.services.ai.queries.updates import create_conversation_item
-from app.services.config import config_service
 from app.services.message.processing.runtime import (
     activate_current_ingress_turn,
     increment_ingress_version,
 )
 from app.services.message.schemas import InboundMessageEvent
+from app.services.system_config import get_config_int
 from app.type_defs import RelationshipTiming
 from app.utils.logging import get_logger
 
@@ -1079,15 +1079,11 @@ def _compute_buffer_expiration(
 
 async def _get_buffer_config(db: AsyncSession) -> BufferTimerConfig:
     return BufferTimerConfig(
-        normal_wait_ms=await config_service.get_int(db, "message_buffer_normal_wait_ms"),
-        typing_short_wait_ms=await config_service.get_int(
-            db, "message_buffer_typing_short_wait_ms"
-        ),
-        typing_total_wait_ms=await config_service.get_int(
-            db, "message_buffer_typing_total_wait_ms"
-        ),
-        typing_end_wait_ms=await config_service.get_int(db, "message_buffer_typing_end_wait_ms"),
-        no_typing_wait_ms=await config_service.get_int(db, "message_buffer_no_typing_wait_ms"),
+        normal_wait_ms=await get_config_int(db, key="message_buffer_normal_wait_ms"),
+        typing_short_wait_ms=await get_config_int(db, key="message_buffer_typing_short_wait_ms"),
+        typing_total_wait_ms=await get_config_int(db, key="message_buffer_typing_total_wait_ms"),
+        typing_end_wait_ms=await get_config_int(db, key="message_buffer_typing_end_wait_ms"),
+        no_typing_wait_ms=await get_config_int(db, key="message_buffer_no_typing_wait_ms"),
     )
 
 

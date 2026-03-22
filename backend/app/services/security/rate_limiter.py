@@ -10,7 +10,7 @@ from collections import deque
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.system_config import get_config_int, get_config_str
+from app.services.system_config import get_config, get_config_int
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -124,12 +124,11 @@ async def check_rate_limit(
     whitelist_key = RATE_LIMIT_WHITELIST_KEYS.get(group)
     whitelist_str = ""
     if whitelist_key:
-        whitelist_str = await get_config_str(
-            db,
-            key=whitelist_key,
-            required=False,
-            default="",
-        )
+        whitelist_value = await get_config(db, key=whitelist_key, required=False)
+        if isinstance(whitelist_value, str):
+            whitelist_str = whitelist_value.strip()
+        elif whitelist_value is not None:
+            whitelist_str = str(whitelist_value).strip()
 
     if whitelist_str:
         whitelist = [ip.strip() for ip in whitelist_str.split(",")]

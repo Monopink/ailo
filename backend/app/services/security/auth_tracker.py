@@ -10,7 +10,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.system_config import get_config_int, get_config_str
+from app.services.system_config import get_config, get_config_int
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -189,12 +189,12 @@ async def check_lockout(
 
     whitelist_key = AUTH_WHITELIST_KEYS.get(auth_type)
     if whitelist_key:
-        whitelist_str = await get_config_str(
-            db,
-            key=whitelist_key,
-            required=False,
-            default="",
-        )
+        whitelist_str = ""
+        whitelist_value = await get_config(db, key=whitelist_key, required=False)
+        if isinstance(whitelist_value, str):
+            whitelist_str = whitelist_value.strip()
+        elif whitelist_value is not None:
+            whitelist_str = str(whitelist_value).strip()
 
         if whitelist_str:
             whitelist = [ip.strip() for ip in whitelist_str.split(",")]
@@ -245,7 +245,13 @@ async def should_require_captcha(identifier: str, auth_type: str, db: AsyncSessi
     if auth_type != "admin_auth":
         raise ValueError(f"Unsupported auth_type: {auth_type}")
 
-    captcha_provider = await get_config_str(db, key="admin_captcha_provider")
+    captcha_provider_value = await get_config(db, key="admin_captcha_provider", required=False)
+    if isinstance(captcha_provider_value, str):
+        captcha_provider = captcha_provider_value.strip()
+    elif captcha_provider_value is not None:
+        captcha_provider = str(captcha_provider_value).strip()
+    else:
+        captcha_provider = ""
 
     if not captcha_provider or captcha_provider == "none":
         return False

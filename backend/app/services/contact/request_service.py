@@ -15,7 +15,6 @@ from app.crud.ai import ai_persona as ai_persona_crud
 from app.crud.contact import contact as contact_crud
 from app.crud.contact import contact_request as contact_request_crud
 from app.crud.profile import profile as profile_crud
-from app.crud.system import system_configs
 from app.crud.user import user as user_crud
 from app.enums import (
     AIPersonaStatus,
@@ -45,6 +44,7 @@ from app.services.ai.instance_creation import create_instance_from_persona
 from app.services.contact.service import get_contact_with_profile
 from app.services.message.outbound.helpers import send_chat_info, send_contact_request_notification
 from app.services.profile.avatar import get_avatar_url
+from app.services.system_config import get_config_int
 from app.type_defs import JSONDict, JSONValue
 from app.utils.contact_tags import normalize_tags, validate_tags
 from app.utils.logging import get_logger
@@ -99,13 +99,9 @@ def _clear_pending_failure(contact_request: "ContactRequest") -> None:
 
 async def _get_contact_expiration_days(db: AsyncSession) -> int:
     """Read contact request expiration from configuration (stored in days)."""
-
-    expiry_days_value = await system_configs.get_config_value(
-        db, config_key="contact_request_expiration_days"
-    )
-    expiry = _coerce_int(expiry_days_value)
-    if expiry is None:
-        logger.error("contact_request_expiration_config_missing")
+    expiry = await get_config_int(db, key="contact_request_expiration_days")
+    if expiry < 1:
+        logger.error("contact_request_expiration_config_invalid", value=expiry)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="系统错误",
@@ -128,29 +124,11 @@ async def get_ai_contact_limit(db: AsyncSession, user_qiao_id: str) -> int:
     Raises:
         ValueError: If limit not configured
     """
-    limit = await system_configs.get_config_value(db, config_key="default_contact_limit")
-
-    limit_coerced = _coerce_int(limit)
-    if limit_coerced is None:
-        logger.error("contact_limit_config_not_found", user_qiao_id=user_qiao_id)
+    limit = await get_config_int(db, key="default_contact_limit")
+    if limit < 1:
+        logger.error("contact_limit_config_invalid", user_qiao_id=user_qiao_id, value=limit)
         raise ValueError("Contact limit not configured")
-    return limit_coerced
-
-
-def _coerce_int(value: JSONValue | None) -> int | None:
-    """Convert JSONValue into integer if possible."""
-    if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    if isinstance(value, str):
-        try:
-            return int(value)
-        except ValueError:
-            return None
-    return None
+    return limit
 
 
 def _build_request_tags_payload(tags: list[str] | None) -> JSONDict | None:

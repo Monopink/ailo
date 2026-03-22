@@ -22,7 +22,6 @@ from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.crud.profile import profile as profile_crud
-from app.crud.system import system_configs
 from app.crud.user import login_record as login_record_crud
 from app.crud.user import user as user_crud
 from app.crud.user import user_auth as user_auth_crud
@@ -58,6 +57,7 @@ from app.services.profile.avatar import get_avatar_url
 from app.services.security.auth_tracker import check_lockout, record_auth_failure, reset_failures
 from app.services.security.rate_limiter import check_password_login_rate_limit, check_rate_limit
 from app.services.security.sms.factory import create_sms_provider
+from app.services.system_config import get_config, get_config_int
 from app.services.wechat.client import WeChatAPIError, WeChatClient
 from app.type_defs import JSONDict, JSONValue
 from app.utils.client_ip import ClientIPResolutionError, get_client_ip
@@ -83,12 +83,37 @@ _verification_codes: dict[str, tuple[str, datetime]] = {}
 _operation_tokens: dict[str, tuple[int, datetime]] = {}
 
 # Constants
-SMS_CODE_TTL_SECONDS = 5 * 60  # 5 minutes
 SMS_COOLDOWN_SECONDS = 60
+SMS_CODE_LENGTH_DIGITS = 6
+OPERATION_TOKEN_TTL_SECONDS = 5 * 60  # 5 minutes
 
 _refresh_token_requests: dict[str, list[datetime]] = {}
 REFRESH_RATE_LIMIT = 5
 REFRESH_RATE_WINDOW = timedelta(minutes=1)
+
+
+async def _get_sms_code_ttl_seconds(db: AsyncSession) -> int:
+    ttl_seconds = await get_config_int(db, key="sms_code_expires_in_seconds")
+    if ttl_seconds < 1:
+        raise ValueError("sms_code_expires_in_seconds must be >= 1")
+    return ttl_seconds
+
+
+async def _get_sms_code_length_digits(db: AsyncSession) -> int:
+    _ = db
+    return SMS_CODE_LENGTH_DIGITS
+
+
+def _generate_numeric_code(length: int) -> str:
+    if length < 1:
+        raise ValueError("Code length must be >= 1")
+
+    if length == 1:
+        return str(secrets.randbelow(10))
+
+    first_digit = str(secrets.randbelow(9) + 1)
+    remaining = "".join(str(secrets.randbelow(10)) for _ in range(length - 1))
+    return f"{first_digit}{remaining}"
 
 
 def _protective_denial_detail(
@@ -188,31 +213,24 @@ async def _record_login_attempt(
 
 async def _get_jwt_expiration_seconds(db: AsyncSession) -> int:
     """Return JWT expiration duration in seconds from configuration."""
-    expires_in_days = await system_configs.get_config_value(
-        db, config_key="jwt_token_expires_in_days"
-    )
-    expires_in = _coerce_int(expires_in_days)
-    if expires_in is None:
-        logger.error("jwt_expiration_config_missing")
+    expires_in_days = await get_config_int(db, key="jwt_token_expires_in_days")
+    if expires_in_days < 1:
+        logger.error("jwt_expiration_config_invalid", value=expires_in_days)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="系统错误",
         )
-
-    return expires_in * 86400
+    return expires_in_days * 86400
 
 
 async def _get_refresh_token_expiration_days(db: AsyncSession) -> int:
     """Return refresh token expiration duration in days."""
-    refresh_in_days = await system_configs.get_config_value(
-        db, config_key="refresh_token_expires_in_days"
-    )
-    days = _coerce_int(refresh_in_days)
-    if days is None or days < 1:
-        logger.error("refresh_token_expiration_invalid", value=refresh_in_days)
+    days = await get_config_int(db, key="refresh_token_expires_in_days")
+    if days < 1:
+        logger.error("refresh_token_expiration_invalid", value=days)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="绯荤粺閿欒",
+            detail="系统错误",
         )
     return days
 
@@ -285,16 +303,15 @@ async def _apply_wechat_phone_mock(
     if not isinstance(phone_info, dict) or settings.is_production:
         return phone_info
 
-    enabled_value = await system_configs.get_config_value(
-        db,
-        config_key=WECHAT_PHONE_MOCK_ENABLED_KEY,
-        default_value=False,
-    )
-    enabled = (
-        enabled_value.lower() in {"true", "1", "yes", "on"}
-        if isinstance(enabled_value, str)
-        else bool(enabled_value)
-    )
+    enabled_value = await get_config(db, key=WECHAT_PHONE_MOCK_ENABLED_KEY, required=False)
+    if isinstance(enabled_value, bool):
+        enabled = enabled_value
+    elif isinstance(enabled_value, str):
+        enabled = enabled_value.strip().lower() in {"true", "1", "yes", "on"}
+    elif enabled_value is None:
+        enabled = False
+    else:
+        enabled = bool(enabled_value)
     if not enabled:
         return phone_info
 
@@ -302,11 +319,7 @@ async def _apply_wechat_phone_mock(
     if not pure_phone or pure_phone not in WECHAT_TEST_PHONE_NUMBERS:
         return phone_info
 
-    mock_phone = await system_configs.get_config_value(
-        db,
-        config_key=WECHAT_PHONE_MOCK_NUMBER_KEY,
-        default_value=None,
-    )
+    mock_phone = await get_config(db, key=WECHAT_PHONE_MOCK_NUMBER_KEY, required=False)
     if not mock_phone:
         logger.warning(
             "wechat_phone_mock_missing_number",
@@ -374,7 +387,7 @@ def _generate_operation_token(user_id: int) -> str:
 
     """
     token = f"opt_{secrets.token_urlsafe(32)}"
-    expires_at = datetime.now(UTC) + timedelta(seconds=SMS_CODE_TTL_SECONDS)
+    expires_at = datetime.now(UTC) + timedelta(seconds=OPERATION_TOKEN_TTL_SECONDS)
     _operation_tokens[token] = (user_id, expires_at)
     _cleanup_expired_operation_tokens()  # Clean up expired tokens
 
@@ -729,12 +742,19 @@ async def send_sms_code(
             ),
         )
 
-    # 3. Generate 6-digit verification code
-    code = "".join([str(secrets.randbelow(10)) for _ in range(6)])
+    try:
+        ttl_seconds = await _get_sms_code_ttl_seconds(db)
+        digits = await _get_sms_code_length_digits(db)
+    except Exception as exc:
+        logger.error("sms_code_config_error", error=str(exc), exc_info=True)
+        raise HTTPException(status_code=500, detail="系统配置异常") from exc
+
+    # 3. Generate verification code
+    code = _generate_numeric_code(digits)
 
     # 4. Store code in memory with expiration (for MVP)
     # In production, use Redis with TTL instead
-    expires_at = datetime.now(UTC) + timedelta(minutes=5)  # 5 minutes expiration
+    expires_at = datetime.now(UTC) + timedelta(seconds=ttl_seconds)
     _verification_codes[normalized_phone] = (code, expires_at)
     _cleanup_expired_codes()  # Clean up expired codes
 
@@ -753,7 +773,7 @@ async def send_sms_code(
 
     logger.info("sms_sent", phone=normalized_phone, provider_id=result.provider_id)
 
-    return SendSMSResponse(expires_in=SMS_CODE_TTL_SECONDS, cooldown_seconds=SMS_COOLDOWN_SECONDS)
+    return SendSMSResponse(expires_in=ttl_seconds, cooldown_seconds=SMS_COOLDOWN_SECONDS)
 
 
 @router.post("/wechat/login", response_model=WeChatLoginResponse)
@@ -1635,11 +1655,23 @@ async def send_verification_code(
                     ),
                 )
 
+            try:
+                ttl_seconds = await _get_sms_code_ttl_seconds(db)
+                digits = await _get_sms_code_length_digits(db)
+            except Exception as exc:
+                logger.error(
+                    "verify_send_sms_code_config_error",
+                    error=str(exc),
+                    user_id=current_user.id,
+                    exc_info=True,
+                )
+                raise HTTPException(status_code=500, detail="系统配置异常") from exc
+
             # Generate verification code
-            code = f"{secrets.randbelow(900000) + 100000}"
+            code = _generate_numeric_code(digits)
 
             # Store code
-            expires_at = datetime.now(UTC) + timedelta(minutes=5)
+            expires_at = datetime.now(UTC) + timedelta(seconds=ttl_seconds)
             _verification_codes[normalized_phone] = (code, expires_at)
             _cleanup_expired_codes()
 
@@ -1664,7 +1696,7 @@ async def send_verification_code(
                 provider_id=result.provider_id,
             )
 
-            return VerifySendCodeResponse(cooldown=60)
+            return VerifySendCodeResponse(cooldown=SMS_COOLDOWN_SECONDS)
 
         if body.verify_type == "email":
             target = body.target if body.target else current_user.email
@@ -1732,7 +1764,10 @@ async def confirm_verification_code(
 
             logger.info("verification_confirmed", user_id=current_user.id, verify_type="phone")
 
-            return OperationTokenResponse(operation_token=operation_token, expires_in=300)
+            return OperationTokenResponse(
+                operation_token=operation_token,
+                expires_in=OPERATION_TOKEN_TTL_SECONDS,
+            )
 
         if body.verify_type == "email":
             raise HTTPException(status_code=501, detail="系统错误")
@@ -1747,19 +1782,3 @@ async def confirm_verification_code(
             "confirm_verification_failed", error=str(e), user_id=current_user.id, exc_info=True
         )
         raise HTTPException(status_code=500, detail="系统错误")
-
-
-def _coerce_int(value: JSONValue | None) -> int | None:
-    """Normalize JSONValue into an integer, if possible."""
-    if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    if isinstance(value, str):
-        try:
-            return int(value)
-        except ValueError:
-            return None
-    return None

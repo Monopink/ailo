@@ -52,7 +52,7 @@
 
 **字段说明**:
 
-- `expires_in` (integer) - 验证码有效期（秒）
+- `expires_in` (integer) - 验证码有效期（秒），取 `system_configs.sms_code_expires_in_seconds`
 - `cooldown_seconds` (integer) - 冷却时间（秒），用于客户端倒计时
 
 ### 错误响应
@@ -101,7 +101,7 @@
   - MVP阶段只支持+86手机号
 
 - `sms_code` (string, 必填)
-  - 6位短信验证码
+  - 短信验证码位数为代码常量（当前为 6 位）
 
 - `device_id` (string, 必填)
   - 设备/安装级 UUID

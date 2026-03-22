@@ -5,9 +5,9 @@ This module provides common utility functions for LLM providers.
 """
 
 import json
-import os
 from typing import Any
 
+from app.core.config import get_settings
 from app.models.llm import LLMProvider
 from app.utils.logging import get_logger
 
@@ -31,7 +31,7 @@ def get_provider_api_key(provider: LLMProvider) -> str:
         ValueError: If API key not found in environment
     """
     env_key = f"{provider.name.upper()}_API_KEY"
-    api_key = os.getenv(env_key)
+    api_key = get_settings().get_env(env_key)
 
     if not api_key:
         logger.error(
@@ -64,7 +64,7 @@ def get_provider_base_url(provider: LLMProvider) -> str | None:
     """
     # Check environment variable first
     env_key = f"{provider.name.upper()}_BASE_URL"
-    env_url = os.getenv(env_key)
+    env_url = get_settings().get_env(env_key)
 
     if env_url:
         logger.debug(

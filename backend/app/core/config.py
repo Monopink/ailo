@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from ipaddress import ip_network
 from pathlib import Path
@@ -100,6 +101,10 @@ class Settings(BaseSettings):
     TENCENT_COS_BACKUP_REGION: str | None = None
     TENCENT_COS_BACKUP_BUCKET: str | None = None
     TENCENT_COS_BACKUP_ENDPOINT: str | None = None
+
+    def get_env(self, key: str) -> str | None:
+        """Read raw environment variable value by key."""
+        return os.getenv(key)
 
     @property
     def database_url(self) -> str:

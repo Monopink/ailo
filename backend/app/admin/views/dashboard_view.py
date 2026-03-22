@@ -10,14 +10,14 @@ from starlette.responses import Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
 
-from app.crud.system import system_configs
 from app.enums import ContactRequestStatus
 from app.models.contact import ContactRequest
-from app.services.config import config_service
 from app.services.message.monitoring.health import get_message_service_status
+from app.services.message.providers.leancloud.config import get_leancloud_config_status
 from app.services.message.providers.leancloud.url_builder import (
     build_leancloud_webhook_url,
 )
+from app.services.system_config import get_config
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -45,16 +45,13 @@ class DashboardView(CustomView):
             db = request.state.session
 
             # Read initial data from database
-            webhook_token = await system_configs.get_config_value(
-                db, config_key="leancloud_im_webhook_token"
-            )
-            api_base_url = await system_configs.get_config_value(db, config_key="api_base_url")
-            conversation_id = await system_configs.get_config_value(
-                db, config_key="leancloud_im_service_conversation_id"
+            webhook_token = await get_config(db, key="leancloud_im_webhook_token", required=False)
+            api_base_url = await get_config(db, key="api_base_url", required=False)
+            conversation_id = await get_config(
+                db, key="leancloud_im_service_conversation_id", required=False
             )
 
-            # Get LeanCloud config
-            leancloud_config = await config_service.get_leancloud_config(db)
+            leancloud_config = await get_leancloud_config_status(db)
 
             # Check message service health
             health_status = await get_message_service_status(db)
@@ -95,16 +92,7 @@ class DashboardView(CustomView):
                 "webhook_token": webhook_token,
                 "token_length": len(webhook_token) if webhook_token else 0,
                 "conversation_id": conversation_id,
-                "leancloud_config": {
-                    "configured": bool(
-                        leancloud_config.get("app_id")
-                        and leancloud_config.get("master_key")
-                        and leancloud_config.get("base_url")
-                    ),
-                    "has_app_id": bool(leancloud_config.get("app_id")),
-                    "has_master_key": bool(leancloud_config.get("master_key")),
-                    "has_base_url": bool(leancloud_config.get("base_url")),
-                },
+                "leancloud_config": leancloud_config,
                 "message_service_health": health_status,
                 "pending_contact_requests": {
                     "pending_total": pending_total,

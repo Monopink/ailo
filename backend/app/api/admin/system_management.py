@@ -17,8 +17,9 @@ from starlette.requests import Request
 from app.api.deps import get_db, verify_admin_session
 from app.crud.system import system_configs
 from app.enums import AdminOperationType
-from app.services.config import config_service
 from app.services.message.providers.leancloud import service as leancloud_service
+from app.services.message.providers.leancloud.config import get_leancloud_runtime_config
+from app.services.system_config import SystemConfigService
 from app.utils.admin_logs import create_operation_log
 from app.utils.logging import get_logger
 
@@ -171,15 +172,11 @@ async def get_leancloud_service_status(
 
     try:
         # Get LeanCloud IM configuration
-        leancloud_config = await config_service.get_leancloud_config(db)
+        leancloud_config = await get_leancloud_runtime_config(db, required=False)
 
         # Check if configuration is complete
-        if not all(
-            [
-                leancloud_config.get("app_id"),
-                leancloud_config.get("master_key"),
-                leancloud_config.get("base_url"),
-            ]
+        if not (
+            leancloud_config.app_id and leancloud_config.master_key and leancloud_config.base_url
         ):
             return {
                 "success": True,
@@ -192,8 +189,8 @@ async def get_leancloud_service_status(
 
         # Test LeanCloud API connectivity
         try:
-            base_url = leancloud_config["base_url"]
-            app_id = leancloud_config["app_id"]
+            base_url = leancloud_config.base_url
+            app_id = leancloud_config.app_id
 
             if not isinstance(base_url, str) or not base_url:
                 raise ValueError("Invalid LeanCloud base_url")
@@ -286,6 +283,8 @@ async def regenerate_webhook_token(
                 admin_user=admin_user["username"],
             )
             raise HTTPException(status_code=500, detail="系统错误")
+
+        await SystemConfigService.reload_cache(db)
 
         # Log operation to database
         await create_operation_log(

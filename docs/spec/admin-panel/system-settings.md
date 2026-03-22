@@ -40,21 +40,6 @@
 4. `JSON=4`：复杂对象配置
 5. `ENUM=5`：受限选项配置（需配合 `allowed_values`）
 
-## 主要配置项
-
-### 业务配置
-
-- `default_contact_limit`：默认联系人上限（默认 3）
-- `contact_request_expiration_days`：联系人请求过期时间（默认 3 天）
-- `square_page_size`：广场分页每页数量（默认 20）
-- `square_rate_limit_requests`：广场窗口期允许请求次数（默认 1）
-- `square_rate_limit_window_seconds`：广场限流窗口秒数（默认 10）
-
-### 系统配置
-
-- `max_message_length_chars`：最大消息长度（默认 49）
-- `session_timeout`：会话超时（默认 86400 秒）
-
 ## LLM 配置规则
 
 ### 多配置管理

@@ -6,7 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.crud.system import system_configs
 from app.models.user import User
 from app.schemas.message import (
     LeanCloudConfigResponse,
@@ -18,17 +17,16 @@ from app.schemas.message import (
 from app.services.message.providers.leancloud import service as leancloud_service
 from app.services.message.providers.leancloud.presence import upsert_user_presence_endpoint
 from app.services.message.providers.leancloud.signature import create_login_signature
-from app.services.system_config import get_config_int
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/lc-im", tags=["LeanCloud IM"])
 
-_settings = get_settings()
 SIGNATURE_ALGORITHM = "HMAC-SHA1"
 SIGNATURE_VERSION = "v1"
-SIGNATURE_TTL_SECONDS = getattr(_settings, "LEAN_CLOUD_SIGNATURE_TTL_SECONDS", 3600)
+SIGNATURE_TTL_SECONDS = 3600
+REGISTRATION_LEASE_TTL_DAYS = 365
 
 
 @router.get("/config", response_model=LeanCloudConfigResponse)
@@ -63,7 +61,6 @@ async def get_lc_im_config(
 async def generate_lc_im_signature(
     payload: LeanCloudSignatureRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ) -> LeanCloudSignatureResponse:
     """Generate LeanCloud IM login signature for the authenticated client."""
     if payload.client_id != current_user.qiao_id:
@@ -71,19 +68,7 @@ async def generate_lc_im_signature(
             status_code=status.HTTP_400_BAD_REQUEST, detail="客户端ID与当前用户不匹配"
         )
 
-    app_id = await system_configs.get_config_value(db, config_key="leancloud_im_app_id")
-    if not isinstance(app_id, str):
-        logger.error("leancloud_im_app_id_not_configured")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="系统错误",
-        )
-    if not app_id:
-        logger.error("leancloud_im_app_id_not_configured")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="系统错误",
-        )
+    app_id = get_settings().LEANCLOUD_IM_APP_ID
 
     signature_data = await create_login_signature(app_id=app_id, client_id=payload.client_id)
 
@@ -111,7 +96,7 @@ async def register_lc_im_presence(
         )
 
     try:
-        lease_ttl_days = await get_config_int(db, key="registration_lease_ttl_days")
+        lease_ttl_days = REGISTRATION_LEASE_TTL_DAYS
         endpoint = await upsert_user_presence_endpoint(
             db,
             user_id=int(current_user.id),

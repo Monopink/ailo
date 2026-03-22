@@ -9,9 +9,9 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.crud.system import system_configs
 from app.services.message.inbound.router import route_message
 from app.services.message.providers.leancloud.webhook import parse_leancloud_webhook
+from app.services.system_config import get_config
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -42,11 +42,9 @@ async def leancloud_webhook(
 
     """
     # 1. Validate webhook token
-    correct_token = await system_configs.get_config_value(
-        db, config_key="leancloud_im_webhook_token"
-    )
+    correct_token = await get_config(db, key="leancloud_im_webhook_token", required=False)
 
-    if not isinstance(correct_token, str) or not correct_token:
+    if not isinstance(correct_token, str) or not correct_token.strip():
         logger.error("webhook_token_not_configured")
         return {"code": 200}
     # Use constant-time comparison to prevent timing attacks

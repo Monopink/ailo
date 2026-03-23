@@ -20,14 +20,23 @@ from sqlalchemy.pool import NullPool
 
 from app.utils.snowflake import init_snowflake
 
+# Heuristic: detect whether tests run inside a Linux container.
+_IS_DOCKER = Path("/.dockerenv").exists()
+
 # Load environment variables from .env file
 env_path = Path(__file__).parent.parent.parent / "deployment" / ".env"
 if env_path.exists():
     load_dotenv(env_path)
 
-# Override database host for local testing
-# Tests run on host machine, not in Docker, so use localhost
-os.environ["POSTGRES_HOST"] = "localhost"
+# Load development overrides when present (repo-local defaults for host tests).
+dev_env_path = Path(__file__).parent.parent.parent / "deployment" / "dev" / ".env"
+if not _IS_DOCKER and dev_env_path.exists():
+    load_dotenv(dev_env_path, override=True)
+
+# Override database host for host-based testing only.
+# When running in Docker, DB_HOST should remain the service name (e.g. "postgres").
+if not _IS_DOCKER:
+    os.environ["DB_HOST"] = "localhost"
 
 # Add backend/app to Python path
 backend_app_path = Path(__file__).parent.parent / "app"

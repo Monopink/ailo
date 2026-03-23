@@ -74,6 +74,7 @@ services:
       - ../../backend/app:/backend/app
       - ../../backend/alembic:/backend/alembic
       - ../../backend/alembic.ini:/backend/alembic.ini
+      - ../../backend/tests:/backend/tests
       - ../../pyproject.toml:/backend/pyproject.toml:ro
       - ../../.importlinter:/backend/.importlinter:ro
       - ../../logs:/backend/logs

@@ -47,7 +47,7 @@ class AIRequestLog(ImmutableSnowflakeModel):
         nullable=False,
         default="production",
         server_default=text("'production'"),
-        comment="Request type: production or test",
+        comment="Request type enum (see app.enums.AIRequestType)",
     )
 
     provider_name: Mapped[str | None] = mapped_column(
@@ -87,7 +87,9 @@ class AIRequestLog(ImmutableSnowflakeModel):
     )
 
     status: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Request status: 1=success, 2=failed, 3=timeout"
+        Integer,
+        nullable=False,
+        comment="Request status enum (see app.enums.AIRequestStatus)",
     )
 
     token_count: Mapped[int | None] = mapped_column(

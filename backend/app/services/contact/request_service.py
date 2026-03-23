@@ -17,6 +17,7 @@ from app.crud.contact import contact_request as contact_request_crud
 from app.crud.profile import profile as profile_crud
 from app.crud.user import user as user_crud
 from app.enums import (
+    CHAT_INFO_TEMPLATES,
     AIPersonaStatus,
     ChatInfoType,
     ContactRequestFailureCode,
@@ -25,7 +26,6 @@ from app.enums import (
     ContactSource,
     ContactType,
 )
-from app.enums.templates import CHAT_INFO_TEMPLATES
 from app.models.ai.instance import AIInstance
 from app.models.ai.template import AIPersona
 from app.models.contact import Contact, ContactRequest

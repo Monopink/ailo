@@ -9,7 +9,7 @@ All algorithms are stateless and maintain initial position as origin.
 import math
 from typing import Any, cast
 
-from app.enums.common import PositionMappingAlgorithm
+from app.enums import PositionMappingAlgorithm
 from app.type_defs import AlgorithmParameterSpec, JSONDict, JSONValue, V1Params
 from app.utils.logging import get_logger
 

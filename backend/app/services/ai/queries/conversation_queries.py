@@ -11,7 +11,7 @@ from typing import Any
 from sqlalchemy import and_, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums.common import ConversationItemContextStatus
+from app.enums import ConversationItemContextStatus
 from app.models.ai import AIConversationItem
 from app.utils.logging import get_logger
 

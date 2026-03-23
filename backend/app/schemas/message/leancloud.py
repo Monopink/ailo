@@ -34,7 +34,7 @@ class LeanCloudPresenceRequest(BaseModel):
     client_id: str = Field(..., description="LeanCloud client ID, must match user's qiao_id")
     client_kind: int | None = Field(
         default=None,
-        description="Optional client kind enum (web/miniprogram/ios/android)",
+        description="Optional client kind enum (DeviceType)",
     )
 
 

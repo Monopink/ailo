@@ -17,7 +17,7 @@ from decimal import Decimal
 from sqlalchemy import select
 
 from app.core.database import get_sessionmaker
-from app.enums.common import AIMessageBufferState
+from app.enums import AIMessageBufferState
 from app.models.ai.instance import AIMessageBuffer
 from app.services.ai.orchestrators.conversation_flow import process_conversation
 from app.services.ai.queries.instance_queries import get_instance_relationship_config

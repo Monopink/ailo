@@ -297,7 +297,10 @@ class ContactRequest(SnowflakeModel):
     # from_type=1 (USER) → users table (includes all user types)
     _from_user: Mapped[User | None] = relationship(
         "User",
-        primaryjoin="and_(ContactRequest.from_id == User.id, ContactRequest.from_type == 1)",
+        primaryjoin=(
+            f"and_(ContactRequest.from_id == User.id, "
+            f"ContactRequest.from_type == {ContactType.USER.value})"
+        ),
         foreign_keys=[from_id],
         lazy="select",
         viewonly=True,
@@ -306,7 +309,10 @@ class ContactRequest(SnowflakeModel):
     # from_type=2 (AI) → ai_instances table
     _from_instance: Mapped[AIInstance | None] = relationship(
         "AIInstance",
-        primaryjoin="and_(ContactRequest.from_id == AIInstance.id, ContactRequest.from_type == 2)",
+        primaryjoin=(
+            f"and_(ContactRequest.from_id == AIInstance.id, "
+            f"ContactRequest.from_type == {ContactType.AI.value})"
+        ),
         foreign_keys=[from_id],
         lazy="select",
         viewonly=True,
@@ -316,7 +322,10 @@ class ContactRequest(SnowflakeModel):
     # to_type=1 (USER) → users table (includes all user types)
     _to_user: Mapped[User | None] = relationship(
         "User",
-        primaryjoin="and_(ContactRequest.to_id == User.id, ContactRequest.to_type == 1)",
+        primaryjoin=(
+            f"and_(ContactRequest.to_id == User.id, "
+            f"ContactRequest.to_type == {ContactType.USER.value})"
+        ),
         foreign_keys=[to_id],
         lazy="select",
         viewonly=True,
@@ -325,7 +334,10 @@ class ContactRequest(SnowflakeModel):
     # to_type=2 (AI) → ai_instances table
     _to_instance: Mapped[AIInstance | None] = relationship(
         "AIInstance",
-        primaryjoin="and_(ContactRequest.to_id == AIInstance.id, ContactRequest.to_type == 2)",
+        primaryjoin=(
+            f"and_(ContactRequest.to_id == AIInstance.id, "
+            f"ContactRequest.to_type == {ContactType.AI.value})"
+        ),
         foreign_keys=[to_id],
         lazy="select",
         viewonly=True,

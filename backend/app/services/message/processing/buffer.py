@@ -12,15 +12,19 @@ import random
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums import MessageType
-from app.enums.common import AIMessageBufferState, ConversationRole
+from app.enums import (
+    AIMessageBufferState,
+    BufferMessageCategory,
+    ConversationItemMessageType,
+    ConversationRole,
+    MessageType,
+)
 from app.models.ai.instance import AIConversationItem, AIMessageBuffer
 from app.services.ai.queries.instance_queries import get_instance_relationship_config
 from app.services.ai.queries.updates import create_conversation_item
@@ -40,15 +44,6 @@ RANDOM_HALF_SCALE_DIVISOR = 50
 # ---------------------------------------------------------------------------
 # Dataclasses
 # ---------------------------------------------------------------------------
-
-
-class BufferMessageCategory(StrEnum):
-    """Categorized message types for buffer state machine."""
-
-    SUPPORTS_TYPING = "CONTENT_TYPING"
-    NO_TYPING = "CONTENT_NO_TYPING"
-    TYPING_START = "typing_start"
-    TYPING_END = "typing_end"
 
 
 @dataclass
@@ -115,8 +110,8 @@ async def add_message_to_buffer(
         return
 
     if category in (
-        BufferMessageCategory.SUPPORTS_TYPING,
-        BufferMessageCategory.NO_TYPING,
+        BufferMessageCategory.CONTENT_TYPING,
+        BufferMessageCategory.CONTENT_NO_TYPING,
     ):
         await increment_ingress_version(db, event.from_qiao_id, instance_qiao_id)
 
@@ -594,7 +589,7 @@ async def _create_wake_buffer(
             "user_qiao_id": user_qiao_id,
             "instance_qiao_id": instance_qiao_id,
             "role": ConversationRole.USER.value,
-            "message_type": "text",
+            "message_type": ConversationItemMessageType.TEXT.value,
             "text_content": event.content or "",
             "buffer_id": buffer_obj.id,
             "client_msg_ids": client_msg_ids,
@@ -686,7 +681,7 @@ async def _handle_wake_adjustment(
                     "user_qiao_id": buffer_obj.user_qiao_id,
                     "instance_qiao_id": buffer_obj.instance_qiao_id,
                     "role": ConversationRole.USER.value,
-                    "message_type": "text",
+                    "message_type": ConversationItemMessageType.TEXT.value,
                     "text_content": event.content or "",
                     "buffer_id": buffer_obj.id,
                     "client_msg_ids": client_ids,
@@ -883,7 +878,7 @@ async def _create_new_buffer_window(
             "user_qiao_id": user_qiao_id,
             "instance_qiao_id": instance_qiao_id,
             "role": ConversationRole.USER.value,
-            "message_type": "text",
+            "message_type": ConversationItemMessageType.TEXT.value,
             "text_content": event.content or "",
             "buffer_id": buffer_obj.id,
             "client_msg_ids": client_msg_ids,
@@ -948,7 +943,7 @@ async def _update_buffer_window(
                     "user_qiao_id": buffer_obj.user_qiao_id,
                     "instance_qiao_id": buffer_obj.instance_qiao_id,
                     "role": ConversationRole.USER.value,
-                    "message_type": "text",
+                    "message_type": ConversationItemMessageType.TEXT.value,
                     "text_content": event.content or "",
                     "buffer_id": buffer_obj.id,
                     "client_msg_ids": [msg_id_client] if msg_id_client else [],
@@ -969,9 +964,9 @@ def _append_text(existing: str | None, addition: str) -> str:
 def _categorize_event(event: InboundMessageEvent) -> BufferMessageCategory | None:
     if event.message_type == MessageType.TEXT:
         return (
-            BufferMessageCategory.SUPPORTS_TYPING
+            BufferMessageCategory.CONTENT_TYPING
             if event.supports_typing
-            else BufferMessageCategory.NO_TYPING
+            else BufferMessageCategory.CONTENT_NO_TYPING
         )
     if event.message_type == MessageType.TYPING_START:
         return BufferMessageCategory.TYPING_START
@@ -1017,9 +1012,9 @@ def _compute_timer_state(
 
     last_category_value = current_category.value
 
-    if current_category == BufferMessageCategory.SUPPORTS_TYPING:
+    if current_category == BufferMessageCategory.CONTENT_TYPING:
         new_micro = now_ms + config.normal_wait_ms
-    elif current_category == BufferMessageCategory.NO_TYPING:
+    elif current_category == BufferMessageCategory.CONTENT_NO_TYPING:
         new_micro = now_ms + config.no_typing_wait_ms
     elif current_category == BufferMessageCategory.TYPING_END:
         new_micro = now_ms + config.typing_end_wait_ms
@@ -1027,14 +1022,14 @@ def _compute_timer_state(
         new_micro = (
             now_ms + config.typing_short_wait_ms if config.typing_short_wait_ms > 0 else None
         )
-        if prev_category in (None, BufferMessageCategory.SUPPORTS_TYPING):
+        if prev_category in (None, BufferMessageCategory.CONTENT_TYPING):
             new_macro = (
                 now_ms + config.typing_total_wait_ms if config.typing_total_wait_ms > 0 else None
             )
 
     if prev_category == BufferMessageCategory.TYPING_START:
         if current_category in (
-            BufferMessageCategory.SUPPORTS_TYPING,
+            BufferMessageCategory.CONTENT_TYPING,
             BufferMessageCategory.TYPING_END,
         ):
             new_macro = None

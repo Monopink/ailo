@@ -4,7 +4,6 @@ This module contains Starlette-Admin views for AI instance system.
 """
 
 from collections.abc import MutableMapping
-from enum import IntEnum
 from typing import Any, ClassVar, cast
 
 from sqlalchemy import select
@@ -22,7 +21,13 @@ from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 
 from app.admin.views.base import IntegerEnumField
-from app.enums import AIInstanceCreator, AIInstanceStatus, Gender, ProfileOwnerType
+from app.enums import (
+    AIInstanceCreator,
+    AIInstanceMemoryStatus,
+    AIInstanceStatus,
+    Gender,
+    ProfileOwnerType,
+)
 from app.models.ai import AIInstanceDimension
 from app.models.ai.instance import AIInstance
 from app.models.ai.memory import AIInstanceMemory
@@ -54,13 +59,6 @@ def _extract_relation_id(value: object) -> int | None:
         return int(cast(Any, relation_id))
     except (TypeError, ValueError):
         return None
-
-
-class MemoryStatus(IntEnum):
-    """Enum for AI instance memory status field."""
-
-    ACTIVE = 1
-    ARCHIVED = 2
 
 
 class _ProfileRelatedStringField(StringField):
@@ -760,7 +758,7 @@ class AIInstanceMemoryView(ModelView):
         ),
         IntegerEnumField(
             "status",
-            enum=MemoryStatus,
+            enum=AIInstanceMemoryStatus,
             label="Status",
             help_text="1=active, 2=archived",
             required=True,

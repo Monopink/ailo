@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.crud.ai import ai_template as ai_template_crud
-from app.enums.common import PositionMappingAlgorithm
+from app.enums import PositionMappingAlgorithm
 from app.services.ai.utils.position_mapping import parse_algorithm_params
 from app.utils.logging import get_logger
 

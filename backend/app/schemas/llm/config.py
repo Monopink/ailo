@@ -4,31 +4,15 @@ This module contains Pydantic schemas for LLM configurations.
 """
 
 from datetime import datetime
-from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
+from app.enums import ThinkingMode, ToolChoice
 from app.schemas.common import BaseSchema
 
 if TYPE_CHECKING:
     from .provider import LLMProviderResponse
-
-
-class ThinkingMode(StrEnum):
-    """Thinking mode enumeration."""
-
-    ENABLED = "enabled"
-    DISABLED = "disabled"
-    AUTO = "auto"
-
-
-class ToolChoice(StrEnum):
-    """Tool choice preferences."""
-
-    AUTO = "auto"
-    NONE = "none"
-    REQUIRED = "required"
 
 
 class LLMConfigBase(BaseSchema):

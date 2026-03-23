@@ -102,7 +102,7 @@ class MessageHistory(ImmutableSnowflakeModel):
     inbound_provider: Mapped[int | None] = mapped_column(
         SmallInteger,
         nullable=True,
-        comment="Inbound provider enum (see app.enums.common.MessageTransportProvider)",
+        comment="Inbound provider enum (see app.enums.MessageTransportProvider)",
     )
 
     inbound_device_id: Mapped[UUID | None] = mapped_column(

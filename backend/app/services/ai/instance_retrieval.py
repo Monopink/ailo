@@ -9,7 +9,7 @@ from typing import NoReturn
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums.common import AIInstanceStatus
+from app.enums import AIInstanceStatus
 from app.exceptions import AIInstanceInactiveError, AIInstanceNotFoundError
 from app.models.ai.instance import AIInstance
 from app.type_defs import InstanceContext, JSONDict

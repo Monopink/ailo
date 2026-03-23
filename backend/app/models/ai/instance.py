@@ -24,7 +24,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.orm import relationship as orm_relationship
 from starlette.requests import Request
 
-from app.enums.common import ConversationItemContextStatus
+from app.enums import ConversationItemContextStatus
 from app.models.base import (
     Base,
     ImmutableSnowflakeModel,
@@ -213,7 +213,7 @@ class AIMessageBuffer(SnowflakeModel):
     aggregate_state: Mapped[int] = mapped_column(
         SmallInteger,
         nullable=False,
-        comment="Buffer state: 0=WAITING_WAKEUP, 1=OPEN, 2=LOCKED, 3=COMPLETE, 4=CANCELLED",
+        comment="Buffer state enum (see app.enums.AIMessageBufferState)",
     )
     micro_expires_at_ms: Mapped[int | None] = mapped_column(
         BigInteger, nullable=True, comment="Micro timer expiration timestamp (ms)"
@@ -227,7 +227,9 @@ class AIMessageBuffer(SnowflakeModel):
         comment="Effective processing deadline (ms), combining micro/macro timers with wake gate",
     )
     last_message_category: Mapped[str | None] = mapped_column(
-        String(32), nullable=True, comment="Last inbound message category"
+        String(32),
+        nullable=True,
+        comment="Last inbound message category (see app.enums.BufferMessageCategory)",
     )
     first_msg_id_client: Mapped[str | None] = mapped_column(
         String(64), nullable=True, comment="First client message ID within buffer"
@@ -304,7 +306,7 @@ class AIConversationItem(ImmutableSnowflakeModel):
         nullable=False,
         default="text",
         server_default=text("'text'"),
-        comment="Message type: text/image/audio",
+        comment="Message type enum (see app.enums.ConversationItemMessageType)",
     )
     text_content: Mapped[str | None] = mapped_column(
         Text,

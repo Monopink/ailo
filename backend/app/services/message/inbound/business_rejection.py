@@ -15,8 +15,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums import MessageType
-from app.enums.templates import CHAT_INFO_TEMPLATES, ChatInfoType
+from app.enums import CHAT_INFO_TEMPLATES, ChatInfoType, MessageType
 from app.models.ai.instance import AIInstance
 from app.models.contact import Contact
 from app.services.message.schemas import InboundMessageEvent

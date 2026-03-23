@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums.common import LLMTestStatus
+from app.enums import LLMTestStatus
 from app.models.llm import LLMTestLog
 from app.services.llm.client import invoke_llm
 from app.services.llm.config import get_llm_config

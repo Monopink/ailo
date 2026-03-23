@@ -36,7 +36,9 @@ class Profile(SnowflakeModel):
     )
 
     owner_type: Mapped[int] = mapped_column(
-        Integer, nullable=False, comment="Owner type: 1=user (all user types), 2=ai"
+        Integer,
+        nullable=False,
+        comment="Owner type: 1=user, 2=ai_persona, 3=ai_instance",
     )
 
     nickname: Mapped[str | None] = mapped_column(
@@ -44,7 +46,7 @@ class Profile(SnowflakeModel):
     )
 
     gender: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, comment="Gender: 1=male, 2=female, 3=other, 4=unknown"
+        Integer, nullable=True, comment="Gender: 1=male, 2=female, 3=other"
     )
 
     avatar_key: Mapped[str | None] = mapped_column(
@@ -89,7 +91,10 @@ class Profile(SnowflakeModel):
     # owner_type=1 (USER) → users table (includes all user types: normal, official, virtual)
     _owner_user: Mapped[User | None] = relationship(
         "User",
-        primaryjoin="and_(Profile.owner_id == User.id, Profile.owner_type == 1)",
+        primaryjoin=(
+            f"and_(Profile.owner_id == User.id, "
+            f"Profile.owner_type == {ProfileOwnerType.USER.value})"
+        ),
         foreign_keys=[owner_id],
         lazy="select",
         viewonly=True,
@@ -98,7 +103,10 @@ class Profile(SnowflakeModel):
     # owner_type=2 (AI_PERSONA) → ai_personas table
     _owner_persona: Mapped[AIPersona | None] = relationship(
         "AIPersona",
-        primaryjoin="and_(Profile.owner_id == AIPersona.id, Profile.owner_type == 2)",
+        primaryjoin=(
+            f"and_(Profile.owner_id == AIPersona.id, "
+            f"Profile.owner_type == {ProfileOwnerType.AI_PERSONA.value})"
+        ),
         foreign_keys=[owner_id],
         lazy="select",
         viewonly=True,
@@ -107,7 +115,10 @@ class Profile(SnowflakeModel):
     # owner_type=3 (AI_INSTANCE) → ai_instances table
     _owner_instance: Mapped[AIInstance | None] = relationship(
         "AIInstance",
-        primaryjoin="and_(Profile.owner_id == AIInstance.id, Profile.owner_type == 3)",
+        primaryjoin=(
+            f"and_(Profile.owner_id == AIInstance.id, "
+            f"Profile.owner_type == {ProfileOwnerType.AI_INSTANCE.value})"
+        ),
         foreign_keys=[owner_id],
         lazy="select",
         viewonly=True,

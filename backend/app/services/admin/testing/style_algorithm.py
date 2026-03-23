@@ -9,7 +9,7 @@ from typing import Any, NoReturn
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums.common import PositionMappingAlgorithm
+from app.enums import PositionMappingAlgorithm
 from app.services.ai.relationship_selection import (
     collect_candidates,
     select_final_relationship,

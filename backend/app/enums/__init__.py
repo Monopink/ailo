@@ -7,51 +7,54 @@ All enum values correspond to the integer values defined in the database schema.
 # Categories: User Management, Contact Management, Message System, Media Files,
 # Profile Management, AI System, Security, System Configuration, Admin System,
 # and LLM Service.
-from .client import ClientType, LocaleCode
-from .common import (
-    SQUARE_CATEGORY_THEME_KEY_SET,
-    SQUARE_CATEGORY_THEME_KEYS,
-    AdminLoginResult,
-    AdminOperationType,
-    AdminRole,
-    AdminStatus,
+from .admin import AdminLoginResult, AdminOperationType, AdminRole, AdminStatus
+from .ai import (
     AIInstanceCreator,
+    AIInstanceMemoryStatus,
     AIInstanceStatus,
     AIMessageBufferState,
     AIPersonalityStatus,
     AIPersonaStatus,
     AIRelationshipStatus,
     AIRequestStatus,
+    AIRequestType,
     AIStyleStatus,
     AITemplateStatus,
-    AppPageCategory,
-    AppPageSourceType,
-    AppPageStatus,
-    AuthType,
-    AutoAction,
+    BufferMessageCategory,
+    ConversationItemContextStatus,
+    ConversationItemMessageType,
+    ConversationRole,
+    LLMRequestStatus,
+    MemoryType,
+    PositionMappingAlgorithm,
+    RequiredStatus,
+    ReusableStatus,
+)
+from .backup import BackupJobStatus
+from .client import ClientType, LocaleCode
+from .contact import (
     AvatarDisplayMode,
-    BackupJobStatus,
-    ChatInfoType,
-    ConfigType,
     ContactRequestFailureCode,
     ContactRequestSource,
     ContactRequestStatus,
     ContactSource,
     ContactType,
-    ConversationRole,
-    DeviceType,
+)
+from .discovery import (
+    SQUARE_CATEGORY_THEME_KEY_SET,
+    SQUARE_CATEGORY_THEME_KEYS,
+    ExposureStrategy,
+    SquareCategoryStatus,
+    SquareCategoryTheme,
+    SquareEntryStatus,
+    is_valid_square_category_theme,
+)
+from .llm import LLMConfigStatus, LLMErrorCode, LLMTestStatus, ThinkingMode, ToolChoice
+from .media import FileStatus, FileType, UploaderType
+from .message import (
+    ChatInfoType,
     EncryptionType,
     EncryptionVersion,
-    ExposureStrategy,
-    FileStatus,
-    FileType,
-    Gender,
-    LLMErrorCode,
-    LLMRequestStatus,
-    LLMTestStatus,
-    LoginResult,
-    LoginType,
-    ManualReviewStatus,
     MessageDeliveryStatus,
     MessageDirection,
     MessageDispatchOutboxStatus,
@@ -64,23 +67,21 @@ from .common import (
     NotificationStatus,
     NotificationTarget,
     NotificationType,
-    PositionMappingAlgorithm,
-    ProfileModifierType,
-    ProfileOwnerType,
-    RequiredStatus,
-    ReusableStatus,
-    RiskLevel,
-    SeverityLevel,
-    SquareCategoryStatus,
-    SquareCategoryTheme,
-    SquareEntryStatus,
-    UploaderType,
-    UserStatus,
-    UserType,
-    ViolationType,
-    is_valid_square_category_theme,
 )
+from .profile import Gender, ProfileModifierType, ProfileOwnerType
+from .security import AutoAction, ManualReviewStatus, RiskLevel, SeverityLevel, ViolationType
+from .system import AppPageCategory, AppPageSourceType, AppPageStatus, ConfigType
 from .templates import CHAT_INFO_TEMPLATES
+from .user import (
+    AuthType,
+    DeviceType,
+    LoginResult,
+    LoginType,
+    UserAuthStatus,
+    UserStatus,
+    UserTokenStatus,
+    UserType,
+)
 
 __all__ = [
     # User Management
@@ -90,6 +91,8 @@ __all__ = [
     "LoginType",
     "AuthType",
     "LoginResult",
+    "UserTokenStatus",
+    "UserAuthStatus",
     "ClientType",
     "LocaleCode",
     # Contact Management
@@ -104,6 +107,7 @@ __all__ = [
     "MessageParticipantType",
     "MessageTransportProvider",
     "MessageEndpointScope",
+    "BufferMessageCategory",
     "MessageDispatchOutboxType",
     "MessageDispatchOutboxStatus",
     "MessageType",
@@ -140,6 +144,11 @@ __all__ = [
     "AIRelationshipStatus",
     "AIMessageBufferState",
     "ConversationRole",
+    "ConversationItemMessageType",
+    "ConversationItemContextStatus",
+    "MemoryType",
+    "AIInstanceMemoryStatus",
+    "AIRequestType",
     "AIRequestStatus",
     "PositionMappingAlgorithm",
     "LLMRequestStatus",
@@ -167,4 +176,7 @@ __all__ = [
     # LLM Service
     "LLMTestStatus",
     "LLMErrorCode",
+    "LLMConfigStatus",
+    "ThinkingMode",
+    "ToolChoice",
 ]

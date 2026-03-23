@@ -7,7 +7,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.base import CRUDBase
-from app.enums.common import NotificationStatus
+from app.enums import NotificationStatus
 from app.models.message.notification import NotificationPushHistory
 
 

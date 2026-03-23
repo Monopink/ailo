@@ -15,8 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_sessionmaker
-from app.enums.common import AIMessageBufferState, ContactType
-from app.enums.templates import CHAT_INFO_TEMPLATES, ChatInfoType
+from app.enums import CHAT_INFO_TEMPLATES, AIMessageBufferState, ChatInfoType, ContactType
 from app.exceptions import AIConversationError, AIInstanceInactiveError, AIInstanceNotFoundError
 from app.exceptions.llm import ConfigNotVerifiedError, JSONSchemaNotSupportedError
 from app.models.ai.instance import AIInstance, AIMessageBuffer

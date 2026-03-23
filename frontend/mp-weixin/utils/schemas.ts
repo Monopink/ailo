@@ -253,7 +253,7 @@ export const PaginationSchema = z.object({
 
 export type Pagination = z.infer<typeof PaginationSchema>;
 
-// Source of truth: backend/app/enums/common.py -> SquareCategoryTheme
+// Source of truth: backend/app/enums/ -> SquareCategoryTheme
 export const SquareThemeKeySchema = z.enum([
   'blue',
   'cyan',

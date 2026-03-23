@@ -135,7 +135,7 @@ class UserToken(SnowflakeModel):
         nullable=False,
         default=1,
         server_default=text("1"),
-        comment="Token status: 1=active, 2=revoked",
+        comment="Token status enum (see app.enums.UserTokenStatus)",
     )
 
     last_activity_at: Mapped[datetime | None] = mapped_column(

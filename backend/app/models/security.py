@@ -106,7 +106,8 @@ class UserRiskStats(SnowflakeModel):
         nullable=False,
         server_default=text("'{}'::jsonb"),
         comment=(
-            'Violations by type: {"prompt_injection": 5, "abuse": 2} (JSONB for better performance)'
+            'Violations by type: {"prompt_injection": 5, "abuse_content": 2} '
+            "(JSONB for better performance)"
         ),
     )
 

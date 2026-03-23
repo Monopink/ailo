@@ -93,7 +93,7 @@ class MessageEndpoint(SnowflakeModel):
     provider: Mapped[int] = mapped_column(
         SmallInteger,
         nullable=False,
-        comment="Transport provider enum (see app.enums.common.MessageTransportProvider)",
+        comment="Transport provider enum (see app.enums.MessageTransportProvider)",
     )
 
     target_key: Mapped[str] = mapped_column(
@@ -103,7 +103,9 @@ class MessageEndpoint(SnowflakeModel):
     )
 
     client_kind: Mapped[int | None] = mapped_column(
-        SmallInteger, nullable=True, comment="Client kind: web/miniprogram/ios/android"
+        SmallInteger,
+        nullable=True,
+        comment="Client kind enum (see app.enums.DeviceType)",
     )
 
     lease_expires_at: Mapped[datetime | None] = mapped_column(
@@ -158,7 +160,7 @@ class MessageDelivery(SnowflakeModel):
     provider: Mapped[int] = mapped_column(
         SmallInteger,
         nullable=False,
-        comment="Transport provider enum (see app.enums.common.MessageTransportProvider)",
+        comment="Transport provider enum (see app.enums.MessageTransportProvider)",
     )
 
     target_key: Mapped[str] = mapped_column(
@@ -172,7 +174,7 @@ class MessageDelivery(SnowflakeModel):
     status: Mapped[int] = mapped_column(
         SmallInteger,
         nullable=False,
-        comment="Delivery status enum (see app.enums.common.MessageDeliveryStatus)",
+        comment="Delivery status enum (see app.enums.MessageDeliveryStatus)",
     )
 
     dispatched_at: Mapped[datetime | None] = mapped_column(

@@ -36,7 +36,11 @@ class AITemplateMemory(SnowflakeModel):
         primaryjoin="AITemplate.id == foreign(AITemplateMemory.template_id)",
         lazy="select",
     )
-    memory_type: Mapped[str] = mapped_column(String(20), nullable=False, comment="core/recent")
+    memory_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        comment="Memory type enum (see app.enums.MemoryType)",
+    )
     content: Mapped[str] = mapped_column(Text, nullable=False, comment="Memory description")
     importance: Mapped[int] = mapped_column(
         Integer,
@@ -75,7 +79,11 @@ class AIInstanceMemory(SnowflakeModel):
         BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     user_qiao_id: Mapped[str] = mapped_column(String(32), nullable=False)
-    memory_type: Mapped[str] = mapped_column(String(20), nullable=False, comment="core/recent")
+    memory_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        comment="Memory type enum (see app.enums.MemoryType)",
+    )
     content: Mapped[str] = mapped_column(Text, nullable=False, comment="Memory description")
     importance: Mapped[int] = mapped_column(
         Integer,
@@ -98,7 +106,7 @@ class AIInstanceMemory(SnowflakeModel):
         nullable=False,
         default=1,
         server_default=text("1"),
-        comment="1=active, 2=archived",
+        comment="Status enum (see app.enums.AIInstanceMemoryStatus)",
     )
 
     instance: Mapped["AIInstance"] = orm_relationship(

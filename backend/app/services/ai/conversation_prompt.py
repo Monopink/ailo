@@ -15,7 +15,7 @@ from pendulum import DateTime as PendulumDateTime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums.common import ConversationRole
+from app.enums import ConversationRole
 from app.exceptions import AIServiceError
 from app.models.ai import AIConversationState
 from app.services.ai.memory import build_memory_prompt

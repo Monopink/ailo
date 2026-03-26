@@ -8,6 +8,8 @@ delegates transport details to provider adapters.
 from __future__ import annotations
 
 import json
+import time
+from typing import cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,8 +25,11 @@ from app.exceptions.llm import (
 from app.models.llm import LLMConfig, LLMProvider
 from app.type_defs import (
     JSONDict,
+    JSONValue,
     LLMCachingOptions,
     LLMRequestOptions,
+    LLMRequestPayload,
+    LLMRequestPayloadCaching,
     LLMSessionContext,
     LLMStreamingDecision,
     PreemptionChecker,
@@ -92,6 +97,17 @@ async def invoke_llm(
                     preemption_checker=preemption_checker,
                     session_context=session_context,
                 )
+
+                if isinstance(result, dict):
+                    result.setdefault(
+                        "config_used",
+                        {
+                            "id": config.id,
+                            "name": config.name,
+                            "provider_name": provider.name,
+                            "model": config.model_name or provider.default_model,
+                        },
+                    )
 
                 if result["success"]:
                     result["config_used"] = {
@@ -295,6 +311,7 @@ async def _call_provider(
             "session_user_qiao_id": session_context.user_qiao_id,
             "session_instance_qiao_id": session_context.instance_qiao_id,
         }
+    start_time = time.perf_counter()
     try:
         overrides = instance_request_params if isinstance(instance_request_params, dict) else {}
         options = await _build_request_options(
@@ -317,15 +334,34 @@ async def _call_provider(
         )
         use_stream = decision.should_stream
 
-        provider_result = await factory.send_request(
-            config=config,
-            provider=provider,
-            options=options,
-            stream=use_stream,
-            preemption_checker=preemption_checker,
-        )
+        try:
+            provider_result = await factory.send_request(
+                config=config,
+                provider=provider,
+                options=options,
+                stream=use_stream,
+                preemption_checker=preemption_checker,
+            )
+        except (LLMTimeoutError, LLMRequestError) as exc:
+            elapsed = time.perf_counter() - start_time
+            request_payload = cast(
+                JSONDict,
+                _build_request_payload(options=options, decision=decision),
+            )
+            return {
+                "success": False,
+                "error": str(exc),
+                "error_code": getattr(exc, "error_code", "LLM_REQUEST_ERROR"),
+                "response": None,
+                "usage": None,
+                "model": options.model,
+                "response_time": elapsed,
+                "request_payload": request_payload,
+                "streaming": _format_streaming_metadata(decision),
+            }
 
         if provider_result.preempted:
+            elapsed = time.perf_counter() - start_time
             return {
                 "success": False,
                 "preempted": True,
@@ -333,6 +369,7 @@ async def _call_provider(
                 "usage": provider_result.usage,
                 "request_payload": provider_result.request_params,
                 "streaming": _format_streaming_metadata(decision),
+                "response_time": elapsed,
             }
 
         # Parse JSON response if json_schema was provided
@@ -344,6 +381,7 @@ async def _call_provider(
                 # Keep as string if parsing fails (will be caught by validation)
                 pass
 
+        elapsed = time.perf_counter() - start_time
         return {
             "success": True,
             "response": response_content,
@@ -363,12 +401,9 @@ async def _call_provider(
             "cache_strategy": options.caching.strategy,
             "reasoning_content": provider_result.reasoning_content,
             "streaming": _format_streaming_metadata(decision),
+            "response_time": elapsed,
         }
 
-    except LLMTimeoutError:
-        raise
-    except LLMRequestError:
-        raise
     except Exception as exc:
         logger.error(
             "llm_unexpected_error",
@@ -599,6 +634,50 @@ def _format_streaming_metadata(decision: LLMStreamingDecision) -> JSONDict:
         "used": decision.should_stream,
         "reason": decision.reason,
         "override_applied": decision.override_applied,
+    }
+
+
+def _build_request_payload(
+    *,
+    options: LLMRequestOptions,
+    decision: LLMStreamingDecision,
+) -> LLMRequestPayload:
+    messages_payload: list[JSONValue] = [dict(message) for message in options.messages]
+    tools_payload: list[JSONValue] = [dict(tool) for tool in options.tools]
+    stop_sequences_payload: list[JSONValue] | None = None
+    if options.stop_sequences is not None:
+        stop_sequences_payload = [str(sequence) for sequence in options.stop_sequences]
+
+    extra_headers_payload: JSONDict = dict(options.extra_headers)
+    extra_query_payload: JSONDict = dict(options.extra_query)
+    caching_payload: LLMRequestPayloadCaching = {
+        "enabled": options.caching.enabled,
+        "strategy": options.caching.strategy,
+        "ttl_seconds": options.caching.ttl_seconds,
+        "previous_response_id": options.caching.previous_response_id,
+    }
+
+    return {
+        "model": options.model,
+        "messages": messages_payload,
+        "json_schema": options.json_schema,
+        "temperature": options.temperature,
+        "max_tokens": options.max_tokens,
+        "thinking_mode": options.thinking_mode,
+        "top_p": options.top_p,
+        "frequency_penalty": options.frequency_penalty,
+        "presence_penalty": options.presence_penalty,
+        "stop_sequences": stop_sequences_payload,
+        "tools": tools_payload,
+        "tool_choice": options.tool_choice,
+        "parallel_tool_calls": options.parallel_tool_calls,
+        "max_tool_calls": options.max_tool_calls,
+        "extra_headers": extra_headers_payload,
+        "extra_query": extra_query_payload,
+        "extra_body": options.extra_body,
+        "caching": caching_payload,
+        "provider_overrides": options.provider_overrides,
+        "streaming": _format_streaming_metadata(decision),
     }
 
 

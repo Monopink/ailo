@@ -105,7 +105,7 @@ def _build_standard_response_fields() -> tuple[dict[str, Any], list[str]]:
         "should_block": {
             "type": "boolean",
             "description": (
-                "是否删除好友，如果删除，对方将永远无法再给你发消息。这个操作不可逆，请谨慎选择！"
+                "是否删除好友，如果删除，对方将永远无法再给你发消息。这个操作不可逆，请谨慎选择！如果你选择将对方删除，你本轮的消息依然会发出。"
             ),
         },
         "should_reply": {
@@ -459,6 +459,22 @@ def validate_style_personality_contract(
 
     for dimension_name in style_dimension_names:
         _extract_dimension_bounds(dimension_name, score_schema_map[dimension_name])
+
+
+def get_score_dimension_bounds(
+    personality_schema: JSONDict | None,
+) -> dict[str, tuple[float, float]]:
+    """
+    Extract score dimension bounds map from personality schema.
+
+    Returns:
+        {dimension_name: (minimum, maximum)}
+    """
+    score_schema_map = _extract_score_schema_properties(personality_schema)
+    bounds: dict[str, tuple[float, float]] = {}
+    for dimension_name, dim_schema in score_schema_map.items():
+        bounds[dimension_name] = _extract_dimension_bounds(dimension_name, dim_schema)
+    return bounds
 
 
 def _extract_score_schema_properties(personality_schema: JSONDict | None) -> dict[str, JSONDict]:

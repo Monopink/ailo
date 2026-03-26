@@ -23,7 +23,7 @@
   -> 缓冲聚合 + 计时
   -> 锁定窗口（可抢占）
   -> 构建 Prompt
-  -> 调用 LLM + Schema 校验
+  -> 调用 LLM + L0/L1 校验（含重试）
   -> 响应处理
   -> 消息发送（可选）
   -> 会话副作用（可选）
@@ -87,8 +87,11 @@
 
 - 按配置选择流式或非流式调用。
 - 流式与非流式都必须执行抢占校验。
-- 仅 Schema 校验通过的响应允许进入后续处理。
-- 调用失败、超时、Schema 失败均不得写入业务更新结果。
+- attempt 循环仅覆盖 LLM 调用、解析、L0/L1 校验与 attempt 落库；阶段 3-6 不随重试重复执行。
+- 调用失败、超时、JSON 解析失败、L0 失败会触发重试；达到上限后按静默失败收敛。
+- 重试使用固定间隔 backoff；相关配置缺失或类型错误按 fail-fast 处理并终止当前 turn。
+- L1 字段校验失败仅丢弃对应字段整项，不阻断消息发送。
+- 每个 attempt 必须写入 `ai_request_logs`，失败 attempt 也必须可审计。
 
 详见：[`llm-interaction.md`](llm-interaction.md)
 
@@ -98,6 +101,7 @@
 - `attack_detected=true` 时执行上下文排除、审计落库与风险统计更新；三者为 best-effort，失败记录 ERROR，不终止消息流程。
 - `should_block` 状态更新失败时终止发送路径。
 - `should_reply=false` 时不得发送 `outgoing_messages` 与 `followup_messages`。
+- `should_reply=false` 时会话副作用可继续执行，但必须先通过抢占校验。
 
 详见：[`llm-interaction.md`](llm-interaction.md#处理顺序)
 
@@ -113,9 +117,10 @@
 
 ### 阶段 10：会话副作用（可选）
 
-- 会话副作用受首条发送门槛控制：`memory_operations`、`score`。
-- 仅在响应包含 `score` 时执行关系计算。
-- `memory_operations` 与 `score` 独立执行并独立提交。
+- `memory_operations`、`score` 为会话副作用，独立执行并独立提交。
+- `should_reply=true` 时，会话副作用受首条发送门槛控制。
+- `should_reply=false` 时，不受首条发送门槛控制，但执行前必须再次通过抢占校验。
+- 仅在响应包含合法 `score` 时执行关系计算。
 - 单项副作用失败仅结束该项副作用处理并记录日志。
 
 详见：[`llm-interaction.md`](llm-interaction.md#处理顺序)、[`relationship-system.md`](relationship-system.md)
@@ -125,7 +130,8 @@
 - 任何入站校验失败：终止于入站层，不进入对话编排。
 - 任何安全检测失败：终止于安全层，不进入 LLM 链路。
 - 任何抢占事件：在 `active_turn_version` 切换后立即中止旧处理，旧结果必须丢弃。
-- 任何 LLM 校验闸门失败：不得推进关系更新与消息发送。
-- 任何 style/personality 契约不匹配或 score range 不合规：必须报错并终止处理。
+- 任何 L0 校验失败：进入重试；达到上限后静默失败并 finalize buffer 为 `COMPLETE`。
+- 任何 L1 校验失败：仅跳过对应副作用字段，不阻断消息发送。
+- 任何 style/personality 配置契约不匹配：必须报错并终止处理。
 - 首条发送门槛未达成且发生抢占：不得推进会话副作用。
 - 任何发送/投递失败：按消息失败处理规则推进，不在本文件重复定义重试实现。

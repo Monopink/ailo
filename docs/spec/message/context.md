@@ -137,12 +137,13 @@ LLM 要求连续同 role 的消息必须合并，converter 层负责此逻辑。
 **用途**：
 
 - 追溯消息来源
-- 关联 LLM 请求日志（通过 buffer_id 查询 ai_request_logs）
+- 关联 LLM 请求日志（通过 buffer_id 查询同一窗口下的 attempt 日志集合）
 - 调试和审计
 
 ### LLM 元数据存储
 
 LLM 请求的元数据（llm_config_id、response_id、token 使用量等）存储在 ai_request_logs 表中，通过 buffer_id 关联查询。
+同一 buffer 可能存在多条 attempt 日志；消息绑定的 `llm_request_id` 指向最终成功并完成 assistant 文本发送的 attempt。
 
 ## 上下文裁剪策略
 

@@ -36,7 +36,7 @@
 - 每个维度必须具备合法 `minimum` / `maximum`，且 `minimum != maximum`。
 - `minimum` / `maximum` 来源于 personality schema 的 `score.properties.<dimension_name>`。
 - 维度分数必须是整数。
-- 任一约束失败：报错并终止本轮处理。
+- 任一约束失败：判定本轮 `score` 无效并跳过关系更新（L1 整项跳过）。
 
 ### 计算顺序
 
@@ -55,7 +55,7 @@ mapped_score = ((score - minimum) / (maximum - minimum)) * 1000
 ```
 
 - 映射结果必须 clamp 到 `[0, 1000]` 并取整。
-- 分母非法或参数错误视为配置错误，本轮终止更新。
+- 分母非法或参数错误视为配置错误，本轮关系更新跳过并记录错误。
 
 ### 候选与过滤规则
 
@@ -163,6 +163,7 @@ position = initial_position + (1000 - initial_position) * offset_ratio
 
 ## 错误边界
 
-- 配置错误（缺参、类型错误、范围错误）：报错并终止本轮处理。
+- 输入约束失败（LLM 提供的 `score` 非法）：按 L1 规则整项跳过，不更新关系。
+- 配置错误（缺参、类型错误、范围错误）：关系更新失败并记录错误；不改变消息发送事实。
 - 映射错误（无候选、优先级并列、无匹配关系）：返回空关系结果，不更新状态。
 - 数据异常（`relationship_counts > limit_count`）：记录错误并剔除该候选，继续处理其余候选。

@@ -5,10 +5,10 @@ This module handles the complete conversation processing flow,
 coordinating all AI service components with clear error handling.
 """
 
-import json
+import asyncio
 from contextlib import suppress
+from dataclasses import dataclass
 from datetime import datetime
-from typing import cast
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -20,11 +20,13 @@ from app.exceptions import AIConversationError, AIInstanceInactiveError, AIInsta
 from app.exceptions.llm import ConfigNotVerifiedError, JSONSchemaNotSupportedError
 from app.models.ai.instance import AIInstance, AIMessageBuffer
 from app.models.contact import Contact
+from app.models.llm import LLMConfig, LLMProvider
 from app.services.ai.context_archiving import archive_old_contexts
 from app.services.ai.conversation_prompt import build_conversation_context, build_system_prompt
 from app.services.ai.memory import process_memory_operations
 from app.services.ai.orchestrators.llm_response_handler import process_llm_response
 from app.services.ai.queries import get_instance_context, get_instance_relationship_scores
+from app.services.ai.queries.transactions import save_ai_request_log
 from app.services.ai.queries.updates import (
     mark_conversation_item_as_excluded,
     update_instance_status,
@@ -37,18 +39,62 @@ from app.services.ai.relationship_scoring import (
     update_relationship_positions,
 )
 from app.services.ai.response_schema import build_response_schema
-from app.services.ai.utils.validator import invoke_llm_with_validation
-from app.services.llm.client import select_config_for_ai, validate_ai_response
+from app.services.ai.utils.min_contract import prune_l1_fields, validate_l0_contract
+from app.services.ai.utils.normalization import normalize_memory_operations, normalize_score_payload
+from app.services.llm import invoke_llm
+from app.services.llm.client import select_config_for_ai
 from app.services.llm.config import get_instance_llm_config
 from app.services.llm.streaming_policy import extract_stream_override, resolve_streaming_decision
 from app.services.message.outbound.helpers import send_chat_info
 from app.services.message.processing.buffer import finalize_buffer_if_locked
 from app.services.message.processing.runtime import is_active_turn
+from app.services.message.processing.sender import clear_conversation_pending_messages
 from app.services.message.security.validation import message_validation_service
-from app.type_defs import InstanceContext, JSONDict, JSONValue, LLMSessionContext
+from app.services.system_config import get_config, get_config_int
+from app.type_defs import InstanceContext, JSONDict, JSONValue, LLMSessionContext, PreemptionChecker
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+_MIN_CONTRACT_RETRY_ENABLED_KEY = "ai_llm_min_contract_retry_enabled"
+_MIN_CONTRACT_RETRY_MAX_ATTEMPTS_KEY = "ai_llm_min_contract_retry_max_attempts"
+_MIN_CONTRACT_RETRY_BACKOFF_MS_KEY = "ai_llm_min_contract_retry_backoff_ms"
+
+
+@dataclass(slots=True)
+class ContextResolutionResult:
+    context: InstanceContext | None
+    contact: Contact | None
+    instance_obj: AIInstance | None
+    rejected_result: JSONDict | None = None
+
+
+@dataclass(slots=True)
+class AttemptExecutionResult:
+    status: str
+    llm_result: JSONDict | None = None
+    ai_response: JSONDict | None = None
+    llm_request_id: int | None = None
+    last_error: str | None = None
+
+
+async def _load_min_contract_retry_config(db: AsyncSession) -> tuple[bool, int, int]:
+    enabled_raw = await get_config(db, key=_MIN_CONTRACT_RETRY_ENABLED_KEY, required=True)
+    if not isinstance(enabled_raw, bool):
+        raise TypeError(f"{_MIN_CONTRACT_RETRY_ENABLED_KEY} must be boolean")
+
+    max_attempts = await get_config_int(db, key=_MIN_CONTRACT_RETRY_MAX_ATTEMPTS_KEY, required=True)
+    backoff_ms = await get_config_int(db, key=_MIN_CONTRACT_RETRY_BACKOFF_MS_KEY, required=True)
+
+    if max_attempts < 1:
+        raise ValueError(f"{_MIN_CONTRACT_RETRY_MAX_ATTEMPTS_KEY} must be >= 1")
+    if backoff_ms < 0:
+        raise ValueError(f"{_MIN_CONTRACT_RETRY_BACKOFF_MS_KEY} must be >= 0")
+
+    if not enabled_raw:
+        return False, 1, 0
+
+    return True, max_attempts, backoff_ms
 
 
 # Exception classes moved to exceptions/business.py for consistency
@@ -148,6 +194,611 @@ async def _reject_as_business_result(
     }
 
 
+def _build_preempted_result(locked_buffer_id: int | None) -> JSONDict:
+    return {
+        "success": False,
+        "error": "Conversation preempted by newer active turn",
+        "preempted": True,
+        "buffer_id": locked_buffer_id,
+    }
+
+
+async def _resolve_context_for_processing(
+    db: AsyncSession,
+    *,
+    persist: bool,
+    user_qiao_id: str,
+    instance_qiao_id: str,
+    locked_buffer_id: int | None,
+    task_turn_version: int | None,
+) -> ContextResolutionResult:
+    contact: Contact | None = None
+    instance_obj: AIInstance | None = None
+
+    if persist:
+        contact_stmt = select(Contact).where(
+            Contact.user_qiao_id == user_qiao_id,
+            Contact.contact_qiao_id == instance_qiao_id,
+            Contact.contact_type == ContactType.AI.value,
+        )
+        contact_result = await db.execute(contact_stmt)
+        contact = contact_result.scalar_one_or_none()
+
+        if not contact:
+            logger.warning(
+                "contact_not_found_for_validation",
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+            )
+            rejected_result = await _reject_as_business_result(
+                db,
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+                template_key=ChatInfoType.NOT_FRIEND,
+                error_code="contact_not_found",
+                reason="Contact relationship not found between user and instance",
+                locked_buffer_id=locked_buffer_id,
+                conversation_id=None,
+                task_turn_version=task_turn_version,
+            )
+            return ContextResolutionResult(
+                context=None,
+                contact=None,
+                instance_obj=None,
+                rejected_result=rejected_result,
+            )
+
+        instance_obj = await db.get(AIInstance, contact.contact_id)
+        if not instance_obj:
+            logger.error(
+                "instance_not_found_for_contact",
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+                contact_id=contact.contact_id,
+            )
+            raise AIConversationError(
+                conversation_step="instance_lookup",
+                reason="instance_not_found",
+                message=f"Instance not found: {instance_qiao_id}",
+            )
+
+        context = await get_instance_context(db, instance_id=instance_obj.id)
+    else:
+        context = await get_instance_context(
+            db,
+            instance_qiao_id=instance_qiao_id,
+            user_qiao_id=user_qiao_id,
+        )
+
+    if not context:
+        raise AIConversationError(
+            conversation_step="instance_lookup",
+            reason="instance_not_found",
+            message=f"Instance not found: {instance_qiao_id}",
+        )
+
+    return ContextResolutionResult(
+        context=context,
+        contact=contact,
+        instance_obj=instance_obj,
+        rejected_result=None,
+    )
+
+
+async def _validate_message_permission_or_reject(
+    db: AsyncSession,
+    *,
+    persist: bool,
+    user_qiao_id: str,
+    instance_qiao_id: str,
+    locked_buffer_id: int | None,
+    task_turn_version: int | None,
+    contact: Contact | None,
+    instance_obj: AIInstance | None,
+) -> JSONDict | None:
+    if not (persist and instance_obj and contact):
+        logger.debug(
+            "skipping_contact_validation_in_test_mode",
+            user_qiao_id=user_qiao_id,
+            instance_qiao_id=instance_qiao_id,
+        )
+        return None
+
+    validation_result = await message_validation_service.validate_message_permission(
+        db=db, from_qiao_id=user_qiao_id, instance=instance_obj, contact=contact
+    )
+    if validation_result.allowed:
+        return None
+
+    logger.warning(
+        "message_permission_denied",
+        user_qiao_id=user_qiao_id,
+        instance_qiao_id=instance_qiao_id,
+        reason=validation_result.reason,
+        error_code=validation_result.error_code,
+    )
+    template_key = validation_result.chat_info_type or ChatInfoType.MESSAGE_BLOCKED
+    return await _reject_as_business_result(
+        db,
+        user_qiao_id=user_qiao_id,
+        instance_qiao_id=instance_qiao_id,
+        template_key=template_key,
+        error_code=validation_result.error_code or "permission_denied",
+        reason=validation_result.reason or "Message permission denied",
+        locked_buffer_id=locked_buffer_id,
+        conversation_id=contact.conversation_id,
+        task_turn_version=task_turn_version,
+    )
+
+
+def _should_append_user_message(
+    *,
+    user_text: str,
+    persist: bool,
+    user_message_item_id: int | None,
+    conversation_history: list[JSONDict],
+) -> bool:
+    if not user_text:
+        return False
+    if not (persist and user_message_item_id is not None):
+        return True
+    if not conversation_history:
+        return True
+
+    last_entry = conversation_history[-1]
+    if last_entry.get("role") != "user":
+        return True
+
+    last_text = last_entry.get("text_content")
+    if not isinstance(last_text, str):
+        return True
+
+    last_text_clean = last_text.strip()
+    if last_text_clean.startswith("["):
+        closing_index = last_text_clean.find("]")
+        if closing_index != -1:
+            last_text_clean = last_text_clean[closing_index + 1 :].lstrip()
+
+    return last_text_clean != user_text.strip()
+
+
+def _build_messages_for_llm(
+    *,
+    system_prompt: str,
+    conversation_history: list[JSONDict],
+    user_text: str,
+    persist: bool,
+    user_message_item_id: int | None,
+    timezone_name: str | None,
+) -> list[JSONDict]:
+    messages: list[JSONDict] = []
+    if system_prompt:
+        messages.append(
+            {
+                "role": "system",
+                "message_type": "text",
+                "text_content": system_prompt,
+            }
+        )
+    messages.extend(conversation_history)
+
+    if _should_append_user_message(
+        user_text=user_text,
+        persist=persist,
+        user_message_item_id=user_message_item_id,
+        conversation_history=conversation_history,
+    ):
+        prefix = _format_now_prefix(timezone_name)
+        formatted_user_text = f"[{prefix}] {user_text}" if prefix else user_text
+        messages.append(
+            {
+                "role": "user",
+                "message_type": "text",
+                "text_content": formatted_user_text,
+            }
+        )
+    return messages
+
+
+async def _prepare_preemption_checker(
+    *,
+    db: AsyncSession,
+    config: LLMConfig,
+    provider: LLMProvider,
+    stream_override: bool | None,
+    locked_buffer_id: int | None,
+    user_qiao_id: str,
+    instance_qiao_id: str,
+    task_turn_version: int | None,
+) -> tuple[PreemptionChecker | None, JSONDict | None]:
+    if locked_buffer_id is None or task_turn_version is None:
+        return None, None
+
+    async def check_preemption() -> bool:
+        return not await is_active_turn(
+            db=db,
+            user_qiao_id=user_qiao_id,
+            instance_qiao_id=instance_qiao_id,
+            task_turn_version=task_turn_version,
+        )
+
+    preview_decision = resolve_streaming_decision(
+        config=config,
+        provider=provider,
+        enable_override=stream_override,
+        has_preemption_checker=True,
+    )
+    if not preview_decision.should_stream:
+        logger.debug(
+            "streaming_disabled_for_context",
+            buffer_id=locked_buffer_id,
+            reason=preview_decision.reason,
+        )
+
+    if await check_preemption():
+        logger.info(
+            "conversation_preempted_before_llm",
+            buffer_id=locked_buffer_id,
+            user_qiao_id=user_qiao_id,
+            instance_qiao_id=instance_qiao_id,
+            task_turn_version=task_turn_version,
+        )
+        return None, _build_preempted_result(locked_buffer_id)
+
+    return check_preemption, None
+
+
+def _build_style_dimension_names(context: InstanceContext) -> list[str]:
+    dimension_names: list[str] = []
+    for dim in context.get("dimensions", []):
+        dim_name = dim.get("name") if isinstance(dim, dict) else None
+        if not isinstance(dim_name, str) or not dim_name:
+            raise AIConversationError(
+                conversation_step="llm_request",
+                reason="invalid_style_dimensions",
+                message="Invalid style dimension name in instance context",
+            )
+        dimension_names.append(dim_name)
+    return dimension_names
+
+
+def _build_attempt_diag(
+    *,
+    attempt_index: int,
+    attempt_total: int,
+    failure_code: str | None,
+    failure_detail: str | None,
+    l0_ok: bool,
+    l1_score_kept: bool,
+    l1_memory_kept: bool,
+    preempted: bool,
+) -> JSONDict:
+    return {
+        "attempt_index": attempt_index,
+        "attempt_total": attempt_total,
+        "failure_code": failure_code,
+        "failure_detail": failure_detail,
+        "l0_ok": l0_ok,
+        "l1_score_kept": l1_score_kept,
+        "l1_memory_kept": l1_memory_kept,
+        "preempted": preempted,
+    }
+
+
+async def _save_attempt_log(
+    *,
+    db: AsyncSession,
+    context: InstanceContext,
+    user_qiao_id: str,
+    llm_result: JSONDict,
+    buffer_id: int | None,
+    attempt_diag: JSONDict,
+    ai_response: JSONDict | None = None,
+) -> int | None:
+    response_payload: JSONDict = dict(ai_response) if ai_response is not None else {}
+    response_payload["__min_contract"] = attempt_diag
+    return await save_ai_request_log(
+        db=db,
+        instance_context=context,
+        user_qiao_id=user_qiao_id,
+        ai_response=response_payload,
+        llm_result=llm_result,
+        buffer_id=buffer_id,
+    )
+
+
+async def _execute_llm_attempts(
+    *,
+    db: AsyncSession,
+    context: InstanceContext,
+    user_qiao_id: str,
+    instance_qiao_id: str,
+    messages: list[JSONDict],
+    json_schema: JSONDict,
+    effective_config_name: str,
+    instance_request_params: JSONDict,
+    preemption_checker: PreemptionChecker | None,
+    locked_buffer_id: int | None,
+    attempt_total: int,
+    backoff_ms: int,
+) -> AttemptExecutionResult:
+    style_dimension_names = _build_style_dimension_names(context)
+    successful_llm_result: JSONDict | None = None
+    successful_ai_response: JSONDict | None = None
+    successful_attempt_log_id: int | None = None
+    last_error: str | None = None
+
+    for attempt_index in range(1, attempt_total + 1):
+        if preemption_checker and await preemption_checker():
+            return AttemptExecutionResult(status="preempted")
+
+        llm_result = await invoke_llm(
+            db=db,
+            messages=messages,
+            json_schema=json_schema,
+            name=effective_config_name,
+            instance_request_params=instance_request_params,
+            preemption_checker=preemption_checker,
+            session_context=LLMSessionContext(
+                user_qiao_id=user_qiao_id,
+                instance_qiao_id=instance_qiao_id,
+            ),
+        )
+
+        if bool(llm_result.get("preempted")):
+            await _save_attempt_log(
+                db=db,
+                context=context,
+                user_qiao_id=user_qiao_id,
+                llm_result=llm_result,
+                buffer_id=locked_buffer_id,
+                attempt_diag=_build_attempt_diag(
+                    attempt_index=attempt_index,
+                    attempt_total=attempt_total,
+                    failure_code="PREEMPTED",
+                    failure_detail="stream_preempted",
+                    l0_ok=False,
+                    l1_score_kept=False,
+                    l1_memory_kept=False,
+                    preempted=True,
+                ),
+            )
+            await db.commit()
+            return AttemptExecutionResult(status="preempted")
+
+        if not bool(llm_result.get("success")):
+            last_error = str(llm_result.get("error") or "llm_request_failed")
+            await _save_attempt_log(
+                db=db,
+                context=context,
+                user_qiao_id=user_qiao_id,
+                llm_result=llm_result,
+                buffer_id=locked_buffer_id,
+                attempt_diag=_build_attempt_diag(
+                    attempt_index=attempt_index,
+                    attempt_total=attempt_total,
+                    failure_code="LLM_REQUEST_FAILED",
+                    failure_detail=last_error,
+                    l0_ok=False,
+                    l1_score_kept=False,
+                    l1_memory_kept=False,
+                    preempted=False,
+                ),
+            )
+            await db.commit()
+        else:
+            response_payload = llm_result.get("response")
+            if not isinstance(response_payload, dict):
+                last_error = "response is not a JSON object"
+                failed_llm_result = dict(llm_result)
+                failed_llm_result["success"] = False
+                failed_llm_result["error"] = last_error
+                await _save_attempt_log(
+                    db=db,
+                    context=context,
+                    user_qiao_id=user_qiao_id,
+                    llm_result=failed_llm_result,
+                    buffer_id=locked_buffer_id,
+                    attempt_diag=_build_attempt_diag(
+                        attempt_index=attempt_index,
+                        attempt_total=attempt_total,
+                        failure_code="JSON_PARSE_FAILED",
+                        failure_detail=last_error,
+                        l0_ok=False,
+                        l1_score_kept=False,
+                        l1_memory_kept=False,
+                        preempted=False,
+                    ),
+                )
+                await db.commit()
+            else:
+                l0_result = validate_l0_contract(response_payload)
+                if not l0_result.ok:
+                    last_error = l0_result.failure_detail or "l0_validation_failed"
+                    failed_llm_result = dict(llm_result)
+                    failed_llm_result["success"] = False
+                    failed_llm_result["error"] = last_error
+                    await _save_attempt_log(
+                        db=db,
+                        context=context,
+                        user_qiao_id=user_qiao_id,
+                        llm_result=failed_llm_result,
+                        buffer_id=locked_buffer_id,
+                        attempt_diag=_build_attempt_diag(
+                            attempt_index=attempt_index,
+                            attempt_total=attempt_total,
+                            failure_code=l0_result.failure_code or "L0_FAILED",
+                            failure_detail=last_error,
+                            l0_ok=False,
+                            l1_score_kept=False,
+                            l1_memory_kept=False,
+                            preempted=False,
+                        ),
+                    )
+                    await db.commit()
+                else:
+                    normalized_response = dict(response_payload)
+                    normalized_response["attack_detected"] = bool(l0_result.attack_detected)
+                    normalized_response["should_block"] = bool(l0_result.should_block)
+                    normalized_response["should_reply"] = bool(l0_result.should_reply)
+                    normalized_response["outgoing_messages"] = list(
+                        l0_result.outgoing_messages or []
+                    )
+                    normalized_response["followup_messages"] = list(
+                        l0_result.followup_messages or []
+                    )
+                    l1_result = prune_l1_fields(
+                        ai_response=normalized_response,
+                        style_dimension_names=style_dimension_names,
+                        personality_schema=context["personality"].get("json_schema"),
+                    )
+                    normalized_response = l1_result.pruned_response
+                    successful_attempt_log_id = await _save_attempt_log(
+                        db=db,
+                        context=context,
+                        user_qiao_id=user_qiao_id,
+                        llm_result=llm_result,
+                        buffer_id=locked_buffer_id,
+                        attempt_diag=_build_attempt_diag(
+                            attempt_index=attempt_index,
+                            attempt_total=attempt_total,
+                            failure_code=None,
+                            failure_detail=None,
+                            l0_ok=True,
+                            l1_score_kept=l1_result.score_kept,
+                            l1_memory_kept=l1_result.memory_kept,
+                            preempted=False,
+                        ),
+                        ai_response=normalized_response,
+                    )
+                    await db.commit()
+                    successful_llm_result = llm_result
+                    successful_ai_response = normalized_response
+                    break
+
+        if attempt_index < attempt_total:
+            if preemption_checker and await preemption_checker():
+                return AttemptExecutionResult(status="preempted")
+            if backoff_ms > 0:
+                await asyncio.sleep(backoff_ms / 1000)
+            if preemption_checker and await preemption_checker():
+                return AttemptExecutionResult(status="preempted")
+
+    if successful_llm_result is None or successful_ai_response is None:
+        logger.warning(
+            "min_contract_attempts_exhausted",
+            buffer_id=locked_buffer_id,
+            user_qiao_id=user_qiao_id,
+            instance_qiao_id=instance_qiao_id,
+            attempts=attempt_total,
+            last_error=last_error,
+        )
+        return AttemptExecutionResult(status="silent_failed", last_error=last_error)
+
+    return AttemptExecutionResult(
+        status="success",
+        llm_result=successful_llm_result,
+        ai_response=successful_ai_response,
+        llm_request_id=successful_attempt_log_id,
+    )
+
+
+async def _handle_retry_config_error(
+    *,
+    db: AsyncSession,
+    context: InstanceContext,
+    user_qiao_id: str,
+    instance_qiao_id: str,
+    locked_buffer_id: int | None,
+    error: Exception,
+    effective_config_name: str,
+    messages: list[JSONDict],
+    json_schema: JSONDict,
+    config_id: int,
+    config_name: str,
+    provider_name: str,
+    model_name: str | None,
+) -> None:
+    logger.error(
+        "min_contract_retry_config_invalid",
+        error=str(error),
+        user_qiao_id=user_qiao_id,
+        instance_qiao_id=instance_qiao_id,
+    )
+    messages_payload: list[JSONValue] = [dict(message) for message in messages]
+    await _save_attempt_log(
+        db=db,
+        context=context,
+        user_qiao_id=user_qiao_id,
+        llm_result={
+            "success": False,
+            "error": str(error),
+            "usage": None,
+            "model": None,
+            "response_time": 0,
+            "request_payload": {
+                "config_name": effective_config_name,
+                "messages": messages_payload,
+                "json_schema": json_schema,
+            },
+            "config_used": {
+                "id": config_id,
+                "name": config_name,
+                "provider_name": provider_name,
+                "model": model_name,
+            },
+        },
+        buffer_id=locked_buffer_id,
+        attempt_diag=_build_attempt_diag(
+            attempt_index=1,
+            attempt_total=1,
+            failure_code="CONFIG_ERROR",
+            failure_detail=str(error),
+            l0_ok=False,
+            l1_score_kept=False,
+            l1_memory_kept=False,
+            preempted=False,
+        ),
+    )
+    if locked_buffer_id is not None:
+        await clear_conversation_pending_messages(db, user_qiao_id, instance_qiao_id)
+        await finalize_buffer_if_locked(
+            db,
+            locked_buffer_id,
+            target_state=AIMessageBufferState.COMPLETE,
+        )
+    await db.commit()
+
+
+async def _resolve_terminal_attempt_result(
+    *,
+    db: AsyncSession,
+    user_qiao_id: str,
+    instance_qiao_id: str,
+    locked_buffer_id: int | None,
+    attempt_result: AttemptExecutionResult,
+) -> JSONDict | None:
+    if attempt_result.status == "preempted":
+        return _build_preempted_result(locked_buffer_id)
+
+    if attempt_result.status != "silent_failed":
+        return None
+
+    if locked_buffer_id is not None:
+        await clear_conversation_pending_messages(db, user_qiao_id, instance_qiao_id)
+        await finalize_buffer_if_locked(
+            db,
+            locked_buffer_id,
+            target_state=AIMessageBufferState.COMPLETE,
+        )
+        await db.commit()
+    return {
+        "success": True,
+        "buffer_id": locked_buffer_id,
+        "silent_failed": True,
+    }
+
+
 async def process_conversation(
     db: AsyncSession,
     user_qiao_id: str,
@@ -206,7 +857,7 @@ async def process_conversation(
         ) from exc
 
 
-async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
+async def _process_conversation_impl(
     db: AsyncSession,
     user_qiao_id: str,
     instance_qiao_id: str,
@@ -268,114 +919,46 @@ async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
             message="task_turn_version is required when processing a locked buffer",
         )
 
-    # Note: user context creation/aggregation is handled by message.buffer
-    # This function assumes, when called by buffer, that locked_buffer_id points
-    # to the currently LOCKED user window and message_content reflects its content.
-
-    # Step 3: Resolve instance context
-    contact: Contact | None = None
-    instance_obj: AIInstance | None = None
-    if persist:
-        contact_stmt = select(Contact).where(
-            Contact.user_qiao_id == user_qiao_id,
-            Contact.contact_qiao_id == instance_qiao_id,
-            Contact.contact_type == ContactType.AI.value,
-        )
-        contact_result = await db.execute(contact_stmt)
-        contact = contact_result.scalar_one_or_none()
-
-        if not contact:
-            logger.warning(
-                "contact_not_found_for_validation",
-                user_qiao_id=user_qiao_id,
-                instance_qiao_id=instance_qiao_id,
-            )
-            return await _reject_as_business_result(
-                db,
-                user_qiao_id=user_qiao_id,
-                instance_qiao_id=instance_qiao_id,
-                template_key=ChatInfoType.NOT_FRIEND,
-                error_code="contact_not_found",
-                reason="Contact relationship not found between user and instance",
-                locked_buffer_id=locked_buffer_id,
-                conversation_id=None,
-                task_turn_version=task_turn_version,
-            )
-
-        instance_obj = await db.get(AIInstance, contact.contact_id)
-        if not instance_obj:
-            logger.error(
-                "instance_not_found_for_contact",
-                user_qiao_id=user_qiao_id,
-                instance_qiao_id=instance_qiao_id,
-                contact_id=contact.contact_id,
-            )
+    context_resolution = await _resolve_context_for_processing(
+        db,
+        persist=persist,
+        user_qiao_id=user_qiao_id,
+        instance_qiao_id=instance_qiao_id,
+        locked_buffer_id=locked_buffer_id,
+        task_turn_version=task_turn_version,
+    )
+    early_rejection_result = context_resolution.rejected_result
+    context = context_resolution.context
+    if early_rejection_result is None:
+        if context is None:
             raise AIConversationError(
                 conversation_step="instance_lookup",
-                reason="instance_not_found",
-                message=f"Instance not found: {instance_qiao_id}",
+                reason="instance_context_missing",
+                message="Instance context resolution failed unexpectedly",
             )
-
-        context = await get_instance_context(db, instance_id=instance_obj.id)
-    else:
-        context = await get_instance_context(
+        permission_rejection = await _validate_message_permission_or_reject(
             db,
-            instance_qiao_id=instance_qiao_id,
+            persist=persist,
             user_qiao_id=user_qiao_id,
+            instance_qiao_id=instance_qiao_id,
+            locked_buffer_id=locked_buffer_id,
+            task_turn_version=task_turn_version,
+            contact=context_resolution.contact,
+            instance_obj=context_resolution.instance_obj,
         )
-
-    if not context:
+        early_rejection_result = permission_rejection
+    if early_rejection_result is not None:
+        return early_rejection_result
+    if context is None:
         raise AIConversationError(
             conversation_step="instance_lookup",
-            reason="instance_not_found",
-            message=f"Instance not found: {instance_qiao_id}",
+            reason="instance_context_missing",
+            message="Instance context resolution failed unexpectedly",
         )
 
-    # Step 3.5: Validate message permission (bidirectional relationship)
-    # Skip contact validation in test mode (persist=False)
-    if persist and instance_obj and contact:
-        # Validate message permission
-        validation_result = await message_validation_service.validate_message_permission(
-            db=db, from_qiao_id=user_qiao_id, instance=instance_obj, contact=contact
-        )
-
-        if not validation_result.allowed:
-            logger.warning(
-                "message_permission_denied",
-                user_qiao_id=user_qiao_id,
-                instance_qiao_id=instance_qiao_id,
-                reason=validation_result.reason,
-                error_code=validation_result.error_code,
-            )
-            template_key = validation_result.chat_info_type or ChatInfoType.MESSAGE_BLOCKED
-            return await _reject_as_business_result(
-                db,
-                user_qiao_id=user_qiao_id,
-                instance_qiao_id=instance_qiao_id,
-                template_key=template_key,
-                error_code=validation_result.error_code or "permission_denied",
-                reason=validation_result.reason or "Message permission denied",
-                locked_buffer_id=locked_buffer_id,
-                conversation_id=contact.conversation_id,
-                task_turn_version=task_turn_version,
-            )
-    else:
-        logger.debug(
-            "skipping_contact_validation_in_test_mode",
-            user_qiao_id=user_qiao_id,
-            instance_qiao_id=instance_qiao_id,
-        )
-
-    # Step 4: Get relationship scores
     relationship_scores = await get_relationship_scores(db, context["instance_id"])
-
-    # Step 5: Determine relationship type
     relationship_type = await determine_relationship_type(db, context, relationship_scores)
-
-    # Step 6: Apply relationship prompt and placeholders to personality template
     system_prompt = await build_system_prompt(db, context, relationship_type, user_qiao_id)
-
-    # Step 7: Get conversation context and prepare messages
     conversation_history = await build_conversation_context(
         db,
         instance_qiao_id,
@@ -384,60 +967,15 @@ async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
         instance_timezone=context.get("timezone"),
     )
 
-    # Prepare messages for LLM (business format)
-    messages: list[JSONDict] = []
-    if system_prompt:
-        messages.append(
-            {
-                "role": "system",
-                "message_type": "text",
-                "text_content": system_prompt,
-            }
-        )
-    messages.extend(conversation_history)
-
-    user_text = message_content
-    if not user_text and message_blocks:
-        user_text = _blocks_to_text(message_blocks)
-
-    def _should_append_user_message() -> bool:
-        """
-        Determine if current user message should be appended to messages array.
-
-        Compares the last message in conversation_history with the current message,
-        stripping time prefixes to avoid false positives.
-        """
-        if not isinstance(user_text, str) or not user_text:
-            return False
-        if not (persist and user_message_item_id is not None):
-            return True
-        if not conversation_history:
-            return True
-        last_entry = conversation_history[-1]
-        if last_entry.get("role") != "user":
-            return True
-        last_text = last_entry.get("text_content")
-        if not isinstance(last_text, str):
-            return True
-
-        # Strip normalized "[prefix] " wrapper to compare content only
-        last_text_clean = last_text.strip()
-        if last_text_clean.startswith("["):
-            closing_index = last_text_clean.find("]")
-            if closing_index != -1:
-                last_text_clean = last_text_clean[closing_index + 1 :].lstrip()
-        return last_text_clean != user_text.strip()
-
-    if _should_append_user_message():
-        prefix = _format_now_prefix(context.get("timezone"))
-        formatted_user_text = f"[{prefix}] {user_text}" if prefix else user_text
-        messages.append(
-            {
-                "role": "user",
-                "message_type": "text",
-                "text_content": formatted_user_text,
-            }
-        )
+    user_text = message_content if message_content else _blocks_to_text(message_blocks or [])
+    messages = _build_messages_for_llm(
+        system_prompt=system_prompt,
+        conversation_history=conversation_history,
+        user_text=user_text,
+        persist=persist,
+        user_message_item_id=user_message_item_id,
+        timezone_name=context.get("timezone"),
+    )
 
     # Get JSON schema for response validation
     json_schema = build_response_schema(context)
@@ -484,104 +1022,79 @@ async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
     if stream_override is not None:
         instance_request_params["enable_streaming"] = stream_override
 
-    # Step 8: Request LLM with validation and delayed-preemption guard
-    preemption_checker = None
-    if locked_buffer_id is not None and task_turn_version is not None:
-
-        async def check_preemption() -> bool:
-            return not await is_active_turn(
-                db=db,
-                user_qiao_id=user_qiao_id,
-                instance_qiao_id=instance_qiao_id,
-                task_turn_version=task_turn_version,
-            )
-
-        preemption_checker = check_preemption
-        preview_decision = resolve_streaming_decision(
-            config=config,
-            provider=provider,
-            enable_override=stream_override,
-            has_preemption_checker=True,
-        )
-        if not preview_decision.should_stream:
-            logger.debug(
-                "streaming_disabled_for_context",
-                buffer_id=locked_buffer_id,
-                reason=preview_decision.reason,
-            )
-
-        if await preemption_checker():
-            logger.info(
-                "conversation_preempted_before_llm",
-                buffer_id=locked_buffer_id,
-                user_qiao_id=user_qiao_id,
-                instance_qiao_id=instance_qiao_id,
-                task_turn_version=task_turn_version,
-            )
-            return {
-                "success": False,
-                "error": "Conversation preempted by newer active turn",
-                "preempted": True,
-                "buffer_id": locked_buffer_id,
-            }
+    preemption_checker, preempted_result = await _prepare_preemption_checker(
+        db=db,
+        config=config,
+        provider=provider,
+        stream_override=stream_override,
+        locked_buffer_id=locked_buffer_id,
+        user_qiao_id=user_qiao_id,
+        instance_qiao_id=instance_qiao_id,
+        task_turn_version=task_turn_version,
+    )
+    if preempted_result is not None:
+        return preempted_result
 
     # No hardcoded parameters - use config priority: instance_request_params > config
     effective_config_name = config_name or config.name
-    llm_result = await invoke_llm_with_validation(
-        db=db,
-        messages=messages,
-        json_schema=json_schema,
-        name=effective_config_name,
-        instance_request_params=instance_request_params,
-        preemption_checker=preemption_checker,
-        session_context=LLMSessionContext(
-            user_qiao_id=user_qiao_id, instance_qiao_id=instance_qiao_id
-        ),
-    )
-
-    # Check if request was preempted
-    if llm_result.get("preempted", False):
-        logger.info(
-            "conversation_preempted_during_llm",
-            buffer_id=locked_buffer_id,
+    try:
+        retry_enabled, max_attempts, backoff_ms = await _load_min_contract_retry_config(db)
+    except Exception as exc:
+        await _handle_retry_config_error(
+            db=db,
+            context=context,
             user_qiao_id=user_qiao_id,
             instance_qiao_id=instance_qiao_id,
-            task_turn_version=task_turn_version,
+            locked_buffer_id=locked_buffer_id,
+            error=exc,
+            effective_config_name=effective_config_name,
+            messages=messages,
+            json_schema=json_schema,
+            config_id=config.id,
+            config_name=config.name,
+            provider_name=provider.name,
+            model_name=config.model_name or provider.default_model,
         )
-        return {
-            "success": False,
-            "error": "Conversation preempted by newer active turn",
-            "preempted": True,
-            "buffer_id": locked_buffer_id,
-        }
+        raise AIConversationError(
+            conversation_step="system_config",
+            reason="min_contract_retry_config_invalid",
+            message=str(exc),
+        ) from exc
 
-    if not llm_result["success"]:
+    attempt_total = max_attempts if retry_enabled else 1
+    attempt_result = await _execute_llm_attempts(
+        db=db,
+        context=context,
+        user_qiao_id=user_qiao_id,
+        instance_qiao_id=instance_qiao_id,
+        messages=messages,
+        json_schema=json_schema,
+        effective_config_name=effective_config_name,
+        instance_request_params=instance_request_params,
+        preemption_checker=preemption_checker,
+        locked_buffer_id=locked_buffer_id,
+        attempt_total=attempt_total,
+        backoff_ms=backoff_ms,
+    )
+
+    terminal_attempt_result = await _resolve_terminal_attempt_result(
+        db=db,
+        user_qiao_id=user_qiao_id,
+        instance_qiao_id=instance_qiao_id,
+        locked_buffer_id=locked_buffer_id,
+        attempt_result=attempt_result,
+    )
+    if terminal_attempt_result is not None:
+        return terminal_attempt_result
+
+    if attempt_result.llm_result is None or attempt_result.ai_response is None:
         raise AIConversationError(
             conversation_step="llm_request",
-            reason="llm_request_failed",
-            message=f"LLM request failed: {llm_result['error']}",
+            reason="missing_attempt_result",
+            message="Attempt result missing successful response payload",
         )
-
-    # Step 9: JSON Schema validation (already done in LLM call)
-    ai_response_raw = llm_result["response"]
-    if not isinstance(ai_response_raw, dict):
-        raise AIConversationError(
-            conversation_step="llm_response_validation",
-            reason="invalid_response_format",
-            message="LLM response is not a JSON dict",
-        )
-    ai_response: JSONDict = ai_response_raw
-
-    # Post-check: Validate response format
-    # Convert Python dict to JSON string for validation
-    raw_content = llm_result.get("raw_content")
-    if raw_content is None or raw_content == "":
-        raw_content = json.dumps(ai_response, ensure_ascii=False)
-    elif isinstance(raw_content, dict | list):
-        raw_content = json.dumps(raw_content, ensure_ascii=False)
-    elif not isinstance(raw_content, str):
-        raw_content = str(raw_content)
-    await validate_ai_response(db, config, raw_content, allow_auto_update=False)
+    llm_result = attempt_result.llm_result
+    ai_response = attempt_result.ai_response
 
     # Step 10 & 11: Save all conversation results in single atomic transaction
     assistant_item_id: int | None = None
@@ -611,6 +1124,7 @@ async def _process_conversation_impl(  # noqa: PLR0912, PLR0915
                 "finish_reason": llm_result.get("finish_reason"),
                 "streaming": llm_result.get("streaming"),
             },
+            llm_request_id=attempt_result.llm_request_id,
             locked_buffer_id=locked_buffer_id,
             user_message_item_id=user_message_item_id,
             task_turn_version=task_turn_version,
@@ -687,7 +1201,7 @@ async def process_ai_response_updates(
             await handle_attack_detection(db, user_qiao_id, instance_qiao_id, user_message_item_id)
 
         # Update relationship scores
-        score_payload = _normalize_score_payload(ai_response.get("score"))
+        score_payload = normalize_score_payload(ai_response.get("score"))
         if score_payload:
             new_scores = await calculate_new_scores(db, context, score_payload)
 
@@ -710,7 +1224,7 @@ async def process_ai_response_updates(
                         )
 
         # Process memory operations
-        memory_operations = _normalize_memory_operations(ai_response.get("memory_operations"))
+        memory_operations = normalize_memory_operations(ai_response.get("memory_operations"))
         has_operations = any(
             memory_operations[key] for key in ("remove", "update", "refresh", "add")
         )
@@ -840,88 +1354,3 @@ def _format_now_prefix(timezone_name: str | None) -> str | None:
         return f"今天{now.strftime('%H:%M')}"
     except Exception:
         return None
-
-
-def _normalize_score_payload(score_value: JSONValue | None) -> dict[str, int]:
-    """Convert arbitrary JSON score payload into integer mapping."""
-    if not isinstance(score_value, dict):
-        return {}
-
-    normalized: dict[str, int] = {}
-    for key, value in score_value.items():
-        coerced_value = _coerce_score_value(value)
-        if coerced_value is not None:
-            normalized[key] = coerced_value
-    return normalized
-
-
-def _coerce_score_value(value: JSONValue) -> int | None:
-    """Convert JSON scalar score values into integers."""
-    if isinstance(value, bool):
-        return int(value)
-    if isinstance(value, int | float):
-        return int(value)
-    if isinstance(value, str):
-        try:
-            return int(float(value))
-        except (TypeError, ValueError):
-            return None
-    return None
-
-
-def _normalize_memory_operations(value: JSONValue | None) -> JSONDict:
-    """Normalize memory_operations payload to a predictable dict structure."""
-    normalized: JSONDict = {"remove": [], "update": [], "refresh": [], "add": []}
-    if not isinstance(value, dict):
-        return normalized
-
-    remove_items = value.get("remove")
-    if isinstance(remove_items, list):
-        normalized["remove"] = [item for item in remove_items if isinstance(item, str) and item]
-
-    update_items = value.get("update")
-    if isinstance(update_items, list):
-        updates: list[JSONDict] = []
-        for item in update_items:
-            if not isinstance(item, dict):
-                continue
-            old_content = item.get("old_content")
-            new_content = item.get("new_content")
-            if not isinstance(old_content, str) or not isinstance(new_content, str):
-                continue
-            entry: JSONDict = {"old_content": old_content, "new_content": new_content}
-            new_importance = item.get("new_importance")
-            if isinstance(new_importance, int | float):
-                entry["new_importance"] = int(new_importance)
-            updates.append(entry)
-        normalized["update"] = cast(list[JSONValue], updates)
-
-    refresh_items = value.get("refresh")
-    if isinstance(refresh_items, list):
-        normalized["refresh"] = [item for item in refresh_items if isinstance(item, str) and item]
-
-    add_items = value.get("add")
-    if isinstance(add_items, list):
-        additions: list[JSONDict] = []
-        for item in add_items:
-            if not isinstance(item, dict):
-                continue
-            memory_type = item.get("memory_type")
-            content = item.get("content")
-            importance = item.get("importance")
-            if memory_type not in {"core", "recent"}:
-                continue
-            if not isinstance(content, str) or not content:
-                continue
-            if not isinstance(importance, int | float):
-                continue
-            additions.append(
-                {
-                    "memory_type": memory_type,
-                    "content": content,
-                    "importance": int(importance),
-                }
-            )
-        normalized["add"] = cast(list[JSONValue], additions)
-
-    return normalized

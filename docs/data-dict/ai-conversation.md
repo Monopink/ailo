@@ -96,7 +96,7 @@ archived_at -- 归档时间
 AI请求日志表，记录所有AI请求和响应（包括生产环境和测试环境）。
 
 ```txt
-id -- Snowflake ID（同时作为 llm_request_id）
+id -- Snowflake ID（attempt 日志ID；当绑定 assistant outbound 消息时作为 llm_request_id）
 instance_id -- 关联ai_instances.id
 user_id -- 关联users.id
 user_qiao_id -- 用户 external ID
@@ -108,14 +108,29 @@ model_name -- 使用的模型名称
 response_id -- Provider侧响应ID（可为空）
 cache_hit -- 是否命中缓存（bool）
 request -- 请求内容，JSONB格式
-response -- 原始响应内容，JSONB格式
-status -- 请求状态（enum: AIRequestStatus）
+response -- 响应内容，JSONB格式（成功为可用响应；失败为失败片段与诊断上下文）
+status -- attempt 状态（enum: AIRequestStatus）
 token_count -- 消耗的token数量
-response_time -- 响应时间（毫秒）
+response_time -- 当前 attempt 响应时间（毫秒，按 attempt 独立记录）
 llm_config_id -- 使用的LLM配置ID
-buffer_id -- 关联的 ai_message_buffer.id（assistant 消息）
+buffer_id -- 关联的 ai_message_buffer.id（同一 buffer 可对应多个 attempt 日志）
 created_at -- 请求创建时间
 completed_at -- 请求完成时间
+```
+
+### ai_request_logs.response.__min_contract
+
+最小契约诊断对象（JSONB 子字段）。
+
+```txt
+attempt_index -- 当前 attempt 序号（从 1 开始）
+attempt_total -- 配置的总尝试次数
+failure_code -- 失败码（成功时可为空）
+failure_detail -- 失败详情（可裁剪）
+l0_ok -- L0 最小契约是否通过
+l1_score_kept -- score 字段是否保留
+l1_memory_kept -- memory 字段是否保留
+preempted -- 当前 attempt 是否被抢占终止
 ```
 
 ## ai_instance_memories

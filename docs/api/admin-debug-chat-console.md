@@ -46,6 +46,7 @@
 - 返回顺序与请求 `msg_id_servers` 输入顺序一致
 - 即使某个 `msg_id_server` 无匹配记录，也必须返回该项，`llm_request_id=null`
 - `llm_request_id` 类型必须是 `string | null`
+- `llm_request_id` 指向最终成功并完成 assistant 文本发送的 attempt 日志ID；若未产生绑定消息则返回 `null`
 
 ---
 
@@ -96,7 +97,7 @@
 
 - `llm_request_id` 输入与输出都必须为字符串
 - `request_preview`、`response_preview` 返回完整 JSON 文本（不截断）
-- `summary` 是从 `ai_request_logs.response` 解析出的高信号字段，供 Chat Console 快速排障
+- `summary` 是从 `ai_request_logs.response`（含 `response.__min_contract` 诊断信息）解析出的高信号字段，供 Chat Console 快速排障
 
 ---
 

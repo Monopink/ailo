@@ -53,7 +53,10 @@
 
 `finalize_buffer_if_locked(... -> COMPLETE)` 与以上三项在同一事务提交。
 
-会话副作用（`memory_operations`、`score`）在门槛达成后执行，且两项独立提交。
+会话副作用（`memory_operations`、`score`）规则：
+
+- `should_reply=true`：在首条发送门槛达成后执行，且两项独立提交。
+- `should_reply=false`：不发送消息；副作用可执行，但执行前必须通过 `is_active_turn` 抢占校验。
 
 ### pending_messages 语义
 
@@ -124,6 +127,7 @@
 ## should_reply=false
 
 - 不发送任何消息
+- 可执行合法会话副作用（`memory_operations`、`score`），执行前必须通过抢占校验
 - 清空 `pending_messages`
 
 ## 失败处理

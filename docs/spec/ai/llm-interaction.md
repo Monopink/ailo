@@ -4,7 +4,7 @@
 
 ## 职责边界
 
-- 本文档：请求参数合并、流式调用、抢占、Schema 校验闸门、请求追踪，输出字段契约。
+- 本文档：请求参数合并、流式调用、抢占、L0/L1 校验闸门、重试、请求追踪，输出字段契约。
 - 端到端编排：见 [conversation-flow.md](conversation-flow.md)。
 - 字段定义：见 [../../data-dict/llm.md](../../data-dict/llm.md) 与 [../../data-dict/ai-conversation.md](../../data-dict/ai-conversation.md#ai_request_logs)。
 
@@ -29,21 +29,30 @@ LLM 请求参数允许多层覆盖，优先级从高到低：
   ↓
 选择 LLM 配置（llm_configs）
   ↓
+进入 attempt 循环（仅 LLM 调用与校验）
+  ↓
 发起请求（流式或非流式）
   ↓
 监听抢占信号
   ↓
-接收完整响应
+接收完整响应 + JSON 解析
   ↓
-按运行时响应 Schema 做 JSON Schema 校验
+L0 最小契约校验（硬门槛）
+  ↓
+L1 字段手工校验与裁剪（非硬门槛）
+  ↓
+落库本次 attempt（ai_request_logs）
   ↓
 进入响应处理
 ```
 
 流程要点：
 
-- 检测到 `active_turn_version` 切换时，当前请求必须中止并丢弃结果。
-- 仅 Schema 校验通过的响应才允许进入后续处理。
+- attempt 循环仅覆盖 LLM 调用、解析、L0/L1 校验与 attempt 落库；Prompt 构建与上下文查询不随重试重复执行。
+- attempt 上限与 backoff 由 `ai_llm_min_contract_retry_*` 配置控制；缺失或类型错误按配置错误 fail-fast。
+- 检测到 `active_turn_version` 切换时，当前请求必须中止并停止后续重试。
+- 仅 L0 校验通过的响应才允许进入后续处理；L1 校验失败按字段整项丢弃。
+- 重试间隔使用固定 backoff（`ai_llm_min_contract_retry_backoff_ms`），等待前后均执行抢占校验。
 - 响应返回后、副作用执行前必须再次执行抢占校验。
 - 抢占是并发控制的正常路径，不属于业务异常。
 
@@ -55,8 +64,10 @@ LLM 响应的字段语义、处理顺序和跨模块归属见本文档的“系�
 
 为保证可审计性，调用链路必须满足：
 
-- 每次调用都具备 `llm_request_id`，并与 `ai_request_logs.id` 一一对应。
+- 每个 attempt 都写入一条 `ai_request_logs`。
+- 仅最终成功且产生 assistant 文本发送的 attempt 才生成 `llm_request_id` 并绑定 `message_history.llm_request_id`。
 - `ai_request_logs` 的写入入口保持唯一（`conversation_flow` 层）。
+- `response_time` 按 attempt 独立记录，不做跨 attempt 累计。
 - `request` / `response` 保存完整载荷与原始响应（JSONB），敏感字段必须脱敏。
 
 字段清单与类型以 data-dict 为准：
@@ -65,20 +76,24 @@ LLM 响应的字段语义、处理顺序和跨模块归属见本文档的“系�
 
 ## 错误边界
 
-- 调用失败（网络、Provider、超时）：记录 ERROR，由编排层决定重试与状态推进。
-- Schema 校验失败：丢弃结果，不进入响应处理。
-- 抢占：`active_turn_version` 切换后立即中断并丢弃结果，按正常并发路径处理。
+- 调用失败（网络、Provider、超时）：标记当前 attempt 失败并进入重试；到达上限后按静默失败处理。
+- JSON 解析失败或 L0 校验失败：标记当前 attempt 失败并进入重试。
+- L1 校验失败：仅丢弃对应字段整项，不阻断消息发送链路。
+- 抢占：`active_turn_version` 切换后立即中断当前 attempt 并停止重试，按正常并发路径处理。
 - finalize 失败：按抢占路径处理，不进入发送与会话副作用。
 - 响应处理失败：`should_block` 等关键安全副作用失败终止发送；`attack_detected` 的上下文排除、审计落库与风险统计更新失败仅记录 ERROR，不终止消息流程。
 
-## Schema 约束
+## 校验约束
 
-- 运行时响应 Schema 来源：`response_schema.build_response_schema(context)`。
-- 规范版本：JSON Schema Draft 2020-12。
-- `score` 维度集合来自 style 维度（维度名来自 `ai_style_dimensions`）。
-- `score` 各维度 `minimum` / `maximum` 来源于 `ai_personalities.json_schema.properties.score.properties`。
-- 可扩展字段允许存在，但系统仅处理已登记字段；未知字段忽略。
-- style 与 personality 组合必须满足维度契约匹配；不匹配时报错并终止调用。
+- 请求侧（Provider structured output）：
+  - 仍使用完整运行时响应 Schema（来源：`response_schema.build_response_schema(context)`）约束/引导模型输出，尽量保证“最好情况直接可用”。
+  - 若 Provider/SDK 因 schema 约束导致请求失败、超时或返回不可解析内容，视为当前 attempt 失败并进入重试（若未被抢占）。
+- 运行时（系统验收）：
+  - 仅对 L0 最小契约执行硬门槛校验（L0-only gate）。
+  - L1 字段不进入运行时硬门槛，由编排层手工校验与裁剪（不阻断消息发送）。
+- `score` 的维度集合与取值区间校验依据当前 style 维度与 personality schema 的 `minimum` / `maximum`。
+- `memory_operations` 校验失败时，整项记忆副作用跳过。
+- L0 校验器必须是纯函数，不依赖 db/session。
 
 ## 系统识别字段
 
@@ -151,14 +166,16 @@ LLM 响应的字段语义、处理顺序和跨模块归属见本文档的“系�
 1. `attack_detected`
 2. `should_block`
 3. 消息发送（受 `should_reply`、`outgoing_messages`、`followup_messages` 控制）
-4. 首条发送门槛检查（首条 assistant 消息发送成功且落库成功）
-5. `memory_operations`（仅当 `should_update_memory=true`，且门槛已达成）
-6. `score`（且门槛已达成）
+4. 首条发送门槛检查（仅 `should_reply=true` 且有 assistant 文本发送时适用）
+5. `memory_operations`
+6. `score`
 
 - 步骤 1-2 为安全副作用，按字段定义各自的失败边界处理。
 - `attack_detected` 的上下文排除、审计落库与风险统计更新为 best-effort：失败记录 ERROR，不终止消息流程。
 - `should_block` 状态更新失败时终止发送路径。
 - 步骤 5-6 为会话副作用，按独立事务执行，单项失败仅影响该项副作用。
+- `should_reply=true` 时，步骤 5-6 受首条发送门槛控制。
+- `should_reply=false` 时，不发送消息；步骤 5-6 可执行，但执行前必须再次通过抢占校验。
 - 会话副作用失败不改变已发送消息事实。
 
 ## 记忆操作最小约束

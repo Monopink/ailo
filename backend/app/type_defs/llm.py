@@ -9,12 +9,47 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from typing import TypedDict
 
 from app.type_defs.common import JSONDict, JSONValue
 
 type ProviderMessage = dict[str, JSONValue]
 type ProviderTool = dict[str, JSONValue]
 type PreemptionChecker = Callable[[], Awaitable[bool]]
+
+
+class LLMRequestPayloadCaching(TypedDict):
+    """Serializable caching settings captured in request diagnostics."""
+
+    enabled: bool
+    strategy: str
+    ttl_seconds: int | None
+    previous_response_id: str | None
+
+
+class LLMRequestPayload(TypedDict):
+    """Serializable LLM request payload stored for observability."""
+
+    model: str
+    messages: list[JSONValue]
+    json_schema: JSONDict | None
+    temperature: float | None
+    max_tokens: int | None
+    thinking_mode: str | None
+    top_p: float | None
+    frequency_penalty: float | None
+    presence_penalty: float | None
+    stop_sequences: list[JSONValue] | None
+    tools: list[JSONValue]
+    tool_choice: str | None
+    parallel_tool_calls: bool | None
+    max_tool_calls: int | None
+    extra_headers: JSONDict
+    extra_query: JSONDict
+    extra_body: JSONDict
+    caching: LLMRequestPayloadCaching
+    provider_overrides: JSONDict
+    streaming: JSONDict
 
 
 @dataclass
@@ -89,6 +124,8 @@ class LLMProviderResult:
 
 __all__ = [
     "LLMCachingOptions",
+    "LLMRequestPayload",
+    "LLMRequestPayloadCaching",
     "LLMProviderResult",
     "LLMRequestOptions",
     "LLMSessionContext",

@@ -67,6 +67,7 @@ export function toPersistedMessage(msg) {
     msg_id_server: msg.msg_id_server || null,
     msg_id_client: msg.msg_id_client || null,
     llm_request_id: msg.llm_request_id || null,
+    message_type: Number(msg.message_type || 1),
     conversation_id: msg.conversation_id,
     direction: msg.direction || 'in',
     content: msg.content || '',
@@ -74,5 +75,6 @@ export function toPersistedMessage(msg) {
     client_sent_time_ms: msg.direction === 'out' ? Number(msg.client_sent_time_ms || 0) : 0,
     status: msg.status || '',
     pending: Boolean(msg.pending),
+    metadata: msg.metadata && typeof msg.metadata === 'object' ? msg.metadata : {},
   };
 }

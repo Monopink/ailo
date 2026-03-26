@@ -184,7 +184,9 @@ export function createViewRuntimeController({
 
   function renderMessageRow(msg) {
     const row = document.createElement('div');
-    row.className = `cc-msg-row ${msg.direction === 'out' ? 'cc-out' : 'cc-in'}`;
+    const messageType = Number(msg && msg.message_type ? msg.message_type : 0);
+    const isChatInfo = messageType === 4;
+    row.className = isChatInfo ? 'cc-msg-row cc-info' : `cc-msg-row ${msg.direction === 'out' ? 'cc-out' : 'cc-in'}`;
 
     const item = document.createElement('div');
     item.className = 'cc-msg-item';
@@ -221,8 +223,21 @@ export function createViewRuntimeController({
       debug.appendChild(line);
     };
 
+    appendDebugLine('message_type', String(messageType || '-'));
     appendDebugLine('msg_id_server', msg.msg_id_server || '-');
-    if (msg.direction === 'out') {
+    if (isChatInfo) {
+      // CHAT_INFO is a system timeline message; it should not be treated as an "incoming text"
+      // that is expected to have llm_request_id.
+      if (msg.metadata && typeof msg.metadata === 'object' && msg.metadata.action) {
+        const actionType =
+          msg.metadata.action && typeof msg.metadata.action === 'object' && msg.metadata.action.type
+            ? String(msg.metadata.action.type)
+            : '';
+        if (actionType) {
+          appendDebugLine('action', actionType);
+        }
+      }
+    } else if (msg.direction === 'out') {
       appendDebugLine('msg_id_client', msg.msg_id_client || '-');
     } else {
       const llmRequestLabel = msg.llm_request_id || '缺失（系统异常）';

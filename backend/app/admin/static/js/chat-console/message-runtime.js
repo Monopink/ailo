@@ -404,6 +404,7 @@ export function createMessageRuntimeController({
       msg_id_server: null,
       msg_id_client: msgIdClient,
       llm_request_id: null,
+      message_type: 1,
       conversation_id: conversationId,
       direction: 'out',
       content,
@@ -411,6 +412,7 @@ export function createMessageRuntimeController({
       client_sent_time_ms: nowMs(),
       status: '发送中...',
       pending: true,
+      metadata: {},
     };
     store.byId.set(pendingId, msg);
     store.order.push(pendingId);
@@ -432,6 +434,8 @@ export function createMessageRuntimeController({
     const conversationId = message.conversation_id;
     const msgIdServer = message.msg_id_server;
     const msgIdClient = typeof message.msg_id_client === 'string' ? message.msg_id_client : null;
+    const messageType = Number(message.message_type || 0);
+    const metadata = message.metadata && typeof message.metadata === 'object' ? message.metadata : {};
     const incomingLlmRequestId =
       message.llm_request_id === null || message.llm_request_id === undefined ? null : String(message.llm_request_id);
     if (incomingLlmRequestId) {
@@ -457,6 +461,8 @@ export function createMessageRuntimeController({
       }
       existing.llm_request_id =
         incomingLlmRequestId || state.llmLinkByMsgId.get(msgIdServer) || existing.llm_request_id || null;
+      existing.message_type = messageType || existing.message_type || 1;
+      existing.metadata = metadata || existing.metadata || {};
       existing.status = '';
       existing.pending = false;
       if (state.selectedConversationId === conversationId) {
@@ -485,6 +491,7 @@ export function createMessageRuntimeController({
       msg_id_server: msgIdServer,
       msg_id_client: msgIdClient,
       llm_request_id: incomingLlmRequestId || state.llmLinkByMsgId.get(msgIdServer) || null,
+      message_type: messageType || 1,
       conversation_id: conversationId,
       direction,
       content: message.content || '',
@@ -492,6 +499,7 @@ export function createMessageRuntimeController({
       client_sent_time_ms: direction === 'out' ? Number(message.client_sent_time_ms || 0) : 0,
       status: '',
       pending: false,
+      metadata,
     };
 
     store.byId.set(msgIdServer, msg);

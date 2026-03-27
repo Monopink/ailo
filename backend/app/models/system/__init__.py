@@ -4,6 +4,8 @@ This module imports all system-related SQLAlchemy models.
 """
 
 # Configuration models
+# Alerting models
+from .alerting import AlertEvent, AlertEventEntity
 from .config import SystemConfig
 
 # Statistics models
@@ -23,6 +25,9 @@ from .stats import (
 __all__ = [
     # Configuration
     "SystemConfig",
+    # Alerting
+    "AlertEvent",
+    "AlertEventEntity",
     # User statistics
     "StatsUserDaily",
     "StatsUserWeekly",

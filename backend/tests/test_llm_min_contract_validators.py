@@ -22,6 +22,7 @@ if "lunar_python" not in sys.modules:
     sys.modules["lunar_python"] = lunar_python_stub
 
 from app.services.ai.utils.min_contract import prune_l1_fields, validate_l0_contract
+from app.services.ai.utils.normalization import normalize_memory_operations
 
 
 def test_l0_requires_booleans() -> None:
@@ -173,6 +174,33 @@ def test_l1_keeps_memory_when_actionable() -> None:
     assert result.memory_kept is True
 
 
+def test_l1_normalizes_refresh_ids_as_ints_and_truncates() -> None:
+    style_dimension_names = ["d1"]
+    personality_schema = {
+        "properties": {"score": {"properties": {"d1": {"minimum": 0, "maximum": 1}}}}
+    }
+
+    result = prune_l1_fields(
+        ai_response={
+            "should_update_memory": True,
+            "memory_operations": {
+                "refresh_ids": [" 123 ", "123", "nope", "", "456", "789"],
+            },
+        },
+        style_dimension_names=style_dimension_names,
+        personality_schema=personality_schema,
+    )
+    assert result.memory_kept is True
+    assert result.pruned_response["memory_operations"]["refresh_ids"] == [123, 456]
+
+
+def test_normalize_memory_operations_keeps_pre_normalized_refresh_ids() -> None:
+    normalized = normalize_memory_operations(
+        {"refresh_ids": [123, " 456 ", "bad", True, 123, "456", 789]}
+    )
+    assert normalized["refresh_ids"] == [123, 456]
+
+
 def test_l1_marks_memory_not_kept_when_no_actionable_operations() -> None:
     style_dimension_names = ["d1"]
     personality_schema = {
@@ -189,6 +217,6 @@ def test_l1_marks_memory_not_kept_when_no_actionable_operations() -> None:
     assert result.pruned_response.get("memory_operations") == {
         "remove": [],
         "update": [],
-        "refresh": [],
+        "refresh_ids": [],
         "add": [],
     }

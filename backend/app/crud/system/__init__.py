@@ -4,6 +4,8 @@ This module imports all system-related CRUD operations.
 """
 
 # Configuration CRUD
+# Alerting CRUD
+from .alerting import CRUDAlertEvent, alert_events
 from .config import CRUDSystemConfig, system_configs
 
 # Statistics CRUD
@@ -20,11 +22,13 @@ from .stats import (
 __all__ = [
     # Classes
     "CRUDSystemConfig",
+    "CRUDAlertEvent",
     "CRUDStatsUser",
     "CRUDStatsMessage",
     "CRUDStatsAI",
     # Instances
     "system_configs",
+    "alert_events",
     "stats_user_daily",
     "stats_message_daily",
     "stats_ai_daily",

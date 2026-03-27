@@ -10,10 +10,24 @@ from typing import cast
 
 from app.type_defs import JSONDict, JSONValue
 
+MAX_REFRESH_IDS_PER_TURN = 2
+
+
+def _parse_refresh_memory_id(item: JSONValue) -> int | None:
+    if isinstance(item, bool):
+        return None
+    if isinstance(item, int):
+        return item
+    if isinstance(item, str):
+        stripped = item.strip()
+        if stripped and stripped.isdigit():
+            return int(stripped)
+    return None
+
 
 def normalize_memory_operations(value: JSONValue | None) -> JSONDict:
     """Normalize LLM-provided memory operations into canonical structure."""
-    normalized: JSONDict = {"remove": [], "update": [], "refresh": [], "add": []}
+    normalized: JSONDict = {"remove": [], "update": [], "refresh_ids": [], "add": []}
     if not isinstance(value, dict):
         return normalized
 
@@ -38,9 +52,21 @@ def normalize_memory_operations(value: JSONValue | None) -> JSONDict:
             updates.append(entry)
         normalized["update"] = cast(list[JSONValue], updates)
 
-    refresh_items = value.get("refresh")
-    if isinstance(refresh_items, list):
-        normalized["refresh"] = [item for item in refresh_items if isinstance(item, str) and item]
+    refresh_ids_items = value.get("refresh_ids")
+    if isinstance(refresh_ids_items, list):
+        refresh_ids: list[int] = []
+        seen: set[int] = set()
+        for item in refresh_ids_items:
+            memory_id = _parse_refresh_memory_id(item)
+            if memory_id is None:
+                continue
+            if memory_id in seen:
+                continue
+            seen.add(memory_id)
+            refresh_ids.append(memory_id)
+            if len(refresh_ids) >= MAX_REFRESH_IDS_PER_TURN:
+                break
+        normalized["refresh_ids"] = cast(list[JSONValue], refresh_ids)
 
     add_items = value.get("add")
     if isinstance(add_items, list):

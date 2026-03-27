@@ -51,16 +51,19 @@ llm_configs.extra_params.memory_limits
 
 ## 记忆操作协议
 
-LLM 响应中的 `memory_operations` 为对象，操作顺序固定：remove → update → refresh → add。匹配均基于 content 精确匹配。
+LLM 响应中的 `memory_operations` 为对象，操作顺序固定：remove → update → refresh_ids → add。
 
 - **remove**：字符串数组；命中后将记录 `status` 置为 2。
 - **update**：对象数组（`old_content`、`new_content`、可选 `new_importance`）；原地修改，保留 `created_at`、`source_message_id`、`refreshed_at`。
-- **refresh**：字符串数组；命中后仅更新 `refreshed_at`，触发器重算 `expires_at`。
+- **refresh_ids**：字符串数组（digits-only，服务端归一化为 int 列表）；
+  - 仅允许刷新 recent 记忆（`memory_type='recent'`）。
+  - 命中后仅更新 `refreshed_at`，触发器重算 `expires_at`。
 - **add**：对象数组（`memory_type`、`content`、`importance`）；新建 `status=1` 记录，由触发器写入 `expires_at`。
 
 若某项未匹配到记录，记录 WARNING 便于分析，但整体流程继续执行。
 
 ## Prompt 与 Schema 约束
 
-- system prompt 必须说明两类记忆的用途、重要性范围，并限制 refresh 频率（每轮 1-2 条）。
+- system prompt 必须说明两类记忆的用途、重要性范围，并限制 `refresh_ids` 数量（每轮 1-2 条）。
+- system prompt 必须在“近期记忆（recent）”中展示可用于 refresh 的记忆 id，并约束 `refresh_ids` 只能从候选 id 中选择。
 - JSON Schema 强制包含 `should_update_memory`（bool）与 `memory_operations`（对象，可为空），并按上述结构定义四类操作。

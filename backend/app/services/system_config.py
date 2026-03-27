@@ -58,6 +58,17 @@ def _ensure_string_config_value(value: ConfigValue, key: str) -> str:
     )
 
 
+def _ensure_bool_config_value(value: ConfigValue, key: str) -> bool:
+    """Ensure a configuration value can be treated as a boolean."""
+    if isinstance(value, bool):
+        return value
+    raise ConfigurationError(
+        message=f"Configuration '{key}' expects a boolean value.",
+        config_key=key,
+        details={"received_type": type(value).__name__ if value is not None else "None"},
+    )
+
+
 class SystemConfigService:
     """System configuration service with caching support."""
 
@@ -134,6 +145,20 @@ class SystemConfigService:
             raise MissingConfigurationError(config_key=key)
 
         return _ensure_string_config_value(value, key)
+
+    @staticmethod
+    async def get_config_bool(
+        db: AsyncSession,
+        key: str,
+        *,
+        required: bool = True,
+    ) -> bool:
+        """Get a configuration value as a boolean."""
+        value = await SystemConfigService.get_config(db, key, required=required)
+        if value is None:
+            raise MissingConfigurationError(config_key=key)
+
+        return _ensure_bool_config_value(value, key)
 
     @staticmethod
     async def get_all_configs(db: AsyncSession) -> dict[str, ConfigValue]:
@@ -344,6 +369,20 @@ async def get_config_str(
 ) -> str:
     """Get configuration value as a string."""
     return await SystemConfigService.get_config_str(
+        db,
+        key,
+        required=required,
+    )
+
+
+async def get_config_bool(
+    db: AsyncSession,
+    key: str,
+    *,
+    required: bool = True,
+) -> bool:
+    """Get configuration value as a boolean."""
+    return await SystemConfigService.get_config_bool(
         db,
         key,
         required=required,

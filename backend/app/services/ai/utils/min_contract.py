@@ -267,7 +267,7 @@ def prune_l1_fields(
         normalized_memory_operations = normalize_memory_operations(memory_operations)
         pruned["memory_operations"] = normalized_memory_operations
         has_memory_operations = any(
-            normalized_memory_operations[key] for key in ("remove", "update", "refresh", "add")
+            normalized_memory_operations[key] for key in ("remove", "update", "refresh_ids", "add")
         )
         memory_kept = bool(should_update_memory) and has_memory_operations
 

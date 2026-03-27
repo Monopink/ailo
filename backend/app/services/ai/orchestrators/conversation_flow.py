@@ -75,6 +75,7 @@ class AttemptExecutionResult:
     llm_result: JSONDict | None = None
     ai_response: JSONDict | None = None
     llm_request_id: int | None = None
+    raw_refresh_ids: object | None = None
     last_error: str | None = None
 
 
@@ -526,6 +527,7 @@ async def _execute_llm_attempts(
     successful_llm_result: JSONDict | None = None
     successful_ai_response: JSONDict | None = None
     successful_attempt_log_id: int | None = None
+    successful_raw_refresh_ids: object | None = None
     last_error: str | None = None
 
     for attempt_index in range(1, attempt_total + 1):
@@ -637,6 +639,10 @@ async def _execute_llm_attempts(
                     )
                     await db.commit()
                 else:
+                    raw_refresh_ids = None
+                    raw_memory_operations = response_payload.get("memory_operations")
+                    if isinstance(raw_memory_operations, dict):
+                        raw_refresh_ids = raw_memory_operations.get("refresh_ids")
                     normalized_response = dict(response_payload)
                     normalized_response["attack_detected"] = bool(l0_result.attack_detected)
                     normalized_response["should_block"] = bool(l0_result.should_block)
@@ -674,6 +680,7 @@ async def _execute_llm_attempts(
                     await db.commit()
                     successful_llm_result = llm_result
                     successful_ai_response = normalized_response
+                    successful_raw_refresh_ids = raw_refresh_ids
                     break
 
         if attempt_index < attempt_total:
@@ -700,6 +707,7 @@ async def _execute_llm_attempts(
         llm_result=successful_llm_result,
         ai_response=successful_ai_response,
         llm_request_id=successful_attempt_log_id,
+        raw_refresh_ids=successful_raw_refresh_ids,
     )
 
 
@@ -1125,6 +1133,7 @@ async def _process_conversation_impl(
                 "streaming": llm_result.get("streaming"),
             },
             llm_request_id=attempt_result.llm_request_id,
+            raw_refresh_ids=attempt_result.raw_refresh_ids,
             locked_buffer_id=locked_buffer_id,
             user_message_item_id=user_message_item_id,
             task_turn_version=task_turn_version,
@@ -1226,7 +1235,7 @@ async def process_ai_response_updates(
         # Process memory operations
         memory_operations = normalize_memory_operations(ai_response.get("memory_operations"))
         has_operations = any(
-            memory_operations[key] for key in ("remove", "update", "refresh", "add")
+            memory_operations[key] for key in ("remove", "update", "refresh_ids", "add")
         )
         if persist and ai_response.get("should_update_memory", False) and has_operations:
             await process_memory_operations(

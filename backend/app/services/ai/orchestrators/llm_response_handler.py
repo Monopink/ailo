@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.enums import AIMessageBufferState
 from app.models.ai import AIInstance
 from app.services.ai.memory import process_memory_operations
+from app.services.ai.memory.alerting import maybe_write_refresh_miss_alert
 from app.services.ai.queries.instance_queries import get_instance_relationship_config
 from app.services.ai.queries.relationship_queries import get_instance_relationship_scores
 from app.services.ai.queries.security_updates import create_attack_detected_violation_log
@@ -52,6 +53,7 @@ async def process_llm_response(
     locked_buffer_id: int | None,
     user_message_item_id: int | None,
     task_turn_version: int | None,
+    raw_refresh_ids: object | None = None,
 ) -> JSONDict:
     """Persist side effects from one LLM response and emit outgoing messages."""
     _ = llm_result
@@ -61,8 +63,14 @@ async def process_llm_response(
     should_reply = bool(ai_response.get("should_reply", True))
 
     score_updates = normalize_score_payload(ai_response.get("score"))
+    raw_refresh_ids = _resolve_raw_refresh_ids(
+        ai_response=ai_response,
+        raw_refresh_ids=raw_refresh_ids,
+    )
     memory_ops_payload = normalize_memory_operations(ai_response.get("memory_operations"))
-    has_memory_ops = any(memory_ops_payload[key] for key in ("remove", "update", "refresh", "add"))
+    has_memory_ops = any(
+        memory_ops_payload[key] for key in ("remove", "update", "refresh_ids", "add")
+    )
     should_apply_memory = bool(ai_response.get("should_update_memory")) and has_memory_ops
 
     if task_turn_version is None:
@@ -181,11 +189,13 @@ async def process_llm_response(
                     session_factory=session_factory,
                     user_qiao_id=user_qiao_id,
                     instance_qiao_id=instance_qiao_id,
+                    llm_request_id=llm_request_id,
                     task_turn_version=task_turn_version,
                     instance_context=instance_context,
                     score_updates=score_updates,
                     should_apply_memory=should_apply_memory,
                     memory_ops_payload=memory_ops_payload,
+                    raw_refresh_ids=raw_refresh_ids,
                     user_message_item_id=user_message_item_id,
                 )
             )
@@ -209,6 +219,7 @@ async def process_llm_response(
             score_updates=score_updates,
             should_apply_memory=should_apply_memory,
             memory_ops_payload=memory_ops_payload,
+            raw_refresh_ids=raw_refresh_ids,
             user_message_item_id=user_message_item_id,
         )
     )
@@ -225,11 +236,13 @@ async def _apply_side_effects_without_send(
     session_factory: async_sessionmaker[AsyncSession],
     user_qiao_id: str,
     instance_qiao_id: str,
+    llm_request_id: int | None,
     task_turn_version: int,
     instance_context: InstanceContext,
     score_updates: dict[str, int],
     should_apply_memory: bool,
     memory_ops_payload: JSONDict,
+    raw_refresh_ids: object,
     user_message_item_id: int | None,
 ) -> None:
     if not should_apply_memory and not score_updates:
@@ -240,9 +253,11 @@ async def _apply_side_effects_without_send(
             session_factory=session_factory,
             user_qiao_id=user_qiao_id,
             instance_qiao_id=instance_qiao_id,
+            llm_request_id=llm_request_id,
             task_turn_version=task_turn_version,
             instance_context=instance_context,
             memory_ops_payload=memory_ops_payload,
+            raw_refresh_ids=raw_refresh_ids,
             user_message_item_id=user_message_item_id,
         )
 
@@ -273,6 +288,7 @@ async def _send_and_apply_post_send_effects(
     score_updates: dict[str, int],
     should_apply_memory: bool,
     memory_ops_payload: JSONDict,
+    raw_refresh_ids: object,
     user_message_item_id: int | None,
 ) -> None:
     send_result: SendExecutionResult = await send_ai_messages_with_typing(
@@ -305,9 +321,11 @@ async def _send_and_apply_post_send_effects(
             session_factory=session_factory,
             user_qiao_id=user_qiao_id,
             instance_qiao_id=instance_qiao_id,
+            llm_request_id=llm_request_id,
             task_turn_version=task_turn_version,
             instance_context=instance_context,
             memory_ops_payload=memory_ops_payload,
+            raw_refresh_ids=raw_refresh_ids,
             user_message_item_id=user_message_item_id,
         )
 
@@ -327,9 +345,11 @@ async def _apply_memory_side_effect(
     session_factory: async_sessionmaker[AsyncSession],
     user_qiao_id: str,
     instance_qiao_id: str,
+    llm_request_id: int | None,
     task_turn_version: int,
     instance_context: InstanceContext,
     memory_ops_payload: JSONDict,
+    raw_refresh_ids: object,
     user_message_item_id: int | None,
 ) -> None:
     async with session_factory() as db:
@@ -347,7 +367,7 @@ async def _apply_memory_side_effect(
                     task_turn_version=task_turn_version,
                 )
                 return
-            await process_memory_operations(
+            memory_exec = await process_memory_operations(
                 db,
                 instance_context,
                 memory_ops_payload,
@@ -359,7 +379,30 @@ async def _apply_memory_side_effect(
                 user_qiao_id=user_qiao_id,
                 instance_qiao_id=instance_qiao_id,
                 task_turn_version=task_turn_version,
+                refresh_total=memory_exec.refresh.total,
+                refresh_miss=memory_exec.refresh.miss,
+                refresh_miss_ratio_bp=memory_exec.refresh.miss_ratio_bp,
             )
+
+            try:
+                await maybe_write_refresh_miss_alert(
+                    session_factory=session_factory,
+                    context=instance_context,
+                    llm_request_id=llm_request_id,
+                    task_turn_version=task_turn_version,
+                    refresh_exec=memory_exec.refresh,
+                    raw_refresh_ids=raw_refresh_ids,
+                )
+            except Exception as exc:
+                logger.error(
+                    "conversation_memory_refresh_alert_failed",
+                    error=str(exc),
+                    user_qiao_id=user_qiao_id,
+                    instance_qiao_id=instance_qiao_id,
+                    task_turn_version=task_turn_version,
+                    llm_request_id=llm_request_id,
+                    exc_info=True,
+                )
         except Exception as exc:
             await db.rollback()
             logger.error(
@@ -487,6 +530,16 @@ def _coerce_delay_value(value: JSONValue | None) -> float | None:
             return float(value)
         except ValueError:
             return None
+    return None
+
+
+def _resolve_raw_refresh_ids(*, ai_response: JSONDict, raw_refresh_ids: object | None) -> object:
+    """Prefer explicitly propagated raw refresh ids and fall back to response payload."""
+    if raw_refresh_ids is not None:
+        return raw_refresh_ids
+    memory_operations = ai_response.get("memory_operations")
+    if isinstance(memory_operations, dict):
+        return memory_operations.get("refresh_ids")
     return None
 
 

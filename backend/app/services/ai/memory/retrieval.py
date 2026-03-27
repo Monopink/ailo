@@ -49,18 +49,26 @@ async def build_memory_prompt(db: AsyncSession, context: InstanceContext) -> str
     lines: list[str] = []
     if core_memories:
         lines.append("## 关于用户的记忆\n")
+        lines.append(
+            "规则：每条记忆都包含 id；refresh_ids 只能从“近期记忆”的 id 中选择（每轮 1-2 条）；"
+            "id 仅用于内部操作，不得在对用户消息中提及。"
+        )
         lines.append("核心记忆：")
         for mem in core_memories:
-            lines.append(f"- {mem.content}")
+            lines.append(f"- [id:{mem.id}] {mem.content}")
         lines.append("")
 
     if recent_memories:
         if not lines:
             lines.append("## 关于用户的记忆\n")
+            lines.append(
+                "规则：每条记忆都包含 id；refresh_ids 只能从“近期记忆”的 id 中选择（每轮 1-2 条）；"
+                "id 仅用于内部操作，不得在对用户消息中提及。"
+            )
         lines.append("近期记忆（按确定性排序）：")
         for mem in recent_memories:
             label = _fuzzy_label(mem, now)
-            lines.append(f"- {label} {mem.content}")
+            lines.append(f"- {label} [id:{mem.id}] {mem.content}")
         lines.append("")
         lines.append(
             '注意：对于标记为"较模糊"及以上的记忆，在对话中可以用"我记得"、"好像"等词自然表达不确定性。'

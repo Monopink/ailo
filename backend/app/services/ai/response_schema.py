@@ -47,7 +47,7 @@ def _build_memory_operations_schema() -> dict[str, Any]:
 
     return {
         "type": "object",
-        "description": "对记忆的操作，remove → update → refresh → add 四类操作的容器，顺序执行",
+        "description": "对记忆的操作，remove → update → refresh_ids → add 四类操作的容器，顺序执行",
         "properties": {
             "remove": {
                 "type": "array",
@@ -71,10 +71,14 @@ def _build_memory_operations_schema() -> dict[str, Any]:
                     "additionalProperties": False,
                 },
             },
-            "refresh": {
+            "refresh_ids": {
                 "type": "array",
-                "description": "续期指定的记忆。被重复提到的内容应该续期",
-                "items": {"type": "string"},
+                "description": (
+                    "续期指定的记忆 ID（只能从本轮提供的候选记忆 ID 中选择；"
+                    "禁止使用自由文本做 refresh；每轮 1-2 条）。"
+                    "注意：禁止在对用户消息中提及任何 memory id 或内部字段名。"
+                ),
+                "items": {"type": "string", "pattern": "^[0-9]+$"},
             },
             "add": {
                 "type": "array",

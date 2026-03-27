@@ -78,6 +78,11 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('ai_llm_min_contract_retry_max_attempts', '3', '3', 2, 'Maximum attempts for minimal-contract retry (>=1)', 'ai_conversation', NULL),
 ('ai_llm_min_contract_retry_backoff_ms', '300', '300', 2, 'Fixed backoff interval in milliseconds for minimal-contract retry (>=0)', 'ai_conversation', NULL),
 
+-- Alerting configurations
+('alerting_cleanup_enabled', 'true', 'true', 3, 'Enable alert_events cleanup worker', 'alerting', NULL),
+('alerting_cleanup_interval_seconds', '3600', '3600', 2, 'Cleanup interval in seconds for alert_events (>=1)', 'alerting', NULL),
+('alerting_default_retention_days', '30', '30', 2, 'Default retention days for alert_events (>=0)', 'alerting', NULL),
+
 -- API rate limit configuration
 ('api_rate_limit_requests', '1000', '100', 2, 'API requests per window', 'api', NULL),
 ('api_rate_limit_window_seconds', '60', '60', 2, 'API window in seconds', 'api', NULL),

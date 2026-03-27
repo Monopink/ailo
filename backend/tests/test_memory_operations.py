@@ -94,7 +94,7 @@ async def test_memory_operations_lifecycle(
         {
             "remove": [],
             "update": [],
-            "refresh": [],
+            "refresh_ids": [],
             "add": [
                 {"memory_type": "core", "content": "用户喜欢跑步", "importance": 9},
                 {"memory_type": "recent", "content": "用户昨天熬夜", "importance": 3},
@@ -129,7 +129,7 @@ async def test_memory_operations_lifecycle(
                     "new_importance": 8,
                 }
             ],
-            "refresh": ["用户昨天熬夜"],
+            "refresh_ids": [recent.id],
             "add": [],
         },
     )
@@ -146,7 +146,7 @@ async def test_memory_operations_lifecycle(
         {
             "remove": ["用户喜欢夜跑"],
             "update": [],
-            "refresh": [],
+            "refresh_ids": [],
             "add": [],
         },
     )

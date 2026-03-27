@@ -1,5 +1,9 @@
 # Development-only tools (not needed in production containers)
 
+# Dev/test environment also needs runtime dependencies.
+# Install this file to get both runtime + dev tools in one shot.
+-r requirements.txt
+
 # Testing Framework
 pytest==9.0.1
 pytest-asyncio==1.3.0

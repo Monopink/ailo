@@ -21,6 +21,10 @@ from app.core.config import Settings, get_settings
 from app.core.database import close_database, get_sessionmaker, init_database
 from app.exceptions.handlers import register_exception_handlers
 from app.middleware.rate_limit import APIRateLimitMiddleware
+from app.services.alerting.cleanup import (
+    start_alerting_cleanup_worker,
+    stop_alerting_cleanup_worker,
+)
 from app.services.contact.request_worker import start_contact_request_worker
 from app.services.media.cleanup import start_media_cleanup_worker, stop_media_cleanup_worker
 from app.services.media.config import refresh_media_base_url
@@ -153,6 +157,7 @@ def _create_lifespan(
             await start_buffer_scanner()
             await start_dispatch_outbox_worker()
             start_media_cleanup_worker(app)
+            start_alerting_cleanup_worker(app)
 
             logger.info("application_startup_complete")
             yield
@@ -166,6 +171,7 @@ def _create_lifespan(
                 await stop_buffer_scanner()
                 await stop_dispatch_outbox_worker()
                 await stop_media_cleanup_worker(app)
+                await stop_alerting_cleanup_worker(app)
                 worker = getattr(app.state, "contact_request_worker", None)
                 if worker:
                     worker.cancel()

@@ -183,11 +183,11 @@ INSERT INTO ai_personalities (display_name, prompt, json_schema, status) VALUES
     "should_update_memory": {"type": "boolean", "description": "判断当轮对话是否有重要信息或值得记忆的内容"},
     "memory_operations": {
       "type": "object",
-      "description": "对记忆的操作，remove → update → refresh → add 四类操作的容器，顺序执行",
+      "description": "对记忆的操作，remove → update → refresh_ids → add 四类操作的容器，顺序执行",
       "properties": {
         "remove": {
           "type": "array",
-          "items": {"type": "string"},
+          "items": {"type": "string", "pattern": "^[0-9]+$"},
           "description": "需要删除的记忆内容列表（精确匹配 content）。错误的记忆应该删除，其他情况不要随意删除"
         },
         "update": {
@@ -204,7 +204,7 @@ INSERT INTO ai_personalities (display_name, prompt, json_schema, status) VALUES
             "additionalProperties": false
           }
         },
-        "refresh": {
+        "refresh_ids": {
           "type": "array",
           "items": {"type": "string"},
           "description": "续期指定的记忆。被重复提到的内容应该续期"
@@ -253,7 +253,7 @@ INSERT INTO ai_personalities (display_name, prompt, json_schema, status) VALUES
 浪漫度分数：{{score:romance}}
 
 请根据当前的关系状态和分数，以及对话历史，自然地回复用户的消息。',
-'{"type": "object", "properties": {"current_state": {"type": "string"}, "internal_thoughts": {"type": "string"}, "attack_detected": {"type": "boolean"}, "should_reply": {"type": "boolean"}, "outgoing_messages": {"type": "array", "items": {"type": "string"}}, "score": {"type": "object", "properties": {"friendship": {"type": "integer", "minimum": 0, "maximum": 1000}, "romance": {"type": "integer", "minimum": 0, "maximum": 1000}}, "required": ["friendship", "romance"]}, "followup_messages": {"type": "array", "items": {"type": "string"}}, "should_block": {"type": "boolean"}, "should_update_memory": {"type": "boolean"}, "memory_operations": {"type": "object", "properties": {"remove": {"type": "array", "items": {"type": "string"}}, "update": {"type": "array", "items": {"type": "object", "properties": {"old_content": {"type": "string"}, "new_content": {"type": "string"}, "new_importance": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["old_content", "new_content"], "additionalProperties": false}}, "refresh": {"type": "array", "items": {"type": "string"}}, "add": {"type": "array", "items": {"type": "object", "properties": {"memory_type": {"type": "string", "enum": ["core", "recent"]}, "content": {"type": "string"}, "importance": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["memory_type", "content", "importance"], "additionalProperties": false}}}, "additionalProperties": false}}, "required": ["current_state", "attack_detected", "should_reply", "score", "should_update_memory", "memory_operations"]}',
+'{"type": "object", "properties": {"current_state": {"type": "string"}, "internal_thoughts": {"type": "string"}, "attack_detected": {"type": "boolean"}, "should_reply": {"type": "boolean"}, "outgoing_messages": {"type": "array", "items": {"type": "string"}}, "score": {"type": "object", "properties": {"friendship": {"type": "integer", "minimum": 0, "maximum": 1000}, "romance": {"type": "integer", "minimum": 0, "maximum": 1000}}, "required": ["friendship", "romance"]}, "followup_messages": {"type": "array", "items": {"type": "string"}}, "should_block": {"type": "boolean"}, "should_update_memory": {"type": "boolean"}, "memory_operations": {"type": "object", "properties": {"remove": {"type": "array", "items": {"type": "string"}}, "update": {"type": "array", "items": {"type": "object", "properties": {"old_content": {"type": "string"}, "new_content": {"type": "string"}, "new_importance": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["old_content", "new_content"], "additionalProperties": false}}, "refresh_ids": {"type": "array", "items": {"type": "string", "pattern": "^[0-9]+$"}}, "add": {"type": "array", "items": {"type": "object", "properties": {"memory_type": {"type": "string", "enum": ["core", "recent"]}, "content": {"type": "string"}, "importance": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["memory_type", "content", "importance"], "additionalProperties": false}}}, "additionalProperties": false}}, "required": ["current_state", "attack_detected", "should_reply", "score", "should_update_memory", "memory_operations"]}',
 1),
 
 ('友好伙伴',
@@ -276,7 +276,7 @@ INSERT INTO ai_personalities (display_name, prompt, json_schema, status) VALUES
 信任度分数：{{score:trust}}
 
 请根据当前的关系状态和分数，以及对话历史，自然地回复用户的消息。',
-'{"type": "object", "properties": {"current_state": {"type": "string"}, "internal_thoughts": {"type": "string"}, "attack_detected": {"type": "boolean"}, "should_reply": {"type": "boolean"}, "outgoing_messages": {"type": "array", "items": {"type": "string"}}, "score": {"type": "object", "properties": {"friendship": {"type": "integer", "minimum": 0, "maximum": 1000}, "trust": {"type": "integer", "minimum": 0, "maximum": 1000}}, "required": ["friendship", "trust"]}, "followup_messages": {"type": "array", "items": {"type": "string"}}, "should_block": {"type": "boolean"}, "should_update_memory": {"type": "boolean"}, "memory_operations": {"type": "object", "properties": {"remove": {"type": "array", "items": {"type": "string"}}, "update": {"type": "array", "items": {"type": "object", "properties": {"old_content": {"type": "string"}, "new_content": {"type": "string"}, "new_importance": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["old_content", "new_content"], "additionalProperties": false}}, "refresh": {"type": "array", "items": {"type": "string"}}, "add": {"type": "array", "items": {"type": "object", "properties": {"memory_type": {"type": "string", "enum": ["core", "recent"]}, "content": {"type": "string"}, "importance": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["memory_type", "content", "importance"], "additionalProperties": false}}}, "additionalProperties": false}}, "required": ["current_state", "attack_detected", "should_reply", "score", "should_update_memory", "memory_operations"]}',
+'{"type": "object", "properties": {"current_state": {"type": "string"}, "internal_thoughts": {"type": "string"}, "attack_detected": {"type": "boolean"}, "should_reply": {"type": "boolean"}, "outgoing_messages": {"type": "array", "items": {"type": "string"}}, "score": {"type": "object", "properties": {"friendship": {"type": "integer", "minimum": 0, "maximum": 1000}, "trust": {"type": "integer", "minimum": 0, "maximum": 1000}}, "required": ["friendship", "trust"]}, "followup_messages": {"type": "array", "items": {"type": "string"}}, "should_block": {"type": "boolean"}, "should_update_memory": {"type": "boolean"}, "memory_operations": {"type": "object", "properties": {"remove": {"type": "array", "items": {"type": "string"}}, "update": {"type": "array", "items": {"type": "object", "properties": {"old_content": {"type": "string"}, "new_content": {"type": "string"}, "new_importance": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["old_content", "new_content"], "additionalProperties": false}}, "refresh_ids": {"type": "array", "items": {"type": "string", "pattern": "^[0-9]+$"}}, "add": {"type": "array", "items": {"type": "object", "properties": {"memory_type": {"type": "string", "enum": ["core", "recent"]}, "content": {"type": "string"}, "importance": {"type": "integer", "minimum": 1, "maximum": 10}}, "required": ["memory_type", "content", "importance"], "additionalProperties": false}}}, "additionalProperties": false}}, "required": ["current_state", "attack_detected", "should_reply", "score", "should_update_memory", "memory_operations"]}',
 1);
 
 -- ============================================================================

@@ -53,6 +53,8 @@ from .message import (
 from .profile import Profile, UserProfileLog
 from .security import UserRiskStats, UserViolationLog
 from .system import (
+    AlertEvent,
+    AlertEventEntity,
     StatsAIDaily,
     StatsAIMonthly,
     StatsAIWeekly,
@@ -120,6 +122,8 @@ __all__ = [
     "StatsAIDaily",
     "StatsAIMonthly",
     "StatsAIWeekly",
+    "AlertEvent",
+    "AlertEventEntity",
     "StatsMessageDaily",
     "StatsMessageMonthly",
     "StatsMessageWeekly",

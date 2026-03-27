@@ -68,3 +68,20 @@ async def test_process_llm_response_returns_preempted_before_any_side_effects(
     assert result["buffer_id"] == 999
     attack_exclude_mock.assert_not_awaited()
     block_mock.assert_not_awaited()
+
+
+def test_resolve_raw_refresh_ids_prefers_explicit_value() -> None:
+    explicit_raw = ["123", "oops", "456"]
+    resolved = llm_response_handler._resolve_raw_refresh_ids(
+        ai_response={"memory_operations": {"refresh_ids": ["999"]}},
+        raw_refresh_ids=explicit_raw,
+    )
+    assert resolved is explicit_raw
+
+
+def test_resolve_raw_refresh_ids_falls_back_to_response_payload() -> None:
+    resolved = llm_response_handler._resolve_raw_refresh_ids(
+        ai_response={"memory_operations": {"refresh_ids": ["123", "456"]}},
+        raw_refresh_ids=None,
+    )
+    assert resolved == ["123", "456"]

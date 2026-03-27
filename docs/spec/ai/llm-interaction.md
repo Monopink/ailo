@@ -150,7 +150,7 @@ LLM 响应的字段语义、处理顺序和跨模块归属见本文档的“系�
 ### memory_operations
 
 - 类型：object
-- 语义：记忆操作容器（`remove` / `update` / `refresh` / `add`）
+- 语义：记忆操作容器（`remove` / `update` / `refresh_ids` / `add`）
 - 处理归属：见 [memory-system.md](memory-system.md#记忆操作协议)
 
 ### score
@@ -180,8 +180,11 @@ LLM 响应的字段语义、处理顺序和跨模块归属见本文档的“系�
 
 ## 记忆操作最小约束
 
-- 操作顺序固定：`remove -> update -> refresh -> add`
-- 匹配键：`content` 精确匹配
+- 操作顺序固定：`remove -> update -> refresh_ids -> add`
+- refresh 匹配键：`memory_id`（仅允许刷新 recent 记忆）
+- `refresh_ids`：
+  - 类型：`string[]`（digits-only；服务端归一化为 int 列表用于执行与统计）
+  - 数量：每轮 1-2 条（超出部分截断）
 - 单项未命中：记录 WARNING，流程继续
 
 详细数据行为统一维护在 [memory-system.md](memory-system.md#记忆操作协议)。

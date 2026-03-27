@@ -10,6 +10,7 @@
 - Prompt 构建：[`prompt-building.md`](prompt-building.md)
 - LLM 调用与响应字段：[`llm-interaction.md`](llm-interaction.md)
 - 关系计算：[`relationship-system.md`](relationship-system.md)
+- 业务告警：[`../alerting.md`](../alerting.md)
 - 消息发送：[`message-sending.md`](message-sending.md)
 - Provider 传递：[`../message/leancloud.md`](../message/leancloud.md)、[`../message/websocket.md`](../message/websocket.md)
 - 失败投递：[`../message/failure-handling.md`](../message/failure-handling.md)
@@ -122,6 +123,7 @@
 - `should_reply=false` 时，不受首条发送门槛控制，但执行前必须再次通过抢占校验。
 - 仅在响应包含合法 `score` 时执行关系计算。
 - 单项副作用失败仅结束该项副作用处理并记录日志。
+- 会话副作用链路允许产生业务告警事件（best-effort，见 [`../alerting.md`](../alerting.md)），失败仅记录 ERROR，不影响消息发送与其他副作用提交。
 
 详见：[`llm-interaction.md`](llm-interaction.md#处理顺序)、[`relationship-system.md`](relationship-system.md)
 

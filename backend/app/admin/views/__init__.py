@@ -89,6 +89,8 @@ from .system_views import (
     admin_login_log_view,
     admin_operation_log_view,
     admin_user_view,
+    alert_event_entity_view,
+    alert_event_view,
     system_config_view,
 )
 from .token_views import (
@@ -176,6 +178,8 @@ __all__ = [
     "admin_user_view",
     "admin_operation_log_view",
     "admin_login_log_view",
+    "alert_event_view",
+    "alert_event_entity_view",
     "app_page_view",
     "user_view",
     "profile_view",

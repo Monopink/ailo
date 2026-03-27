@@ -1191,6 +1191,50 @@ CREATE TRIGGER set_memory_expires_at
     EXECUTE FUNCTION calculate_memory_expires_at();
 
 
+-- Business alert events tables (audit-only)
+CREATE TABLE IF NOT EXISTS alert_events (
+    id BIGINT PRIMARY KEY,
+    event_type VARCHAR(120) NOT NULL,
+    domain VARCHAR(40) NOT NULL,
+    severity_level SMALLINT NOT NULL,
+    dedupe_key VARCHAR(255),
+    details JSONB,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT ck_alert_events_severity_level CHECK (severity_level IN (10, 20, 30, 40, 50))
+);
+
+CREATE INDEX idx_alert_events_event_type_created_at ON alert_events(event_type, created_at);
+CREATE INDEX idx_alert_events_domain_created_at ON alert_events(domain, created_at);
+CREATE INDEX idx_alert_events_created_at ON alert_events(created_at);
+CREATE INDEX idx_alert_events_dedupe_key ON alert_events(dedupe_key);
+
+-- Dedupe only when dedupe_key is provided (partial unique index).
+CREATE UNIQUE INDEX uq_alert_events_event_type_dedupe_key
+    ON alert_events(event_type, dedupe_key)
+    WHERE dedupe_key IS NOT NULL;
+
+COMMENT ON TABLE alert_events IS 'Business alert events (audit-only)';
+COMMENT ON COLUMN alert_events.event_type IS 'Event type; values defined in backend/app/enums/system.py';
+COMMENT ON COLUMN alert_events.domain IS 'Business domain; values defined in backend/app/enums/system.py';
+COMMENT ON COLUMN alert_events.severity_level IS 'Python logging level: 10/20/30/40/50';
+
+CREATE TABLE IF NOT EXISTS alert_event_entities (
+    id BIGINT PRIMARY KEY,
+    event_id BIGINT NOT NULL,
+    entity_type VARCHAR(40) NOT NULL,
+    entity_id VARCHAR(128) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_alert_event_entities_event_id ON alert_event_entities(event_id);
+CREATE INDEX idx_alert_event_entities_type_id_created_at
+    ON alert_event_entities(entity_type, entity_id, created_at);
+
+COMMENT ON TABLE alert_event_entities IS 'Alert event entity references (audit-only)';
+COMMENT ON COLUMN alert_event_entities.entity_type IS 'Entity type; values defined in backend/app/enums/system.py';
+COMMENT ON COLUMN alert_event_entities.entity_id IS 'Entity ID as string (bigint/uuid/qiao_id)';
+
+
 -- ============================================================================
 -- Security Monitoring Tables
 -- ============================================================================

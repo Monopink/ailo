@@ -12,8 +12,9 @@ from starlette_admin.exceptions import FormValidationError
 
 from app.admin.views.base import IntegerEnumField
 from app.core.security import get_password_hash
-from app.enums import AdminLoginResult, AdminRole, AdminStatus, ConfigType
+from app.enums import AdminLoginResult, AdminRole, AdminStatus, AlertSeverityLevel, ConfigType
 from app.models.admin import AdminLoginLog, AdminOperationLog, AdminUser
+from app.models.system.alerting import AlertEvent, AlertEventEntity
 from app.models.system.config import SystemConfig
 
 from .base import BaseRoleAwareModelView
@@ -279,6 +280,63 @@ class AdminLoginLogView(ModelView):
     ]
 
 
+class AlertEventView(ModelView):
+    """Read-only alert event view for system-level monitoring."""
+
+    def can_create(self, request: Request) -> bool:
+        return False
+
+    def can_edit(self, request: Request) -> bool:
+        return False
+
+    def can_delete(self, request: Request) -> bool:
+        return False
+
+    fields_default_sort = [("created_at", True)]
+    searchable_fields = ["event_type", "domain", "dedupe_key"]
+    sortable_fields = ["id", "event_type", "domain", "severity_level", "created_at"]
+
+    fields = [
+        StringField("id", label="ID", help_text="Alert event ID"),
+        StringField("event_type", label="Event Type", help_text="Business alert event type"),
+        StringField("domain", label="Domain", help_text="Business domain"),
+        IntegerEnumField(
+            "severity_level",
+            enum=AlertSeverityLevel,
+            label="Severity",
+            help_text="Alert severity level",
+        ),
+        StringField("dedupe_key", label="Dedupe Key", help_text="Optional deduplication key"),
+        JSONField("details", label="Details", help_text="Alert diagnostics payload"),
+        DateTimeField("created_at", label="Created At", help_text="Event creation time"),
+    ]
+
+
+class AlertEventEntityView(ModelView):
+    """Read-only alert-event entity mapping view."""
+
+    def can_create(self, request: Request) -> bool:
+        return False
+
+    def can_edit(self, request: Request) -> bool:
+        return False
+
+    def can_delete(self, request: Request) -> bool:
+        return False
+
+    fields_default_sort = [("created_at", True)]
+    searchable_fields = ["event_id", "entity_type", "entity_id"]
+    sortable_fields = ["id", "event_id", "entity_type", "entity_id", "created_at"]
+
+    fields = [
+        StringField("id", label="ID", help_text="Alert event entity row ID"),
+        StringField("event_id", label="Event ID", help_text="Related alert_events.id"),
+        StringField("entity_type", label="Entity Type", help_text="Entity type"),
+        StringField("entity_id", label="Entity ID", help_text="Entity ID"),
+        DateTimeField("created_at", label="Created At", help_text="Reference creation time"),
+    ]
+
+
 # Create view instances
 system_config_view = SystemConfigView(
     SystemConfig, name="System Config", icon="fa fa-cog", identity="system_configs"
@@ -295,10 +353,21 @@ admin_operation_log_view = AdminOperationLogView(
 admin_login_log_view = AdminLoginLogView(
     AdminLoginLog, name="Login Logs", icon="fa fa-sign-in", identity="admin_login_log"
 )
+alert_event_view = AlertEventView(
+    AlertEvent, name="Alert Events", icon="fa fa-bell", identity="alert_events"
+)
+alert_event_entity_view = AlertEventEntityView(
+    AlertEventEntity,
+    name="Alert Event Entities",
+    icon="fa fa-link",
+    identity="alert_event_entities",
+)
 
 # Export all user and admin views
 SYSTEM_MODEL_VIEWS = [
     system_config_view,
+    alert_event_view,
+    alert_event_entity_view,
     admin_user_view,
     admin_operation_log_view,
     admin_login_log_view,

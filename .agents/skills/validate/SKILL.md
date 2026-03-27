@@ -25,6 +25,16 @@ Run project validation after code changes and before commit.
 2. Do not claim completion while any check fails.
 3. If `# type: ignore` is added, include an inline reason.
 4. Keep validation scoped to changed files when possible.
+5. Always run validation commands inside project `venv` (or project-declared virtual env).
+6. If `venv` is missing/broken (tool unavailable, import error, interpreter mismatch), stop and report to user; do not fall back to global Python/tools.
+
+## Environment Guardrails
+
+1. Resolve virtual environment interpreter first.
+   - Windows default: `venv\\Scripts\\python.exe`
+   - Unix default: `venv/bin/python` or `.venv/bin/python`
+2. Prefer `python -m <tool>` style commands to guarantee tool execution in the same environment.
+3. On environment mismatch, provide diagnosis and wait for user decision instead of silently switching runtimes.
 
 ## Sources of Truth
 

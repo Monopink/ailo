@@ -26,6 +26,7 @@ Stop immediately and block commit when:
 - Required documentation updates are missing.
 - Database three-way sync is broken.
 - Tests fail.
+- Project virtual environment is unavailable or validation tools are missing inside it.
 
 ## Output
 

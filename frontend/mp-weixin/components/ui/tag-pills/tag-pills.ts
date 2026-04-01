@@ -1,8 +1,4 @@
-import { isNonEmptyString } from '../../../utils/guards';
-import { getLogger } from '../../../utils/logger';
 import { mapTagToneClasses } from '../../../utils/tag-tone';
-
-const logger = getLogger('TagPills');
 
 const TAG_GAP_RPX = 6;
 const FALLBACK_VISIBLE_COUNT = 1;
@@ -12,6 +8,26 @@ interface TagMeasureItem {
   text: string;
   kind: 'tag' | 'overflow';
   hiddenCount?: number;
+}
+
+interface TagMeasureSnapshot {
+  rowWidthPx: number;
+  tagWidths: Array<number | undefined>;
+  overflowWidths: Map<number, number>;
+}
+
+interface TagFitContext {
+  tagsCount: number;
+  tagWidths: Array<number | undefined>;
+  rowWidthPx: number;
+  gapPx: number;
+  overflowWidths: Map<number, number>;
+}
+
+interface TagLayoutPayload {
+  visibleTags: string[];
+  visibleTagToneClasses: string[];
+  hiddenTagCount: number;
 }
 
 const getWindowWidthPx = (): number => {
@@ -56,7 +72,9 @@ const buildMeasureItems = (tags: string[]): TagMeasureItem[] => {
   return [...tagItems, ...overflowItems];
 };
 
-const computeFallbackLayout = (tags: string[]): { visibleTags: string[]; hiddenTagCount: number } => {
+const computeFallbackLayout = (
+  tags: string[]
+): { visibleTags: string[]; hiddenTagCount: number } => {
   const visibleTags = tags.slice(0, FALLBACK_VISIBLE_COUNT);
   return {
     visibleTags,
@@ -64,20 +82,115 @@ const computeFallbackLayout = (tags: string[]): { visibleTags: string[]; hiddenT
   };
 };
 
-Component<
-  {
-    hasTags: boolean;
-    visibleTags: string[];
-    visibleTagToneClasses: string[];
-    hiddenTagCount: number;
-    measureItems: TagMeasureItem[];
-  },
-  Record<string, never>,
-  {
-    refreshLayout(): void;
-    measureAndCompute(tags: string[], measureItems: TagMeasureItem[]): void;
+const parseMeasureSnapshot = (
+  queryResult: unknown,
+  measureItems: TagMeasureItem[]
+): TagMeasureSnapshot | null => {
+  if (!Array.isArray(queryResult) || queryResult.length < 2) {
+    return null;
   }
->({
+
+  const measureRectValues: unknown = queryResult[0];
+  const rowRectValue: unknown = queryResult[1];
+  if (
+    !Array.isArray(measureRectValues) ||
+    rowRectValue === null ||
+    typeof rowRectValue !== 'object'
+  ) {
+    return null;
+  }
+  if (measureRectValues.length === 0) {
+    return null;
+  }
+
+  const rowWidthPx = getRectWidth(rowRectValue) ?? 0;
+  const tagWidths: Array<number | undefined> = [];
+  const overflowWidths = new Map<number, number>();
+
+  measureItems.forEach((item, index) => {
+    const width = getRectWidth(measureRectValues[index]);
+    if (typeof width !== 'number') {
+      return;
+    }
+    if (item.kind === 'tag') {
+      tagWidths.push(width);
+      return;
+    }
+    if (typeof item.hiddenCount === 'number') {
+      overflowWidths.set(item.hiddenCount, width);
+    }
+  });
+
+  return {
+    rowWidthPx,
+    tagWidths,
+    overflowWidths,
+  };
+};
+
+const canFitVisibleCount = (visibleCount: number, context: TagFitContext): boolean => {
+  const { tagsCount, tagWidths, rowWidthPx, gapPx, overflowWidths } = context;
+  const hiddenCount = tagsCount - visibleCount;
+  let usedWidthPx = 0;
+
+  for (let index = 0; index < visibleCount; index += 1) {
+    const width = tagWidths[index];
+    if (typeof width !== 'number') {
+      return false;
+    }
+    usedWidthPx += width + (index > 0 ? gapPx : 0);
+    if (usedWidthPx > rowWidthPx) {
+      return false;
+    }
+  }
+
+  if (hiddenCount === 0) {
+    return true;
+  }
+
+  const overflowWidth = overflowWidths.get(hiddenCount);
+  if (typeof overflowWidth !== 'number') {
+    return false;
+  }
+
+  usedWidthPx += overflowWidth + (visibleCount > 0 ? gapPx : 0);
+  return usedWidthPx <= rowWidthPx;
+};
+
+const resolveVisibleCount = (
+  tagsCount: number,
+  tagWidths: Array<number | undefined>,
+  rowWidthPx: number,
+  overflowWidths: Map<number, number>
+): number => {
+  const gapPx = (getWindowWidthPx() / 750) * TAG_GAP_RPX;
+  const fitContext: TagFitContext = {
+    tagsCount,
+    tagWidths,
+    rowWidthPx,
+    gapPx,
+    overflowWidths,
+  };
+
+  for (let visibleCount = tagsCount; visibleCount >= 0; visibleCount -= 1) {
+    if (canFitVisibleCount(visibleCount, fitContext)) {
+      return visibleCount === 0 && tagsCount > 0 ? 1 : visibleCount;
+    }
+  }
+
+  return tagsCount > 0 ? 1 : 0;
+};
+
+const buildLayoutPayload = (tags: string[], visibleCount: number): TagLayoutPayload => {
+  const visibleTags = tags.slice(0, visibleCount);
+  return {
+    visibleTags,
+    visibleTagToneClasses: mapTagToneClasses(tags).slice(0, visibleTags.length),
+    hiddenTagCount: Math.max(0, tags.length - visibleTags.length),
+  };
+};
+
+Component({
   properties: {
     tags: {
       type: Array,
@@ -91,10 +204,10 @@ Component<
 
   data: {
     hasTags: false,
-    visibleTags: [],
-    visibleTagToneClasses: [],
+    visibleTags: [] as string[],
+    visibleTagToneClasses: [] as string[],
     hiddenTagCount: 0,
-    measureItems: [],
+    measureItems: [] as TagMeasureItem[],
   },
 
   lifetimes: {
@@ -137,7 +250,7 @@ Component<
       );
     },
 
-    measureAndCompute(tags, measureItems) {
+    measureAndCompute(tags: string[], measureItems: TagMeasureItem[]) {
       if (tags.length === 0) {
         return;
       }
@@ -149,102 +262,29 @@ Component<
         .select('.tag-pills__row')
         .boundingClientRect()
         .exec((queryResult) => {
-          const queryResultValue: unknown = queryResult;
-          if (!Array.isArray(queryResultValue) || queryResultValue.length < 2) {
+          const snapshot = parseMeasureSnapshot(queryResult, measureItems);
+          if (snapshot === null) {
             return;
           }
-          const measureRectValues: unknown = queryResultValue[0];
-          const rowRectValue: unknown = queryResultValue[1];
-          if (!Array.isArray(measureRectValues) || rowRectValue === null || typeof rowRectValue !== 'object') {
-            return;
-          }
-          if (measureRectValues.length === 0) {
-            return;
-          }
-
-          const rowWidthPx = getRectWidth(rowRectValue) ?? 0;
-          const tagWidths: Array<number | undefined> = [];
-          const overflowWidths = new Map<number, number>();
-
-          measureItems.forEach((item, index) => {
-            const width = getRectWidth(measureRectValues[index]);
-            if (typeof width !== 'number') {
-              return;
-            }
-            if (item.kind === 'tag') {
-              tagWidths.push(width);
-              return;
-            }
-            if (typeof item.hiddenCount === 'number') {
-              overflowWidths.set(item.hiddenCount, width);
-            }
-          });
+          const { rowWidthPx, tagWidths, overflowWidths } = snapshot;
 
           if (tagWidths.length < Math.min(tags.length, 1)) {
             const fallback = computeFallbackLayout(tags);
-            const toneClasses = mapTagToneClasses(tags).slice(0, fallback.visibleTags.length);
             this.setData({
               visibleTags: fallback.visibleTags,
-              visibleTagToneClasses: toneClasses,
+              visibleTagToneClasses: mapTagToneClasses(tags).slice(0, fallback.visibleTags.length),
               hiddenTagCount: fallback.hiddenTagCount,
             });
             return;
           }
 
-          const gapPx = (getWindowWidthPx() / 750) * TAG_GAP_RPX;
-          const resolveOverflowWidth = (hiddenCount: number): number | undefined =>
-            overflowWidths.get(hiddenCount);
-
-          let bestVisibleCount = 0;
-          for (let visibleCount = tags.length; visibleCount >= 0; visibleCount -= 1) {
-            const hiddenCount = tags.length - visibleCount;
-            let usedWidthPx = 0;
-            let ok = true;
-
-            for (let index = 0; index < visibleCount; index += 1) {
-              const width = tagWidths[index];
-              if (typeof width !== 'number') {
-                ok = false;
-                break;
-              }
-              usedWidthPx += width + (index > 0 ? gapPx : 0);
-              if (usedWidthPx > rowWidthPx) {
-                ok = false;
-                break;
-              }
-            }
-
-            if (!ok) {
-              continue;
-            }
-
-            if (hiddenCount > 0) {
-              const overflowWidth = resolveOverflowWidth(hiddenCount);
-              if (typeof overflowWidth !== 'number') {
-                continue;
-              }
-              usedWidthPx += overflowWidth + (visibleCount > 0 ? gapPx : 0);
-              if (usedWidthPx > rowWidthPx) {
-                continue;
-              }
-            }
-
-            bestVisibleCount = visibleCount;
-            break;
-          }
-
-          if (bestVisibleCount === 0 && tags.length > 0) {
-            bestVisibleCount = 1;
-          }
-
-          const visibleTags = tags.slice(0, bestVisibleCount);
-          const hiddenTagCount = Math.max(0, tags.length - visibleTags.length);
-          const toneClasses = mapTagToneClasses(tags).slice(0, visibleTags.length);
-          this.setData({
-            visibleTags,
-            visibleTagToneClasses: toneClasses,
-            hiddenTagCount,
-          });
+          const visibleCount = resolveVisibleCount(
+            tags.length,
+            tagWidths,
+            rowWidthPx,
+            overflowWidths
+          );
+          this.setData(buildLayoutPayload(tags, visibleCount));
         });
     },
   },

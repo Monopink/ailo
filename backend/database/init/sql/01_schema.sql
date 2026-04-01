@@ -701,12 +701,12 @@ CREATE TABLE IF NOT EXISTS square_categories (
                 'green',
                 'lime',
                 'yellow',
-                'amber',
                 'orange',
-                'red',
-                'pink',
                 'purple',
-                'gray'
+                'pink',
+                'magenta',
+                'beige',
+                'charcoal'
             )
         ),
     CONSTRAINT ck_square_categories_icon_ref_format

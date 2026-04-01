@@ -52,14 +52,14 @@ _THEME_LABEL_BY_KEY: dict[str, str] = {
     "cyan": "青色",
     "teal": "青绿色",
     "green": "绿色",
-    "lime": "柠檬绿",
+    "lime": "荧光黄绿",
     "yellow": "黄色",
-    "amber": "琥珀色",
     "orange": "橙色",
-    "red": "红色",
-    "pink": "粉色",
     "purple": "紫色",
-    "gray": "灰色",
+    "pink": "粉色",
+    "magenta": "洋红色",
+    "beige": "米色",
+    "charcoal": "炭黑色",
 }
 _THEME_CHOICES = [(item, _THEME_LABEL_BY_KEY[item]) for item in SQUARE_CATEGORY_THEME_KEYS]
 

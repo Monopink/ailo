@@ -1,7 +1,32 @@
 @import '/styles/tdesign-theme.wxss';
 @import '/styles/design-tokens.global.wxss';
 
+.square-entry-page__header {
+  position: relative;
+  overflow: hidden;
+  background-color: transparent;
+
+  --page-top-brand-fade-height: 156rpx;
+}
+
+.square-entry-page__header-top-fade {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: var(--page-top-brand-fade-height);
+  background: var(--page-top-brand-fade-gradient);
+  pointer-events: none;
+}
+
+.square-entry-page__header-main {
+  position: relative;
+  z-index: 1;
+}
+
 .square-entry-page {
+  position: relative;
+  overflow: hidden;
   min-height: 100%;
 }
 
@@ -17,10 +42,10 @@
   align-items: center;
   gap: var(--space-md);
   padding: var(--padding-card);
-  border-radius: var(--radius-card);
+  border-radius: calc(var(--radius-xl) + var(--space-xs));
   box-shadow: var(--shadow-card);
-  color: var(--square-entry-card-title-color);
-  background: var(--square-entry-card-bg, var(--square-entry-card-gray-gradient));
+  color: var(--square-entry-card-title-color-current, var(--square-entry-card-title-color));
+  background: var(--square-entry-card-bg, var(--square-entry-card-charcoal-gradient));
 }
 
 .square-entry-card__icon {
@@ -30,7 +55,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--square-entry-card-icon-bg);
+  background-color: var(--square-entry-card-icon-bg-current, var(--square-entry-card-icon-bg));
 }
 
 .square-entry-card__content {
@@ -42,13 +67,13 @@
 .square-entry-card__title {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
-  color: var(--square-entry-card-title-color);
+  color: var(--square-entry-card-title-color-current, var(--square-entry-card-title-color));
   line-height: var(--line-height-tight);
 }
 
 .square-entry-card__desc {
   font-size: var(--font-size-sm);
-  color: var(--square-entry-card-desc-color);
+  color: var(--square-entry-card-desc-color-current, var(--square-entry-card-desc-color));
   line-height: var(--line-height-relaxed);
 }
 
@@ -76,26 +101,35 @@
   --square-entry-card-bg: var(--square-entry-card-yellow-gradient);
 }
 
-.square-entry-card--amber {
-  --square-entry-card-bg: var(--square-entry-card-amber-gradient);
-}
-
 .square-entry-card--orange {
   --square-entry-card-bg: var(--square-entry-card-orange-gradient);
-}
-
-.square-entry-card--red {
-  --square-entry-card-bg: var(--square-entry-card-red-gradient);
-}
-
-.square-entry-card--pink {
-  --square-entry-card-bg: var(--square-entry-card-pink-gradient);
 }
 
 .square-entry-card--purple {
   --square-entry-card-bg: var(--square-entry-card-purple-gradient);
 }
 
-.square-entry-card--gray {
-  --square-entry-card-bg: var(--square-entry-card-gray-gradient);
+.square-entry-card--pink {
+  --square-entry-card-bg: var(--square-entry-card-pink-gradient);
+}
+
+.square-entry-card--magenta {
+  --square-entry-card-bg: var(--square-entry-card-magenta-gradient);
+}
+
+.square-entry-card--beige {
+  --square-entry-card-bg: var(--square-entry-card-beige-gradient);
+}
+
+.square-entry-card--charcoal {
+  --square-entry-card-bg: var(--square-entry-card-charcoal-gradient);
+}
+
+.square-entry-card--lime,
+.square-entry-card--yellow,
+.square-entry-card--beige {
+  --square-entry-card-icon-bg-current: var(--square-entry-card-icon-bg-inverse);
+  --square-entry-card-title-color-current: var(--square-entry-card-title-color-inverse);
+  --square-entry-card-desc-color-current: var(--square-entry-card-desc-color-inverse);
+  --square-entry-card-icon-color-current: var(--square-entry-card-icon-color-inverse);
 }

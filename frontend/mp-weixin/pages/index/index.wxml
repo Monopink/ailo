@@ -8,12 +8,15 @@
   hasFooter="{{pageLayoutData.hasFooter}}"
   bind:emptyaction="goToSquareEntry">
   <view slot="header" class="index-page__header">
-    <t-navbar left-arrow="{{false}}" />
-    <view class="page-large-title">
-      <text class="page-large-title__text">{{navbarTitle}}</text>
-    </view>
-    <view wx:if="{{showConnectionIssue}}" class="index-page__connection">
-      <text class="index-page__connection-text"></text>
+    <view class="index-page__top-fade" />
+    <view class="index-page__header-main">
+      <t-navbar left-arrow="{{false}}" />
+      <view class="page-large-title index-page__large-title">
+        <text class="page-large-title__text">{{navbarTitle}}</text>
+      </view>
+      <view wx:if="{{showConnectionIssue}}" class="index-page__connection">
+        <text class="index-page__connection-text">正在连接...</text>
+      </view>
     </view>
   </view>
 

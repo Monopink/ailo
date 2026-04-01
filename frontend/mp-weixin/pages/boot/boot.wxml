@@ -3,17 +3,12 @@
   contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
   refreshState="{{pageLayoutData.screenModel.refreshState}}"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
-  hasFooter="{{pageLayoutData.hasFooter}}">
-  <t-navbar slot="header" left-arrow="{{false}}">
-    <view slot="title" class="navbar-title"></view>
-  </t-navbar>
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  disableScroll="{{true}}">
   <view slot="content" class="boot-page">
-    <image class="boot-page__logo" src="/assets/logo.png" mode="aspectFit" />
-    <view class="boot-page__text">
-      <text class="boot-page__brand">敲敲</text>
-      <text class="boot-page__subtitle">AI 陪伴 · 实时共鸣</text>
-      <text class="boot-page__status">正在为你准备聊天体验…</text>
+    <view wx:if="{{showLoadingIndicator}}" class="boot-page__loading">
+      <t-loading wx:if="{{showLoadingText}}" text="正在进入" />
+      <t-loading wx:else />
     </view>
-    <t-loading text="正在进入" />
   </view>
 </page-layout>

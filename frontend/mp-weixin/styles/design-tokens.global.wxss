@@ -75,6 +75,13 @@ page,
 
   /* Special Colors */
   --color-link: #007aff; /* Link text (iOS blue) */
+  --page-top-brand-fade-height: 320rpx;
+  --page-top-brand-fade-gradient: linear-gradient(
+    180deg,
+    rgba(229, 255, 0, 0.62) 0%,
+    rgba(229, 255, 0, 0.3) 44%,
+    rgba(229, 255, 0, 0) 100%
+  );
 
   /* Gender Badge Colors */
   --color-gender-male: #4a90e2; /* Male - Blue */
@@ -83,21 +90,38 @@ page,
   --color-gender-unknown: #95a5a6; /* Unknown - Gray */
 
   /* Square Entry Card Colors */
-  --square-entry-card-blue-gradient: linear-gradient(135deg, #4d7bff 0%, #2a5bff 100%);
-  --square-entry-card-cyan-gradient: linear-gradient(135deg, #4cc2ff 0%, #1f8bff 100%);
-  --square-entry-card-teal-gradient: linear-gradient(135deg, #2ed8c3 0%, #0fb6a8 100%);
-  --square-entry-card-green-gradient: linear-gradient(135deg, #3ad17a 0%, #16b25a 100%);
-  --square-entry-card-lime-gradient: linear-gradient(135deg, #b9f000 0%, #7bd400 100%);
-  --square-entry-card-yellow-gradient: linear-gradient(135deg, #ffe36a 0%, #ffd000 100%);
-  --square-entry-card-amber-gradient: linear-gradient(135deg, #ffcf4d 0%, #ff9500 100%);
-  --square-entry-card-orange-gradient: linear-gradient(135deg, #ff9a4d 0%, #ff6a00 100%);
-  --square-entry-card-red-gradient: linear-gradient(135deg, #ff6a6a 0%, #ff3b30 100%);
-  --square-entry-card-pink-gradient: linear-gradient(135deg, #ff6aa8 0%, #ff1a8a 100%);
-  --square-entry-card-purple-gradient: linear-gradient(135deg, #b56dff 0%, #7b3dff 100%);
-  --square-entry-card-gray-gradient: linear-gradient(135deg, #9aa0a6 0%, #6b7280 100%);
+  --square-entry-card-blue-solid: #4a7dff;
+  --square-entry-card-cyan-solid: #39c8ff;
+  --square-entry-card-teal-solid: #2ecfbf;
+  --square-entry-card-green-solid: #42d392;
+  --square-entry-card-lime-solid: #e5ff00;
+  --square-entry-card-yellow-solid: #ffe36a;
+  --square-entry-card-orange-solid: #f54c12;
+  --square-entry-card-purple-solid: #7e3bed;
+  --square-entry-card-pink-solid: #ef4e9c;
+  --square-entry-card-magenta-solid: #ef83f0;
+  --square-entry-card-beige-solid: #e9e7e2;
+  --square-entry-card-charcoal-solid: #1f1d1e;
+  --square-entry-card-blue-gradient: linear-gradient(135deg, #7f96ff 0%, #5f79f0 100%);
+  --square-entry-card-cyan-gradient: linear-gradient(135deg, #6ad9ff 0%, #3fb7ee 100%);
+  --square-entry-card-teal-gradient: linear-gradient(135deg, #58e1cc 0%, #32b9a8 100%);
+  --square-entry-card-green-gradient: linear-gradient(135deg, #7de38f 0%, #4dbd63 100%);
+  --square-entry-card-lime-gradient: linear-gradient(135deg, #f0ff72 0%, #e5ff00 100%);
+  --square-entry-card-yellow-gradient: linear-gradient(135deg, #fff2a3 0%, #e5ff00 100%);
+  --square-entry-card-orange-gradient: linear-gradient(135deg, #ff8a63 0%, #f54c12 100%);
+  --square-entry-card-purple-gradient: linear-gradient(135deg, #a070ff 0%, #7e3bed 100%);
+  --square-entry-card-pink-gradient: linear-gradient(135deg, #ff7fbd 0%, #ef4e9c 100%);
+  --square-entry-card-magenta-gradient: linear-gradient(135deg, #f7acf8 0%, #ef83f0 100%);
+  --square-entry-card-beige-gradient: linear-gradient(135deg, #f4f2ee 0%, #e9e7e2 100%);
+  --square-entry-card-charcoal-gradient: linear-gradient(135deg, #4b4648 0%, #1f1d1e 100%);
   --square-entry-card-icon-bg: rgba(255, 255, 255, 0.2);
+  --square-entry-card-icon-bg-inverse: rgba(31, 29, 30, 0.1);
+  --square-entry-card-icon-color: rgba(255, 255, 255, 0.98);
+  --square-entry-card-icon-color-inverse: #1f1d1e;
   --square-entry-card-title-color: rgba(255, 255, 255, 0.98);
-  --square-entry-card-desc-color: rgba(255, 255, 255, 0.88);
+  --square-entry-card-title-color-inverse: #1f1d1e;
+  --square-entry-card-desc-color: rgba(255, 255, 255, 0.86);
+  --square-entry-card-desc-color-inverse: rgba(31, 29, 30, 0.72);
 
   /* Tag Tone Palette - hash mapped, semantic-independent */
   --color-tag-tone-1: #4e79ff;
@@ -362,6 +386,13 @@ page,
 
     /* Special Colors */
     --color-link: #0a84ff;
+    --page-top-brand-fade-height: 320rpx;
+    --page-top-brand-fade-gradient: linear-gradient(
+      180deg,
+      rgba(229, 255, 0, 0.62) 0%,
+      rgba(229, 255, 0, 0.3) 44%,
+      rgba(229, 255, 0, 0) 100%
+    );
 
     /* Gender Badge Colors - slightly adjusted for dark mode */
     --color-gender-male: #5ba3ff;
@@ -370,21 +401,38 @@ page,
     --color-gender-unknown: #a8b8b9;
 
     /* Square Entry Card Colors - adjusted for dark mode */
-    --square-entry-card-blue-gradient: linear-gradient(135deg, #5a8bff 0%, #3d6bff 100%);
-    --square-entry-card-cyan-gradient: linear-gradient(135deg, #5cd2ff 0%, #2f9bff 100%);
-    --square-entry-card-teal-gradient: linear-gradient(135deg, #46e0d0 0%, #1ac0b6 100%);
-    --square-entry-card-green-gradient: linear-gradient(135deg, #5fe58f 0%, #2cc46d 100%);
-    --square-entry-card-lime-gradient: linear-gradient(135deg, #c7ff4d 0%, #8be600 100%);
-    --square-entry-card-yellow-gradient: linear-gradient(135deg, #fff0a6 0%, #ffd95a 100%);
-    --square-entry-card-amber-gradient: linear-gradient(135deg, #ffd98a 0%, #ffb84d 100%);
-    --square-entry-card-orange-gradient: linear-gradient(135deg, #ffb37a 0%, #ff7a3d 100%);
-    --square-entry-card-red-gradient: linear-gradient(135deg, #ff8b7a 0%, #ff4d4d 100%);
-    --square-entry-card-pink-gradient: linear-gradient(135deg, #ff7ab8 0%, #ff1a8a 100%);
-    --square-entry-card-purple-gradient: linear-gradient(135deg, #c57dff 0%, #8b4dff 100%);
-    --square-entry-card-gray-gradient: linear-gradient(135deg, #a8b0b8 0%, #727b86 100%);
-    --square-entry-card-icon-bg: rgba(255, 255, 255, 0.25);
+    --square-entry-card-blue-solid: #5c8bff;
+    --square-entry-card-cyan-solid: #4ad4ff;
+    --square-entry-card-teal-solid: #46dbcb;
+    --square-entry-card-green-solid: #58df9f;
+    --square-entry-card-lime-solid: #e5ff00;
+    --square-entry-card-yellow-solid: #ffe983;
+    --square-entry-card-orange-solid: #ff6430;
+    --square-entry-card-purple-solid: #9361f2;
+    --square-entry-card-pink-solid: #f164ab;
+    --square-entry-card-magenta-solid: #ee95ef;
+    --square-entry-card-beige-solid: #ece9e4;
+    --square-entry-card-charcoal-solid: #2a2829;
+    --square-entry-card-blue-gradient: linear-gradient(135deg, #7890ef 0%, #5f79d0 100%);
+    --square-entry-card-cyan-gradient: linear-gradient(135deg, #5ec7e6 0%, #3f9fc6 100%);
+    --square-entry-card-teal-gradient: linear-gradient(135deg, #53c8b7 0%, #379285 100%);
+    --square-entry-card-green-gradient: linear-gradient(135deg, #69c67a 0%, #458f57 100%);
+    --square-entry-card-lime-gradient: linear-gradient(135deg, #d7e85a 0%, #a9bd2a 100%);
+    --square-entry-card-yellow-gradient: linear-gradient(135deg, #dbcf83 0%, #a8a040 100%);
+    --square-entry-card-orange-gradient: linear-gradient(135deg, #dc7a5a 0%, #b4532e 100%);
+    --square-entry-card-purple-gradient: linear-gradient(135deg, #8d68d6 0%, #6f49b4 100%);
+    --square-entry-card-pink-gradient: linear-gradient(135deg, #d773a8 0%, #b45286 100%);
+    --square-entry-card-magenta-gradient: linear-gradient(135deg, #d698d7 0%, #b270b3 100%);
+    --square-entry-card-beige-gradient: linear-gradient(135deg, #b4b1ab 0%, #8c8882 100%);
+    --square-entry-card-charcoal-gradient: linear-gradient(135deg, #5b5658 0%, #2a2829 100%);
+    --square-entry-card-icon-bg: rgba(255, 255, 255, 0.24);
+    --square-entry-card-icon-bg-inverse: rgba(31, 29, 30, 0.12);
+    --square-entry-card-icon-color: rgba(255, 255, 255, 0.98);
+    --square-entry-card-icon-color-inverse: #1f1d1e;
     --square-entry-card-title-color: rgba(255, 255, 255, 0.98);
-    --square-entry-card-desc-color: rgba(255, 255, 255, 0.9);
+    --square-entry-card-title-color-inverse: #1f1d1e;
+    --square-entry-card-desc-color: rgba(255, 255, 255, 0.88);
+    --square-entry-card-desc-color-inverse: rgba(31, 29, 30, 0.74);
 
     /* Tag Tone Palette - dark mode */
     --color-tag-tone-1: #8aa0ff;

@@ -3,7 +3,6 @@
   "navigationStyle": "custom",
   "backgroundColor": "@bgColor",
   "usingComponents": {
-    "t-navbar": "tdesign-miniprogram/navbar/navbar",
     "page-layout": "/components/page-layout/page-layout",
     "t-loading": "tdesign-miniprogram/loading/loading"
   }

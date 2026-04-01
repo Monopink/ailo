@@ -138,7 +138,7 @@ Page<SquarePageData, SquarePageCustom>({
         contentVariant: 'data',
         refreshState: 'idle',
       },
-      emptyMessage: '暂无联系人',
+      emptyMessage: '暂无内容',
     }),
     categories: squareDiscoveryService.getFallbackCategories(),
     currentCategoryKey: 'friend',

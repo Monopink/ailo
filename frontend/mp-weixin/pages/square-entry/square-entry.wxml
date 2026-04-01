@@ -5,8 +5,11 @@
   refreshState="{{pageLayoutData.screenModel.refreshState}}"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   hasFooter="{{pageLayoutData.hasFooter}}">
-  <view slot="header">
-    <t-navbar left-arrow="{{false}}" />
+  <view slot="header" class="square-entry-page__header">
+    <view class="square-entry-page__header-top-fade" />
+    <view class="square-entry-page__header-main">
+      <t-navbar left-arrow="{{false}}" />
+    </view>
   </view>
 
   <view slot="content" class="square-entry-page">
@@ -22,7 +25,10 @@
         bindtap="handleCardTap"
         data-category-key="{{item.categoryKey}}">
         <view class="square-entry-card__icon">
-          <t-icon name="{{item.iconName}}" size="var(--icon-sm)" color="#ffffff" />
+          <t-icon
+            name="{{item.iconName}}"
+            size="var(--icon-sm)"
+            color="var(--square-entry-card-icon-color-current, var(--square-entry-card-icon-color))" />
         </view>
         <view class="square-entry-card__content">
           <text class="square-entry-card__title">{{item.label}}</text>

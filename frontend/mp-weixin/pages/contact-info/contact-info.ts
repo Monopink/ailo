@@ -183,7 +183,7 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
         contentVariant: 'data',
         refreshState: 'idle',
       },
-      emptyMessage: '暂无联系人资料',
+      emptyMessage: '暂无内容',
       hasFooter: false,
     }),
   },

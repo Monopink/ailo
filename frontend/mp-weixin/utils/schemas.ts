@@ -261,12 +261,12 @@ export const SquareThemeKeySchema = z.enum([
   'green',
   'lime',
   'yellow',
-  'amber',
   'orange',
-  'red',
-  'pink',
   'purple',
-  'gray',
+  'pink',
+  'magenta',
+  'beige',
+  'charcoal',
 ]);
 export type SquareThemeKey = z.infer<typeof SquareThemeKeySchema>;
 

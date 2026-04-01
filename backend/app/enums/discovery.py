@@ -26,12 +26,12 @@ class SquareCategoryTheme(StrEnum):
     GREEN = "green"
     LIME = "lime"
     YELLOW = "yellow"
-    AMBER = "amber"
     ORANGE = "orange"
-    RED = "red"
-    PINK = "pink"
     PURPLE = "purple"
-    GRAY = "gray"
+    PINK = "pink"
+    MAGENTA = "magenta"
+    BEIGE = "beige"
+    CHARCOAL = "charcoal"
 
 
 SQUARE_CATEGORY_THEME_KEYS: tuple[str, ...] = tuple(item.value for item in SquareCategoryTheme)

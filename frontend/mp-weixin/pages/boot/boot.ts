@@ -3,13 +3,23 @@ import { getLogger } from '../../utils/logger';
 import { isNonEmptyString } from '../../utils/guards';
 
 const logger = getLogger('Boot');
+const LOADING_INDICATOR_DELAY_MS = 220;
+const LOADING_TEXT_DELAY_MS = 1200;
+
+type TimerHandle = ReturnType<typeof setTimeout>;
 
 interface BootPageData {
   pageLayoutData: PageLayoutData;
   routed: boolean;
+  showLoadingIndicator: boolean;
+  showLoadingText: boolean;
 }
 
 interface BootPageCustom {
+  _loadingIndicatorTimer: TimerHandle | null;
+  _loadingTextTimer: TimerHandle | null;
+  _startLoadingFeedback(): void;
+  _clearLoadingFeedback(): void;
   _routeOnce(callback: () => void): void;
 }
 
@@ -41,12 +51,17 @@ Page<BootPageData, BootPageCustom>({
       emptyMessage: '',
     }),
     routed: false,
+    showLoadingIndicator: false,
+    showLoadingText: false,
   },
+  _loadingIndicatorTimer: null,
+  _loadingTextTimer: null,
 
   onLoad(options: RouteOptions) {
     if (this.data.routed) {
       return;
     }
+    this._startLoadingFeedback();
 
     try {
       const token = wx.getStorageSync<string | null>('auth_token');
@@ -77,11 +92,48 @@ Page<BootPageData, BootPageCustom>({
     }
   },
 
+  onUnload() {
+    this._clearLoadingFeedback();
+  },
+
+  _startLoadingFeedback() {
+    this._clearLoadingFeedback();
+
+    this._loadingIndicatorTimer = setTimeout(() => {
+      if (this.data.routed) {
+        return;
+      }
+      this.setData({ showLoadingIndicator: true });
+    }, LOADING_INDICATOR_DELAY_MS);
+
+    this._loadingTextTimer = setTimeout(() => {
+      if (this.data.routed) {
+        return;
+      }
+      this.setData({
+        showLoadingIndicator: true,
+        showLoadingText: true,
+      });
+    }, LOADING_TEXT_DELAY_MS);
+  },
+
+  _clearLoadingFeedback() {
+    if (this._loadingIndicatorTimer !== null) {
+      clearTimeout(this._loadingIndicatorTimer);
+      this._loadingIndicatorTimer = null;
+    }
+    if (this._loadingTextTimer !== null) {
+      clearTimeout(this._loadingTextTimer);
+      this._loadingTextTimer = null;
+    }
+  },
+
   _routeOnce(callback: () => void) {
     if (this.data.routed) {
       return;
     }
 
+    this._clearLoadingFeedback();
     this.setData({ routed: true });
 
     if (typeof wx.nextTick === 'function') {

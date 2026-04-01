@@ -36,7 +36,7 @@ const FALLBACK_CATEGORY_CARDS: readonly SquareCategoryCard[] = [
     categoryKey: 'talk',
     label: '倾诉',
     description: '想说的话有人听，情绪不必独自消化',
-    themeKey: 'amber',
+    themeKey: 'orange',
     iconName: 'chat',
     iconRef: 'tdesign:chat',
   },

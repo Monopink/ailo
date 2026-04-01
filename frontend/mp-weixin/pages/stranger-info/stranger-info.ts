@@ -90,34 +90,26 @@ const hasRenderableEntryPayload = (payload: StrangerEntryPayload | null): boolea
   if (payload === null) {
     return false;
   }
-  if (isNonEmptyString(payload.nickname)) {
+
+  const textFields: Array<string | null | undefined> = [
+    payload.nickname,
+    payload.avatarUrl,
+    typeof payload.remark === 'string' ? payload.remark : undefined,
+    payload.bio,
+    payload.region,
+    payload.categoryKey,
+    payload.categoryTitle,
+  ];
+
+  if (textFields.some((value) => isNonEmptyString(value))) {
     return true;
   }
-  if (isNonEmptyString(payload.avatarUrl)) {
-    return true;
-  }
+
   if (Array.isArray(payload.tags) && payload.tags.length > 0) {
     return true;
   }
-  if (isNonEmptyString(typeof payload.remark === 'string' ? payload.remark : '')) {
-    return true;
-  }
-  if (isNonEmptyString(payload.bio)) {
-    return true;
-  }
-  if (isNonEmptyString(payload.region)) {
-    return true;
-  }
-  if (typeof payload.gender === 'number' && payload.gender > 0) {
-    return true;
-  }
-  if (typeof payload.categoryKey === 'string' && payload.categoryKey.trim().length > 0) {
-    return true;
-  }
-  if (typeof payload.categoryTitle === 'string' && payload.categoryTitle.trim().length > 0) {
-    return true;
-  }
-  return false;
+
+  return typeof payload.gender === 'number' && payload.gender > 0;
 };
 
 Page<StrangerInfoPageData, StrangerInfoPageCustom>({

@@ -3,6 +3,29 @@
 @import '/styles/tag-tone.wxss';
 
 .index-page__header {
+  position: relative;
+  overflow: hidden;
+  background-color: transparent;
+
+  --page-top-brand-fade-height: 156rpx;
+}
+
+.index-page__top-fade {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: var(--page-top-brand-fade-height);
+  background: var(--page-top-brand-fade-gradient);
+  pointer-events: none;
+}
+
+.index-page__header-main {
+  position: relative;
+  z-index: 1;
+}
+
+.index-page__large-title {
   background-color: transparent;
 }
 

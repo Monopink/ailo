@@ -60,7 +60,7 @@ async def process_llm_response(
 
     outgoing_messages: list[str] = _coerce_string_list(ai_response.get("outgoing_messages"))
     followup_messages: list[str] = _coerce_string_list(ai_response.get("followup_messages"))
-    should_reply = bool(ai_response.get("should_reply", True))
+    should_reply = ai_response.get("should_reply") is True
 
     score_updates = normalize_score_payload(ai_response.get("score"))
     raw_refresh_ids = _resolve_raw_refresh_ids(

@@ -90,6 +90,8 @@ LLM 响应的字段语义、处理顺序和跨模块归属见本文档的“系�
   - 若 Provider/SDK 因 schema 约束导致请求失败、超时或返回不可解析内容，视为当前 attempt 失败并进入重试（若未被抢占）。
 - 运行时（系统验收）：
   - 仅对 L0 最小契约执行硬门槛校验（L0-only gate）。
+  - L0 字段（`attack_detected`、`should_block`、`should_reply`、`outgoing_messages`、`followup_messages`）的 `required/type` 全量由运行时 `response schema` 决定，禁止在代码中硬编码必填约束。
+  - 保持分级处理：`score`、`should_update_memory`、`memory_operations` 继续按 L1 裁剪处理，不因 schema 的 `required` 配置升级为 L0 硬门槛。
   - L1 字段不进入运行时硬门槛，由编排层手工校验与裁剪（不阻断消息发送）。
 - `score` 的维度集合与取值区间校验依据当前 style 维度与 personality schema 的 `minimum` / `maximum`。
 - `memory_operations` 校验失败时，整项记忆副作用跳过。

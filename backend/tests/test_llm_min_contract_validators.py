@@ -25,8 +25,28 @@ from app.services.ai.utils.min_contract import prune_l1_fields, validate_l0_cont
 from app.services.ai.utils.normalization import normalize_memory_operations
 
 
+def _build_l0_schema(*, require_should_block: bool = False) -> dict[str, object]:
+    required_fields = ["attack_detected", "should_reply"]
+    if require_should_block:
+        required_fields.append("should_block")
+    return {
+        "type": "object",
+        "properties": {
+            "attack_detected": {"type": "boolean"},
+            "should_block": {"type": "boolean"},
+            "should_reply": {"type": "boolean"},
+            "outgoing_messages": {"type": "array", "items": {"type": "string"}},
+            "followup_messages": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": required_fields,
+    }
+
+
 def test_l0_requires_booleans() -> None:
-    result = validate_l0_contract({"should_reply": True, "should_block": False})
+    result = validate_l0_contract(
+        {"should_reply": True, "should_block": False},
+        _build_l0_schema(),
+    )
     assert not result.ok
 
 
@@ -38,7 +58,8 @@ def test_l0_rejects_non_array_messages() -> None:
             "should_reply": True,
             "outgoing_messages": "hi",
             "followup_messages": [],
-        }
+        },
+        _build_l0_schema(),
     )
     assert not result.ok
 
@@ -51,7 +72,8 @@ def test_l0_rejects_empty_string_message() -> None:
             "should_reply": True,
             "outgoing_messages": ["   "],
             "followup_messages": [],
-        }
+        },
+        _build_l0_schema(),
     )
     assert not result.ok
 
@@ -64,7 +86,8 @@ def test_l0_requires_non_empty_messages_when_should_reply_true() -> None:
             "should_reply": True,
             "outgoing_messages": [],
             "followup_messages": [],
-        }
+        },
+        _build_l0_schema(),
     )
     assert not result.ok
 
@@ -75,7 +98,8 @@ def test_l0_allows_missing_messages_when_should_reply_false() -> None:
             "attack_detected": False,
             "should_block": False,
             "should_reply": False,
-        }
+        },
+        _build_l0_schema(),
     )
     assert result.ok
     assert result.outgoing_messages == []
@@ -90,12 +114,56 @@ def test_l0_ignores_valid_messages_when_should_reply_false() -> None:
             "should_reply": False,
             "outgoing_messages": ["hi"],
             "followup_messages": ["later"],
-        }
+        },
+        _build_l0_schema(),
     )
     assert result.ok
     assert result.reply_messages_ignored is True
     assert result.outgoing_messages == []
     assert result.followup_messages == []
+
+
+def test_l0_allows_missing_should_block_when_not_required_by_schema() -> None:
+    result = validate_l0_contract(
+        {
+            "attack_detected": False,
+            "should_reply": True,
+            "outgoing_messages": ["ok"],
+            "followup_messages": [],
+        },
+        _build_l0_schema(require_should_block=False),
+    )
+    assert result.ok
+    assert result.should_block is None
+
+
+def test_l0_requires_should_block_when_required_by_schema() -> None:
+    result = validate_l0_contract(
+        {
+            "attack_detected": False,
+            "should_reply": True,
+            "outgoing_messages": ["ok"],
+            "followup_messages": [],
+        },
+        _build_l0_schema(require_should_block=True),
+    )
+    assert not result.ok
+    assert result.failure_detail == "should_block must be boolean"
+
+
+def test_l0_rejects_non_boolean_should_block_when_present() -> None:
+    result = validate_l0_contract(
+        {
+            "attack_detected": False,
+            "should_block": "false",
+            "should_reply": True,
+            "outgoing_messages": ["ok"],
+            "followup_messages": [],
+        },
+        _build_l0_schema(require_should_block=False),
+    )
+    assert not result.ok
+    assert result.failure_detail == "should_block must be boolean"
 
 
 def test_l1_prunes_invalid_score_and_memory() -> None:

@@ -39,7 +39,11 @@ from app.services.ai.relationship_scoring import (
     update_relationship_positions,
 )
 from app.services.ai.response_schema import build_response_schema
-from app.services.ai.utils.min_contract import prune_l1_fields, validate_l0_contract
+from app.services.ai.utils.min_contract import (
+    L0ContractResult,
+    prune_l1_fields,
+    validate_l0_contract,
+)
 from app.services.ai.utils.normalization import normalize_memory_operations, normalize_score_payload
 from app.services.llm import invoke_llm
 from app.services.llm.client import select_config_for_ai
@@ -508,6 +512,33 @@ async def _save_attempt_log(
     )
 
 
+def _normalize_l0_fields_into_response(
+    *,
+    response_payload: JSONDict,
+    l0_result: L0ContractResult,
+) -> JSONDict:
+    normalized_response = dict(response_payload)
+    for key in (
+        "attack_detected",
+        "should_block",
+        "should_reply",
+        "outgoing_messages",
+        "followup_messages",
+    ):
+        normalized_response.pop(key, None)
+    if l0_result.attack_detected is not None:
+        normalized_response["attack_detected"] = l0_result.attack_detected
+    if l0_result.should_block is not None:
+        normalized_response["should_block"] = l0_result.should_block
+    if l0_result.should_reply is not None:
+        normalized_response["should_reply"] = l0_result.should_reply
+    if l0_result.outgoing_messages is not None:
+        normalized_response["outgoing_messages"] = list(l0_result.outgoing_messages)
+    if l0_result.followup_messages is not None:
+        normalized_response["followup_messages"] = list(l0_result.followup_messages)
+    return normalized_response
+
+
 async def _execute_llm_attempts(
     *,
     db: AsyncSession,
@@ -614,7 +645,7 @@ async def _execute_llm_attempts(
                 )
                 await db.commit()
             else:
-                l0_result = validate_l0_contract(response_payload)
+                l0_result = validate_l0_contract(response_payload, json_schema)
                 if not l0_result.ok:
                     last_error = l0_result.failure_detail or "l0_validation_failed"
                     failed_llm_result = dict(llm_result)
@@ -643,15 +674,9 @@ async def _execute_llm_attempts(
                     raw_memory_operations = response_payload.get("memory_operations")
                     if isinstance(raw_memory_operations, dict):
                         raw_refresh_ids = raw_memory_operations.get("refresh_ids")
-                    normalized_response = dict(response_payload)
-                    normalized_response["attack_detected"] = bool(l0_result.attack_detected)
-                    normalized_response["should_block"] = bool(l0_result.should_block)
-                    normalized_response["should_reply"] = bool(l0_result.should_reply)
-                    normalized_response["outgoing_messages"] = list(
-                        l0_result.outgoing_messages or []
-                    )
-                    normalized_response["followup_messages"] = list(
-                        l0_result.followup_messages or []
+                    normalized_response = _normalize_l0_fields_into_response(
+                        response_payload=response_payload,
+                        l0_result=l0_result,
                     )
                     l1_result = prune_l1_fields(
                         ai_response=normalized_response,

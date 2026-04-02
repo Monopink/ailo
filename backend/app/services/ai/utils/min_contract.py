@@ -20,6 +20,14 @@ from app.type_defs import JSONDict, JSONValue
 # Default (Mode B): when should_reply=false but message arrays are valid and non-empty,
 # ignore messages and do not treat as L0 failure.
 STRICT_SHOULD_REPLY_FALSE_WITH_MESSAGES = False
+_L0_BOOL_FIELDS = ("attack_detected", "should_block", "should_reply")
+_L0_MESSAGE_FIELDS = ("outgoing_messages", "followup_messages")
+
+
+@dataclass(frozen=True, slots=True)
+class L0SchemaFieldSpec:
+    enabled: bool
+    required: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,7 +50,62 @@ class L1PruneResult:
     memory_kept: bool
 
 
-def _require_bool(payload: JSONDict, key: str) -> bool:
+def _build_l0_schema_specs(json_schema: JSONDict) -> dict[str, L0SchemaFieldSpec]:
+    required_raw = json_schema.get("required", [])
+    if not isinstance(required_raw, list):
+        raise TypeError("json_schema.required must be string[]")
+
+    required_fields: set[str] = set()
+    for idx, item in enumerate(required_raw):
+        if not isinstance(item, str):
+            raise TypeError(f"json_schema.required[{idx}] must be string")
+        required_fields.add(item)
+
+    properties = json_schema.get("properties")
+    if not isinstance(properties, dict):
+        raise TypeError("json_schema.properties must be object")
+
+    specs: dict[str, L0SchemaFieldSpec] = {}
+    for field_name in _L0_BOOL_FIELDS:
+        raw_field_schema = properties.get(field_name)
+        if raw_field_schema is None:
+            specs[field_name] = L0SchemaFieldSpec(enabled=False, required=False)
+            continue
+        if not isinstance(raw_field_schema, dict):
+            raise TypeError(f"json_schema.properties.{field_name} must be object")
+        if raw_field_schema.get("type") != "boolean":
+            raise TypeError(f"json_schema.properties.{field_name}.type must be boolean")
+        specs[field_name] = L0SchemaFieldSpec(
+            enabled=True,
+            required=field_name in required_fields,
+        )
+
+    for field_name in _L0_MESSAGE_FIELDS:
+        raw_field_schema = properties.get(field_name)
+        if raw_field_schema is None:
+            specs[field_name] = L0SchemaFieldSpec(enabled=False, required=False)
+            continue
+        if not isinstance(raw_field_schema, dict):
+            raise TypeError(f"json_schema.properties.{field_name} must be object")
+        if raw_field_schema.get("type") != "array":
+            raise TypeError(f"json_schema.properties.{field_name}.type must be array")
+        specs[field_name] = L0SchemaFieldSpec(
+            enabled=True,
+            required=field_name in required_fields,
+        )
+    return specs
+
+
+def _require_bool(
+    payload: JSONDict,
+    key: str,
+    *,
+    required: bool,
+) -> bool | None:
+    if key not in payload:
+        if required:
+            raise TypeError(f"{key} must be boolean")
+        return None
     value = payload.get(key)
     if isinstance(value, bool):
         return value
@@ -68,9 +131,9 @@ def _normalize_message_list(value: JSONValue | None, *, field_name: str) -> list
 
 def _build_l0_success_result(
     *,
-    attack_detected: bool,
-    should_block: bool,
-    should_reply: bool,
+    attack_detected: bool | None,
+    should_block: bool | None,
+    should_reply: bool | None,
     outgoing_messages: list[str],
     followup_messages: list[str],
     reply_messages_ignored: bool = False,
@@ -90,8 +153,8 @@ def _build_l0_success_result(
 
 def _validate_should_reply_true(
     *,
-    attack_detected: bool,
-    should_block: bool,
+    attack_detected: bool | None,
+    should_block: bool | None,
     should_reply: bool,
     outgoing_messages: list[str],
     followup_messages: list[str],
@@ -116,8 +179,8 @@ def _validate_should_reply_true(
 def _validate_should_reply_false(
     *,
     strict_should_reply_false_with_messages: bool,
-    attack_detected: bool,
-    should_block: bool,
+    attack_detected: bool | None,
+    should_block: bool | None,
     should_reply: bool,
     outgoing_messages: list[str],
     followup_messages: list[str],
@@ -149,14 +212,17 @@ def _validate_should_reply_false(
 
 def validate_l0_contract(
     ai_response: object,
+    json_schema: JSONDict,
     *,
     strict_should_reply_false_with_messages: bool = STRICT_SHOULD_REPLY_FALSE_WITH_MESSAGES,
 ) -> L0ContractResult:
     """
     Validate runtime L0 minimal contract and normalize message arrays.
 
-    L0 requirements:
-    - attack_detected/should_block/should_reply must exist and be boolean.
+    L0 requirements (schema-driven):
+    - For L0 fields defined in json_schema.properties:
+      - required list controls whether field must exist.
+      - type controls runtime type validation.
     - outgoing_messages/followup_messages must be string[] when present
       and contain non-empty strings.
     - if should_reply=true, at least one of outgoing_messages/followup_messages must be non-empty.
@@ -170,28 +236,78 @@ def validate_l0_contract(
             failure_code="L0_NOT_OBJECT",
             failure_detail="response must be an object",
         )
-
     try:
-        attack_detected = _require_bool(ai_response, "attack_detected")
-        should_block = _require_bool(ai_response, "should_block")
-        should_reply = _require_bool(ai_response, "should_reply")
+        l0_specs = _build_l0_schema_specs(json_schema)
+        attack_detected = (
+            _require_bool(
+                ai_response,
+                "attack_detected",
+                required=l0_specs["attack_detected"].required,
+            )
+            if l0_specs["attack_detected"].enabled
+            else None
+        )
+        should_block = (
+            _require_bool(
+                ai_response,
+                "should_block",
+                required=l0_specs["should_block"].required,
+            )
+            if l0_specs["should_block"].enabled
+            else None
+        )
+        should_reply = (
+            _require_bool(
+                ai_response,
+                "should_reply",
+                required=l0_specs["should_reply"].required,
+            )
+            if l0_specs["should_reply"].enabled
+            else None
+        )
 
-        outgoing_messages = _normalize_message_list(
-            ai_response.get("outgoing_messages"), field_name="outgoing_messages"
-        )
-        followup_messages = _normalize_message_list(
-            ai_response.get("followup_messages"), field_name="followup_messages"
-        )
-        if should_reply:
+        if l0_specs["outgoing_messages"].enabled:
+            if "outgoing_messages" not in ai_response:
+                if l0_specs["outgoing_messages"].required:
+                    raise TypeError("outgoing_messages must be string[]")
+                outgoing_messages = []
+            else:
+                outgoing_messages = _normalize_message_list(
+                    ai_response.get("outgoing_messages"), field_name="outgoing_messages"
+                )
+        else:
+            outgoing_messages = []
+
+        if l0_specs["followup_messages"].enabled:
+            if "followup_messages" not in ai_response:
+                if l0_specs["followup_messages"].required:
+                    raise TypeError("followup_messages must be string[]")
+                followup_messages = []
+            else:
+                followup_messages = _normalize_message_list(
+                    ai_response.get("followup_messages"), field_name="followup_messages"
+                )
+        else:
+            followup_messages = []
+
+        if should_reply is True:
             return _validate_should_reply_true(
                 attack_detected=attack_detected,
                 should_block=should_block,
-                should_reply=should_reply,
+                should_reply=True,
                 outgoing_messages=outgoing_messages,
                 followup_messages=followup_messages,
             )
-        return _validate_should_reply_false(
-            strict_should_reply_false_with_messages=strict_should_reply_false_with_messages,
+        if should_reply is False:
+            return _validate_should_reply_false(
+                strict_should_reply_false_with_messages=strict_should_reply_false_with_messages,
+                attack_detected=attack_detected,
+                should_block=should_block,
+                should_reply=False,
+                outgoing_messages=outgoing_messages,
+                followup_messages=followup_messages,
+            )
+        return _build_l0_success_result(
             attack_detected=attack_detected,
             should_block=should_block,
             should_reply=should_reply,

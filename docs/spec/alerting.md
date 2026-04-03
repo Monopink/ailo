@@ -5,7 +5,7 @@
 ## 职责边界
 
 - 本文档：告警事件的语义、去重、严重程度、details 约束、清理机制与配置来源。
-- 数据库结构：见 [../data-dict/alerting.md](../data-dict/alerting.md)。
+- 涉及数据表：`alert_events`, `alert_event_entities`。
 - 具体业务规则（例如 AI 记忆 refresh miss）：由各子系统实现并写入对应 `event_type`，不在本文件描述其阈值细节。
 
 ## 事件模型

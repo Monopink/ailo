@@ -320,9 +320,3 @@ Worker 处理 contact_request 时，首先验证 AI 是否可用：
 - 记录 error 日志
 - 回滚事务（包括 Instance）
 - 需要告警
-
-## 数据表
-
-- [data-dict/ai-instantiation.md](../../data-dict/ai-instantiation.md) - ai_personas, ai_templates, ai_instances
-- [data-dict/contact.md](../../data-dict/contact.md) - contact_requests, contacts
-- [data-dict/profile.md](../../data-dict/profile.md) - profiles

@@ -31,7 +31,7 @@
 
 ### ai_message_buffer 核心字段
 
-完整表结构见 [data-dict/ai-conversation.md](../../data-dict/ai-conversation.md#ai_message_buffer)
+涉及数据表：`ai_message_buffer`
 
 ### 约束与索引
 

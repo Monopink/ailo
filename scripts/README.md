@@ -110,6 +110,27 @@ This directory contains utility scripts for development, testing, and validation
 
 ---
 
+### 5. schema/generate_schema_artifacts.py
+**Purpose**: Generate schema artifacts from SQLAlchemy models (preview-safe by default)
+
+**Usage**:
+```bash
+# Generate preview artifacts (does not overwrite runtime files)
+python scripts/schema/generate_schema_artifacts.py --output-dir docs/plans/schema-autogen-preview
+```
+
+**What it generates**:
+1. `schema.tables.tsv` (table index)
+2. `schema.columns.tsv` (column index)
+3. `schema.constraints.tsv` (constraints/indexes)
+4. `01_schema.preview.sql` (optional DDL preview from metadata)
+
+**Notes**:
+- Source of truth is `backend/app/models/*.py` (+ migrations for evolution).
+- Generated files should not be edited manually.
+
+---
+
 ## Recommended Workflow
 
 ### For AI Development

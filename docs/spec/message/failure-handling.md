@@ -31,7 +31,7 @@
 
 ## 数据模型：message_dispatch_outbox + message_deliveries
 
-完整表结构见 [data-dict/message.md](../../data-dict/message.md)。
+涉及数据表：`message_dispatch_outbox`, `message_deliveries`, `message_history`。
 
 说明：
 

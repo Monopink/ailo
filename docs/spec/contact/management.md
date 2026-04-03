@@ -216,7 +216,7 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 - 通过 contact_qiao_id 查询 profiles 视图
 - 视图自动关联 owner_type 和 owner_id
 
-详见：[data-dict/profile.md](../../data-dict/profile.md)
+涉及数据表：`profiles`
 
 ### 消息历史
 
@@ -256,4 +256,4 @@ API 接口定义详见：[api/contacts.md](../../api/contacts.md)
 
 ## 数据表
 
-详见：[data-dict/contact.md](../../data-dict/contact.md)
+涉及数据表：`contacts`

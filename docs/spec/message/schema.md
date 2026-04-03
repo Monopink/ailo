@@ -100,7 +100,7 @@ WebSocket Provider 的传输载荷统一为 JSON；客户端以 `device_id` 作�
 
 ### 数据库存储映射
 
-message_history 表存储多个ID字段（完整定义见 [message.md](../../data-dict/message.md)）：
+message_history 表存储多个ID字段（涉及数据表：`message_history`）：
 
 - msg_id_server - 服务端统一生成的消息ID（形如 `msg_{snowflake}`）- 示例：`msg_223788765171154945`
 - msg_id_client - 客户端生成的ID（仅用户消息有值）- 示例：`client_1710001111222_abc123`
@@ -219,7 +219,7 @@ message_history 表存储多个ID字段（完整定义见 [message.md](../../dat
 
 ## 数据库表关系
 
-数据库表结构与字段定义见 [data-dict/message.md](../../data-dict/message.md)。本文避免重复列出字段，仅说明关系与不变量：
+数据库表结构与字段定义涉及：`message_history`, `message_dispatch_outbox`, `message_deliveries`, `message_devices`, `message_endpoints`。本文避免重复列出字段，仅说明关系与不变量：
 
 - `message_history`：消息事实（不承载投递状态）
 - `message_dispatch_outbox`：记录待派发任务（重试与恢复入口）

@@ -9,7 +9,7 @@
 
 ## ai_conversation_items 表
 
-完整表结构见 [data-dict/ai-conversation.md](../../data-dict/ai-conversation.md)
+涉及数据表：`ai_conversation_items`, `ai_conversation_items_archive`
 
 ### 消息存储格式
 

@@ -17,9 +17,11 @@ docker compose -f dev/compose.yaml exec backend alembic revision --autogenerate 
 ```
 
 2. Review generated file under `backend/alembic/versions/`.
-3. Update init SQL to final schema state in `backend/database/init/`.
-4. Update related tables in `docs/data-dict/`.
-5. Verify three-way sync (model, init SQL, data dictionary).
+3. Generate schema artifacts from source-of-truth models/migrations.
+4. Ensure generated outputs include:
+   - `backend/database/init/sql/01_schema.sql`
+   - `docs/data-dict/*`
+5. Verify single-source sync (models+migrations -> generated SQL/data-dict).
 
 ## Verification
 
@@ -33,5 +35,5 @@ docker compose -f dev/compose.yaml exec postgres psql -U $POSTGRES_USER -d $POST
 
 1. Use descriptive migration names.
 2. Do not skip migration review.
-3. Do not finish with unsynced schema/docs.
+3. Do not finish with unsynced generated artifacts.
 4. If migration fails, fix migration or schema files before continuing.

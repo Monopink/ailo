@@ -31,7 +31,6 @@ utils/constants/
 
 /**
  * 用户性别枚举
- * 对应后端: docs/data-dict/user.md#gender
  */
 export const GENDER = {
   MALE: 'male',

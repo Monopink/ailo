@@ -6,9 +6,7 @@
 
 **数据表定义** 详见：
 
-- [../../data-dict/ai-configuration.md](../../data-dict/ai-configuration.md)
-- [../../data-dict/ai-instantiation.md](../../data-dict/ai-instantiation.md)
-- [../../data-dict/ai-conversation.md](../../data-dict/ai-conversation.md)
+- 涉及数据表：`ai_styles`, `ai_templates`, `ai_instances`, `ai_personalities`, `ai_dimensions`, `ai_instance_dimensions`
 
 ## 核心概念
 

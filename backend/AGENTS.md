@@ -75,10 +75,11 @@ orchestrators
 
 ## 数据库变更同步
 
-当 schema 发生变更，必须同步更新：
+当 schema 发生变更，必须保持单一真相源并生成产物：
 
-1. `backend/database/init/**/*.sql`
-2. `docs/data-dict/*.md`
+1. 真相源：`backend/app/models/*.py` + `backend/alembic/versions/*.py`
+2. 生成产物：`backend/database/init/sql/01_schema.sql` + `docs/data-dict/*`
+3. 生成方式：使用 schema 生成脚本（禁止手工编辑产物文件）
 
 禁止以“手工改线上库”替代迁移。
 

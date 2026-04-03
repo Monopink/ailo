@@ -14,7 +14,7 @@ Run final commit gate checks by orchestrating project skills.
    - Prefer using `git diff --name-only --cached` to scope what will be committed.
 2. Run `/validate`.
 3. Verify documentation sync using `.agents/skills/validate/implementation-standards.md`.
-4. If database schema changed, verify three-way sync (model, init SQL, data dictionary) or run `/database`.
+4. If database schema changed, verify single-source sync (models+migrations -> generated SQL/data-dict) or run `/database` + `/schema-autogen`.
 5. Run relevant tests when present.
 6. Review final diff for debug code and sensitive output.
 7. Return commit readiness.
@@ -24,7 +24,7 @@ Run final commit gate checks by orchestrating project skills.
 Stop immediately and block commit when:
 - Any validation command fails.
 - Required documentation updates are missing.
-- Database three-way sync is broken.
+- Database source-to-artifact sync is broken.
 - Tests fail.
 - Project virtual environment is unavailable or validation tools are missing inside it.
 

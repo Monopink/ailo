@@ -4,7 +4,7 @@
 
 ## 职责边界
 
-- 字段定义与表结构：[`../../data-dict/ai-configuration.md#ai_styles`](../../data-dict/ai-configuration.md#ai_styles)、[`../../data-dict/ai-configuration.md#ai_style_dimensions`](../../data-dict/ai-configuration.md#ai_style_dimensions)、[`../../data-dict/ai-configuration.md#ai_relationships`](../../data-dict/ai-configuration.md#ai_relationships)、[`../../data-dict/ai-configuration.md#ai_dimension_relationship_mappings`](../../data-dict/ai-configuration.md#ai_dimension_relationship_mappings)、[`../../data-dict/ai-conversation.md#ai_instance_dimensions`](../../data-dict/ai-conversation.md#ai_instance_dimensions)
+- 涉及数据表：`ai_styles`, `ai_style_dimensions`, `ai_relationships`, `ai_dimension_relationship_mappings`, `ai_instance_dimensions`
 - `score` 输入来源与处理时序：[`llm-interaction.md`](llm-interaction.md)
 - 关系参数在对话中的使用：[`../message/buffer.md`](../message/buffer.md)、[`message-sending.md`](message-sending.md)、[`prompt-building.md`](prompt-building.md)
 

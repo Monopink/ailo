@@ -1,11 +1,19 @@
 # 数据库设计文档
 
-## 设计原则
+## 真相源
 
-- 统一标识符命名：外部标识符统一使用`qiao_id`格式，内部使用Snowflake ID
-- 枚举字段统一在代码中定义：优先使用 `SMALLINT` + `IntEnum`；跨边界/稳定标识类枚举可使用 `VARCHAR` + `StrEnum`。data-dict 字段定义只标注 `enum: <EnumName>`，取值集合以 `backend/app/enums/*` 为准，避免重复与过时
-- 核心业务表使用Snowflake ID：用户、消息、AI等核心表使用BIGINT类型的Snowflake ID
-- 配置表使用自增ID：系统配置、统计等辅助表使用 PostgreSQL `IDENTITY`/sequence 自增
-- 完善的索引设计：为高频查询字段添加合适的索引
-- 时间字段自动管理：created_at和updated_at字段自动设置和更新
+- 真相源仅为 `backend/app/models/*.py` 与 `backend/alembic/versions/*.py`
+- `docs/data-dict/*` 为自动生成产物，不是手工维护真相源
+- `backend/database/init/sql/01_schema.sql` 与 `docs/data-dict/*` 必须由同一生成流程产出
+
+## 产物格式（AI优先）
+
+- `schema.tables.tsv`：表级索引
+- `schema.columns.tsv`：字段级索引
+- `schema.constraints.tsv`：约束与索引
+
+## 规则
+
+- 禁止手工修改自动生成产物中的结构字段定义
+- 枚举取值以 `backend/app/enums/*` 为准
 - 时间格式规范见 [时间格式规范](../spec/time-format.md)

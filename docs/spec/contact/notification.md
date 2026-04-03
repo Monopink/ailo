@@ -92,7 +92,7 @@
   - content = 提示文本
   - info_type = 信息类型
 
-详见：[data-dict/message.md](../../data-dict/message.md)
+涉及数据表：`message_history`
 
 ## NOTIFICATION 消息
 
@@ -191,7 +191,7 @@
   - is_read - 是否已读
   - read_at - 阅读时间
 
-详见：[data-dict/notification.md](../../data-dict/notification.md)
+涉及数据表：`notification_push_history`
 
 ## 客户端处理
 

@@ -37,7 +37,7 @@
 
 ### 状态定义
 
-详见：[data-dict/contact.md](../../data-dict/contact.md)
+涉及数据表：`contact_requests`, `contacts`
 
 - **PENDING (1)** - 待处理
   - 初始状态

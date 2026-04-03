@@ -20,6 +20,6 @@
 ## 相关文档与代码
 
 - Media API：`../../api/media.md`
-- media_files 数据结构：`../../data-dict/storage.md#media_files`
+- 涉及数据表：`media_files`
 - 消息数据结构：`../../spec/message/schema.md`
 - 上传规则：`../../../backend/app/services/media/rules.py`

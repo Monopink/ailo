@@ -2,5 +2,6 @@
 /database
 /frontend-design
 /pre-commit-check
+/schema-autogen
 /session-start
 /validate

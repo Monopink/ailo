@@ -1,0 +1,1 @@
+"""Schema artifact generation utilities."""

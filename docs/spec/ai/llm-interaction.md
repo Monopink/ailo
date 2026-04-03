@@ -6,7 +6,7 @@
 
 - 本文档：请求参数合并、流式调用、抢占、L0/L1 校验闸门、重试、请求追踪，输出字段契约。
 - 端到端编排：见 [conversation-flow.md](conversation-flow.md)。
-- 字段定义：见 [../../data-dict/llm.md](../../data-dict/llm.md) 与 [../../data-dict/ai-conversation.md](../../data-dict/ai-conversation.md#ai_request_logs)。
+- 涉及数据表：`llm_providers`, `llm_configs`, `llm_test_logs`, `ai_request_logs`。
 
 ## 配置来源与优先级
 
@@ -70,9 +70,7 @@ LLM 响应的字段语义、处理顺序和跨模块归属见本文档的“系�
 - `response_time` 按 attempt 独立记录，不做跨 attempt 累计。
 - `request` / `response` 保存完整载荷与原始响应（JSONB），敏感字段必须脱敏。
 
-字段清单与类型以 data-dict 为准：
-
-- [../../data-dict/ai-conversation.md#ai_request_logs](../../data-dict/ai-conversation.md#ai_request_logs)
+字段清单与类型以模型真相源为准，本文涉及核心表：`ai_request_logs`。
 
 ## 错误边界
 
@@ -94,6 +92,7 @@ LLM 响应的字段语义、处理顺序和跨模块归属见本文档的“系�
   - 保持分级处理：`score`、`should_update_memory`、`memory_operations` 继续按 L1 裁剪处理，不因 schema 的 `required` 配置升级为 L0 硬门槛。
   - L1 字段不进入运行时硬门槛，由编排层手工校验与裁剪（不阻断消息发送）。
 - `score` 的维度集合与取值区间校验依据当前 style 维度与 personality schema 的 `minimum` / `maximum`。
+- `score` 顶层 description 来源于 personality schema 的 `score.description`；缺失时使用后端 schema 注册表默认值。
 - `score` 维度描述来源于 personality schema 的 `score.properties.<dimension>.description`；当该字段缺失时使用 `ai_dimensions.description` 默认值。
 - `memory_operations` 校验失败时，整项记忆副作用跳过。
 - L0 校验器必须是纯函数，不依赖 db/session。

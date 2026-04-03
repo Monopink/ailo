@@ -78,7 +78,7 @@
 ### 2. 方案规划（**禁止修改任何代码**）
 - 如果用户提出创建任务文档，创建在 docs/plans/*
 - 功能/接口变更：同步更新 docs/spec/* 和 docs/api/*
-- 数据库修改：同步更新 backend/database/init/*.sql 和 docs/data-dict/
+- 数据库修改：先修改 `backend/app/models/*.py` 与 Alembic migration；`backend/database/init/sql/01_schema.sql` 与 `docs/data-dict/*` 统一由生成脚本产出，禁止手工双写
 - 修改文档前必读 docs/AGENTS.md
 - 依赖修改 backend/app/equirements.txt
 - 环境变量和部署文件修改 deployment/*
@@ -108,6 +108,7 @@
 - 会话开始 → `/session-start`
 - 修改代码后（后端/前端） → `/validate`
 - 修改数据库模型后 → `/database migrate`
+- 生成 schema 与 data-dict 产物（预览/同步） → `/schema-autogen`
 - 需要重置数据库 → `/database reset`
 - 实施验收审查（用户明确提出时） → `/code-review-expert`
 - 准备提交前 → `/pre-commit-check`

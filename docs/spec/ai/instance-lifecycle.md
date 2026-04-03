@@ -6,8 +6,7 @@
 
 **数据表定义** 详见：
 
-- [../../data-dict/ai-instantiation.md](../../data-dict/ai-instantiation.md)
-- [../../data-dict/profile.md](../../data-dict/profile.md)
+- 涉及数据表：`ai_types`, `ai_personas`, `ai_templates`, `ai_instances`, `profiles`
 
 **关系结构**：
 

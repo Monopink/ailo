@@ -12,8 +12,17 @@ from app.core.database import get_db
 from app.crud.ai import ai_personality_placeholder as placeholder_crud
 from app.models.ai.instance import AIInstance
 from app.models.ai.personality import AIPersonality, AIPersonalityPlaceholder
+from app.models.ai.style import AIDimension
 from app.models.ai.template import AITemplate
 from app.services.ai.response_schema import generate_json_schema
+from app.services.ai.schema_field_registry import (
+    get_score_field_default_description,
+    get_system_fixed_field_definition_map,
+    get_system_fixed_field_definitions,
+    get_system_fixed_field_names,
+    get_system_preset_field_definition_map,
+    get_system_preset_field_definitions,
+)
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -21,16 +30,10 @@ logger = get_logger(__name__)
 personality_router = APIRouter()
 
 _ALLOWED_JSON_TYPES = {"string", "integer", "number", "boolean", "object", "array"}
-_RESERVED_FIELD_NAMES = {
-    "should_block",
-    "should_reply",
-    "attack_detected",
-    "should_update_memory",
-    "memory_operations",
-    "followup_messages",
-    "outgoing_messages",
-    "score",
-}
+_SYSTEM_FIXED_FIELDS = get_system_fixed_field_definition_map()
+_SYSTEM_PRESET_FIELDS = get_system_preset_field_definition_map()
+_SCORE_FIELD_DEFAULT_DESCRIPTION = get_score_field_default_description()
+_RESERVED_FIELD_NAMES = get_system_fixed_field_names().union({"score"})
 
 
 def _extract_score_dimension_names(schema: object, *, field_name: str) -> set[str]:
@@ -159,6 +162,61 @@ def _validate_schema_config(schema_config: object) -> dict[str, Any]:
             }
         )
 
+    raw_standard_field_descriptions = schema_config.get("standard_field_descriptions", [])
+    if raw_standard_field_descriptions is None:
+        raw_standard_field_descriptions = []
+    if not isinstance(raw_standard_field_descriptions, list):
+        raise HTTPException(status_code=400, detail="standard_field_descriptions must be a list")
+
+    standard_field_descriptions: list[dict[str, str]] = []
+    seen_standard_field_names: set[str] = set()
+    for index, raw_item in enumerate(raw_standard_field_descriptions):
+        if not isinstance(raw_item, dict):
+            raise HTTPException(
+                status_code=400,
+                detail=f"standard_field_descriptions[{index}] must be an object",
+            )
+        raw_name = raw_item.get("name")
+        if not isinstance(raw_name, str) or not raw_name.strip():
+            raise HTTPException(
+                status_code=400,
+                detail=f"standard_field_descriptions[{index}].name is required",
+            )
+        field_name = raw_name.strip()
+        if field_name not in _SYSTEM_FIXED_FIELDS:
+            raise HTTPException(
+                status_code=400,
+                detail=(f"standard_field_descriptions[{index}].name must be a fixed system field"),
+            )
+        if field_name in seen_standard_field_names:
+            raise HTTPException(
+                status_code=400,
+                detail=f"duplicate standard field description: {field_name}",
+            )
+        seen_standard_field_names.add(field_name)
+
+        raw_description = raw_item.get("description", "")
+        if raw_description is None:
+            description = ""
+        elif isinstance(raw_description, str):
+            description = raw_description.strip()
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"standard_field_descriptions[{index}].description must be a string",
+            )
+        standard_field_descriptions.append({"name": field_name, "description": description})
+
+    raw_score_description = schema_config.get("score_description", "")
+    if raw_score_description is None:
+        score_description = ""
+    elif isinstance(raw_score_description, str):
+        score_description = raw_score_description.strip()
+    else:
+        raise HTTPException(status_code=400, detail="score_description must be a string")
+    if not score_description:
+        score_description = _SCORE_FIELD_DEFAULT_DESCRIPTION
+
     raw_custom_fields = schema_config.get("custom_fields", [])
     if raw_custom_fields is None:
         raw_custom_fields = []
@@ -184,11 +242,20 @@ def _validate_schema_config(schema_config: object) -> dict[str, Any]:
             )
         custom_names.add(field_name)
 
+        preset_definition = _SYSTEM_PRESET_FIELDS.get(field_name)
         raw_type = raw_field.get("type", "string")
         if not isinstance(raw_type, str) or raw_type not in _ALLOWED_JSON_TYPES:
             raise HTTPException(
                 status_code=400,
                 detail=f"custom_fields[{index}].type is invalid",
+            )
+        if preset_definition and raw_type != preset_definition.field_type:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"custom_fields[{index}].type must be "
+                    f"{preset_definition.field_type} for {field_name}"
+                ),
             )
 
         raw_description = raw_field.get("description", "")
@@ -201,25 +268,34 @@ def _validate_schema_config(schema_config: object) -> dict[str, Any]:
                 status_code=400,
                 detail=f"custom_fields[{index}].description must be a string",
             )
+        if not description and preset_definition:
+            description = preset_definition.default_description
 
-        raw_required = raw_field.get("required", False)
-        if not isinstance(raw_required, bool):
-            raise HTTPException(
-                status_code=400,
-                detail=f"custom_fields[{index}].required must be a boolean",
-            )
+        required_value: bool
+        if "required" in raw_field:
+            raw_required = raw_field.get("required")
+            if not isinstance(raw_required, bool):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"custom_fields[{index}].required must be a boolean",
+                )
+            required_value = raw_required
+        else:
+            required_value = preset_definition.default_required if preset_definition else False
 
         custom_fields.append(
             {
                 "name": field_name,
                 "type": raw_type,
                 "description": description,
-                "required": raw_required,
+                "required": required_value,
             }
         )
 
     return {
         "dimensions": dimensions,
+        "standard_field_descriptions": standard_field_descriptions,
+        "score_description": score_description,
         "custom_fields": custom_fields,
     }
 
@@ -334,6 +410,245 @@ def _validate_deleted_placeholder_ids(raw_deleted_ids: object) -> list[int]:
         seen.add(parsed)
         deleted_ids.append(parsed)
     return deleted_ids
+
+
+def _normalize_text(value: object) -> str:
+    """Normalize optional text values into stripped string."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    return ""
+
+
+def _to_required_set(raw_required: object) -> set[str]:
+    """Convert schema required payload to a normalized set."""
+    if not isinstance(raw_required, list):
+        return set()
+    result: set[str] = set()
+    for item in raw_required:
+        if isinstance(item, str) and item.strip():
+            result.add(item.strip())
+    return result
+
+
+@personality_router.get("/ai-personality/{personality_id}/advanced-config")
+async def get_personality_advanced_config(
+    personality_id: int, db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
+    """Return aggregated advanced-edit configuration for one personality."""
+    personality_result = await db.execute(
+        select(AIPersonality).where(AIPersonality.id == personality_id)
+    )
+    personality = personality_result.scalar_one_or_none()
+    if not personality:
+        raise HTTPException(status_code=404, detail="Personality not found")
+
+    schema_raw = personality.json_schema if isinstance(personality.json_schema, dict) else {}
+    properties_raw = schema_raw.get("properties")
+    properties = properties_raw if isinstance(properties_raw, dict) else {}
+    required_fields = _to_required_set(schema_raw.get("required"))
+
+    score_raw = properties.get("score")
+    score_obj = score_raw if isinstance(score_raw, dict) else {}
+    score_description = _normalize_text(score_obj.get("description"))
+    if not score_description:
+        score_description = _SCORE_FIELD_DEFAULT_DESCRIPTION
+
+    score_properties_raw = score_obj.get("properties")
+    score_properties = score_properties_raw if isinstance(score_properties_raw, dict) else {}
+    score_dimension_names = [
+        name for name in score_properties if isinstance(name, str) and name.strip()
+    ]
+
+    dimensions_by_name: dict[str, AIDimension] = {}
+    if score_dimension_names:
+        dimensions_result = await db.execute(
+            select(AIDimension).where(AIDimension.name.in_(score_dimension_names))
+        )
+        dimensions_by_name = {row.name: row for row in dimensions_result.scalars().all()}
+
+    field_entries: list[dict[str, Any]] = []
+    score_dimensions: list[dict[str, Any]] = []
+    for dimension_name in score_dimension_names:
+        dim_schema_raw = score_properties.get(dimension_name)
+        dim_schema = dim_schema_raw if isinstance(dim_schema_raw, dict) else {}
+        db_dimension = dimensions_by_name.get(dimension_name)
+        default_description = _normalize_text(getattr(db_dimension, "description", None))
+        schema_description = _normalize_text(dim_schema.get("description"))
+        current_description = schema_description or default_description
+
+        min_value = dim_schema.get("minimum")
+        max_value = dim_schema.get("maximum")
+        numeric_min = float(min_value) if isinstance(min_value, int | float) else None
+        numeric_max = float(max_value) if isinstance(max_value, int | float) else None
+
+        score_dimensions.append(
+            {
+                "key": f"score:{dimension_name}",
+                "name": dimension_name,
+                "display_name": _normalize_text(getattr(db_dimension, "display_name", None)),
+                "group": "score_dimension",
+                "type": "integer",
+                "required": True,
+                "min": numeric_min,
+                "max": numeric_max,
+                "description": current_description,
+                "default_description": default_description,
+                "editable_description": True,
+                "restorable": True,
+                "deletable": False,
+                "locked_name": True,
+                "locked_type": True,
+                "locked_required": True,
+                "is_default": current_description == default_description,
+                "exists": db_dimension is not None,
+            }
+        )
+
+    for definition in get_system_fixed_field_definitions():
+        field_schema_raw = properties.get(definition.field_name)
+        field_schema = field_schema_raw if isinstance(field_schema_raw, dict) else {}
+        schema_description = _normalize_text(field_schema.get("description"))
+        current_description = schema_description or definition.default_description
+        field_entries.append(
+            {
+                "key": definition.field_name,
+                "name": definition.field_name,
+                "type": definition.field_type,
+                "required": definition.field_name in required_fields or definition.default_required,
+                "group": "system_fixed",
+                "description": current_description,
+                "default_description": definition.default_description,
+                "editable_description": definition.editable_description,
+                "restorable": definition.restorable,
+                "deletable": False,
+                "locked_name": True,
+                "locked_type": True,
+                "locked_required": True,
+                "is_default": current_description == definition.default_description,
+            }
+        )
+
+    field_entries.append(
+        {
+            "key": "score",
+            "name": "score",
+            "type": "object",
+            "required": True,
+            "group": "score_root",
+            "description": score_description,
+            "default_description": _SCORE_FIELD_DEFAULT_DESCRIPTION,
+            "editable_description": True,
+            "restorable": True,
+            "deletable": False,
+            "locked_name": True,
+            "locked_type": True,
+            "locked_required": True,
+            "is_default": score_description == _SCORE_FIELD_DEFAULT_DESCRIPTION,
+        }
+    )
+    field_entries.extend(score_dimensions)
+
+    current_property_names = {name for name in properties if isinstance(name, str) and name.strip()}
+    preset_field_names = {
+        definition.field_name for definition in get_system_preset_field_definitions()
+    }
+    for definition in get_system_preset_field_definitions():
+        if definition.field_name not in current_property_names:
+            continue
+        field_schema_raw = properties.get(definition.field_name)
+        field_schema = field_schema_raw if isinstance(field_schema_raw, dict) else {}
+        schema_description = _normalize_text(field_schema.get("description"))
+        current_description = schema_description or definition.default_description
+        required_value = (
+            True if definition.field_name in required_fields else definition.default_required
+        )
+        field_entries.append(
+            {
+                "key": definition.field_name,
+                "name": definition.field_name,
+                "type": definition.field_type,
+                "required": required_value,
+                "group": "system_preset",
+                "description": current_description,
+                "default_description": definition.default_description,
+                "editable_description": definition.editable_description,
+                "restorable": definition.restorable,
+                "deletable": True,
+                "locked_name": True,
+                "locked_type": True,
+                "locked_required": False,
+                "is_default": current_description == definition.default_description,
+            }
+        )
+
+    for name, field_schema_raw in properties.items():
+        if name in _RESERVED_FIELD_NAMES or name == "score":
+            continue
+        if name in preset_field_names:
+            continue
+        if not isinstance(name, str) or not name.strip():
+            continue
+        field_schema = field_schema_raw if isinstance(field_schema_raw, dict) else {}
+        field_type_raw = field_schema.get("type")
+        field_type = field_type_raw if isinstance(field_type_raw, str) else "string"
+        schema_description = _normalize_text(field_schema.get("description"))
+
+        field_entries.append(
+            {
+                "key": name,
+                "name": name,
+                "type": field_type,
+                "required": name in required_fields,
+                "group": "custom",
+                "description": schema_description,
+                "default_description": "",
+                "editable_description": True,
+                "restorable": False,
+                "deletable": True,
+                "locked_name": False,
+                "locked_type": False,
+                "locked_required": False,
+                "is_default": not bool(schema_description),
+            }
+        )
+
+    available_presets: list[dict[str, Any]] = []
+    for definition in get_system_preset_field_definitions():
+        if definition.field_name in current_property_names:
+            continue
+        available_presets.append(
+            {
+                "name": definition.field_name,
+                "key": definition.field_name,
+                "group": "system_preset",
+                "type": definition.field_type,
+                "default_description": definition.default_description,
+                "default_required": definition.default_required,
+                "editable_description": definition.editable_description,
+                "restorable": definition.restorable,
+                "locked_name": True,
+                "locked_type": True,
+                "locked_required": False,
+            }
+        )
+
+    is_referenced = await _personality_has_references(db, personality_id)
+    return {
+        "personality": {
+            "id": personality.id,
+            "display_name": personality.display_name,
+            "status": personality.status,
+            "prompt": personality.prompt or "",
+        },
+        "field_entries": field_entries,
+        "available_presets": available_presets,
+        "constraints": {
+            "is_referenced": is_referenced,
+            "score_dimension_set_locked": is_referenced,
+        },
+    }
 
 
 @personality_router.get("/ai-personality/{personality_id}/placeholders")

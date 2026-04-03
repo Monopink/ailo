@@ -25,6 +25,21 @@
     background-color: var(--tblr-danger-bg-subtle) !important;
     color: var(--tblr-danger-text-emphasis) !important;
   }
+  /* Shared locked field-name style across schema edit modals */
+  .schema-field-name-lock[disabled] {
+    background-color: #e9ecef !important;
+    border-color: #d7dde3 !important;
+    color: #6c757d !important;
+    -webkit-text-fill-color: #6c757d !important;
+    cursor: not-allowed !important;
+    opacity: 1 !important;
+  }
+  html[data-bs-theme='dark'] .schema-field-name-lock[disabled] {
+    background-color: #2b3038 !important;
+    border-color: #3a404a !important;
+    color: #9aa4b2 !important;
+    -webkit-text-fill-color: #9aa4b2 !important;
+  }
 </style>
 {% endblock %}
 
@@ -229,15 +244,19 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">选择style</h5>
+        <h5 class="modal-title">选择 style</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <select class="form-select" id="style-selector">
-          <option value="">-- 请选择style --</option>
+          <option value="">-- 请选择 style --</option>
         </select>
         <div class="mt-2" id="style-dimensions-preview">
           <small class="text-muted">请选择 style 查看维度</small>
+        </div>
+        <div class="alert alert-warning mt-2 py-2 mb-0 d-none d-flex align-items-center" id="style-dimension-warning" role="alert">
+          <i class="fas fa-exclamation-triangle lh-1 flex-shrink-0 me-2"></i>
+          <span>如果 Personality 已经被使用，修改不同的 Dimension 会导致保存失败！</span>
         </div>
       </div>
       <div class="modal-footer">
@@ -258,12 +277,13 @@
       </div>
       <div class="modal-body">
         <input type="hidden" id="modal-field-key">
+        <input type="hidden" id="modal-field-mode" value="custom">
         <div class="mb-3">
-          <label class="form-label">Field Name <span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="modal-field-name" required>
+          <label class="form-label" id="modal-field-name-label">Field Name <span class="text-danger" id="modal-field-name-required-mark">*</span></label>
+          <input type="text" class="form-control schema-field-name-lock" id="modal-field-name" required>
         </div>
-        <div class="mb-3">
-          <label class="form-label">Type <span class="text-danger">*</span></label>
+        <div class="mb-3" id="modal-field-type-row">
+          <label class="form-label">Type <span class="text-danger" id="modal-field-type-required-mark">*</span></label>
           <select class="form-select" id="modal-field-type">
             <option value="string">String</option>
             <option value="integer">Integer</option>
@@ -275,9 +295,14 @@
         </div>
         <div class="mb-3">
           <label class="form-label">Description</label>
-          <input type="text" class="form-control" id="modal-field-description">
+          <textarea class="form-control" id="modal-field-description" rows="3"></textarea>
+          <div class="form-text mt-2">Default Description</div>
+          <div class="small text-muted" id="modal-field-default-description">-</div>
+          <div class="mt-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="modal-field-restore-default" onclick="app.restoreSchemaFieldDefaultDescription()">恢复默认</button>
+          </div>
         </div>
-        <div class="form-check">
+        <div class="form-check" id="modal-field-required-row">
           <input type="checkbox" class="form-check-input" id="modal-field-required">
           <label class="form-check-label" for="modal-field-required">Required</label>
         </div>
@@ -312,7 +337,7 @@
 
 <script>
 const PERSONALITY_ID = {{ personality.id }};
-const INITIAL_SCHEMA = {{ personality.json_schema | tojson | safe }};
+const ADVANCED_CONFIG_URL = `/admin-api/ai/ai-personality/${PERSONALITY_ID}/advanced-config`;
 const LIST_URL = "{{ url_for(__name__ ~ ':list', identity='ai_personality') }}";
 const dialogs = window.qiaoAdminDialogs;
 {% raw %}
@@ -328,19 +353,23 @@ const SYSTEM_PLACEHOLDERS = [
     state: {
       placeholders: [],
       deletedPlaceholderIds: [],
-      dimensions: [],
-      customFields: [],
+      fieldEntries: [],
       placeholderModal: null,
       styleSelectorModal: null,
       schemaFieldModal: null,
       presetFieldModal: null,
+      availablePresets: [],
+      constraints: {},
+      presetCandidates: [],
       manualUndoOps: [],
       lastSavedSnapshot: null,
       unsavedGuard: null,
       // Cache for style -> dimensions to avoid repeated requests
       styleDimensionsCache: {},
       // Map of styleId -> <option> element for label updates
-      styleOptionsMap: {}
+      styleOptionsMap: {},
+      // Keep removed score-dimension drafts in current session only.
+      orphanScoreDimensionDrafts: {}
     },
 
   serializeSnapshot(data) {
@@ -348,16 +377,30 @@ const SYSTEM_PLACEHOLDERS = [
   },
 
   buildPayload() {
+    const scoreDimensions = this.getScoreDimensionEntries();
+    const fixedFields = this.getFieldEntriesByGroup('system_fixed');
+    const scoreRoot = this.getScoreRootEntry();
+    const editableFields = this.state.fieldEntries.filter((field) => field.group === 'system_preset' || field.group === 'custom');
     return {
       prompt: (document.getElementById('prompt-editor')?.value || '').trim(),
       schema_config: {
-        dimensions: this.state.dimensions.map(d => ({
-          name: d.name,
-          min: Number(d.min),
-          max: Number(d.max),
-          description: (d.description || '').trim()
+        dimensions: scoreDimensions.map((dimension) => ({
+          name: dimension.name,
+          min: Number(dimension.min),
+          max: Number(dimension.max),
+          description: (dimension.description || '').trim(),
         })),
-        custom_fields: this.state.customFields.map(field => ({ ...field }))
+        standard_field_descriptions: fixedFields.map((field) => ({
+          name: field.name,
+          description: (field.description || '').trim(),
+        })),
+        score_description: (scoreRoot?.description || '').trim(),
+        custom_fields: editableFields.map((field) => ({
+          name: field.name,
+          type: field.type,
+          description: (field.description || '').trim(),
+          required: !!field.required,
+        })),
       },
       placeholders: this.state.placeholders.map(placeholder => ({ ...placeholder })),
       deleted_placeholder_ids: [...this.state.deletedPlaceholderIds]
@@ -393,9 +436,9 @@ const SYSTEM_PLACEHOLDERS = [
     }
 
     // Load data
+    await this.loadAdvancedConfig();
     await this.loadPlaceholders();
     await this.loadStyles();
-    await this.loadDimensionsFromSchema();
 
     // Setup event listeners
     const editor = document.getElementById('prompt-editor');
@@ -458,12 +501,38 @@ const SYSTEM_PLACEHOLDERS = [
       .replaceAll("'", '&#39;');
   },
 
+  getFieldEntriesByGroup(groupName) {
+    return this.state.fieldEntries.filter((entry) => entry.group === groupName);
+  },
+
+  getScoreRootEntry() {
+    return this.state.fieldEntries.find((entry) => entry.group === 'score_root') || null;
+  },
+
+  getScoreDimensionEntries() {
+    return this.getFieldEntriesByGroup('score_dimension');
+  },
+
+  getEditableCustomEntries() {
+    return this.state.fieldEntries.filter(
+      (entry) => entry.group === 'custom' || entry.group === 'system_preset'
+    );
+  },
+
+  findFieldEntryByKey(fieldKey) {
+    if (typeof fieldKey !== 'string' || fieldKey.trim() === '') {
+      return null;
+    }
+    return this.state.fieldEntries.find((entry) => entry.key === fieldKey) || null;
+  },
+
   validateDimensions() {
-    if (this.state.dimensions.length === 0) {
+    const scoreDimensions = this.getScoreDimensionEntries();
+    if (scoreDimensions.length === 0) {
       return '请先加载dimension信息';
     }
-    for (let i = 0; i < this.state.dimensions.length; i += 1) {
-      const dim = this.state.dimensions[i];
+    for (let i = 0; i < scoreDimensions.length; i += 1) {
+      const dim = scoreDimensions[i];
       if (!Number.isFinite(dim.min) || !Number.isFinite(dim.max)) {
         return `维度 ${dim.name} 的 min/max 必须是数字`;
       }
@@ -486,8 +555,9 @@ const SYSTEM_PLACEHOLDERS = [
       'score'
     ]);
     const seen = new Set();
-    for (let i = 0; i < this.state.customFields.length; i += 1) {
-      const field = this.state.customFields[i];
+    const customFields = this.getEditableCustomEntries();
+    for (let i = 0; i < customFields.length; i += 1) {
+      const field = customFields[i];
       if (!field || typeof field.name !== 'string' || field.name.trim() === '') {
         return `第 ${i + 1} 个自定义字段名称不能为空`;
       }
@@ -501,6 +571,69 @@ const SYSTEM_PLACEHOLDERS = [
       seen.add(name);
     }
     return null;
+  },
+
+  async loadAdvancedConfig() {
+    const response = await fetch(ADVANCED_CONFIG_URL);
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => ({}));
+      throw new Error(errorPayload.detail || '加载高级配置失败');
+    }
+    const data = await response.json();
+    const personality = data?.personality || {};
+    const promptEditor = document.getElementById('prompt-editor');
+    if (promptEditor && typeof personality.prompt === 'string') {
+      promptEditor.value = personality.prompt;
+    }
+
+    this.state.fieldEntries = Array.isArray(data?.field_entries)
+      ? data.field_entries.map((item) => ({
+          key: item.key || item.name || '',
+          name: item.name || '',
+          display_name: item.display_name || '',
+          group: item.group || 'custom',
+          type: item.type || 'string',
+          required: !!item.required,
+          description: item.description || '',
+          default_description: item.default_description || '',
+          editable_description: item.editable_description !== false,
+          restorable: item.restorable !== false,
+          deletable: item.deletable === true,
+          locked_name: item.locked_name !== false,
+          locked_type: item.locked_type !== false,
+          locked_required: item.locked_required !== false,
+          min: Number.isFinite(Number(item.min)) ? Number(item.min) : null,
+          max: Number.isFinite(Number(item.max)) ? Number(item.max) : null,
+          is_default: !!item.is_default,
+          exists: item.exists !== false
+        }))
+      : [];
+    this.state.orphanScoreDimensionDrafts = {};
+    this.state.constraints = data?.constraints && typeof data.constraints === 'object'
+      ? data.constraints
+      : {};
+
+    this.state.availablePresets = Array.isArray(data?.available_presets)
+      ? data.available_presets.map((item) => ({
+          key: item.key || item.name || '',
+          name: item.name || '',
+          group: item.group || 'system_preset',
+          type: item.type || 'string',
+          description: item.default_description || '',
+          default_description: item.default_description || '',
+          required: !!item.default_required,
+          editable_description: item.editable_description !== false,
+          restorable: item.restorable !== false,
+          deletable: true,
+          locked_name: item.locked_name !== false,
+          locked_type: item.locked_type !== false,
+          locked_required: item.locked_required !== false
+        }))
+      : [];
+
+    this.renderDimensions();
+    this.renderScorePlaceholders();
+    this.renderSchemaFieldsTable();
   },
 
   async loadPlaceholders() {
@@ -561,70 +694,109 @@ const SYSTEM_PLACEHOLDERS = [
     return safe;
   },
 
-  async loadDimensionsFromSchema() {
-    const schema = INITIAL_SCHEMA;
+  replaceScoreDimensionEntries(dims) {
+    const activeDimensionEntries = this.getScoreDimensionEntries();
+    const activeByName = new Map();
+    activeDimensionEntries.forEach((entry) => {
+      const name = (entry.name || '').trim();
+      if (!name) {
+        return;
+      }
+      activeByName.set(name, entry);
+    });
 
-    // Load dimensions from schema and enrich with database metadata
-    if (schema?.properties?.score?.properties) {
-      const dimensionNames = Object.keys(schema.properties.score.properties);
+    const incomingNames = new Set(
+      (dims || [])
+        .map((dimension) => (dimension.name || '').trim())
+        .filter(Boolean)
+    );
+    activeDimensionEntries.forEach((entry) => {
+      const name = (entry.name || '').trim();
+      if (!name || incomingNames.has(name)) {
+        return;
+      }
+      this.state.orphanScoreDimensionDrafts[name] = {
+        description: entry.description || ''
+      };
+    });
 
-      // Fetch full dimension details from database
-      const response = await fetch('/admin-api/ai/ai-dimensions/by-names', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({names: dimensionNames})
-      });
-      const dimensionsFromDb = await response.json();
+    const nonDimensionEntries = this.state.fieldEntries.filter(
+      (entry) => entry.group !== 'score_dimension'
+    );
+    const leadingEntries = nonDimensionEntries.filter(
+      (entry) => entry.group === 'system_fixed' || entry.group === 'score_root'
+    );
+    const trailingEntries = nonDimensionEntries.filter(
+      (entry) => entry.group !== 'system_fixed' && entry.group !== 'score_root'
+    );
+    const dimensionEntries = (dims || []).map((dimension) => {
+      const name = (dimension.name || '').trim();
+      const displayName = dimension.display_name || '';
+      const defaultDescription = dimension.default_description || dimension.description || '';
+      const existingActive = activeByName.get(name);
+      const orphanDraft = this.state.orphanScoreDimensionDrafts[name];
+      let description = defaultDescription;
+      if (existingActive) {
+        description = existingActive.description || '';
+      } else if (orphanDraft) {
+        description = orphanDraft.description || '';
+      }
+      delete this.state.orphanScoreDimensionDrafts[name];
 
-      // Create a map for quick lookup
-      const dimMap = {};
-      dimensionsFromDb.forEach(d => {
-        dimMap[d.name] = d;
-      });
+      return {
+        key: `score:${name}`,
+        name,
+        display_name: displayName,
+        group: 'score_dimension',
+        type: 'integer',
+        required: true,
+        description,
+        default_description: defaultDescription,
+        editable_description: true,
+        restorable: true,
+        deletable: false,
+        locked_name: true,
+        locked_type: true,
+        locked_required: true,
+        min: Number.isFinite(Number(dimension.min)) ? Number(dimension.min) : null,
+        max: Number.isFinite(Number(dimension.max)) ? Number(dimension.max) : null,
+        is_default: description === defaultDescription,
+        exists: dimension.exists !== false
+      };
+    });
+    this.state.fieldEntries = [...leadingEntries, ...dimensionEntries, ...trailingEntries];
+  },
 
-      // Build dimensions array with schema data + database metadata
-      // Mark dimensions that don't exist in database
-      this.state.dimensions = dimensionNames.map(name => {
-        const dbDim = dimMap[name];
-        const exists = !!dbDim;
-        const dimSchema = schema.properties.score.properties[name] || {};
-        const minValue = dimSchema.minimum;
-        const maxValue = dimSchema.maximum;
-        return {
-          name,
-          display_name: dbDim?.display_name || '',
-          description: dbDim?.description || '',
-          min: Number.isFinite(Number(minValue)) ? Number(minValue) : null,
-          max: Number.isFinite(Number(maxValue)) ? Number(maxValue) : null,
-          exists: exists
-        };
-      });
-
-      this.renderDimensions();
-      this.renderScorePlaceholders();
+  hasDimensionSetMismatch(candidateDims) {
+    const currentNames = new Set(
+      this.getScoreDimensionEntries()
+        .map((dimension) => (dimension.name || '').trim())
+        .filter(Boolean)
+    );
+    const candidateNames = new Set(
+      (candidateDims || [])
+        .map((dimension) => (dimension.name || '').trim())
+        .filter(Boolean)
+    );
+    if (currentNames.size !== candidateNames.size) {
+      return true;
     }
-
-    // Load custom fields (including preset fields like internal_thoughts and current_state)
-    const systemFields = ['should_block', 'should_reply', 'attack_detected', 'followup_messages', 'memory_operations', 'outgoing_messages', 'should_update_memory', 'score'];
-    if (schema?.properties) {
-      this.state.customFields = Object.keys(schema.properties)
-        .filter(key => !systemFields.includes(key))
-        .map(key => ({
-          name: key,
-          type: schema.properties[key].type || 'string',
-          description: schema.properties[key].description || '',
-          required: schema.required?.includes(key) || false
-        }));
-    } else {
-      // If no schema exists, add internal_thoughts as default custom field
-      this.state.customFields = [{
-        name: 'internal_thoughts',
-        type: 'string',
-        description: "AI's internal thinking process",
-        required: false
-      }];
+    for (const name of candidateNames) {
+      if (!currentNames.has(name)) {
+        return true;
+      }
     }
-    this.renderSchemaFieldsTable();
+    return false;
+  },
+
+  renderStyleDimensionWarning(candidateDims) {
+    const warning = document.getElementById('style-dimension-warning');
+    if (!warning) {
+      return;
+    }
+    const locked = !!this.state.constraints?.score_dimension_set_locked;
+    const mismatch = this.hasDimensionSetMismatch(candidateDims);
+    warning.classList.toggle('d-none', !(locked && mismatch));
   },
 
   showStyleSelector() {
@@ -642,7 +814,19 @@ const SYSTEM_PLACEHOLDERS = [
 
     // Prefer cache to avoid duplicate requests
     const dims = await this.fetchDimensionsForStyle(styleId);
-    this.state.dimensions = (dims || []).map(d => ({...d, min: 0, max: 1000, exists: true}));
+    this.renderStyleDimensionWarning(dims);
+    this.replaceScoreDimensionEntries(
+      (dims || []).map((dimension) => ({
+        name: dimension.name || '',
+        display_name: dimension.display_name || '',
+        description: dimension.description || '',
+        default_description: dimension.description || '',
+        min: 0,
+        max: 1000,
+        is_default: true,
+        exists: true
+      }))
+    );
 
     this.renderDimensions();
     this.renderScorePlaceholders();
@@ -654,10 +838,14 @@ const SYSTEM_PLACEHOLDERS = [
   // Update the preview area in the modal with full dimension list
   async updateStylePreview() {
     const container = document.getElementById('style-dimensions-preview');
+    const warning = document.getElementById('style-dimension-warning');
     if (!container) return;
     const styleId = document.getElementById('style-selector').value;
     if (!styleId) {
       container.innerHTML = '<small class="text-muted">请选择 style 查看维度</small>';
+      if (warning) {
+        warning.classList.add('d-none');
+      }
       return;
     }
 
@@ -665,6 +853,9 @@ const SYSTEM_PLACEHOLDERS = [
       const dims = await this.fetchDimensionsForStyle(styleId);
       if (!dims || dims.length === 0) {
         container.innerHTML = '<div class="alert alert-info py-1 mb-0"><i class="fas fa-info-circle me-2"></i>该 style 暂无维度</div>';
+        if (warning) {
+          warning.classList.add('d-none');
+        }
         return;
       }
       const tableHtml = '<div class="table-responsive"><table class="table align-middle">'
@@ -676,20 +867,25 @@ const SYSTEM_PLACEHOLDERS = [
           + '</tr>').join('')
         + '</tbody></table></div>';
       container.innerHTML = tableHtml;
+      this.renderStyleDimensionWarning(dims);
     } catch (e) {
       container.innerHTML = '<div class="alert alert-warning py-1 mb-0"><i class="fas fa-exclamation-triangle me-2"></i>加载维度失败</div>';
+      if (warning) {
+        warning.classList.add('d-none');
+      }
     }
   },
 
   renderDimensions() {
     const container = document.getElementById('dimensions-display');
-    if (this.state.dimensions.length === 0) {
+    const dimensions = this.getScoreDimensionEntries();
+    if (dimensions.length === 0) {
       container.innerHTML = '<p class="text-muted mb-0">请点击"从Style获取Dimension"按钮选择style并加载dimension信息</p>';
       return;
     }
 
     // Check for missing dimensions
-    const missingDimensions = this.state.dimensions.filter(d => !d.exists);
+    const missingDimensions = dimensions.filter((dimension) => !dimension.exists);
     let warningHtml = '';
     if (missingDimensions.length > 0) {
       const missingNames = missingDimensions.map(d => '<code>' + this.escapeHtml(d.name) + '</code>').join(', ');
@@ -697,14 +893,14 @@ const SYSTEM_PLACEHOLDERS = [
     }
 
     const tableHtml = '<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Name</th><th>Display Name</th><th>Description</th><th>Score Min</th><th>Score Max</th></tr></thead><tbody>' +
-      this.state.dimensions.map((d, idx) => {
+      dimensions.map((d, idx) => {
         const rowClass = d.exists ? '' : ' class="table-danger"';
         const minValue = Number.isFinite(d.min) ? d.min : '';
         const maxValue = Number.isFinite(d.max) ? d.max : '';
         return '<tr' + rowClass + '>'
           + '<td><code>' + this.escapeHtml(d.name) + '</code></td>'
           + '<td>' + this.escapeHtml(d.display_name || '-') + '</td>'
-          + '<td>' + this.escapeHtml(d.description || '-') + '</td>'
+          + '<td>' + this.escapeHtml(d.description || d.default_description || '-') + '</td>'
           + '<td><input type="number" class="form-control dimension-min" data-index="' + idx + '" value="' + this.escapeHtml(minValue) + '"></td>'
           + '<td><input type="number" class="form-control dimension-max" data-index="' + idx + '" value="' + this.escapeHtml(maxValue) + '"></td>'
           + '</tr>';
@@ -715,7 +911,7 @@ const SYSTEM_PLACEHOLDERS = [
     container.querySelectorAll('.dimension-min').forEach((input) => {
       input.addEventListener('input', (event) => {
         const index = Number.parseInt(event.target.dataset.index, 10);
-        const dim = this.state.dimensions[index];
+        const dim = dimensions[index];
         if (!dim) return;
         const value = Number(event.target.value);
         dim.min = Number.isFinite(value) ? value : null;
@@ -724,7 +920,7 @@ const SYSTEM_PLACEHOLDERS = [
     container.querySelectorAll('.dimension-max').forEach((input) => {
       input.addEventListener('input', (event) => {
         const index = Number.parseInt(event.target.dataset.index, 10);
-        const dim = this.state.dimensions[index];
+        const dim = dimensions[index];
         if (!dim) return;
         const value = Number(event.target.value);
         dim.max = Number.isFinite(value) ? value : null;
@@ -746,12 +942,13 @@ const SYSTEM_PLACEHOLDERS = [
 
   renderScorePlaceholders() {
     const container = document.getElementById('score-placeholders');
-    if (this.state.dimensions.length === 0) {
+    const dimensions = this.getScoreDimensionEntries();
+    if (dimensions.length === 0) {
       container.innerHTML = '<small class="text-muted mb-1">请先加载dimension信息</small>';
       return;
     }
 
-    container.innerHTML = this.state.dimensions.map(d =>
+    container.innerHTML = dimensions.map((d) =>
       `<button type="button" class="badge rounded-pill text-bg-success placeholder-badge placeholder-btn" data-base="text-bg-success" data-key="${encodeURIComponent('score:' + d.name)}" title="${this.escapeHtml((d.display_name || d.name) + ' 分数')}">
         <i class="fas fa-plus me-1"></i>score:${this.escapeHtml(d.name)}
       </button>`
@@ -853,13 +1050,13 @@ const SYSTEM_PLACEHOLDERS = [
     // Get all known placeholders
     const known = new Set([
       ...SYSTEM_PLACEHOLDERS.map(p => p.key),
-      ...this.state.dimensions.map(d => `score:${d.name}`),
+      ...this.getScoreDimensionEntries().map((d) => `score:${d.name}`),
       ...this.state.placeholders.map(p => p.placeholder_key)
     ]);
 
     // Classify unknowns and score placeholder errors
     const usedKeys = Object.keys(used);
-    const knownScore = new Set(this.state.dimensions.map(d => `score:${d.name}`));
+    const knownScore = new Set(this.getScoreDimensionEntries().map((d) => `score:${d.name}`));
     const invalidScoreFormat = usedKeys.filter(k => k.startsWith('score:') && !/^score:[A-Za-z0-9_]+$/.test(k));
     const invalidScoreDim = usedKeys.filter(k => /^score:[A-Za-z0-9_]+$/.test(k) && !knownScore.has(k));
     const unknown = usedKeys.filter(k => !k.startsWith('score:') && !known.has(k));
@@ -1008,58 +1205,36 @@ const SYSTEM_PLACEHOLDERS = [
   renderSchemaFieldsTable() {
     const container = document.getElementById('schema-fields-table');
     const rows = [];
+    this.state.fieldEntries.forEach((field) => {
+      const requiredIcon = field.required ? '<i class="fas fa-check text-success"></i>' : '-';
+      const description = field.description || field.default_description || '-';
+      const fieldKey = encodeURIComponent(field.key || field.name || '');
+      let categoryBadge = '<span class="badge text-bg-secondary">自定义</span>';
+      if (field.group === 'system_fixed') {
+        categoryBadge = '<span class="badge text-bg-primary">系统</span>';
+      } else if (field.group === 'score_root') {
+        categoryBadge = '<span class="badge text-bg-success">分数</span>';
+      } else if (field.group === 'score_dimension') {
+        categoryBadge = '<span class="badge text-bg-success">分数维度</span>';
+      } else if (field.group === 'system_preset') {
+        categoryBadge = '<span class="badge text-bg-info">预设</span>';
+      }
+      const displayFieldName = field.group === 'score_dimension'
+        ? `score.${field.name}`
+        : field.name;
 
-    // System fields
-    const systemFields = [
-      {name: 'should_block', type: 'boolean', required: false},
-      {name: 'should_reply', type: 'boolean', required: true},
-      {name: 'attack_detected', type: 'boolean', required: true},
-      {name: 'should_update_memory', type: 'boolean', required: true},
-      {name: 'memory_operations', type: 'object', required: true},
-      {name: 'followup_messages', type: 'array', required: false},
-      {name: 'outgoing_messages', type: 'array', required: false}
-    ];
+      let actions = `<button class="btn btn-outline-primary" onclick="app.showSchemaFieldModal('${fieldKey}')"><i class="fas fa-edit"></i></button>`;
+      if (field.deletable) {
+        actions += ` <button class="btn btn-danger" onclick="app.deleteSchemaField('${fieldKey}')"><i class="fas fa-trash"></i></button>`;
+      }
 
-    systemFields.forEach(f => {
-      // Get description from schema
-      const schemaDesc = INITIAL_SCHEMA?.properties?.[f.name]?.description || '- N/A -';
       rows.push(`<tr>
-        <td><span class="badge text-bg-primary">系统</span></td>
-        <td><code>${this.escapeHtml(f.name)}</code></td>
-        <td>${this.escapeHtml(f.type)}</td>
-        <td>${this.escapeHtml(schemaDesc)}</td>
-        <td>${f.required ? '<i class="fas fa-check text-success"></i>' : '-'}</td>
-        <td><span class="text-muted">-</span></td>
-      </tr>`);
-    });
-
-    // Score fields (dimensions)
-    this.state.dimensions.forEach(d => {
-      // Get description from schema, not from dimension data
-      const schemaDesc = INITIAL_SCHEMA?.properties?.score?.properties?.[d.name]?.description || '- N/A -';
-      rows.push(`<tr>
-        <td><span class="badge text-bg-success">分数</span></td>
-        <td><code>score.${this.escapeHtml(d.name)}</code></td>
-        <td>integer</td>
-        <td>${this.escapeHtml(schemaDesc)}</td>
-        <td><i class="fas fa-check text-success"></i></td>
-        <td><span class="text-muted">-</span></td>
-      </tr>`);
-    });
-
-    // Custom fields
-    this.state.customFields.forEach((f, idx) => {
-      const requiredIcon = f.required ? '<i class="fas fa-check text-success"></i>' : '-';
-      rows.push(`<tr>
-        <td><span class="badge text-bg-secondary">自定义</span></td>
-        <td><code>${this.escapeHtml(f.name)}</code></td>
-        <td>${this.escapeHtml(f.type)}</td>
-        <td>${this.escapeHtml(f.description || '-')}</td>
+        <td>${categoryBadge}</td>
+        <td><code>${this.escapeHtml(displayFieldName || '-')}</code></td>
+        <td>${this.escapeHtml(field.type || '-')}</td>
+        <td>${this.escapeHtml(description)}</td>
         <td>${requiredIcon}</td>
-        <td>
-          <button class="btn btn-outline-primary" onclick="app.editSchemaField(${idx})"><i class="fas fa-edit"></i></button>
-          <button class="btn btn-danger" onclick="app.deleteSchemaField(${idx})"><i class="fas fa-trash"></i></button>
-        </td>
+        <td>${actions}</td>
       </tr>`);
     });
 
@@ -1069,89 +1244,172 @@ const SYSTEM_PLACEHOLDERS = [
     </table></div>`;
   },
 
-  showSchemaFieldModal(index = null) {
-    document.getElementById('modal-field-key').value = index !== null ? index : '';
-    document.getElementById('schema-modal-title').textContent = index === null ? '添加自定义字段' : '编辑字段';
-
+  showSchemaFieldModal(fieldKey = null) {
+    const normalizedFieldKey = fieldKey ? decodeURIComponent(fieldKey) : '';
     const nameInput = document.getElementById('modal-field-name');
+    const nameRequiredMark = document.getElementById('modal-field-name-required-mark');
+    const typeRequiredMark = document.getElementById('modal-field-type-required-mark');
     const typeSelect = document.getElementById('modal-field-type');
+    const typeRow = document.getElementById('modal-field-type-row');
     const descInput = document.getElementById('modal-field-description');
+    const defaultDescInput = document.getElementById('modal-field-default-description');
+    const restoreDefaultBtn = document.getElementById('modal-field-restore-default');
     const requiredCheck = document.getElementById('modal-field-required');
+    const requiredRow = document.getElementById('modal-field-required-row');
+    const modeInput = document.getElementById('modal-field-mode');
+    const keyInput = document.getElementById('modal-field-key');
+    const modalTitle = document.getElementById('schema-modal-title');
 
-    if (index !== null) {
-      const field = this.state.customFields[index];
-      nameInput.value = field.name;
-      nameInput.readOnly = false;
-      nameInput.disabled = false;
-      typeSelect.value = field.type;
-      typeSelect.disabled = false;
-      descInput.value = field.description || '';
-      descInput.readOnly = false;
-      descInput.disabled = false;
-      requiredCheck.checked = field.required;
-    } else {
+    if (!normalizedFieldKey) {
+      keyInput.value = '';
+      modeInput.value = 'create_custom';
+      modalTitle.textContent = '添加自定义字段';
       nameInput.value = '';
       nameInput.readOnly = false;
       nameInput.disabled = false;
       typeSelect.value = 'string';
       typeSelect.disabled = false;
+      typeRow.classList.remove('d-none');
+      requiredRow.classList.remove('d-none');
+      requiredCheck.checked = false;
+      requiredCheck.disabled = false;
+      nameRequiredMark.classList.remove('d-none');
+      typeRequiredMark.classList.remove('d-none');
       descInput.value = '';
       descInput.readOnly = false;
       descInput.disabled = false;
-      requiredCheck.checked = false;
+      defaultDescInput.textContent = '-';
+      restoreDefaultBtn.classList.add('d-none');
+      this.state.schemaFieldModal.show();
+      return;
     }
 
+    const field = this.findFieldEntryByKey(normalizedFieldKey);
+    if (!field) {
+      return;
+    }
+    keyInput.value = field.key || field.name;
+    modeInput.value = field.group || 'custom';
+    modalTitle.textContent = '编辑字段';
+    nameInput.value = field.name || '';
+    nameInput.readOnly = !!field.locked_name;
+    nameInput.disabled = !!field.locked_name;
+    typeSelect.value = field.type || 'string';
+    typeSelect.disabled = !!field.locked_type;
+    requiredCheck.checked = !!field.required;
+    requiredCheck.disabled = !!field.locked_required;
+    descInput.value = field.description || '';
+    descInput.readOnly = !field.editable_description;
+    descInput.disabled = !field.editable_description;
+    defaultDescInput.textContent = field.default_description || '-';
+    restoreDefaultBtn.classList.toggle('d-none', !(field.restorable && field.default_description));
+    const showTypeAndRequired = field.group === 'custom' || field.group === 'system_preset';
+    typeRow.classList.toggle('d-none', !showTypeAndRequired);
+    requiredRow.classList.toggle('d-none', !showTypeAndRequired);
+    nameRequiredMark.classList.add('d-none');
+    typeRequiredMark.classList.add('d-none');
     this.state.schemaFieldModal.show();
   },
 
+  restoreSchemaFieldDefaultDescription() {
+    const fieldKey = document.getElementById('modal-field-key').value;
+    if (fieldKey === '') {
+      return;
+    }
+    const field = this.findFieldEntryByKey(fieldKey);
+    if (!field || !field.restorable) {
+      return;
+    }
+    document.getElementById('modal-field-description').value = field.default_description || '';
+  },
+
   saveSchemaField() {
-    const key = document.getElementById('modal-field-key').value;
+    const fieldKey = document.getElementById('modal-field-key').value;
+    const mode = document.getElementById('modal-field-mode').value;
     const name = document.getElementById('modal-field-name').value.trim();
+    const type = document.getElementById('modal-field-type').value;
+    const description = document.getElementById('modal-field-description').value.trim();
+    const required = document.getElementById('modal-field-required').checked;
 
     if (!name) {
       alert('Field Name不能为空');
       return;
     }
 
-    const data = {
-      name,
-      type: document.getElementById('modal-field-type').value,
-      description: document.getElementById('modal-field-description').value.trim(),
-      required: document.getElementById('modal-field-required').checked
-    };
-
-    const existingIndex = this.state.customFields.findIndex((item, idx) => item.name === name && String(idx) !== String(key));
-    if (existingIndex !== -1) {
-      alert('字段名重复');
+    const isCreate = mode === 'create_custom';
+    const existing = isCreate ? null : this.findFieldEntryByKey(fieldKey);
+    if (!isCreate && !existing) {
       return;
     }
 
     const reserved = new Set(['should_block', 'should_reply', 'attack_detected', 'should_update_memory', 'memory_operations', 'followup_messages', 'outgoing_messages', 'score']);
-    if (reserved.has(name)) {
-      alert('字段名与系统字段冲突');
-      return;
+    const shouldValidateName = isCreate || (existing && !existing.locked_name);
+    if (shouldValidateName) {
+      const existingConflict = this.state.fieldEntries.find((item) => {
+        if ((item.key || item.name) === fieldKey) {
+          return false;
+        }
+        return item.name === name;
+      });
+      if (existingConflict) {
+        alert('字段名重复');
+        return;
+      }
+      if (reserved.has(name)) {
+        alert('字段名与系统字段冲突');
+        return;
+      }
     }
 
-    if ((name === 'current_state' || name === 'internal_thoughts') && data.type !== 'string') {
+    const shouldValidateType = isCreate || (existing && !existing.locked_type);
+    if (shouldValidateType && (name === 'current_state' || name === 'internal_thoughts') && type !== 'string') {
       alert(`${name} 必须使用 string 类型`);
       return;
     }
 
-    if (key !== '') {
-      this.state.customFields[parseInt(key)] = data;
+    if (isCreate) {
+      this.state.fieldEntries.push({
+        key: name,
+        name,
+        group: 'custom',
+        type,
+        required,
+        description,
+        default_description: '',
+        editable_description: true,
+        restorable: false,
+        deletable: true,
+        locked_name: false,
+        locked_type: false,
+        locked_required: false,
+        min: null,
+        max: null,
+        is_default: !description,
+        exists: true,
+      });
     } else {
-      this.state.customFields.push(data);
+      existing.name = existing.locked_name ? existing.name : name;
+      existing.key = existing.locked_name ? existing.key : name;
+      existing.type = existing.locked_type ? existing.type : type;
+      existing.required = existing.locked_required ? existing.required : required;
+      existing.description = existing.editable_description ? description : existing.description;
+      existing.is_default = (existing.description || '') === (existing.default_description || '');
     }
 
     this.renderSchemaFieldsTable();
     this.state.schemaFieldModal.hide();
   },
 
-  editSchemaField(index) {
-    this.showSchemaFieldModal(index);
-  },
-
-  deleteSchemaField(index) {
+  deleteSchemaField(fieldKey) {
+    const normalizedFieldKey = decodeURIComponent(fieldKey || '');
+    const fieldIndex = this.state.fieldEntries.findIndex((entry) => entry.key === normalizedFieldKey);
+    if (fieldIndex < 0) {
+      return;
+    }
+    const field = this.state.fieldEntries[fieldIndex];
+    if (!field.deletable) {
+      return;
+    }
     void (async () => {
       const ok = await this.confirmAction({
         title: '确认删除字段',
@@ -1161,19 +1419,17 @@ const SYSTEM_PLACEHOLDERS = [
         confirmButtonClass: 'btn btn-danger'
       });
       if (!ok) return;
-      this.state.customFields.splice(index, 1);
+      this.state.fieldEntries.splice(fieldIndex, 1);
       this.renderSchemaFieldsTable();
     })();
   },
 
   showPresetFieldModal() {
     // Get available preset fields (not already added)
-    const existingFieldNames = this.state.customFields.map(f => f.name);
-    const presetFields = [
-      {name: 'internal_thoughts', type: 'string', description: "AI's internal thinking process", required: false},
-      {name: 'current_state', type: 'string', description: 'Current conversation state', required: true}
-    ];
-    const availablePresets = presetFields.filter(p => !existingFieldNames.includes(p.name));
+    const existingFieldNames = new Set(this.getEditableCustomEntries().map((field) => field.name));
+    const availablePresets = this.state.availablePresets.filter(
+      (preset) => !existingFieldNames.has(preset.name)
+    );
 
     if (availablePresets.length === 0) {
       alert('所有预设字段已添加');
@@ -1192,7 +1448,7 @@ const SYSTEM_PLACEHOLDERS = [
     `).join('');
 
     // Store available presets for later use
-    this.state.availablePresets = availablePresets;
+    this.state.presetCandidates = availablePresets;
     this.state.presetFieldModal.show();
   },
 
@@ -1205,8 +1461,29 @@ const SYSTEM_PLACEHOLDERS = [
 
     checkboxes.forEach(cb => {
       const idx = parseInt(cb.value);
-      const preset = this.state.availablePresets[idx];
-      this.state.customFields.push({...preset});
+      const preset = this.state.presetCandidates[idx];
+      if (!preset) {
+        return;
+      }
+      this.state.fieldEntries.push({
+        key: preset.key || preset.name,
+        name: preset.name,
+        group: 'system_preset',
+        type: preset.type,
+        description: preset.description || '',
+        required: !!preset.required,
+        default_description: preset.default_description || '',
+        editable_description: preset.editable_description !== false,
+        restorable: preset.restorable !== false,
+        deletable: true,
+        locked_name: preset.locked_name !== false,
+        locked_type: preset.locked_type !== false,
+        locked_required: preset.locked_required !== false,
+        min: null,
+        max: null,
+        is_default: true,
+        exists: true,
+      });
     });
 
     this.renderSchemaFieldsTable();

@@ -57,6 +57,7 @@ class DimensionSpec(TypedDict):
     name: str
     display_name: str
     initial_position: int
+    description: NotRequired[str | None]
 
 
 class CurrentRelationship(TypedDict):

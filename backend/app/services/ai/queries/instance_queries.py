@@ -217,6 +217,7 @@ async def get_style_dimensions(db: AsyncSession, style_id: int) -> list[Dimensio
             AIDimension.id.label("id"),
             AIDimension.name.label("name"),
             AIDimension.display_name.label("display_name"),
+            AIDimension.description.label("description"),
             AIStyleDimension.initial_position.label("initial_position"),
         )
         .join(AIStyleDimension, AIStyleDimension.dimension_id == AIDimension.id)
@@ -230,6 +231,7 @@ async def get_style_dimensions(db: AsyncSession, style_id: int) -> list[Dimensio
             name=row.name,
             display_name=row.display_name,
             initial_position=row.initial_position,
+            description=row.description,
         )
         for row in result
     ]

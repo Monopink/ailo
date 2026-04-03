@@ -94,6 +94,7 @@ LLM 响应的字段语义、处理顺序和跨模块归属见本文档的“系�
   - 保持分级处理：`score`、`should_update_memory`、`memory_operations` 继续按 L1 裁剪处理，不因 schema 的 `required` 配置升级为 L0 硬门槛。
   - L1 字段不进入运行时硬门槛，由编排层手工校验与裁剪（不阻断消息发送）。
 - `score` 的维度集合与取值区间校验依据当前 style 维度与 personality schema 的 `minimum` / `maximum`。
+- `score` 维度描述来源于 personality schema 的 `score.properties.<dimension>.description`；当该字段缺失时使用 `ai_dimensions.description` 默认值。
 - `memory_operations` 校验失败时，整项记忆副作用跳过。
 - L0 校验器必须是纯函数，不依赖 db/session。
 

@@ -119,6 +119,8 @@
 
 - `dimensions` 中的新建维度会先创建 `ai_dimensions` 记录，再建立 `ai_style_dimensions` 关联。
 - `mappings` 为 dimension 级全局配置；修改或删除某个 mapping 会影响所有关联该 dimension 的 style。
+- `dimensions[].description` 更新写入 `ai_dimensions.description`，作为维度默认描述来源。
+- 已存在 personality 的 `json_schema.properties.score.properties.<dimension>.description` 不会被自动同步改写。
 - position 区间允许重叠。
 - 保存前会检查每个 dimension 的 `initial_position` 是否能在命中的 mappings 中唯一决出最优先级关系。
 - 若某个 dimension 的 `initial_position` 命中多个 mapping，且最小 `priority` 对应多个候选，则返回 `400` 并阻止保存。

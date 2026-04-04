@@ -1,12 +1,7 @@
-import {
-  type Feature,
-  type SampleContact,
-  SAMPLE_CONTACTS,
-  FEATURES,
-} from '../../constants/login-content';
 import { getLogger } from '../../utils/logger';
 import { normalizeError } from '../../utils/errors';
 import { isNonEmptyString } from '../../utils/guards';
+import { LOGIN_CONFIG } from '../../utils/config';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import {
   createLoginPageService,
@@ -16,20 +11,30 @@ import {
 } from '../../services/pages/login-service';
 
 const logger = getLogger('Login');
+const USER_AGREEMENT_PAGE_KEY = 'user_agreement';
+const PRIVACY_POLICY_PAGE_KEY = 'privacy_policy';
 
 interface LoginPageData {
   pageLayoutData: PageLayoutData;
-  sampleContacts: SampleContact[];
-  featureList: Feature[];
   wechatLoading: boolean;
   loginCode: string;
   loginStatus: LoginStatus;
+  remoteBackgroundShouldLoad: boolean;
+  remoteBackgroundVisible: boolean;
+  remoteBackgroundUrl: string;
 }
 
 interface LoginPageCustom {
   loginPageService: ReturnType<typeof createLoginPageService>;
+  backgroundLoadTimeoutHandle: number | null;
+  prepareRemoteBackground(): void;
+  clearRemoteBackgroundTimeout(): void;
+  handleRemoteBackgroundLoad(): void;
+  handleRemoteBackgroundError(event: WechatMiniprogram.BaseEvent): void;
   handleWeChatLogin(event: WechatMiniprogram.ButtonGetPhoneNumber): Promise<void>;
   handleAuthSuccess(authResult: AuthSuccessPayload): Promise<void>;
+  navigateToUserAgreement(): void;
+  navigateToPrivacyPolicy(): void;
 }
 
 const showToast = (
@@ -49,18 +54,21 @@ Page<LoginPageData, LoginPageCustom>({
         refreshState: 'idle',
       },
     }),
-    sampleContacts: SAMPLE_CONTACTS,
-    featureList: FEATURES,
     wechatLoading: false,
     loginCode: '',
     loginStatus: 'idle',
+    remoteBackgroundShouldLoad: false,
+    remoteBackgroundVisible: false,
+    remoteBackgroundUrl: '',
   },
 
   loginPageService: null as unknown as ReturnType<typeof createLoginPageService>,
+  backgroundLoadTimeoutHandle: null,
 
   async onLoad(options?: Record<string, string | undefined>) {
     logger.info('Login page loaded');
     this.loginPageService = createLoginPageService();
+    this.prepareRemoteBackground();
     this.setData({ wechatLoading: true });
     try {
       const result = await this.loginPageService.bootstrap(options?.source);
@@ -92,6 +100,58 @@ Page<LoginPageData, LoginPageCustom>({
     } finally {
       this.setData({ wechatLoading: false });
     }
+  },
+
+  prepareRemoteBackground() {
+    const remoteBackgroundUrl = LOGIN_CONFIG.loginBackgroundUrl;
+    if (!isNonEmptyString(remoteBackgroundUrl)) {
+      return;
+    }
+
+    this.setData({
+      remoteBackgroundUrl,
+      remoteBackgroundShouldLoad: true,
+      remoteBackgroundVisible: false,
+    });
+
+    this.clearRemoteBackgroundTimeout();
+    this.backgroundLoadTimeoutHandle = setTimeout(() => {
+      this.backgroundLoadTimeoutHandle = null;
+      if (this.data.remoteBackgroundVisible) {
+        return;
+      }
+      logger.warn('Remote login background load timed out, fallback gradient remains');
+      this.setData({
+        remoteBackgroundShouldLoad: false,
+        remoteBackgroundUrl: '',
+      });
+    }, LOGIN_CONFIG.loginBackgroundLoadTimeoutMs);
+  },
+
+  clearRemoteBackgroundTimeout() {
+    if (this.backgroundLoadTimeoutHandle === null) {
+      return;
+    }
+    clearTimeout(this.backgroundLoadTimeoutHandle);
+    this.backgroundLoadTimeoutHandle = null;
+  },
+
+  handleRemoteBackgroundLoad() {
+    this.clearRemoteBackgroundTimeout();
+    this.setData({ remoteBackgroundVisible: true });
+  },
+
+  handleRemoteBackgroundError(event) {
+    this.clearRemoteBackgroundTimeout();
+    const detail = (event as unknown as { detail?: { errMsg?: string } }).detail;
+    logger.warn('Remote login background load failed, fallback gradient remains', {
+      errMsg: detail?.errMsg ?? '',
+    });
+    this.setData({
+      remoteBackgroundShouldLoad: false,
+      remoteBackgroundVisible: false,
+      remoteBackgroundUrl: '',
+    });
   },
 
   async handleWeChatLogin(event) {
@@ -132,12 +192,13 @@ Page<LoginPageData, LoginPageCustom>({
       this.setData({ loginCode: result.loginCode });
       await this.handleAuthSuccess(result.authSuccess);
     } catch (error) {
+      const err = normalizeError(error);
       logger.error('WeChat login failed', {
-        error: normalizeError(error).message,
+        error: err.message,
         rawError: error,
       });
       this.setData({ wechatLoading: false });
-      showToast('登录失败，请尝试更新微信', 'none');
+      showToast(isNonEmptyString(err.message) ? err.message : '登录失败，请尝试更新微信', 'none');
     }
   },
 
@@ -159,7 +220,20 @@ Page<LoginPageData, LoginPageCustom>({
     void wx.switchTab({ url: '/pages/index/index' });
   },
 
+  navigateToUserAgreement() {
+    void wx.navigateTo({
+      url: `/pages/app-page/app-page?pageKey=${USER_AGREEMENT_PAGE_KEY}`,
+    });
+  },
+
+  navigateToPrivacyPolicy() {
+    void wx.navigateTo({
+      url: `/pages/app-page/app-page?pageKey=${PRIVACY_POLICY_PAGE_KEY}`,
+    });
+  },
+
   onUnload() {
+    this.clearRemoteBackgroundTimeout();
     this.loginPageService.dispose();
   },
 });

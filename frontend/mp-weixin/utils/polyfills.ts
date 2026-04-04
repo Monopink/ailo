@@ -9,6 +9,7 @@ type WxWithBaseInfo = typeof wx & {
 };
 
 let appBaseInfoPatched = false;
+let promiseAllSettledPatched = false;
 
 const buildFallbackAppBaseInfo = (): WechatMiniprogram.AppBaseInfo => {
   try {
@@ -80,8 +81,32 @@ export const ensureAppBaseInfoPolyfill = (): void => {
   }
 };
 
+export const ensurePromiseAllSettledPolyfill = (): void => {
+  if (typeof Promise.allSettled === 'function') {
+    return;
+  }
+
+  Promise.allSettled = function allSettled<T>(
+    values: Iterable<T | PromiseLike<T>>
+  ): Promise<Array<PromiseSettledResult<T>>> {
+    const wrapped = Array.from(values, (value) =>
+      Promise.resolve(value).then(
+        (resolved) => ({ status: 'fulfilled', value: resolved }) as PromiseFulfilledResult<T>,
+        (reason: unknown) => ({ status: 'rejected', reason }) as PromiseRejectedResult
+      )
+    );
+    return Promise.all(wrapped);
+  };
+
+  if (!promiseAllSettledPatched) {
+    promiseAllSettledPatched = true;
+    logger.info('Polyfilled Promise.allSettled for legacy JS runtime');
+  }
+};
+
 export const applyGlobalPolyfills = (): void => {
   ensureAppBaseInfoPolyfill();
+  ensurePromiseAllSettledPolyfill();
 };
 
 applyGlobalPolyfills();

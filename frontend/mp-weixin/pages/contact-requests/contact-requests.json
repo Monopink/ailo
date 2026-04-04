@@ -5,7 +5,7 @@
     "t-navbar": "tdesign-miniprogram/navbar/navbar",
     "page-layout": "/components/page-layout/page-layout",
     "t-cell": "tdesign-miniprogram/cell/cell",
-    "t-avatar": "tdesign-miniprogram/avatar/avatar",
+    "app-avatar": "/components/ui/app-avatar/app-avatar",
     "t-button": "tdesign-miniprogram/button/button"
   }
 }

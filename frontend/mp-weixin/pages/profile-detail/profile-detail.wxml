@@ -16,11 +16,16 @@
       open-type="chooseAvatar"
       bindchooseavatar="onChooseWechatAvatar">
       <view class="profile-detail__avatar-image-wrap">
-        <t-avatar
-          image="{{profile ? profile.displayAvatar : ''}}"
+        <app-avatar
+          class="profile-detail__avatar-image"
+          src="{{profile ? profile.displayAvatar : ''}}"
           size="112rpx"
           shape="circle"
-        />
+          mode="aspectFill"
+          webp="{{true}}"
+          lazy="{{false}}"
+          bindload="onAvatarRenderSuccess"
+          binderror="onAvatarRenderError" />
         <view class="profile-detail__avatar-edit-badge">
           <t-icon name="edit-1" size="var(--icon-xs)" color="var(--color-text-primary)" />
         </view>
@@ -33,11 +38,16 @@
       bindtap="editAvatar"
       hover-class="profile-detail__avatar--active">
       <view class="profile-detail__avatar-image-wrap">
-        <t-avatar
-          image="{{profile ? profile.displayAvatar : ''}}"
+        <app-avatar
+          class="profile-detail__avatar-image"
+          src="{{profile ? profile.displayAvatar : ''}}"
           size="112rpx"
           shape="circle"
-        />
+          mode="aspectFill"
+          webp="{{true}}"
+          lazy="{{false}}"
+          bindload="onAvatarRenderSuccess"
+          binderror="onAvatarRenderError" />
         <view class="profile-detail__avatar-edit-badge">
           <t-icon name="edit-1" size="var(--icon-xs)" color="var(--color-text-primary)" />
         </view>

@@ -37,11 +37,6 @@ page {
   border-radius: var(--td-radius-default) !important;
 }
 
-/* Hide avatar loading animation */
-.t-avatar .t-image__mask.t-image--loading {
-  display: none !important;
-}
-
 /**
  * Global utility styles.
  * All numeric values reference design tokens to keep UI consistent.

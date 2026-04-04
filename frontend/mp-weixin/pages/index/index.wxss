@@ -26,7 +26,15 @@
 }
 
 .index-page__large-title {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
   background-color: transparent;
+}
+
+.index-page__wordmark {
+  display: block;
+  width: 143rpx;
 }
 
 .index-page__content {

@@ -1,0 +1,23 @@
+<view
+  class="ui-avatar ui-avatar--{{shape}} ui-avatar--{{status}}"
+  style="{{sizeStyle}}"
+  aria-role="img"
+  aria-label="头像">
+  <image
+    wx:if="{{showImage}}"
+    class="ui-avatar__image"
+    src="{{src}}"
+    mode="{{mode}}"
+    webp="{{webp}}"
+    lazy-load="{{lazy}}"
+    bindload="onImageLoad"
+    binderror="onImageError" />
+  <view wx:if="{{showPlaceholder}}" class="ui-avatar__placeholder">
+    <image
+      wx:if="{{placeholderSrc !== ''}}"
+      class="ui-avatar__placeholder-image"
+      src="{{placeholderSrc}}"
+      mode="aspectFit"
+      binderror="onPlaceholderError" />
+  </view>
+</view>

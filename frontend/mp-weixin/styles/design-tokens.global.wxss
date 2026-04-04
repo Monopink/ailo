@@ -377,7 +377,7 @@ page,
     /* Border - Subtle in dark mode */
     --color-border-base: #38383a; /* Base border (iOS) */
     --color-border-light: #2c2c2e; /* Light border */
-    --color-separator: rgba(84, 84, 88, 0.6); /* iOS separator */
+    --color-separator: rgba(255, 255, 255, 0.16); /* Balanced dark separator */
 
     /* Status Colors - Slightly muted */
     --color-success: #0bbf68;

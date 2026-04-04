@@ -27,9 +27,5 @@
           bindtap="navigateToContactUs" />
       </t-cell-group>
     </view>
-
-    <view class="about__footer">
-      <text class="about__copyright">© 2025 敲敲</text>
-    </view>
   </view>
 </page-layout>

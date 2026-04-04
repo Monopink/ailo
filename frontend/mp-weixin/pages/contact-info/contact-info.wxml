@@ -17,15 +17,15 @@
           hover-class="contact-info__avatar-zone--active">
           <view wx:if="{{showAvatarStack}}" class="contact-info__avatar-stack">
             <view class="contact-info__avatar-layer contact-info__avatar-layer--back">
-              <t-avatar
-                image="{{avatarBackUrl}}"
+              <app-avatar
+                src="{{avatarBackUrl}}"
                 size="128rpx"
                 shape="circle"
                 class="contact-info__avatar" />
             </view>
             <view class="contact-info__avatar-layer contact-info__avatar-layer--front">
-              <t-avatar
-                image="{{avatarFrontUrl}}"
+              <app-avatar
+                src="{{avatarFrontUrl}}"
                 size="128rpx"
                 shape="circle"
                 class="contact-info__avatar" />
@@ -36,8 +36,8 @@
           </view>
           <view wx:else class="contact-info__avatar-single">
             <view class="contact-info__avatar-layer contact-info__avatar-layer--front">
-              <t-avatar
-                image="{{avatarFrontUrl}}"
+              <app-avatar
+                src="{{avatarFrontUrl}}"
                 size="128rpx"
                 shape="circle"
                 class="contact-info__avatar" />

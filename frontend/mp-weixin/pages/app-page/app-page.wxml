@@ -9,7 +9,7 @@
   </t-navbar>
   <view slot="content" class="app-page">
     <view class="app-page__container">
-      <rich-text class="app-page__content" nodes="{{contentRendered}}" />
+      <rich-text class="app-page__content" mode="web" nodes="{{contentRendered}}" />
     </view>
   </view>
 </page-layout>

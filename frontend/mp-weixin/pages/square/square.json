@@ -4,7 +4,7 @@
   "usingComponents": {
     "t-navbar": "tdesign-miniprogram/navbar/navbar",
     "page-layout": "/components/page-layout/page-layout",
-    "t-avatar": "tdesign-miniprogram/avatar/avatar",
+    "app-avatar": "/components/ui/app-avatar/app-avatar",
     "gender-badge": "/components/ui/gender-badge/gender-badge",
     "tag-pills": "/components/ui/tag-pills/tag-pills"
   }

@@ -55,6 +55,10 @@
         "type": "suffix"
       },
       {
+        "value": ".ib.json",
+        "type": "suffix"
+      },
+      {
         "value": ".md",
         "type": "suffix"
       }
@@ -104,9 +108,7 @@
     "compileWorklet": false,
     "localPlugins": false,
     "disableUseStrict": false,
-    "useCompilerPlugins": [
-      "typescript"
-    ],
+    "useCompilerPlugins": ["typescript"],
     "swc": false,
     "disableSWC": true
   },

@@ -85,6 +85,17 @@ export class LoginPageService extends BasePageService {
         };
       }
 
+      if (authService.shouldBlockSilentLoginCheck()) {
+        logger.info('Silent login check skipped due to manual logout block');
+        return {
+          isAuthenticated: false,
+          loginCode,
+          loginStatus: 'idle',
+          authSuccess: null,
+          errorMessage: null,
+        };
+      }
+
       const check = await this.checkBindingStatus(loginCode);
       if (!this.isRequestActive(seq)) {
         return null;
@@ -182,7 +193,7 @@ export class LoginPageService extends BasePageService {
       }
     })();
 
-    await Promise.allSettled([loadContactsTask, initMessagingTask]);
+    await Promise.all([loadContactsTask, initMessagingTask]);
   }
 
   private async getFreshLoginCode(fallback: string): Promise<string> {

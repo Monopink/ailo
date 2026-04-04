@@ -109,6 +109,9 @@ page {
   --td-border-level-1-color: var(--color-border-base);
   --td-border-level-2-color: var(--color-border-light);
   --td-component-border: var(--color-border-base);
+  --td-component-stroke: var(--color-separator);
+  --td-cell-border-color: var(--color-separator);
+  --td-cell-group-border-color: var(--color-separator);
 
   /* ========================================
      Shadow System - Mapped from design tokens
@@ -167,6 +170,9 @@ page {
     --td-border-level-1-color: var(--color-border-base);
     --td-border-level-2-color: var(--color-border-light);
     --td-component-border: var(--color-border-base);
+    --td-component-stroke: var(--color-separator);
+    --td-cell-border-color: var(--color-separator);
+    --td-cell-group-border-color: var(--color-separator);
 
     /* Shadow colors */
     --td-shadow-1: var(--shadow-sm);
@@ -197,6 +203,9 @@ page[theme='dark'] {
   --td-border-level-1-color: var(--color-border-base);
   --td-border-level-2-color: var(--color-border-light);
   --td-component-border: var(--color-border-base);
+  --td-component-stroke: var(--color-separator);
+  --td-cell-border-color: var(--color-separator);
+  --td-cell-group-border-color: var(--color-separator);
 
   --td-shadow-1: var(--shadow-sm);
   --td-shadow-2: var(--shadow-md);

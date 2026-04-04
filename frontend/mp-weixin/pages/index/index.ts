@@ -23,6 +23,8 @@ const CONNECTION_ISSUE_DELAY = 8000;
 const AUTO_RETRY_DELAYS_MS = [1200, 2600, 5200] as const;
 
 type SwipeActionEvent = WechatMiniprogram.CustomEvent<ContactSwipeAction>;
+type ThemeChangeResult = WechatMiniprogram.OnThemeChangeListenerResult;
+type SupportedTheme = 'light' | 'dark';
 
 type AuthGuardPage = WechatMiniprogram.Page.Instance<
   Record<string, unknown>,
@@ -43,6 +45,8 @@ interface ContactListRenderItem extends ContactListItem {
 
 const TAG_GAP_RPX = 6;
 const TAG_FALLBACK_VISIBLE_COUNT = 1;
+const LIGHT_WORDMARK_SRC = '/assets/wordmark.svg';
+const DARK_WORDMARK_SRC = '/assets/wordmark-dark.svg';
 
 interface TagMeasureItem {
   key: string;
@@ -55,6 +59,16 @@ interface MessageMeasureItem {
   key: string;
   text: string;
 }
+
+const normalizeTheme = (theme?: string): SupportedTheme => (theme === 'dark' ? 'dark' : 'light');
+
+const getCurrentTheme = (): SupportedTheme => {
+  const appBaseInfo = wx.getAppBaseInfo() as { theme?: string };
+  return normalizeTheme(appBaseInfo.theme);
+};
+
+const getWordmarkSrcByTheme = (theme: SupportedTheme): string =>
+  theme === 'dark' ? DARK_WORDMARK_SRC : LIGHT_WORDMARK_SRC;
 
 const getWindowWidthPx = (): number => {
   if (typeof wx.getWindowInfo === 'function') {
@@ -373,6 +387,7 @@ interface ContactListPageData {
   unreadTotal: number;
   showConnectionIssue: boolean;
   navbarTitle: string;
+  wordmarkSrc: string;
 }
 
 interface ContactListPageCustom {
@@ -389,8 +404,12 @@ interface ContactListPageCustom {
   _messagePreviewTimer: ReturnType<typeof setTimeout> | null;
   _messagePreviewVersion: number;
   _messageWidthCache: Record<string, number>;
+  _themeChangeHandler: ((event: ThemeChangeResult) => void) | null;
   applyScreenModel(screenModel: ScreenModel): void;
   updateNavigationTitle(): void;
+  bindThemeChange(): void;
+  unbindThemeChange(): void;
+  syncWordmarkByTheme(theme?: string): void;
   bindConnectionStatus(): void;
   handleConnectionStateChange(state: ConnectionState): void;
   clearConnectionIssueTimer(): void;
@@ -477,6 +496,7 @@ Page<ContactListPageData, ContactListPageCustom>({
     unreadTotal: 0,
     showConnectionIssue: false,
     navbarTitle: APP_CONFIG.brandName,
+    wordmarkSrc: getWordmarkSrcByTheme(getCurrentTheme()),
   },
 
   indexPageService: null as unknown as ReturnType<typeof createIndexPageService>,
@@ -492,6 +512,7 @@ Page<ContactListPageData, ContactListPageCustom>({
   _messagePreviewTimer: null,
   _messagePreviewVersion: 0,
   _messageWidthCache: {},
+  _themeChangeHandler: null,
 
   applyScreenModel(screenModel: ScreenModel) {
     this.setData(buildPageLayoutScreenModelPayload(screenModel));
@@ -503,6 +524,8 @@ Page<ContactListPageData, ContactListPageCustom>({
     this._autoRetryAttempt = 0;
     this.clearAutoRetryTimer();
     this.updateNavigationTitle();
+    this.bindThemeChange();
+    this.syncWordmarkByTheme();
     this.bindConnectionStatus();
     void this.loadContactsFromCache();
 
@@ -517,6 +540,7 @@ Page<ContactListPageData, ContactListPageCustom>({
   onShow() {
     initTabBar(this);
     this.updateNavigationTitle();
+    this.syncWordmarkByTheme();
     void this.loadContactsFromCache();
     if (this.data.pageLayoutData.screenModel.contentVariant === 'blank') {
       void this.loadContactList();
@@ -540,11 +564,39 @@ Page<ContactListPageData, ContactListPageCustom>({
     this.clearAutoRetryTimer();
     this.clearTagLayoutTimer();
     this.clearMessagePreviewTimer();
+    this.unbindThemeChange();
     this.indexPageService.dispose();
     if (this._connectionSubscription !== null) {
       this._connectionSubscription();
       this._connectionSubscription = null;
     }
+  },
+
+  bindThemeChange() {
+    if (this._themeChangeHandler !== null) {
+      return;
+    }
+
+    this._themeChangeHandler = (event: ThemeChangeResult): void => {
+      this.syncWordmarkByTheme(event.theme);
+    };
+    wx.onThemeChange(this._themeChangeHandler);
+  },
+
+  unbindThemeChange() {
+    if (this._themeChangeHandler === null) {
+      return;
+    }
+    wx.offThemeChange(this._themeChangeHandler);
+    this._themeChangeHandler = null;
+  },
+
+  syncWordmarkByTheme(theme?: string) {
+    const nextWordmarkSrc = getWordmarkSrcByTheme(normalizeTheme(theme ?? getCurrentTheme()));
+    if (this.data.wordmarkSrc === nextWordmarkSrc) {
+      return;
+    }
+    this.setData({ wordmarkSrc: nextWordmarkSrc });
   },
 
   bindConnectionStatus() {

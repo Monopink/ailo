@@ -14,23 +14,24 @@ export type Environment = 'develop' | 'trial' | 'release';
 export type LogLevel = 'DEBUG' | 'NONE';
 
 const resolveEnvironment = (): Environment => {
-  try {
-    if (typeof wx !== 'undefined' && typeof wx.getAccountInfoSync === 'function') {
-      const accountInfo = wx.getAccountInfoSync();
-      const envVersion = accountInfo.miniProgram.envVersion;
-      switch (envVersion) {
-        case 'develop':
-        case 'trial':
-        case 'release':
-          return envVersion;
-        default:
-          break;
-      }
-    }
-  } catch {
-    // Silent fallback to default
+  if (typeof wx === 'undefined') {
+    throw new Error('[env] wx is unavailable');
   }
-  return 'develop';
+
+  if (typeof wx.getAccountInfoSync !== 'function') {
+    throw new Error('[env] wx.getAccountInfoSync is unavailable');
+  }
+
+  const accountInfo = wx.getAccountInfoSync();
+  const envVersion = accountInfo?.miniProgram?.envVersion;
+  switch (envVersion) {
+    case 'develop':
+    case 'trial':
+    case 'release':
+      return envVersion;
+    default:
+      throw new Error(`[env] Unsupported envVersion: ${String(envVersion)}`);
+  }
 };
 
 export const ENV: Environment = resolveEnvironment();

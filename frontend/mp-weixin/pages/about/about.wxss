@@ -2,22 +2,9 @@
 @import '/styles/design-tokens.global.wxss';
 
 .about {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
   background-color: var(--color-bg-primary);
 }
 
-.about__footer {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: auto;
-  padding-top: var(--space-lg);
-  padding-bottom: var(--safe-area-inset-bottom);
-}
-
-.about__copyright {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-quaternary);
+.about .card-wrapper:first-child {
+  margin-top: var(--space-lg);
 }

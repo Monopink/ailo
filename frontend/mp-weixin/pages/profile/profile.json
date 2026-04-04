@@ -5,7 +5,7 @@
     "t-navbar": "tdesign-miniprogram/navbar/navbar",
     "page-layout": "/components/page-layout/page-layout",
     "gender-badge": "/components/ui/gender-badge/gender-badge",
-    "t-avatar": "tdesign-miniprogram/avatar/avatar",
+    "app-avatar": "/components/ui/app-avatar/app-avatar",
     "t-button": "tdesign-miniprogram/button/button",
     "t-cell": "tdesign-miniprogram/cell/cell",
     "t-cell-group": "tdesign-miniprogram/cell-group/cell-group",

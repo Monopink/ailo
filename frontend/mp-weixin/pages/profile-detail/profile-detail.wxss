@@ -34,6 +34,15 @@
   position: relative;
 }
 
+.profile-detail__avatar-image {
+  width: 112rpx;
+  height: 112rpx;
+  border-radius: 999rpx;
+  overflow: hidden;
+  background-color: var(--color-bg-secondary);
+  display: block;
+}
+
 .profile-detail__avatar-hint {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);

@@ -24,7 +24,44 @@ _MARKDOWN_RENDERER = MarkdownIt(
         "linkify": False,
         "typographer": False,
     },
+).enable("table")
+_STYLE_ATTR_PATTERN = re.compile(
+    r"(?P<prefix>\sstyle\s*=\s*)(?P<quote>[\"'])(?P<value>.*?)(?P=quote)",
+    re.IGNORECASE,
 )
+_MARKDOWN_TAG_INLINE_STYLES: dict[str, str] = {
+    "h1": "margin: 0 0 16px; font-size: 22px; line-height: 1.4; font-weight: 700; color: #111827;",
+    "h2": "margin: 0 0 14px; font-size: 20px; line-height: 1.45; font-weight: 700; color: #111827;",
+    "h3": "margin: 0 0 12px; font-size: 18px; line-height: 1.5; font-weight: 600; color: #111827;",
+    "h4": "margin: 0 0 10px; font-size: 16px; line-height: 1.5; font-weight: 600; color: #111827;",
+    "p": "margin: 0 0 12px; font-size: 15px; line-height: 1.75; color: #374151;",
+    "ul": "margin: 0 0 12px; padding-left: 22px;",
+    "ol": "margin: 0 0 12px; padding-left: 22px;",
+    "li": "margin: 0 0 8px; font-size: 15px; line-height: 1.75; color: #374151;",
+    "table": (
+        "width: 100%; margin: 0 0 16px; border-collapse: collapse; table-layout: fixed; "
+        "font-size: 14px; line-height: 1.6; color: #374151;"
+    ),
+    "th": (
+        "padding: 8px 10px; border: 1px solid #d1d5db; background-color: #f3f4f6; "
+        "font-weight: 600; text-align: left; vertical-align: top;"
+    ),
+    "td": (
+        "padding: 8px 10px; border: 1px solid #d1d5db; vertical-align: top; word-break: break-word;"
+    ),
+    "blockquote": (
+        "margin: 0 0 12px; padding: 8px 12px; border-left: 4px solid #d1d5db; "
+        "color: #4b5563; background-color: #f9fafb;"
+    ),
+    "pre": (
+        "margin: 0 0 12px; padding: 10px 12px; overflow-x: auto; border-radius: 8px; "
+        "background-color: #111827; color: #f9fafb;"
+    ),
+    "code": (
+        "padding: 2px 4px; border-radius: 4px; background-color: #f3f4f6; "
+        "font-family: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;"
+    ),
+}
 _SCRIPT_STYLE_BLOCK_PATTERN = re.compile(
     r"<\s*(script|style)\b[^>]*>.*?<\s*/\s*\1\s*>", re.IGNORECASE | re.DOTALL
 )
@@ -44,6 +81,38 @@ class AppPageValidationError(ValueError):
 
 class AppPageNotFoundError(LookupError):
     """Raised when requested app pages are missing."""
+
+
+def _merge_inline_style(attrs: str, style: str) -> str:
+    style_match = _STYLE_ATTR_PATTERN.search(attrs)
+    if style_match is None:
+        return f'{attrs} style="{style}"'
+
+    existing_style = style_match.group("value").strip()
+    merged_style = style if not existing_style else f"{existing_style.rstrip(';')}; {style}"
+    replacement = (
+        f"{style_match.group('prefix')}"
+        f"{style_match.group('quote')}"
+        f"{merged_style}"
+        f"{style_match.group('quote')}"
+    )
+    return _STYLE_ATTR_PATTERN.sub(replacement, attrs, count=1)
+
+
+def apply_markdown_typography_styles(content_html: str) -> str:
+    """Inject inline typography/table styles into rendered markdown tags."""
+    styled = content_html
+    for tag, style in _MARKDOWN_TAG_INLINE_STYLES.items():
+        opening_tag_pattern = re.compile(rf"<{tag}(?P<attrs>\s[^>]*)?>", re.IGNORECASE)
+
+        def _replace(
+            match: re.Match[str], current_tag: str = tag, current_style: str = style
+        ) -> str:
+            attrs = match.group("attrs") or ""
+            return f"<{current_tag}{_merge_inline_style(attrs, current_style)}>"
+
+        styled = opening_tag_pattern.sub(_replace, styled)
+    return styled
 
 
 def normalize_client_type(client_type: str) -> str:
@@ -100,7 +169,8 @@ def render_markdown_to_html(content_md: str) -> str:
     if not content_md or not content_md.strip():
         return ""
 
-    return str(_MARKDOWN_RENDERER.render(content_md)).strip()
+    rendered = str(_MARKDOWN_RENDERER.render(content_md)).strip()
+    return apply_markdown_typography_styles(rendered)
 
 
 def sanitize_html(content_html: str) -> str:

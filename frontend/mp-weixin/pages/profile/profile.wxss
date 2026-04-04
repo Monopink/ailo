@@ -18,6 +18,26 @@
   margin-bottom: var(--space-md);
 }
 
+.profile__avatar-image {
+  width: 128rpx;
+  height: 128rpx;
+  border-radius: 999rpx;
+  overflow: hidden;
+  background-color: var(--color-bg-secondary);
+  display: block;
+}
+
+.profile__tap-target {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+}
+
+.profile__tap-target--hover {
+  opacity: 0.85;
+}
+
 .profile__name-row {
   display: flex;
   align-items: center;
@@ -45,6 +65,10 @@
 /* Cards Section */
 .profile__cards {
   margin-top: var(--space-md);
+}
+
+.profile .card-wrapper:first-child {
+  margin-top: var(--space-lg);
 }
 
 .profile__menu-left {

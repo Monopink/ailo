@@ -5,7 +5,7 @@
 ## 核心规则（强制）
 
 - 仅使用语义化设计令牌，禁止硬编码颜色/尺寸/阴影
-- 基础 UI 统一使用 TDesign，自绘组件仅限 `ui-gender-badge`
+- 基础 UI 统一使用 TDesign，自绘组件仅限 `ui-gender-badge`、`app-avatar`
 - 需要导航栏的页面使用 `t-navbar`，并配置 `navigationStyle: "custom"`
 - TabBar 使用 custom tabbar 机制，custom-tab-bar 内部必须使用 TDesign `t-tab-bar`
 - 暗色模式跟随系统，不提供手动切换入口
@@ -53,10 +53,10 @@
 
 ## 设计令牌与暗色模式
 
-- 语义变量: `frontend/mp-weixin/styles/design-tokens.wxss`
+- 语义变量: `frontend/mp-weixin/styles/design-tokens.global.wxss` 与 `frontend/mp-weixin/styles/design-tokens.component.wxss`
 - TDesign 映射: `frontend/mp-weixin/styles/tdesign-theme.wxss`
 - 禁止直接引用 `--td-*` 做业务样式
-- 暗色模式仅在 `design-tokens.wxss` 定义变量，`tdesign-theme.wxss` 只做映射
+- 暗色模式仅在 `design-tokens.global.wxss` 与 `design-tokens.component.wxss` 定义变量，`tdesign-theme.wxss` 只做映射
 - `app.json` 必须启用 `darkmode: true` 且配置 `themeLocation: "theme.json"`
 - `theme.json` 必须同时定义 `light` 与 `dark` 变量
 - `app.json` 的 window/tabBar 字段使用 `@变量` 引用
@@ -67,9 +67,16 @@
 - `page-layout` 背景使用 `--color-bg-page`，需要白色背景时在 `page-layout` 上覆写：`--color-bg-page: var(--color-bg-white)`
 - 白色页面的具体内容区域背景使用 `--color-bg-white`（不要覆写 `--color-bg-primary`）
 - 白色页面的 navbar 固定态背景覆写：`--color-bg-header-solid: var(--color-bg-white)`
+- 登录页背景采用“本地渐变兜底层 + 远程图片增强层”双层结构
+- 登录页远程背景加载失败或超时时保持本地渐变兜底层，不切换为白屏
+- 登录页远程背景加载成功后通过透明度过渡显示，交互层始终保持可点击
+- 登录页主视觉仅保留品牌文字 logo 与单句 slogan，不展示联系人示例卡片或功能卖点列表
+- 登录页品牌文案禁止呼吸、脉冲、浮动等循环动画
 - TabBar 使用半透明毛玻璃背景 `--color-navbar-glass-bg` + `backdrop-filter`，顶部边线使用 `--color-separator`
 
 ## 自绘组件
 
 - `ui-gender-badge` 仅用于性别展示
 - 禁止在页面层自定义其尺寸与颜色
+- `app-avatar` 是头像渲染唯一入口，页面禁止直接使用 `t-avatar` 或裸 `image` 渲染业务头像
+- `app-avatar` 支持统一尺寸、圆角形态、加载失败占位与 `load/error` 事件透传

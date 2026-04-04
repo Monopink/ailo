@@ -11,8 +11,8 @@
     <view wx:if="{{profile}}" class="stranger-info__body">
       <!-- Header Section - Avatar and Name -->
       <view class="stranger-info__header">
-        <t-avatar
-          image="{{profile.avatarUrl}}"
+        <app-avatar
+          src="{{profile.avatarUrl}}"
           size="128rpx"
           shape="circle"
           class="stranger-info__avatar" />

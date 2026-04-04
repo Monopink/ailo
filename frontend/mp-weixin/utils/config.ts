@@ -91,6 +91,9 @@ export const STORAGE_KEYS = {
   // Whether the current user still needs to complete profile setup
   PROFILE_SETUP_REQUIRED: 'profile_setup_required',
 
+  // Whether silent WeChat login check is blocked after manual logout
+  MANUAL_LOGOUT_BLOCK_SILENT_LOGIN: 'manual_logout_block_silent_login',
+
   // Contacts list
   CONTACTS: 'contact_list',
 
@@ -223,9 +226,20 @@ export const VALIDATION_RULES: ValidationRules = {
   verifyMessageMaxLength: 100,
 };
 
+export interface LoginConfig {
+  loginBackgroundUrl: string;
+  loginBackgroundLoadTimeoutMs: number;
+}
+
+export const LOGIN_CONFIG: LoginConfig = {
+  loginBackgroundUrl: 'https://cortex.qiaoqiaoai.cn/login/bg.webp',
+  loginBackgroundLoadTimeoutMs: 1000,
+};
+
 const config = {
   APP_CONFIG,
   API_CONFIG,
+  LOGIN_CONFIG,
   LEANCLOUD_CONFIG,
   MESSAGE_CONFIG,
   STORAGE_KEYS,

@@ -4,7 +4,7 @@
   "usingComponents": {
     "page-layout": "/components/page-layout/page-layout",
     "t-navbar": "tdesign-miniprogram/navbar/navbar",
-    "t-avatar": "tdesign-miniprogram/avatar/avatar",
+    "app-avatar": "/components/ui/app-avatar/app-avatar",
     "t-icon": "tdesign-miniprogram/icon/icon"
   }
 }

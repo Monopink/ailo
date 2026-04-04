@@ -64,6 +64,12 @@ interface SetupPageCustom {
   onRegionChange(event: RegionPickerChangeEvent): void;
   handleChooseAvatar(): Promise<void>;
   onChooseWechatAvatar(event: ChooseAvatarEvent): Promise<void>;
+  onAvatarRenderSuccess(
+    event: WechatMiniprogram.CustomEvent<WechatMiniprogram.GeneralCallbackResult>
+  ): void;
+  onAvatarRenderError(
+    event: WechatMiniprogram.CustomEvent<WechatMiniprogram.GeneralCallbackResult>
+  ): void;
   handleSubmit(event?: FormSubmitEvent): Promise<void>;
   handleCancel(): void;
 }
@@ -438,6 +444,20 @@ Page<SetupPageData, SetupPageCustom>({
     } finally {
       this.setData({ uploadingAvatar: false });
     }
+  },
+
+  onAvatarRenderSuccess(event) {
+    logger.info('Avatar render success in setup native image', {
+      detail: event.detail,
+      avatarUrl: this.data.avatarUrl,
+    });
+  },
+
+  onAvatarRenderError(event) {
+    logger.error('Avatar render failed in setup native image', {
+      detail: event.detail,
+      avatarUrl: this.data.avatarUrl,
+    });
   },
 
   async handleSubmit(event) {

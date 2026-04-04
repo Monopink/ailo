@@ -58,14 +58,14 @@
             </view>
 
             <view class="msg-avatar">
-              <t-avatar image="{{userAvatar}}" size="small" shape="circle" />
+              <app-avatar src="{{userAvatar}}" size="small" shape="circle" />
             </view>
           </block>
 
           <!-- Other messages (left side): avatar - bubble -->
           <block wx:else>
             <view class="msg-avatar">
-              <t-avatar image="{{contactAvatar}}" size="small" shape="circle" />
+              <app-avatar src="{{contactAvatar}}" size="small" shape="circle" />
             </view>
 
             <view class="msg-bubble msg-bubble-other">

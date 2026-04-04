@@ -14,7 +14,7 @@
         wx:key="id"
         title="{{item.nickname}}"
         description="{{item.message}}">
-        <t-avatar slot="image" image="{{item.avatar}}" size="large" />
+        <app-avatar slot="image" src="{{item.avatar}}" size="large" shape="circle" />
         <view slot="note" class="contact-requests__actions">
           <t-button
             variant="outline"

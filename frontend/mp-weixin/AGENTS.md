@@ -158,3 +158,7 @@ npm install
 ```
 
 注意: 微信开发者工具的编译器只移除类型注解，不进行类型检查。必须使用 `npm run type-check` 进行类型检查。
+
+### 运行时配置文件
+
+- 生产配置固定使用 `utils/runtime-config.prod.ts`（允许入库）

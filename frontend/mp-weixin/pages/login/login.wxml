@@ -6,88 +6,40 @@
   hasFooter="{{false}}"
   disableScroll="{{true}}">
   <view slot="content" class="login-page">
-    <!-- Animated background gradient - Full screen -->
     <view class="login-bg"></view>
+    <image
+      wx:if="{{remoteBackgroundShouldLoad}}"
+      class="login-bg-remote {{remoteBackgroundVisible ? 'login-bg-remote--visible' : ''}}"
+      src="{{remoteBackgroundUrl}}"
+      mode="aspectFill"
+      bindload="handleRemoteBackgroundLoad"
+      binderror="handleRemoteBackgroundError" />
+    <view class="login-bottom-scrim"></view>
 
-    <!-- Hero section - Integrated with background -->
-    <view class="login-hero">
-      <!-- Logo with pulse animation -->
-      <view class="login-hero__logo-wrapper">
-        <image class="login-hero__logo" src="/assets/logo.png" mode="aspectFit" />
-        <view class="login-hero__glow"></view>
+    <view class="login-content">
+      <view class="login-hero">
+        <image class="login-hero__wordmark" src="/assets/wordmark.svg" mode="aspectFit" />
+        <text class="login-hero__slogan">让每次对话都被认真回应</text>
       </view>
 
-      <!-- Text with fade-in animation -->
-      <view class="login-hero__text">
-        <text class="login-hero__title">敲敲</text>
-        <text class="login-hero__subtitle">AI 陪伴 · 实时共鸣</text>
-        <text class="login-hero__description">一键进入与 AI 的沉浸式对话</text>
-      </view>
-    </view>
-
-    <!-- Features section - Compact -->
-    <view class="login-features" wx:if="{{featureList.length > 0}}">
-      <view
-        class="login-features__item login-features__item--{{index}}"
-        wx:for="{{featureList}}"
-        wx:key="id"
-        wx:for-index="index">
-        <view class="login-features__icon">✨</view>
-        <text class="login-features__title">{{item.title}}</text>
-      </view>
-    </view>
-
-    <!-- Preview section - Auto scroll carousel -->
-    <view class="login-preview" wx:if="{{sampleContacts.length > 0}}">
-      <text class="login-preview__title">发现有趣的 AI 伙伴</text>
-
-      <view class="login-preview__carousel">
-        <view class="login-preview__track">
-          <!-- Triple items for seamless infinite loop -->
-          <block wx:for="{{sampleContacts}}" wx:key="id" wx:for-item="contact1">
-            <view class="login-preview__item">
-              <view class="login-preview__avatar-wrapper">
-                <t-avatar size="medium" image="{{contact1.avatar}}" />
-                <view class="login-preview__avatar-ring"></view>
-              </view>
-              <text class="login-preview__name">{{contact1.nickname}}</text>
-              <text class="login-preview__bio">{{contact1.bio}}</text>
-            </view>
-          </block>
-          <block wx:for="{{sampleContacts}}" wx:key="id" wx:for-item="contact2">
-            <view class="login-preview__item">
-              <view class="login-preview__avatar-wrapper">
-                <t-avatar size="medium" image="{{contact2.avatar}}" />
-                <view class="login-preview__avatar-ring"></view>
-              </view>
-              <text class="login-preview__name">{{contact2.nickname}}</text>
-              <text class="login-preview__bio">{{contact2.bio}}</text>
-            </view>
-          </block>
-          <block wx:for="{{sampleContacts}}" wx:key="id" wx:for-item="contact3">
-            <view class="login-preview__item">
-              <view class="login-preview__avatar-wrapper">
-                <t-avatar size="medium" image="{{contact3.avatar}}" />
-                <view class="login-preview__avatar-ring"></view>
-              </view>
-              <text class="login-preview__name">{{contact3.nickname}}</text>
-              <text class="login-preview__bio">{{contact3.bio}}</text>
-            </view>
-          </block>
+      <view class="login-actions">
+        <t-button
+          class="login-actions__button"
+          theme="primary"
+          block
+          open-type="getPhoneNumber"
+          loading="{{wechatLoading}}"
+          bindgetphonenumber="handleWeChatLogin">
+          微信授权登录
+        </t-button>
+        <view class="login-legal">
+          <text class="login-legal__text">登录代表您已阅读并同意</text>
+          <text class="login-legal__link" bindtap="navigateToUserAgreement">用户使用协议</text>
+          <text class="login-legal__text">、</text>
+          <text class="login-legal__link" bindtap="navigateToPrivacyPolicy">隐私政策</text>
         </view>
+        <text class="login-actions__hint">未注册手机号登录将自动注册</text>
       </view>
-    </view>
-
-    <!-- Actions section - Login button -->
-    <view class="login-actions">
-      <t-button
-        theme="primary"
-        block
-        open-type="getPhoneNumber"
-        loading="{{wechatLoading}}"
-        bindgetphonenumber="handleWeChatLogin">
-        微信授权登录
-      </t-button>
     </view>
   </view>
 </page-layout>

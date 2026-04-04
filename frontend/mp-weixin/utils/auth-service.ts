@@ -287,6 +287,10 @@ class AuthService {
     }
   }
 
+  shouldBlockSilentLoginCheck(): boolean {
+    return wx.getStorageSync<boolean>(STORAGE_KEYS.MANUAL_LOGOUT_BLOCK_SILENT_LOGIN) === true;
+  }
+
   async login(
     accessToken: string,
     refreshToken: string,
@@ -296,6 +300,7 @@ class AuthService {
     logger.info('Login called', { qiao_id: userInfo.qiao_id });
     wx.setStorageSync(STORAGE_KEYS.AUTH_TOKEN, accessToken);
     wx.setStorageSync(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
+    wx.removeStorageSync(STORAGE_KEYS.MANUAL_LOGOUT_BLOCK_SILENT_LOGIN);
     await saveUserInfo(userInfo);
     this._setAuthState(true, accessToken, userInfo);
     this.setNeedsProfileSetup(Boolean(options?.needsProfileSetup));
@@ -316,6 +321,7 @@ class AuthService {
 
   async logout(): Promise<void> {
     logger.info('Logout called');
+    wx.setStorageSync(STORAGE_KEYS.MANUAL_LOGOUT_BLOCK_SILENT_LOGIN, true);
 
     try {
       await post('/auth/logout');

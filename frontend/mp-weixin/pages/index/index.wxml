@@ -12,7 +12,7 @@
     <view class="index-page__header-main">
       <t-navbar left-arrow="{{false}}" />
       <view class="page-large-title index-page__large-title">
-        <text class="page-large-title__text">{{navbarTitle}}</text>
+        <image class="index-page__wordmark" src="{{wordmarkSrc}}" mode="widthFix" />
       </view>
       <view wx:if="{{showConnectionIssue}}" class="index-page__connection">
         <text class="index-page__connection-text">正在连接...</text>
@@ -41,7 +41,7 @@
           bind:click="goToChat"
           data-id="{{item.conversation_id}}"
           data-index="{{index}}">
-          <t-avatar slot="image" image="{{item.avatarUrl}}" size="medium" shape="circle" />
+          <app-avatar slot="image" src="{{item.avatarUrl}}" size="medium" shape="circle" />
           <view slot="title" class="index-cell__title-row">
             <text class="index-cell__title list-text-primary">{{item.displayName}}</text>
             <text class="list-time index-cell__title-time">{{item.lastMessageTime}}</text>

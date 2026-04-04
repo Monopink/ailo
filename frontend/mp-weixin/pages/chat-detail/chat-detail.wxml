@@ -10,7 +10,7 @@
   <view slot="content" class="chat-detail">
     <!-- Hero section - horizontal layout -->
     <view wx:if="{{contact}}" class="chat-detail__hero">
-      <t-avatar image="{{contactView.avatar}}" size="large" />
+      <app-avatar src="{{contactView.avatar}}" size="large" shape="circle" />
       <view class="chat-detail__hero-info">
         <view class="chat-detail__hero-name">
           <text class="chat-detail__hero-text">{{contactView.name}}</text>

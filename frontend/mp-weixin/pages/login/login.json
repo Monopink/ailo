@@ -4,7 +4,6 @@
   "enablePullDownRefresh": false,
   "usingComponents": {
     "page-layout": "/components/page-layout/page-layout",
-    "t-button": "tdesign-miniprogram/button/button",
-    "t-avatar": "tdesign-miniprogram/avatar/avatar"
+    "t-button": "tdesign-miniprogram/button/button"
   }
 }

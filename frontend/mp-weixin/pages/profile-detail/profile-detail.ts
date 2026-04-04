@@ -42,6 +42,12 @@ interface ProfileDetailPageCustom {
   onRegionChange(event: RegionPickerChangeEvent): void;
   editBio(): void;
   onChooseWechatAvatar(event: ChooseAvatarEvent): Promise<void>;
+  onAvatarRenderSuccess(
+    event: WechatMiniprogram.CustomEvent<WechatMiniprogram.GeneralCallbackResult>
+  ): void;
+  onAvatarRenderError(
+    event: WechatMiniprogram.CustomEvent<WechatMiniprogram.GeneralCallbackResult>
+  ): void;
   applyAvatarFile(fileId: string): Promise<void>;
   uploadLocalAvatar(): Promise<void>;
   editAvatar(): Promise<void>;
@@ -346,6 +352,20 @@ Page<ProfileDetailPageData, ProfileDetailPageCustom>({
         avatarUploading: false,
       });
     }
+  },
+
+  onAvatarRenderSuccess(event) {
+    logger.info('Avatar render success in profile-detail native image', {
+      detail: event.detail,
+      avatarUrl: this.data.profile?.displayAvatar ?? '',
+    });
+  },
+
+  onAvatarRenderError(event) {
+    logger.error('Avatar render failed in profile-detail native image', {
+      detail: event.detail,
+      avatarUrl: this.data.profile?.displayAvatar ?? '',
+    });
   },
 
   async uploadLocalAvatar() {

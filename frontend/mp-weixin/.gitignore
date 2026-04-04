@@ -28,3 +28,6 @@ dist/
 !*.config.js
 !scripts/**/*.js
 !test/**/*.js
+
+# Generated runtime config
+utils/runtime-config.generated.js

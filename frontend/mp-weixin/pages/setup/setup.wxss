@@ -41,6 +41,15 @@
   position: relative;
 }
 
+.setup-avatar__image {
+  width: 112rpx;
+  height: 112rpx;
+  border-radius: 999rpx;
+  overflow: hidden;
+  background-color: var(--color-bg-secondary);
+  display: block;
+}
+
 .setup-avatar__hint {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);

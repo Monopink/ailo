@@ -11,15 +11,32 @@
   <view slot="content" class="profile">
     <!-- Header Section - Avatar and Name -->
     <view class="profile__header">
-      <t-avatar
-        image="{{profile ? profile.displayAvatar : ''}}"
-        size="128rpx"
-        shape="circle"
-        class="profile__avatar" />
+      <view
+        class="profile__tap-target profile__tap-target--avatar"
+        bindtap="navigateToProfileDetail"
+        hover-class="profile__tap-target--hover"
+        hover-stay-time="80">
+        <app-avatar
+          class="profile__avatar profile__avatar-image"
+          src="{{profile ? profile.displayAvatar : ''}}"
+          size="128rpx"
+          shape="circle"
+          mode="aspectFill"
+          webp="{{true}}"
+          lazy="{{false}}"
+          bindload="onAvatarRenderSuccess"
+          binderror="onAvatarRenderError" />
+      </view>
 
-      <view class="profile__name-row">
-        <text class="profile__name">{{profile ? profile.nickname : ''}}</text>
-        <gender-badge wx:if="{{profile && profile.gender}}" gender="{{profile.gender}}" />
+      <view
+        class="profile__tap-target profile__tap-target--name"
+        bindtap="navigateToProfileDetail"
+        hover-class="profile__tap-target--hover"
+        hover-stay-time="80">
+        <view class="profile__name-row">
+          <text class="profile__name">{{profile ? profile.nickname : ''}}</text>
+          <gender-badge wx:if="{{profile && profile.gender}}" gender="{{profile.gender}}" />
+        </view>
       </view>
 
       <text wx:if="{{profile && profile.displayUsername}}" class="profile__qiao-id">敲敲号：{{profile.displayUsername}}</text>

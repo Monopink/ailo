@@ -38,9 +38,10 @@
         bindtap="handleContactTap"
         data-id="{{item.qiao_id}}">
         <!-- Avatar -->
-        <t-avatar
-          image="{{item.avatar_url}}"
+        <app-avatar
+          src="{{item.avatar_url}}"
           size="medium"
+          shape="circle"
           class="list-row__avatar" />
 
         <!-- Info -->

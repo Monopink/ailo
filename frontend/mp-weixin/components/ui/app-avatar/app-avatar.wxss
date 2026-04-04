@@ -1,0 +1,48 @@
+@import '/styles/design-tokens.component.wxss';
+
+.ui-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-sizing: border-box;
+  vertical-align: top;
+  background-color: var(--color-bg-secondary);
+}
+
+.ui-avatar--circle {
+  border-radius: var(--radius-full);
+}
+
+.ui-avatar--round {
+  border-radius: var(--radius-md);
+}
+
+.ui-avatar--square {
+  border-radius: 0;
+}
+
+.ui-avatar__image,
+.ui-avatar__placeholder {
+  width: 100%;
+  height: 100%;
+}
+
+.ui-avatar__image {
+  display: block;
+}
+
+.ui-avatar__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-bg-secondary);
+}
+
+.ui-avatar__placeholder-image {
+  width: 56%;
+  height: 56%;
+  opacity: 0.56;
+  display: block;
+}

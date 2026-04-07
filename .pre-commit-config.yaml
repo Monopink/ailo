@@ -63,7 +63,7 @@ repos:
     hooks:
       - id: check-deployment-env-example-overrides
         name: Check deployment .env.example overrides
-        entry: python scripts/check_deployment_env_example_overrides.py
+        entry: venv/Scripts/python.exe scripts/check_deployment_env_example_overrides.py
         language: system
         pass_filenames: false
         files: ^deployment/.*\.env\.example$
@@ -72,7 +72,7 @@ repos:
       # Check for local imports in functions
       - id: check-local-imports
         name: Check for local imports in functions
-        entry: python scripts/check_local_imports.py
+        entry: venv/Scripts/python.exe scripts/check_local_imports.py
         language: system
         types: [python]
         pass_filenames: true
@@ -82,7 +82,7 @@ repos:
       # mypy - Type checker
       - id: mypy
         name: Type check with mypy
-        entry: python -m mypy
+        entry: venv/Scripts/python.exe -m mypy
         language: system
         types: [python]
         files: ^backend/app/.*\.py$
@@ -96,7 +96,7 @@ repos:
       # import-linter - Architecture contracts
       - id: import-linter
         name: Check architecture contracts
-        entry: python scripts/run_import_linter.py
+        entry: venv/Scripts/python.exe scripts/run_import_linter.py
         language: system
         pass_filenames: false
         files: ^backend/app/.*\.py$

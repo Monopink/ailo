@@ -256,7 +256,13 @@ update_services() {
     local backend_container
     backend_container=$(get_container "backend")
     if [ -n "$backend_container" ]; then
-        docker exec "$backend_container" alembic upgrade head || log_warning "Migration failed or no new migrations"
+        if ! docker exec "$backend_container" alembic upgrade head; then
+            log_error "Database migration failed"
+            return 1
+        fi
+    else
+        log_error "Backend container not found for migration"
+        return 1
     fi
 
     log_success "Services updated successfully"

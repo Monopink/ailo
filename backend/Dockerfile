@@ -45,6 +45,9 @@ RUN set -eux; \
 
 FROM build AS build-dev
 
+ARG PIP_INDEX_URL=""
+
+COPY app/requirements.txt /backend/requirements.txt
 COPY app/requirements-dev.txt /backend/requirements-dev.txt
 
 RUN set -eux; \

@@ -5,6 +5,7 @@ tmpclaude*
 venv/
 __pycache__/
 node_modules/
+.pre-commit-cache/
 /logs/
 /CLAUDE.md
 /deployment/.env

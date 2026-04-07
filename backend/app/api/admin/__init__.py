@@ -21,6 +21,7 @@ from .debug_messages import instance_router as debug_instances_router
 from .debug_messages import router as debug_messages_router
 from .discovery import router as discovery_router
 from .llm_management import llm_router
+from .profile import profile_router
 from .system_management import system_router
 
 # Create main admin API router with global authentication
@@ -36,6 +37,7 @@ admin_api_router.include_router(style_router, prefix="/ai", tags=["Admin AI Styl
 admin_api_router.include_router(dimension_router, prefix="/ai", tags=["Admin AI Dimension"])
 admin_api_router.include_router(memory_router, prefix="/ai", tags=["Admin AI Memory"])
 admin_api_router.include_router(system_router, prefix="/system", tags=["Admin System Management"])
+admin_api_router.include_router(profile_router, tags=["Admin Profile"])
 admin_api_router.include_router(discovery_router, prefix="/discovery", tags=["Admin Discovery"])
 admin_api_router.include_router(content_router, prefix="/content", tags=["Admin Content"])
 admin_api_router.include_router(contact_requests_router, prefix="/contact-requests")

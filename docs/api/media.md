@@ -8,9 +8,11 @@
 
 ### POST /api/v1/media/upload
 
-统一的后台代理上传接口。客户端通过 `multipart/form-data` 将文件上传到业务服务，由后端完成配额校验、格式校验、去重、推送对象存储以及 URL 生成。微信小程序与管理后台必须使用该接口。
+统一的后台代理上传接口。客户端通过 `multipart/form-data` 将文件上传到业务服务，由后端完成配额校验、格式校验、去重、推送对象存储以及 URL 生成。微信小程序与用户侧资料流程使用该接口。
 
 **认证**: 必需（Bearer Token）
+
+说明：本接口使用用户 JWT 鉴权，不用于管理端 session 鉴权场景。管理端 profile 头像高级编辑使用 `POST /admin-api/profile/{profile_id}/avatar/upload`。
 
 **请求方式**: `multipart/form-data`
 
@@ -150,6 +152,70 @@ MIME 类型不支持 (415):
 
 ---
 
+### POST /admin-api/profile/{profile_id}/avatar/upload
+
+管理端 Profile 头像高级编辑上传接口。接口完成文件接收、裁切参数处理、头像标准化处理（转码/缩放）并绑定到目标 profile。
+
+**认证**: 必需（Admin Session）
+
+**请求方式**: `multipart/form-data`
+
+**路径参数**:
+- `profile_id` (必填): 目标 profile ID
+
+**表单字段**:
+- `file` (必填): 原始图片文件。
+- `file_type` (必填): 固定为 `1`（avatar）。
+- `mime_type` (必填): 客户端文件 MIME 类型。
+- `file_size` (必填): 文件大小（字节）。
+- `original_name` (可选): 原始文件名。
+- `crop_x` (可选): 裁切区域左上角 X（像素）。
+- `crop_y` (可选): 裁切区域左上角 Y（像素）。
+- `crop_size` (可选): 裁切区域边长（像素，1:1）。
+
+**请求语义**:
+- 上传成功后立即覆盖目标 profile 当前头像
+- 同步写入 `user_profile_logs`，`field_name=avatar_media_id`，`modified_by_type=2(admin)`
+- 头像处理产物统一为 `WebP 512x512`
+- 不保留原图
+- 不执行每日上传配额校验
+- 执行上传速率限制
+
+**错误响应**:
+- 管理端统一错误结构见 `docs/api/error-codes.md` 中 `/admin-api/*` 规范
+
+---
+
+### POST /admin-api/profile/{profile_id}/avatar/clear
+
+管理端 Profile 头像清空接口。接口清空目标 profile 的头像字段并返回默认头像 URL。
+
+**认证**: 必需（Admin Session）
+
+**请求方式**: `POST`
+
+**路径参数**:
+- `profile_id` (必填): 目标 profile ID
+
+**成功响应 (200)**:
+```json
+{
+  "profile_id": 10001,
+  "avatar_media_id": null,
+  "avatar_url": "https://cdn.example.com/avatars/default.webp"
+}
+```
+
+**请求语义**:
+- 清空 `profiles.avatar_key` 与 `profiles.avatar_media_id`
+- 写入 `user_profile_logs`，`field_name=avatar_media_id`，`change_reason=admin_avatar_clear`
+- 返回清空后的头像 URL（默认头像）
+
+**错误响应**:
+- 管理端统一错误结构见 `docs/api/error-codes.md` 中 `/admin-api/*` 规范
+
+---
+
 ## 错误码汇总
 
 | HTTP 状态码 | error_code | message | 说明 |
@@ -171,4 +237,5 @@ MIME 类型不支持 (415):
 - [对象存储规范](../spec/storage.md) - 上传流程、去重策略、安全措施
 - [头像上传规范](../spec/client/mini-program/avatar-upload.md) - 小程序头像上传对接指南
 - [用户资料 API](user.md) - 头像应用接口
+- [管理端总览](../spec/admin-panel/overview.md) - 管理端能力入口
 - [系统配置 API](system.md) - 配额配置

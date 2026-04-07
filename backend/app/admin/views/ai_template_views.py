@@ -12,6 +12,7 @@ from starlette.requests import Request
 from starlette_admin import (
     DateTimeField,
     HasOne,
+    ImageField,
     IntegerField,
     JSONField,
     StringField,
@@ -38,6 +39,7 @@ from app.models.ai.template import AIPersona, AITemplate
 from app.models.base import generate_qiao_id
 from app.models.profile import Profile
 from app.services.ai.response_schema import validate_style_personality_contract
+from app.services.profile.avatar import get_avatar_url
 from app.services.security.username import (
     USERNAME_HELP_TEXT,
     UsernameValidationConfigError,
@@ -410,11 +412,36 @@ class _PersonaGenderField(StringField):
             return "(Error)"
 
 
+class _PersonaAvatarPreviewField(ImageField):
+    """Computed field showing Profile avatar for an AIPersona."""
+
+    def __init__(
+        self, name: str = "avatar_preview", label: str = "Avatar", **kwargs: object
+    ) -> None:
+        super().__init__(name=name, label=label, **kwargs)
+        self.read_only = True
+        self.searchable = False
+        self.orderable = False
+
+    async def parse_obj(self, request: Request, obj: AIPersona) -> dict[str, str] | None:
+        try:
+            stmt = select(Profile).where(
+                Profile.owner_qiao_id == obj.qiao_id,
+                Profile.owner_type == int(ProfileOwnerType.AI_PERSONA),
+            )
+            profile = (await request.state.session.execute(stmt)).scalar_one_or_none()
+            avatar_url = await get_avatar_url(profile)
+        except Exception:
+            return None
+        return {"url": avatar_url}
+
+
 class AIPersonaView(ModelView):
     """AI persona inventory view."""
 
     exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
+        "avatar_preview",
         "type_id",
         "profile_nickname",
         "profile_gender",
@@ -423,6 +450,7 @@ class AIPersonaView(ModelView):
     ]
     exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
+        "avatar_preview",
         "type_id",
         "profile_nickname",
         "profile_gender",
@@ -463,6 +491,11 @@ class AIPersonaView(ModelView):
 
     fields: ClassVar[list[object]] = [
         StringField("id", label="ID", help_text="Internal persona identifier"),
+        _PersonaAvatarPreviewField(
+            "avatar_preview",
+            label="Avatar",
+            help_text="Current avatar preview",
+        ),
         StringField(
             "qiao_id",
             label="Persona Qiao ID",

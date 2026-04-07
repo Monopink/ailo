@@ -28,6 +28,7 @@ markdown-it-py==4.0.0
 cryptography==43.0.3  # Compatible with pyOpenSSL <44 requirement
 boto3==1.42.16  # AWS SDK for S3-compatible storage (Tencent COS)
 python-magic==0.4.27
+Pillow==12.2.0
 
 # Utilities
 structlog==25.4.0

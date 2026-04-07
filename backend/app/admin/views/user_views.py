@@ -17,6 +17,7 @@ from starlette_admin import (
     CustomView,
     DateTimeField,
     HasOne,
+    ImageField,
     IntegerField,
     JSONField,
     StringField,
@@ -46,6 +47,7 @@ from app.models.message import MediaFile
 from app.models.profile import Profile, UserProfileLog
 from app.models.user import User
 from app.services.contact.request_service import retry_pending_contact_request
+from app.services.profile.avatar import get_avatar_url
 from app.services.security.username import (
     USERNAME_HELP_TEXT,
     UsernameValidationConfigError,
@@ -62,6 +64,49 @@ FormData = MutableMapping[str, object | None]
 PASSWORD_MIN_LENGTH = 8
 
 
+class _ProfileAvatarPreviewField(ImageField):
+    """Computed field to render profile avatar thumbnail in list/detail views."""
+
+    def __init__(
+        self, name: str = "avatar_preview", label: str = "Avatar", **kwargs: object
+    ) -> None:
+        super().__init__(name=name, label=label, **kwargs)
+        self.read_only = True
+        self.searchable = False
+        self.orderable = False
+
+    async def parse_obj(self, _request: Request, obj: Profile) -> dict[str, str] | None:
+        try:
+            avatar_url = await get_avatar_url(obj)
+        except Exception:
+            return None
+        return {"url": avatar_url}
+
+
+class _UserAvatarPreviewField(ImageField):
+    """Computed field to render user avatar thumbnail in list/detail views."""
+
+    def __init__(
+        self, name: str = "avatar_preview", label: str = "Avatar", **kwargs: object
+    ) -> None:
+        super().__init__(name=name, label=label, **kwargs)
+        self.read_only = True
+        self.searchable = False
+        self.orderable = False
+
+    async def parse_obj(self, request: Request, obj: User) -> dict[str, str] | None:
+        try:
+            stmt = select(Profile).where(
+                Profile.owner_qiao_id == obj.qiao_id,
+                Profile.owner_type == int(ProfileOwnerType.USER),
+            )
+            profile = (await request.state.session.execute(stmt)).scalar_one_or_none()
+            avatar_url = await get_avatar_url(profile)
+        except Exception:
+            return None
+        return {"url": avatar_url}
+
+
 class UserView(BaseRoleAwareModelView):
     """Enhanced User view with proper field configuration."""
 
@@ -70,6 +115,7 @@ class UserView(BaseRoleAwareModelView):
 
     exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
+        "avatar_preview",
         "qiao_id",
         "password_hash",
         "created_at",
@@ -78,6 +124,7 @@ class UserView(BaseRoleAwareModelView):
     ]
     exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
+        "avatar_preview",
         "qiao_id",
         "password_hash",
         "created_at",
@@ -103,6 +150,9 @@ class UserView(BaseRoleAwareModelView):
 
     fields: ClassVar[list[BaseField]] = [
         StringField("id", label="ID", help_text="Internal user ID"),
+        _UserAvatarPreviewField(
+            "avatar_preview", label="Avatar", help_text="Current avatar preview"
+        ),
         StringField("qiao_id", label="Qiao ID", help_text="External user identifier"),
         StringField(
             "username",
@@ -260,6 +310,7 @@ class ProfileView(BaseRoleAwareModelView):
     # Exclude auto-filled fields from create/edit
     exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
+        "avatar_preview",
         "owner_id",  # Auto-filled
         "owner_qiao_id",  # Auto-filled
         "owner_type",  # Auto-inferred from selected owner
@@ -272,6 +323,7 @@ class ProfileView(BaseRoleAwareModelView):
     ]
     exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
+        "avatar_preview",
         "owner_id",  # Auto-filled
         "owner_qiao_id",  # Auto-filled
         "owner_type",  # Auto-inferred from selected owner
@@ -290,9 +342,26 @@ class ProfileView(BaseRoleAwareModelView):
         "avatar_key",
         "avatar_media_id",
     ]
+    row_actions: ClassVar[list[str]] = ["view", "edit", "advanced_edit"]
+
+    def is_active(self, request: Request) -> bool:
+        """Keep profile menu item active for advanced-edit route."""
+        if request.path_params.get("identity", None) == self.identity:
+            return True
+        path = request.scope["path"]
+        return f"/{self.identity}/advanced-edit/" in path
 
     def can_delete(self, _request: Request) -> bool:
         return False
+
+    @link_row_action(
+        name="advanced_edit",
+        text="Avatar",
+        icon_class="fa fa-image",
+    )
+    def advanced_edit_action(self, _request: Request, pk: int | str) -> str:
+        """Open profile avatar advanced edit page."""
+        return f"/qiao-dash/profile/advanced-edit/{pk}"
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
     searchable_fields: ClassVar[list[str]] = ["nickname", "owner_qiao_id"]
@@ -307,6 +376,11 @@ class ProfileView(BaseRoleAwareModelView):
 
     fields: ClassVar[list[BaseField]] = [
         StringField("id", label="ID", help_text="Internal profile ID"),
+        _ProfileAvatarPreviewField(
+            "avatar_preview",
+            label="Avatar",
+            help_text="Current avatar preview",
+        ),
         # Polymorphic owner fields - select one, owner_type is auto-inferred
         HasOne(
             "_owner_user",

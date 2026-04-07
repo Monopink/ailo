@@ -10,7 +10,7 @@ from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.base import CRUDBase
-from app.enums import FileStatus, FileType
+from app.enums import FileStatus, FileType, UploaderType
 from app.models.message import MediaFile
 from app.schemas.message import MediaFileUpload
 
@@ -70,16 +70,18 @@ class CRUDMediaFile(CRUDBase[MediaFile, MediaFileUpload, _MediaFileUpdateSchema]
         self,
         db: AsyncSession,
         *,
-        user_id: int,
+        uploader_type: UploaderType,
+        uploader_id: int,
         file_type: FileType,
         file_hash: str,
         exclude_file_id: int | None = None,
     ) -> MediaFile | None:
-        """Find active file with same hash for user."""
+        """Find active file with same hash for uploader scope."""
         query = (
             select(self.model)
             .where(
-                self.model.upload_by_id == user_id,
+                self.model.upload_by_type == int(uploader_type),
+                self.model.upload_by_id == uploader_id,
                 self.model.file_type == int(file_type),
                 self.model.file_hash == file_hash,
                 self.model.status == int(FileStatus.ACTIVE),
@@ -97,7 +99,8 @@ class CRUDMediaFile(CRUDBase[MediaFile, MediaFileUpload, _MediaFileUpdateSchema]
         self,
         db: AsyncSession,
         *,
-        user_id: int,
+        uploader_type: UploaderType,
+        uploader_id: int,
         file_type: FileType,
         day_start: datetime | None = None,
     ) -> tuple[int, int]:
@@ -110,7 +113,8 @@ class CRUDMediaFile(CRUDBase[MediaFile, MediaFileUpload, _MediaFileUpdateSchema]
                 func.count(self.model.id),
                 func.coalesce(func.sum(self.model.file_size), 0),
             ).where(
-                self.model.upload_by_id == user_id,
+                self.model.upload_by_type == int(uploader_type),
+                self.model.upload_by_id == uploader_id,
                 self.model.file_type == int(file_type),
                 self.model.created_at >= day_start,
                 self.model.status != int(FileStatus.DELETED),

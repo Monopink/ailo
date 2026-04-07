@@ -63,6 +63,7 @@ from .views import (
     message_history_view,
     notification_push_history_view,
     pending_contact_request_view,
+    profile_avatar_advanced_edit_view,
     profile_view,
     square_category_view,
     square_type_entry_view,
@@ -300,6 +301,7 @@ def _register_dropdowns(admin_instance: Admin) -> None:
     admin_instance.add_view(template_advanced_edit_view)
     admin_instance.add_view(personality_advanced_edit_view)
     admin_instance.add_view(style_advanced_edit_view)
+    admin_instance.add_view(profile_avatar_advanced_edit_view)
     admin_instance.add_view(app_page_advanced_edit_view)
     admin_instance.add_view(app_page_preview_view)
 

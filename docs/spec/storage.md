@@ -132,10 +132,22 @@ system_configs.media_public_base_url + object_key
 8. 客户端如需绑定头像，调用 PUT /api/v1/user/profile
 ```
 
+### 管理端头像高级编辑上传
+
+```
+1. 管理员在 Profile Advanced Edit 页面选择图片并设置 1:1 裁切区域
+2. 页面通过管理端会话调用 POST /admin-api/profile/{profile_id}/avatar/upload
+3. 后端生成标准化头像产物（WebP 512x512）
+4. 后端执行格式/大小校验、去重与对象存储写入
+5. 后端在同一数据库事务内写入 media_files + 更新 profiles.avatar_key/avatar_media_id + 写入 user_profile_logs
+6. 数据库事务失败时同步删除本次已写入的对象存储文件
+```
+
 **安全检查要点** (P0):
-- 上传时：验证配额、格式以及 `upload_by_id`（记录由后端写入）
+- 上传时：验证格式以及 `upload_by_id`（记录由后端写入）
 - 应用头像时：验证 `upload_by_id == current_user.id` 且 `status == ACTIVE`
 - 查询文件时：验证 `upload_by_id == current_user.id`
+- 管理端头像高级编辑：必须使用 admin session 鉴权，且仅允许更新目标 profile 的头像字段
 
 ---
 
@@ -144,7 +156,7 @@ system_configs.media_public_base_url + object_key
 - `file_type`：必须存在并有对应规则
 - `file_size`：与配置的 `max_size` 比较，同时与客户端字段对比
 - `mime_type`：需要在白名单
-- 配额：`daily_quota`、`daily_size_quota`
+- 配额：用户 JWT 上传执行 `daily_quota`、`daily_size_quota`；管理端头像高级编辑上传不执行每日配额校验
 - 速率限制：默认 10 次/分钟（可在 `rate_limiter` 配置）
 
 ### 写入后校验
@@ -184,7 +196,8 @@ system_configs.media_public_base_url + object_key
 - 节省成本：~¥36/年（10K 用户）
 
 **去重规则**:
-- 仅在同一用户范围内去重（`upload_by_id == current_user.id`）
+- 用户 JWT 上传：在同一上传者范围内去重（`upload_by_type + upload_by_id`）
+- 管理端头像高级编辑上传：在目标 profile owner 范围内去重（`upload_by_type + upload_by_id` = 目标 owner）
 - Token 阶段：如果提供 hash 且已存在，直接返回 URL
 - Confirm 阶段：如果未提供 hash，后端下载并计算 hash 再去重
 
@@ -251,6 +264,10 @@ WHERE status = 2  -- pending
 **强制规则**:
 - 所有文件操作必须验证 `media_files.upload_by_id == current_user.id`
 - 适用接口：POST /api/v1/media/upload、GET /api/v1/media/{file_id}、PUT /api/v1/user/profile
+
+**管理端特例**:
+- `POST /admin-api/profile/{profile_id}/avatar/upload` 不使用用户 JWT 所有权校验
+- 管理端接口以 admin session + profile 目标权限边界校验为准
 
 **实现要点**:
 - 文件不存在或已删除 → 404

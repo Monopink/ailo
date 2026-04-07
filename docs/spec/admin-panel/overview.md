@@ -37,6 +37,7 @@
 - Chat Console（消息系统联调主工具）
 - 分数算法测试（关系算法输入输出验证）
 - AI Advanced Edit（personality/style 高级配置编辑）
+- Profile Avatar Advanced Edit（profile 头像上传、裁切与覆盖）
 
 其中 Chat Console 详见 [chat-console.md](chat-console.md)。
 AI Advanced Edit 详见 [ai-advanced-edit.md](ai-advanced-edit.md)。

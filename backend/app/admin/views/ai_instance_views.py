@@ -11,6 +11,7 @@ from starlette.requests import Request
 from starlette_admin import (
     DateTimeField,
     HasOne,
+    ImageField,
     IntegerField,
     JSONField,
     StringField,
@@ -39,6 +40,7 @@ from app.services.ai.instance_creation import (
     validate_instance_contract,
 )
 from app.services.ai.utils.position_mapping import map_score_to_position
+from app.services.profile.avatar import get_avatar_url
 from app.utils.logging import get_logger
 
 FormData = MutableMapping[str, object]
@@ -182,6 +184,32 @@ class _ProfileOwnerTypeField(StringField):
             return "(Error)"
 
 
+class _InstanceAvatarPreviewField(ImageField):
+    """Computed field showing Profile avatar for an AIInstance."""
+
+    def __init__(
+        self, name: str = "avatar_preview", label: str = "Avatar", **kwargs: object
+    ) -> None:
+        super().__init__(name=name, label=label, **kwargs)
+        self.read_only = True
+        self.searchable = False
+        self.orderable = False
+
+    async def parse_obj(self, request: Request, obj: AIInstance) -> dict[str, str] | None:
+        try:
+            stmt = select(Profile).where(
+                Profile.owner_qiao_id == obj.qiao_id,
+                Profile.owner_type.in_(
+                    [int(ProfileOwnerType.AI_INSTANCE), int(ProfileOwnerType.AI_PERSONA)]
+                ),
+            )
+            profile = (await request.state.session.execute(stmt)).scalar_one_or_none()
+            avatar_url = await get_avatar_url(profile)
+        except Exception:
+            return None
+        return {"url": avatar_url}
+
+
 class _RelationshipDisplayNameField(StringField):
     """Computed field to show relationship display_name for AIInstance."""
 
@@ -239,6 +267,7 @@ class AIInstanceView(ModelView):
 
     exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
+        "avatar_preview",
         "user_id",
         "user_qiao_id",
         "created_by",
@@ -252,6 +281,7 @@ class AIInstanceView(ModelView):
     ]
     exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
+        "avatar_preview",
         "qiao_id",
         "user",
         "user_id",
@@ -367,6 +397,11 @@ class AIInstanceView(ModelView):
 
     fields: ClassVar[list[object]] = [
         StringField("id", label="ID", help_text="Internal instance ID"),
+        _InstanceAvatarPreviewField(
+            "avatar_preview",
+            label="Avatar",
+            help_text="Current avatar preview",
+        ),
         HasOne(
             "user",
             identity="user",

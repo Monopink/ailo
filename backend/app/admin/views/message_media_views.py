@@ -10,6 +10,7 @@ from starlette_admin import (
     BooleanField,
     DateTimeField,
     HasOne,
+    ImageField,
     IntegerField,
     JSONField,
     StringField,
@@ -43,6 +44,7 @@ from app.models.message import (
 from app.models.message.media import MediaFile
 from app.models.message.message import MessageHistory
 from app.models.message.notification import NotificationPushHistory
+from app.services.media.url import build_private_url, build_public_url
 
 
 def _coerce_int(value: object, field: str) -> int:
@@ -55,6 +57,25 @@ def _coerce_int(value: object, field: str) -> int:
         except ValueError as exc:
             raise FormValidationError({field: "Invalid value"}) from exc
     raise FormValidationError({field: "Invalid value"})
+
+
+class _MediaFilePreviewField(ImageField):
+    """Computed field showing media thumbnail when MIME type is image/*."""
+
+    def __init__(
+        self, name: str = "file_preview", label: str = "Preview", **kwargs: object
+    ) -> None:
+        super().__init__(name=name, label=label, **kwargs)
+        self.read_only = True
+        self.searchable = False
+        self.orderable = False
+
+    async def parse_obj(self, _request: Request, obj: MediaFile) -> dict[str, str] | None:
+        mime_type = (obj.mime_type or "").lower()
+        if not mime_type.startswith("image/"):
+            return None
+        url = build_public_url(obj) if obj.is_public else build_private_url(obj)
+        return {"url": url}
 
 
 class MessageHistoryView(ModelView):
@@ -191,6 +212,7 @@ class MediaFileView(ModelView):
 
     exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
+        "file_preview",
         "file_id",
         "upload_by_type",  # Auto-filled from admin user
         "upload_by_id",  # Auto-filled from admin user
@@ -200,6 +222,7 @@ class MediaFileView(ModelView):
     ]
     exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
+        "file_preview",
         "file_id",
         "upload_by_type",  # Cannot change uploader
         "upload_by_id",  # Cannot change uploader
@@ -227,6 +250,11 @@ class MediaFileView(ModelView):
         Sequence[BaseField],
         [
             StringField("id", label="ID", help_text="Internal file ID"),
+            _MediaFilePreviewField(
+                "file_preview",
+                label="Preview",
+                help_text="Image preview when MIME type is image/*",
+            ),
             StringField("file_id", label="File ID", help_text="External file identifier"),
             IntegerEnumField(
                 "file_type",

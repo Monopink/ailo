@@ -67,6 +67,7 @@ from .message_media_views import (
     message_history_view,
     notification_push_history_view,
 )
+from .profile_avatar_advanced_edit_view import profile_avatar_advanced_edit_view
 from .security_views import (
     SECURITY_MODEL_VIEWS,
     user_risk_stats_view,
@@ -186,6 +187,7 @@ __all__ = [
     "user_profile_log_view",
     "contact_view",
     "pending_contact_request_view",
+    "profile_avatar_advanced_edit_view",
     # Individual message/media views
     "message_history_view",
     "message_delivery_view",

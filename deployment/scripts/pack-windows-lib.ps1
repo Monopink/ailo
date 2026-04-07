@@ -58,11 +58,15 @@ function Invoke-PackDeployment {
     Write-Host "[INFO] Cleaning up..." -ForegroundColor Blue
     Get-ChildItem -Path $PackDir -Recurse -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
     Get-ChildItem -Path $PackDir -Recurse -Directory -Filter ".mypy_cache" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+    Get-ChildItem -Path $PackDir -Recurse -Directory -Filter ".mypy_cache2" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
     Get-ChildItem -Path $PackDir -Recurse -Directory -Filter ".pytest_cache" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
     Get-ChildItem -Path $PackDir -Recurse -Directory -Filter ".ruff_cache" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+    Get-ChildItem -Path $PackDir -Recurse -Directory -Filter ".import_linter_cache" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+    Get-ChildItem -Path $PackDir -Recurse -Directory -Filter ".grimp_cache" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
     Get-ChildItem -Path $PackDir -Recurse -Directory -Filter ".cache" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
     Get-ChildItem -Path $PackDir -Recurse -File -Filter "*.pyc" -ErrorAction SilentlyContinue | Remove-Item -Force
     Get-ChildItem -Path $PackDir -Recurse -File -Filter "*.log" -ErrorAction SilentlyContinue | Remove-Item -Force
+    Get-ChildItem -Path $PackDir -Recurse -File -Filter "tmpclaude-*-cwd" -ErrorAction SilentlyContinue | Remove-Item -Force
     Get-ChildItem -Path $PackDir -Recurse -Directory -Filter "logs" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
     Get-ChildItem -Path $PackDir -Recurse -Directory -Filter ".git" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
 

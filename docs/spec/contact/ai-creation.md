@@ -6,7 +6,7 @@ AI 实例创建负责将 Persona + Template 组合创建为可用的 AI Instance
 
 ### Persona + Template → Instance
 
-- **Persona**：包含 qiao_id、类型、展示信息
+- **Persona**：包含 qiao_id、类型、展示信息（username 可为空）
 - **Template**：包含 LLM 配置、系统提示词等
 - **Instance**：实际运行的 AI 实例；`source=persona` 时继承 Persona 的 qiao_id，并写入 `persona_id` 绑定 persona（username 展示来源 persona.username）
 

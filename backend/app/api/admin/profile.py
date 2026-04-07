@@ -6,11 +6,16 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.responses import RedirectResponse
 
 from app.api.deps import get_db, verify_admin_session
-from app.enums import FileType, UploaderType
+from app.enums import FileType, ProfileOwnerType, UploaderType
+from app.models.ai.instance import AIInstance
+from app.models.ai.template import AIPersona
 from app.models.profile import Profile
+from app.models.user import User
 from app.services.media.avatar_image import AvatarCrop
 from app.services.media.uploader import UploadActor
 from app.services.profile.admin_avatar import (
@@ -54,6 +59,47 @@ def _require_admin_identity(admin_user: dict[str, Any]) -> tuple[int, str]:
 
 async def _get_profile_or_404(db: AsyncSession, profile_id: int) -> Profile:
     profile = await db.get(Profile, profile_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return profile
+
+
+async def _resolve_profile_by_owner_or_404(
+    db: AsyncSession,
+    *,
+    owner_kind: str,
+    owner_id: int,
+) -> Profile:
+    if owner_kind == "user":
+        owner_user = await db.get(User, owner_id)
+        if owner_user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        stmt = select(Profile).where(
+            Profile.owner_id == owner_user.id,
+            Profile.owner_type == int(ProfileOwnerType.USER),
+        )
+    elif owner_kind == "ai_persona":
+        owner_persona = await db.get(AIPersona, owner_id)
+        if owner_persona is None:
+            raise HTTPException(status_code=404, detail="AI persona not found")
+        stmt = select(Profile).where(
+            Profile.owner_id == owner_persona.id,
+            Profile.owner_type == int(ProfileOwnerType.AI_PERSONA),
+        )
+    elif owner_kind == "ai_instance":
+        owner_instance = await db.get(AIInstance, owner_id)
+        if owner_instance is None:
+            raise HTTPException(status_code=404, detail="AI instance not found")
+        stmt = select(Profile).where(
+            Profile.owner_qiao_id == owner_instance.qiao_id,
+            Profile.owner_type.in_(
+                [int(ProfileOwnerType.AI_INSTANCE), int(ProfileOwnerType.AI_PERSONA)]
+            ),
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Invalid owner kind")
+
+    profile = (await db.execute(stmt)).scalar_one_or_none()
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found")
     return profile
@@ -150,3 +196,18 @@ async def clear_profile_avatar(
         avatar_media_id=updated_profile.avatar_media_id,
         avatar_url=avatar_url,
     )
+
+
+@profile_router.get("/profile/owner-link/{owner_kind}/{owner_id}")
+async def profile_owner_link(
+    owner_kind: str,
+    owner_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> RedirectResponse:
+    """Resolve owner to profile and redirect to admin profile detail page."""
+    profile = await _resolve_profile_by_owner_or_404(
+        db,
+        owner_kind=owner_kind,
+        owner_id=owner_id,
+    )
+    return RedirectResponse(url=f"/qiao-dash/profile/detail/{profile.id}", status_code=303)

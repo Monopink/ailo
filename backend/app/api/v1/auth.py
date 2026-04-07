@@ -21,12 +21,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.crud.profile import profile as profile_crud
 from app.crud.user import login_record as login_record_crud
 from app.crud.user import user as user_crud
 from app.crud.user import user_auth as user_auth_crud
 from app.crud.user import user_token as token_crud
-from app.enums import AuthType, DeviceType, LoginResult, LoginType, ProfileOwnerType
+from app.enums import AuthType, DeviceType, LoginResult, LoginType
 from app.exceptions.error_codes import build_protective_denial_detail
 from app.models.base import generate_qiao_id
 from app.models.profile import Profile
@@ -54,6 +53,7 @@ from app.schemas.verify import (
     VerifySendCodeResponse,
 )
 from app.services.profile.avatar import get_avatar_url
+from app.services.profile.integrity import ensure_user_profile
 from app.services.security.auth_tracker import check_lockout, record_auth_failure, reset_failures
 from app.services.security.rate_limiter import check_password_login_rate_limit, check_rate_limit
 from app.services.security.sms.factory import create_sms_provider
@@ -648,30 +648,23 @@ async def _ensure_profile_stub(
     db: AsyncSession, *, user: User, nickname: str | None = None
 ) -> Profile:
     """Ensure the specified user has a profile stub (NULL avatar_key default)."""
-    profile_result = await db.execute(
-        select(Profile).where(
-            Profile.owner_id == user.id,
-            Profile.owner_type == ProfileOwnerType.USER,
-        )
-    )
-    profile = profile_result.scalar_one_or_none()
-    if profile:
-        return profile
-
     resolved_nickname = nickname.strip() if isinstance(nickname, str) else ""
     if resolved_nickname == "":
         resolved_nickname = await _build_default_nickname(db)
 
-    profile = await profile_crud.create_with_owner(
+    profile_in = ProfileCreate(
+        nickname=resolved_nickname,
+        avatar_key=None,
+        avatar_media_id=None,
+    )
+
+    profile = await ensure_user_profile(
         db,
-        obj_in=ProfileCreate(
-            nickname=resolved_nickname,
-            avatar_key=None,
-            avatar_media_id=None,
-        ),
-        owner_id=user.id,
-        owner_qiao_id=user.qiao_id,
-        owner_type=ProfileOwnerType.USER,
+        user_id=user.id,
+        user_qiao_id=user.qiao_id,
+        source="auth._ensure_profile_stub",
+        commit=False,
+        profile_in=profile_in,
     )
     logger.info("profile_stub_created", qiao_id=user.qiao_id)
     return profile

@@ -9,7 +9,7 @@ from collections.abc import MutableMapping
 from datetime import UTC, datetime, timedelta
 from typing import ClassVar, cast
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import delete, desc, func, select
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 from starlette.templating import Jinja2Templates
@@ -41,13 +41,13 @@ from app.enums import (
     UserType,
 )
 from app.models.ai.instance import AIInstance
-from app.models.ai.template import AIPersona
 from app.models.contact import Contact, ContactRequest
 from app.models.message import MediaFile
 from app.models.profile import Profile, UserProfileLog
 from app.models.user import User
 from app.services.contact.request_service import retry_pending_contact_request
 from app.services.profile.avatar import get_avatar_url
+from app.services.profile.integrity import ensure_user_profile
 from app.services.security.username import (
     USERNAME_HELP_TEXT,
     UsernameValidationConfigError,
@@ -135,6 +135,7 @@ class UserView(BaseRoleAwareModelView):
     exclude_fields_from_detail: ClassVar[list[str]] = ["password_hash", "password"]
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    row_actions: ClassVar[list[str]] = ["view", "profile", "edit"]
     searchable_fields: ClassVar[list[str]] = ["username", "phone", "email", "qiao_id"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
@@ -215,6 +216,15 @@ class UserView(BaseRoleAwareModelView):
         DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
+    @link_row_action(
+        name="profile",
+        text="Profile",
+        icon_class="fa fa-id-card",
+    )
+    def profile_detail_action(self, _request: Request, pk: int | str) -> str:
+        """Open owner profile detail page."""
+        return f"/admin-api/profile/owner-link/user/{pk}"
+
     async def validate(self, request: Request, data: FormData) -> None:
         """Validate user data."""
         errors: dict[str | int, object] = {}
@@ -285,6 +295,33 @@ class UserView(BaseRoleAwareModelView):
         # Convert empty unique fields to NULL to avoid unique constraint violation
         convert_empty_strings_to_none(obj, ["phone", "email", "username"])
 
+    async def create(self, request: Request, data: FormData) -> User:
+        """Create user and ensure profile row exists."""
+        user = await super().create(request, data)
+        try:
+            await ensure_user_profile(
+                request.state.session,
+                user_id=getattr(user, "id", None),
+                user_qiao_id=getattr(user, "qiao_id", None),
+                source="admin_create_user",
+                commit=True,
+            )
+        except Exception as exc:
+            user_id = getattr(user, "id", None)
+            if isinstance(user_id, int):
+                try:
+                    await request.state.session.execute(delete(User).where(User.id == user_id))
+                    await request.state.session.commit()
+                except Exception as cleanup_exc:
+                    await request.state.session.rollback()
+                    raise FormValidationError(
+                        {"username": f"User profile cleanup failed: {cleanup_exc!s}"}
+                    ) from cleanup_exc
+            raise FormValidationError(
+                {"username": f"User profile initialization failed: {exc!s}"}
+            ) from exc
+        return user
+
     async def before_edit(self, _request: Request, data: FormData, obj: User) -> None:
         """Hash password before updating user if password is changed.
 
@@ -354,6 +391,9 @@ class ProfileView(BaseRoleAwareModelView):
     def can_delete(self, _request: Request) -> bool:
         return False
 
+    def can_create(self, _request: Request) -> bool:
+        return False
+
     @link_row_action(
         name="advanced_edit",
         text="Avatar",
@@ -380,28 +420,6 @@ class ProfileView(BaseRoleAwareModelView):
             "avatar_preview",
             label="Avatar",
             help_text="Current avatar preview",
-        ),
-        # Polymorphic owner fields - select one, owner_type is auto-inferred
-        HasOne(
-            "_owner_user",
-            identity="user",
-            label="Owner (User)",
-            help_text="Select a user (includes all user types: normal, official, virtual)",
-            required=False,
-        ),
-        HasOne(
-            "_owner_persona",
-            identity="ai_persona",
-            label="Owner (AI Persona)",
-            help_text="Select an AI persona",
-            required=False,
-        ),
-        HasOne(
-            "_owner_instance",
-            identity="ai_instance",
-            label="Owner (AI Instance)",
-            help_text="Select an AI instance",
-            required=False,
         ),
         StringField(
             "owner_qiao_id",
@@ -448,77 +466,6 @@ class ProfileView(BaseRoleAwareModelView):
         DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    async def validate(self, _request: Request, data: FormData) -> None:
-        """Custom validation for polymorphic owner fields."""
-        owner_user = data.get("_owner_user")
-        owner_persona = data.get("_owner_persona")
-        owner_instance = data.get("_owner_instance")
-
-        # Must select exactly one owner
-        selected_count = sum([bool(owner_user), bool(owner_persona), bool(owner_instance)])
-        if selected_count == 0:
-            raise FormValidationError(
-                {"_owner_user": "Please select one owner: User, AI Persona, or AI Instance"}
-            )
-        if selected_count > 1:
-            raise FormValidationError({"_owner_user": "Please select only one owner"})
-
-    async def before_create(self, request: Request, data: FormData, obj: Profile) -> None:
-        """Set auto-filled fields before database commit."""
-        # Auto-fill avatar_key and avatar_media_id from selected avatar_media
-        avatar_media = data.get("avatar_media")
-        if avatar_media and isinstance(avatar_media, MediaFile):
-            obj.avatar_key = avatar_media.object_key
-            obj.avatar_media_id = avatar_media.id
-        else:
-            # Convert empty string to None if no media selected
-            if hasattr(obj, "avatar_key") and obj.avatar_key == "":
-                obj.avatar_key = None
-            if hasattr(obj, "avatar_media_id") and obj.avatar_media_id == "":  # type: ignore[comparison-overlap]
-                obj.avatar_media_id = None
-
-        # Auto-infer owner_type and fill owner_id, owner_qiao_id
-        owner_user = data.get("_owner_user")
-        owner_persona = data.get("_owner_persona")
-        owner_instance = data.get("_owner_instance")
-
-        if owner_user and isinstance(owner_user, User):
-            obj.owner_type = ProfileOwnerType.USER
-            obj.owner_id = owner_user.id
-            obj.owner_qiao_id = owner_user.qiao_id
-        elif owner_persona and isinstance(owner_persona, AIPersona):
-            obj.owner_type = ProfileOwnerType.AI_PERSONA
-            obj.owner_id = owner_persona.id
-            obj.owner_qiao_id = owner_persona.qiao_id
-        elif owner_instance and isinstance(owner_instance, AIInstance):
-            obj.owner_type = ProfileOwnerType.AI_INSTANCE
-            obj.owner_id = owner_instance.id
-            obj.owner_qiao_id = owner_instance.qiao_id
-
-        # Check for duplicate profile (use no_autoflush to prevent premature flush)
-        session = request.state.session
-        with session.no_autoflush:
-            stmt = select(Profile).where(
-                Profile.owner_qiao_id == obj.owner_qiao_id,
-                Profile.owner_type == obj.owner_type,
-            )
-            result = await session.execute(stmt)
-            existing_profile = result.scalar_one_or_none()
-            if existing_profile:
-                if obj.owner_type == ProfileOwnerType.USER:
-                    field_name = "_owner_user"
-                elif obj.owner_type == ProfileOwnerType.AI_PERSONA:
-                    field_name = "_owner_persona"
-                else:
-                    field_name = "_owner_instance"
-                raise FormValidationError(
-                    {
-                        field_name: (
-                            f"Profile already exists for this owner (ID: {existing_profile.id})"
-                        )
-                    }
-                )
-
     async def before_edit(self, _request: Request, data: FormData, obj: Profile) -> None:
         """Set auto-filled fields before database commit."""
         # Auto-fill avatar_key and avatar_media_id from selected avatar_media
@@ -532,24 +479,6 @@ class ProfileView(BaseRoleAwareModelView):
                 obj.avatar_key = None
             if hasattr(obj, "avatar_media_id") and obj.avatar_media_id == "":  # type: ignore[comparison-overlap]
                 obj.avatar_media_id = None
-
-        # Auto-infer owner_type and fill owner_id, owner_qiao_id
-        owner_user = data.get("_owner_user")
-        owner_persona = data.get("_owner_persona")
-        owner_instance = data.get("_owner_instance")
-
-        if owner_user and isinstance(owner_user, User):
-            obj.owner_type = ProfileOwnerType.USER
-            obj.owner_id = owner_user.id
-            obj.owner_qiao_id = owner_user.qiao_id
-        elif owner_persona and isinstance(owner_persona, AIPersona):
-            obj.owner_type = ProfileOwnerType.AI_PERSONA
-            obj.owner_id = owner_persona.id
-            obj.owner_qiao_id = owner_persona.qiao_id
-        elif owner_instance and isinstance(owner_instance, AIInstance):
-            obj.owner_type = ProfileOwnerType.AI_INSTANCE
-            obj.owner_id = owner_instance.id
-            obj.owner_qiao_id = owner_instance.qiao_id
 
 
 class UserProfileLogView(ModelView):

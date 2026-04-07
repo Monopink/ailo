@@ -38,7 +38,7 @@ ai_conversation_items	client_msg_ids	VARCHAR(64)[]	false	'{}'::text[]	false	fals
 ai_conversation_items	buffer_id	BIGINT	true		false	false			Associated buffer ID (references ai_message_buffer.id, no FK constraint)
 ai_conversation_items	is_excluded_from_context	SMALLINT	false	0	false	false			Context inclusion status: 0=included, 1=excluded (prompt injection, etc.)
 ai_conversation_items	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
-ai_conversation_items	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+ai_conversation_items	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 ai_conversation_items_archive	user_qiao_id	VARCHAR(32)	false		false	false			User external ID
 ai_conversation_items_archive	instance_qiao_id	VARCHAR(32)	false		false	false			Instance external ID
 ai_conversation_items_archive	role	VARCHAR(20)	false		false	false			Message role: system/user/assistant
@@ -51,7 +51,7 @@ ai_conversation_items_archive	buffer_id	BIGINT	true		false	false			Associated bu
 ai_conversation_items_archive	is_excluded_from_context	SMALLINT	false	0	false	false			Context inclusion status: 0=included, 1=excluded (prompt injection, etc.)
 ai_conversation_items_archive	archived_at	TIMESTAMP WITH TIME ZONE	false		false	false			Archive timestamp
 ai_conversation_items_archive	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
-ai_conversation_items_archive	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+ai_conversation_items_archive	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 ai_conversation_runtime	user_qiao_id	VARCHAR(32)	false		true	false
 ai_conversation_runtime	instance_qiao_id	VARCHAR(32)	false		true	false
 ai_conversation_runtime	ingress_version	BIGINT	false	0	false	false			Inbound turn version incremented on each CONTENT_INPUT event
@@ -87,7 +87,7 @@ ai_instance_dimensions	position_mapping_algorithm	INTEGER	true	1	false	false			P
 ai_instance_dimensions	position_mapping_params	JSONB	true	'{}'::jsonb	false	false			Position mapping parameters (JSONB)
 ai_instance_dimensions	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 ai_instance_dimensions	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-ai_instance_dimensions	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+ai_instance_dimensions	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 ai_instance_memories	instance_id	BIGINT	false		false	false	ai_instances.id
 ai_instance_memories	instance_qiao_id	VARCHAR(32)	false		false	false
 ai_instance_memories	user_id	BIGINT	false		false	false	users.id
@@ -101,7 +101,7 @@ ai_instance_memories	source_message_id	BIGINT	true		false	false			Source convers
 ai_instance_memories	status	INTEGER	false	1	false	false		AIInstanceMemoryStatus	Status enum (see app.enums.AIInstanceMemoryStatus)
 ai_instance_memories	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 ai_instance_memories	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-ai_instance_memories	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+ai_instance_memories	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 ai_instances	qiao_id	VARCHAR(32)	false		false	false			External persona identifier (multiple users can add same persona)
 ai_instances	persona_id	BIGINT	true		false	false			Owning persona ID for source=persona; NULL for admin_manual instances
 ai_instances	user_id	BIGINT	false		false	false			Owning user ID, references users.id
@@ -120,7 +120,7 @@ ai_instances	timezone	VARCHAR(50)	false	'Asia/Shanghai'	false	false			IANA timez
 ai_instances	created_by	INTEGER	false		false	false			Creator type: 1=system, 2=user
 ai_instances	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 ai_instances	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-ai_instances	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+ai_instances	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 ai_message_buffer	user_qiao_id	VARCHAR(32)	false		false	false			User external ID
 ai_message_buffer	instance_qiao_id	VARCHAR(32)	false		false	false			Instance external ID
 ai_message_buffer	aggregate_state	SMALLINT	false		false	false		AIMessageBufferState	Buffer state enum (see app.enums.AIMessageBufferState)
@@ -137,7 +137,7 @@ ai_message_buffer	wake_expires_at_ms	BIGINT	true		false	false			Wake gate deadli
 ai_message_buffer	wake_adjustment_count	SMALLINT	false	0	false	false			Number of times wake time was adjusted by new messages
 ai_message_buffer	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 ai_message_buffer	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-ai_message_buffer	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+ai_message_buffer	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 ai_personalities	display_name	VARCHAR(100)	false		false	false			Display name
 ai_personalities	prompt	TEXT	false		false	false			Personality prompt template
 ai_personalities	json_schema	JSONB	true		false	false			JSON schema definition (JSONB for better performance)
@@ -155,15 +155,15 @@ ai_personality_placeholders	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	fals
 ai_personality_placeholders	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
 ai_personality_placeholders	id	INTEGER	false		true	false			Auto-increment ID primary key
 ai_personas	type_id	INTEGER	false		false	false			AI type association
-ai_personas	username	VARCHAR(20)	false		false	false			Public AI username, unique in ai_personas (case-insensitive)
+ai_personas	username	VARCHAR(20)	true		false	false			Public AI username, unique in ai_personas (case-insensitive)
 ai_personas	tags	JSONB	true		false	false			Preset contact tags written into contacts.tags on add
 ai_personas	remark	TEXT	true		false	false			Preset contact remark written into contacts.remark on add
 ai_personas	is_reusable	INTEGER	false	1	false	false			1=reusable, 0=single_use
 ai_personas	status	INTEGER	false	1	false	false			1=active, 2=inactive, 3=used
 ai_personas	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 ai_personas	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-ai_personas	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
-ai_personas	qiao_id	VARCHAR(32)	false	<function generate_qiao_id at 0x0000023279AE4C20>	false	true			External identifier: qiao_+random
+ai_personas	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
+ai_personas	qiao_id	VARCHAR(32)	false	<function generate_qiao_id at 0x000001651A5E4C20>	false	true			External identifier: qiao_+random
 ai_relationships	display_name	VARCHAR(100)	false		false	false			Display name
 ai_relationships	prompt_fragment	TEXT	true		false	false			Prompt fragment for this relationship type
 ai_relationships	status	INTEGER	false	1	false	false			Status: 1=active, 2=inactive
@@ -196,7 +196,7 @@ ai_request_logs	token_count	INTEGER	true		false	false			Token consumption
 ai_request_logs	response_time	INTEGER	true		false	false			Response time in milliseconds
 ai_request_logs	completed_at	TIMESTAMP WITH TIME ZONE	true		false	false			Request completion timestamp
 ai_request_logs	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
-ai_request_logs	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+ai_request_logs	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 ai_style_dimensions	style_id	INTEGER	false		false	false			Style ID, references ai_styles.id
 ai_style_dimensions	dimension_id	INTEGER	false		false	false			Dimension ID, references ai_dimensions.id
 ai_style_dimensions	initial_position	INTEGER	false		false	false			Initial position for this style, 0-1000 per mille
@@ -215,7 +215,7 @@ ai_template_memories	importance	INTEGER	false	5	false	false			Importance 1-10, d
 ai_template_memories	display_order	INTEGER	false	0	false	false			Copy order when instantiating templates
 ai_template_memories	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 ai_template_memories	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-ai_template_memories	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+ai_template_memories	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 ai_templates	type_id	INTEGER	false		false	false			AI type ID, references ai_types.id
 ai_templates	style_id	INTEGER	false		false	false			Style ID, references ai_styles.id
 ai_templates	personality_id	INTEGER	false		false	false			Personality ID, references ai_personalities.id
@@ -241,14 +241,14 @@ alert_event_entities	event_id	BIGINT	false		false	false
 alert_event_entities	entity_type	VARCHAR(40)	false		false	false
 alert_event_entities	entity_id	VARCHAR(128)	false		false	false
 alert_event_entities	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
-alert_event_entities	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+alert_event_entities	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 alert_events	event_type	VARCHAR(120)	false		false	false
 alert_events	domain	VARCHAR(40)	false		false	false
 alert_events	severity_level	SMALLINT	false		false	false
 alert_events	dedupe_key	VARCHAR(255)	true		false	false
 alert_events	details	JSONB	true		false	false
 alert_events	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
-alert_events	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+alert_events	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 app_pages	page_key	VARCHAR(64)	false		false	false			Page key
 app_pages	client_type	VARCHAR(32)	false		false	false			Client type from X-Client
 app_pages	locale	VARCHAR(16)	false		false	false			Locale
@@ -260,7 +260,7 @@ app_pages	content_html	TEXT	true		false	false			HTML content
 app_pages	status	INTEGER	false	1	false	false			1=active,2=inactive
 app_pages	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 app_pages	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-app_pages	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+app_pages	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 backup_jobs	status	INTEGER	false		false	false			Status: 1=running, 2=success, 3=failed
 backup_jobs	started_at	TIMESTAMP WITH TIME ZONE	false		false	false			Job start time
 backup_jobs	finished_at	TIMESTAMP WITH TIME ZONE	true		false	false			Job finish time
@@ -295,7 +295,7 @@ contact_requests	last_retry_at	TIMESTAMP WITH TIME ZONE	true		false	false			Time
 contact_requests	expires_at	TIMESTAMP WITH TIME ZONE	false		false	false			Expiration time
 contact_requests	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 contact_requests	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-contact_requests	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+contact_requests	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 contacts	conversation_id	VARCHAR(32)	false		false	true			Conversation identifier: conv_+random
 contacts	user_id	BIGINT	true		false	false			Contact owner user ID, NULL for public contacts
 contacts	user_qiao_id	VARCHAR(32)	true		false	false			Contact owner external ID, NULL for public contacts
@@ -314,7 +314,7 @@ contacts	is_muted	INTEGER	false	0	false	false			Is muted: 1=yes, 0=no
 contacts	is_blocked	INTEGER	false	0	false	false			Is blocked: 1=yes, 0=no
 contacts	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 contacts	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-contacts	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+contacts	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 contacts	is_deleted	INTEGER	false	0	false	false			Soft delete flag: 1=deleted, 0=active
 contacts	deleted_at	TIMESTAMP WITH TIME ZONE	true		false	false			Deletion timestamp
 llm_configs	provider_id	INTEGER	false		false	false			Provider ID, references llm_providers.id
@@ -373,7 +373,7 @@ llm_test_logs	total_tokens	INTEGER	true		false	false			Total tokens count
 llm_test_logs	reasoning_content	TEXT	true		false	false			Thinking process content (when thinking mode enabled)
 llm_test_logs	completed_at	TIMESTAMP WITH TIME ZONE	true		false	false			Test completion timestamp
 llm_test_logs	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
-llm_test_logs	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+llm_test_logs	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 login_records	user_id	BIGINT	true		false	false			User internal ID
 login_records	user_qiao_id	VARCHAR(32)	true		false	false			User external ID
 login_records	login_time	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Login attempt time
@@ -386,7 +386,7 @@ login_records	result	INTEGER	false		false	false			Login result: 1=success, 2=fai
 login_records	fail_reason	VARCHAR(255)	true		false	false			Failure reason
 login_records	user_token_id	BIGINT	true		false	false			Associated session ID (references user_tokens.id on successful login)
 login_records	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Login record creation timestamp
-login_records	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+login_records	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 media_files	file_id	VARCHAR(32)	false		false	true
 media_files	file_type	INTEGER	false		false	false			1=avatar,2=emoji,3=image,4=document
 media_files	category	VARCHAR(50)	true		false	false			Optional secondary category
@@ -408,7 +408,7 @@ media_files	confirmed_by_id	BIGINT	true		false	false			Confirming operator ID
 media_files	status	INTEGER	false	2	false	false			File status: 1=active,2=pending,3=deleted
 media_files	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 media_files	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-media_files	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+media_files	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 message_deliveries	msg_id_server	VARCHAR(64)	false		false	false			References message_history.msg_id_server
 message_deliveries	endpoint_id	BIGINT	false		false	false			Endpoint ID
 message_deliveries	provider	SMALLINT	false		false	false		MessageTransportProvider	Transport provider enum (see app.enums.MessageTransportProvider)
@@ -420,7 +420,7 @@ message_deliveries	failed_reason_code	VARCHAR(50)	true		false	false			Failure re
 message_deliveries	failed_detail	TEXT	true		false	false			Failure detail/stack
 message_deliveries	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 message_deliveries	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-message_deliveries	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+message_deliveries	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 message_devices	user_id	BIGINT	false		false	false			User internal ID
 message_devices	user_qiao_id	VARCHAR(32)	false		false	false			User external ID
 message_devices	device_id	UUID	false		false	false			Device/installation UUID
@@ -430,7 +430,7 @@ message_devices	last_pull_at	TIMESTAMP WITH TIME ZONE	true		false	false			Latest
 message_devices	last_seen_at	TIMESTAMP WITH TIME ZONE	true		false	false			Latest online/heartbeat timestamp
 message_devices	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 message_devices	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-message_devices	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+message_devices	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 message_dispatch_outbox	outbox_type	SMALLINT	false		false	false			Dispatch outbox type enum
 message_dispatch_outbox	msg_id_server	VARCHAR(64)	false		false	false			References message_history.msg_id_server
 message_dispatch_outbox	owner_user_id	BIGINT	false		false	false			Owner user ID for endpoint fanout
@@ -442,7 +442,7 @@ message_dispatch_outbox	last_error_code	VARCHAR(50)	true		false	false			Last fai
 message_dispatch_outbox	last_error_detail	TEXT	true		false	false			Last failure detail
 message_dispatch_outbox	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 message_dispatch_outbox	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-message_dispatch_outbox	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+message_dispatch_outbox	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 message_endpoints	user_id	BIGINT	false		false	false			User internal ID
 message_endpoints	user_qiao_id	VARCHAR(32)	false		false	false			User external ID
 message_endpoints	endpoint_scope	SMALLINT	false		false	false			Endpoint scope enum (1=USER, 2=DEVICE)
@@ -454,7 +454,7 @@ message_endpoints	lease_expires_at	TIMESTAMP WITH TIME ZONE	true		false	false			
 message_endpoints	last_seen_at	TIMESTAMP WITH TIME ZONE	true		false	false			Latest presence refresh timestamp
 message_endpoints	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 message_endpoints	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-message_endpoints	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+message_endpoints	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 message_history	direction	INTEGER	false		false	false			Message direction: 1=inbound, 2=outbound
 message_history	conversation_id	VARCHAR(32)	false		false	false			Conversation ID, references contacts.conversation_id
 message_history	msg_id_server	VARCHAR(64)	false		false	true			Server-generated timeline message ID
@@ -475,7 +475,7 @@ message_history	inbound_device_id	UUID	true		false	false			Inbound device_id (we
 message_history	message_metadata	JSONB	true		false	false			Message metadata (JSONB for better performance)
 message_history	llm_request_id	BIGINT	true		false	false			ai_request_logs.id (llm_request_id); only set for assistant outbound messages
 message_history	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
-message_history	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+message_history	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 notification_push_history	to_qiao_id	VARCHAR(32)	false		false	false			Receiver qiao_id
 notification_push_history	notification_type	INTEGER	false		false	false			Notification type: 1=contact_request
 notification_push_history	action_data	JSONB	false		false	false			Action and data objects (JSON)
@@ -483,7 +483,7 @@ notification_push_history	status	INTEGER	false	1	false	false			Status: 1=sent, 2
 notification_push_history	error_message	TEXT	true		false	false			Error message if failed
 notification_push_history	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Creation time
 notification_push_history	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Last update time
-notification_push_history	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+notification_push_history	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 profiles	owner_id	BIGINT	false		false	false			Owner internal ID
 profiles	owner_qiao_id	VARCHAR(32)	false		false	true			Owner external ID (globally unique)
 profiles	owner_type	INTEGER	false		false	false			Owner type: 1=user, 2=ai_persona, 3=ai_instance
@@ -498,7 +498,7 @@ profiles	region_country_code	VARCHAR(2)	true		false	false			Region country/terri
 profiles	region_cn_city_code	VARCHAR(6)	true		false	false			CN city code (6 digits), when region_country_code=CN
 profiles	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 profiles	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-profiles	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+profiles	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 square_categories	id	BIGINT	false		true	false			Square category ID
 square_categories	category_key	VARCHAR(64)	false		false	true			Stable category key in kebab-case
 square_categories	title	VARCHAR(50)	false		false	false			Category display title
@@ -603,7 +603,7 @@ user_auths	extra_data	JSONB	true		false	false			Extra info
 user_auths	revoked_at	TIMESTAMP WITH TIME ZONE	true		false	false			Unbind time
 user_auths	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 user_auths	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-user_auths	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+user_auths	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 user_auths	status	INTEGER	false	1	false	false			Entity status
 user_profile_logs	owner_id	BIGINT	false		false	false			Owner internal ID
 user_profile_logs	owner_qiao_id	VARCHAR(32)	false		false	false			Owner external ID
@@ -614,7 +614,7 @@ user_profile_logs	old_value	TEXT	true		false	false			Old value
 user_profile_logs	new_value	TEXT	true		false	false			New value
 user_profile_logs	change_reason	VARCHAR(255)	true		false	false			Change reason
 user_profile_logs	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
-user_profile_logs	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+user_profile_logs	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 user_risk_stats	user_id	BIGINT	false		false	true			User ID, references users.id
 user_risk_stats	user_qiao_id	VARCHAR(32)	false		false	true			User external ID
 user_risk_stats	total_violations	INTEGER	false	0	false	false			Total violation count
@@ -628,7 +628,7 @@ user_risk_stats	suspension_count	INTEGER	false	0	false	false			Suspension count
 user_risk_stats	last_action_at	TIMESTAMP WITH TIME ZONE	true		false	false			Last action time
 user_risk_stats	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 user_risk_stats	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-user_risk_stats	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+user_risk_stats	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 user_tokens	user_id	BIGINT	false		false	false			User internal ID
 user_tokens	user_qiao_id	VARCHAR(32)	false		false	false			User external ID (redundant for query optimization)
 user_tokens	access_token	VARCHAR(512)	false		false	true			Access JWT token
@@ -647,7 +647,7 @@ user_tokens	refresh_revoked_at	TIMESTAMP WITH TIME ZONE	true		false	false			Refr
 user_tokens	token_metadata	JSONB	false	'{}'::jsonb	false	false			Additional metadata (refresh counters, device info, etc.)
 user_tokens	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 user_tokens	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-user_tokens	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+user_tokens	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 user_violation_logs	user_id	BIGINT	false		false	false			User ID, references users.id
 user_violation_logs	user_qiao_id	VARCHAR(32)	false		false	false			User external ID
 user_violation_logs	instance_id	BIGINT	true		false	false			Instance ID if violation relates to a specific AI
@@ -661,7 +661,7 @@ user_violation_logs	reviewer_id	INTEGER	true		false	false			Reviewer admin ID
 user_violation_logs	review_notes	TEXT	true		false	false			Review notes
 user_violation_logs	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 user_violation_logs	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-user_violation_logs	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
+user_violation_logs	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
 users	username	VARCHAR(20)	true		false	false			User-customizable ID, NULL if not set
 users	phone	VARCHAR(20)	true		false	true			Phone number for login
 users	email	VARCHAR(100)	true		false	true			Email address
@@ -675,6 +675,6 @@ users	needs_profile_setup	BOOLEAN	false	TRUE	false	false			Whether the user must
 users	last_login	TIMESTAMP WITH TIME ZONE	true		false	false			Last login time
 users	created_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record creation timestamp
 users	updated_at	TIMESTAMP WITH TIME ZONE	false	NOW()	false	false			Record last update timestamp
-users	id	BIGINT	false	<function generate_snowflake_id at 0x0000023279AE4B80>	true	false			Snowflake ID primary key
-users	qiao_id	VARCHAR(32)	false	<function generate_qiao_id at 0x0000023279AE4C20>	false	true			External identifier: qiao_+random
+users	id	BIGINT	false	<function generate_snowflake_id at 0x000001651A5E4B80>	true	false			Snowflake ID primary key
+users	qiao_id	VARCHAR(32)	false	<function generate_qiao_id at 0x000001651A5E4C20>	false	true			External identifier: qiao_+random
 users	status	INTEGER	false	1	false	false			Entity status

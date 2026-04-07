@@ -216,6 +216,29 @@ MIME 类型不支持 (415):
 
 ---
 
+### GET /admin-api/profile/owner-link/{owner_kind}/{owner_id}
+
+管理端 owner 到 profile detail 的跳转解析接口。用于用户/AI Persona/AI Instance 列表快速进入对应资料详情页。
+
+**认证**: 必需（Admin Session）
+
+**路径参数**:
+- `owner_kind` (必填): `user` | `ai_persona` | `ai_instance`
+- `owner_id` (必填): owner 的内部 ID
+
+**行为**:
+- 解析 owner 对应 profile：
+  - `user`：按 `(owner_type=1, owner_id=<owner_id>)`
+  - `ai_persona`：按 `(owner_type=2, owner_id=<owner_id>)`
+  - `ai_instance`：先取实例 `qiao_id`，再按 `owner_qiao_id=<instance.qiao_id>` 且 `owner_type in (2,3)` 查 profile
+- 解析成功后返回 `303` 重定向到：`/qiao-dash/profile/detail/{profile_id}`
+
+**错误响应**:
+- `400`：`owner_kind` 非法
+- `404`：owner 或 profile 不存在
+
+---
+
 ## 错误码汇总
 
 | HTTP 状态码 | error_code | message | 说明 |

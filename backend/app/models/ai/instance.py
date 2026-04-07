@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from app.models.ai.instance_dimension import AIInstanceDimension
     from app.models.ai.personality import AIPersonality
     from app.models.ai.style import AIRelationship, AIStyle
+    from app.models.ai.template import AIPersona
     from app.models.user import User
 
 
@@ -156,6 +157,13 @@ class AIInstance(SnowflakeQiaoModel):
         "AIPersonality",
         primaryjoin="AIInstance.personality_id == AIPersonality.id",
         foreign_keys=[personality_id],
+        lazy="select",
+        viewonly=True,
+    )
+    persona: Mapped["AIPersona | None"] = orm_relationship(
+        "AIPersona",
+        primaryjoin="AIInstance.persona_id == AIPersona.id",
+        foreign_keys=[persona_id],
         lazy="select",
         viewonly=True,
     )

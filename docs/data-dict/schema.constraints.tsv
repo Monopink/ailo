@@ -24,8 +24,8 @@ ai_instance_dimensions	unique	ai_instance_dimensions_instance_id_dimension_id_ke
 ai_instance_dimensions	index	idx_ai_instance_dimensions_dimension_id	ai_instance_dimensions.dimension_id
 ai_instance_dimensions	index	idx_ai_instance_dimensions_instance_id	ai_instance_dimensions.instance_id
 ai_instance_memories	primary_key	pk_ai_instance_memories	(id)
-ai_instance_memories	foreign_key		(user_id)->(users.id)
 ai_instance_memories	foreign_key		(instance_id)->(ai_instances.id)
+ai_instance_memories	foreign_key		(user_id)->(users.id)
 ai_instance_memories	check	ck_instance_memories_importance_range	importance BETWEEN 1 AND 10
 ai_instance_memories	check	ck_instance_memories_status	status IN (1,2)
 ai_instance_memories	check	ck_instance_memories_type	memory_type IN ('core','recent')

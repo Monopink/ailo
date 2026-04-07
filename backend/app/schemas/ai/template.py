@@ -113,11 +113,11 @@ class AIPersonaBase(BaseModel):
     """Base schema for AI persona."""
 
     type_id: int = Field(..., description="AI type association")
-    username: str = Field(
-        ...,
+    username: str | None = Field(
+        None,
         min_length=5,
         max_length=20,
-        description="Persona username (case-insensitive unique in ai_personas)",
+        description="Persona username (optional, case-insensitive unique when provided)",
     )
     is_reusable: int = Field(1, description="1=reusable, 0=single_use")
     status: int = Field(1, description="1=active, 2=inactive, 3=used")

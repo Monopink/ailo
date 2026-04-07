@@ -23,13 +23,13 @@ from app.models.base import generate_qiao_id
 from app.models.user import User
 from app.schemas.ai import AIInstanceCreate
 from app.services.ai.memory import copy_template_memories_to_instance
-from app.services.ai.profile_integrity import ensure_instance_profile
 from app.services.ai.relationship_scoring import (
     initialize_instance_relationship,
     initialize_relationship_scores,
     update_instance_current_relationship,
 )
 from app.services.ai.response_schema import validate_style_personality_contract
+from app.services.profile.integrity import ensure_instance_profile
 from app.type_defs import JSONDict
 from app.utils.logging import get_logger
 
@@ -223,7 +223,8 @@ async def create_manual_instance(
         instance = await ai_instance.create(db, obj_in=instance_data, commit=False)
         await ensure_instance_profile(
             db,
-            instance=instance,
+            instance_id=getattr(instance, "id", None),
+            instance_qiao_id=getattr(instance, "qiao_id", None),
             source="instance_creation.create_manual_instance",
         )
     except (TypeError, ValueError) as exc:
@@ -385,7 +386,8 @@ async def create_instance_from_persona(
 
     await ensure_instance_profile(
         db,
-        instance=instance,
+        instance_id=getattr(instance, "id", None),
+        instance_qiao_id=getattr(instance, "qiao_id", None),
         source="instance_creation.create_instance_from_persona",
     )
 

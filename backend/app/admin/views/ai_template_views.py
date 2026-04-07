@@ -6,7 +6,7 @@ This module contains Starlette-Admin views for AI instance configuration and per
 from collections.abc import MutableMapping, Sequence
 from typing import Any, ClassVar, cast
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 from starlette_admin import (
@@ -40,6 +40,7 @@ from app.models.base import generate_qiao_id
 from app.models.profile import Profile
 from app.services.ai.response_schema import validate_style_personality_contract
 from app.services.profile.avatar import get_avatar_url
+from app.services.profile.integrity import ensure_persona_profile
 from app.services.security.username import (
     USERNAME_HELP_TEXT,
     UsernameValidationConfigError,
@@ -52,9 +53,11 @@ from app.utils.contact_tags import (
     compute_total_length,
     normalize_tags,
 )
+from app.utils.logging import get_logger
 from app.utils.text_limits import CONTACT_REMARK_RULE, validate_text_limit
 
 FormData = MutableMapping[str, object]
+logger = get_logger(__name__)
 
 
 def _extract_relation_id(value: object) -> int | None:
@@ -467,7 +470,40 @@ class AIPersonaView(ModelView):
         if data.get("is_reusable") is None:
             data["is_reusable"] = ReusableStatus.REUSABLE
 
-        return await super().create(request, data)
+        persona = await super().create(request, data)
+        try:
+            await ensure_persona_profile(
+                request.state.session,
+                persona_id=getattr(persona, "id", None),
+                persona_qiao_id=getattr(persona, "qiao_id", None),
+                source="admin_create_persona",
+                commit=True,
+            )
+        except Exception as exc:
+            persona_id = getattr(persona, "id", None)
+            logger.error(
+                "admin_persona_profile_init_failed",
+                persona_id=persona_id,
+                persona_qiao_id=getattr(persona, "qiao_id", None),
+                error=str(exc),
+            )
+            if isinstance(persona_id, int):
+                try:
+                    await request.state.session.execute(
+                        delete(AIPersona).where(AIPersona.id == persona_id)
+                    )
+                    await request.state.session.commit()
+                except Exception as cleanup_exc:
+                    await request.state.session.rollback()
+                    logger.error(
+                        "admin_persona_profile_init_cleanup_failed",
+                        persona_id=persona_id,
+                        error=str(cleanup_exc),
+                    )
+            raise FormValidationError(
+                {"profile_nickname": "Persona profile initialization failed"}
+            ) from exc
+        return persona
 
     def _sync_ai_type(self, obj: AIPersona, data: FormData) -> None:
         if "ai_type" not in data:
@@ -507,7 +543,7 @@ class AIPersonaView(ModelView):
             help_text=USERNAME_HELP_TEXT,
             minlength=5,
             maxlength=20,
-            required=True,
+            required=False,
         ),
         _PersonaRelatedStringField(
             "profile_nickname", profile_attr="nickname", label="Profile Nickname"
@@ -547,6 +583,16 @@ class AIPersonaView(ModelView):
         DateTimeField("created_at", label="Created At", help_text="Creation timestamp"),
         DateTimeField("updated_at", label="Updated At", help_text="Last update timestamp"),
     ]
+    row_actions: ClassVar[list[str]] = ["view", "profile", "edit"]
+
+    @link_row_action(
+        name="profile",
+        text="Profile",
+        icon_class="fa fa-id-card",
+    )
+    def profile_detail_action(self, _request: Request, pk: int | str) -> str:
+        """Open owner profile detail page."""
+        return f"/admin-api/profile/owner-link/ai_persona/{pk}"
 
     async def before_create(self, request: Request, _data: FormData, obj: AIPersona) -> None:
         """Ensure ai_type is set before creating a persona."""
@@ -555,11 +601,24 @@ class AIPersonaView(ModelView):
         if not hasattr(obj, "type_id") or obj.type_id is None:
             errors["ai_type"] = "AI Type is required"
         username = getattr(obj, "username", None)
-        if not isinstance(username, str) or not username:
-            errors["username"] = "Username is required"
+        normalized_username: str | None = None
+        if username is None:
+            obj.username = None
+        elif isinstance(username, str):
+            normalized_username = username.strip()
+            if not normalized_username:
+                obj.username = None
+                normalized_username = None
+            else:
+                obj.username = normalized_username
         else:
+            errors["username"] = "Username must be a string"
+
+        if normalized_username is not None:
             try:
-                username_error = await validate_username_or_error(request.state.session, username)
+                username_error = await validate_username_or_error(
+                    request.state.session, normalized_username
+                )
             except UsernameValidationConfigError as exc:
                 errors["username"] = str(exc)
             else:
@@ -567,9 +626,10 @@ class AIPersonaView(ModelView):
                     errors["username"] = username_error
                 else:
                     exists_stmt = select(AIPersona.id).where(
-                        func.lower(AIPersona.username) == username.lower()
+                        func.lower(AIPersona.username) == normalized_username.lower()
                     )
-                    exists_result = await request.state.session.execute(exists_stmt)
+                    with request.state.session.no_autoflush:
+                        exists_result = await request.state.session.execute(exists_stmt)
                     if exists_result.scalar_one_or_none() is not None:
                         errors["username"] = "Username already exists"
 
@@ -611,11 +671,24 @@ class AIPersonaView(ModelView):
         if not hasattr(obj, "type_id") or obj.type_id is None:
             errors["ai_type"] = "AI Type is required"
         username = getattr(obj, "username", None)
-        if not isinstance(username, str) or not username:
-            errors["username"] = "Username is required"
+        normalized_username: str | None = None
+        if username is None:
+            obj.username = None
+        elif isinstance(username, str):
+            normalized_username = username.strip()
+            if not normalized_username:
+                obj.username = None
+                normalized_username = None
+            else:
+                obj.username = normalized_username
         else:
+            errors["username"] = "Username must be a string"
+
+        if normalized_username is not None:
             try:
-                username_error = await validate_username_or_error(request.state.session, username)
+                username_error = await validate_username_or_error(
+                    request.state.session, normalized_username
+                )
             except UsernameValidationConfigError as exc:
                 errors["username"] = str(exc)
             else:
@@ -623,10 +696,11 @@ class AIPersonaView(ModelView):
                     errors["username"] = username_error
                 else:
                     exists_stmt = select(AIPersona.id).where(
-                        func.lower(AIPersona.username) == username.lower(),
+                        func.lower(AIPersona.username) == normalized_username.lower(),
                         AIPersona.id != obj.id,
                     )
-                    exists_result = await request.state.session.execute(exists_stmt)
+                    with request.state.session.no_autoflush:
+                        exists_result = await request.state.session.execute(exists_stmt)
                     if exists_result.scalar_one_or_none() is not None:
                         errors["username"] = "Username already exists"
 

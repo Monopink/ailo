@@ -354,6 +354,8 @@ class AIInstanceView(ModelView):
             obj.relationship_id = self._extract_relation_id(_data.get("relationship"))
         if "llm_config" in _data:
             obj.llm_config_id = self._extract_relation_id(_data.get("llm_config"))
+        if "persona" in _data:
+            obj.persona_id = self._extract_relation_id(_data.get("persona"))
 
         if hasattr(obj, "timezone") and (obj.timezone is None or obj.timezone == ""):
             obj.timezone = "Asia/Shanghai"
@@ -416,10 +418,11 @@ class AIInstanceView(ModelView):
             help_text="Optional external AI identifier; leave blank to auto-generate",
             required=False,
         ),
-        IntegerField(
-            "persona_id",
-            label="Persona ID",
-            help_text="Owning ai_personas.id for source=persona; admin manual keeps this empty",
+        HasOne(
+            "persona",
+            identity="ai_persona",
+            label="Persona",
+            help_text="Owning AI persona for source=persona; admin manual keeps this empty",
             required=False,
         ),
         _ProfileRelatedStringField(
@@ -500,7 +503,7 @@ class AIInstanceView(ModelView):
         DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    row_actions: ClassVar[list[str]] = ["view", "edit", "advanced_edit"]
+    row_actions: ClassVar[list[str]] = ["view", "profile", "edit", "advanced_edit"]
 
     @link_row_action(
         name="advanced_edit",
@@ -510,6 +513,15 @@ class AIInstanceView(ModelView):
     def advanced_edit_row_action(self, _request: Request, pk: str) -> str:
         """Link to instance advanced edit."""
         return f"/qiao-dash/ai_instance/advanced-edit/{pk}"
+
+    @link_row_action(
+        name="profile",
+        text="Profile",
+        icon_class="fa fa-id-card",
+    )
+    def profile_detail_action(self, _request: Request, pk: int | str) -> str:
+        """Open owner profile detail page."""
+        return f"/admin-api/profile/owner-link/ai_instance/{pk}"
 
 
 class AIInstanceDimensionView(ModelView):

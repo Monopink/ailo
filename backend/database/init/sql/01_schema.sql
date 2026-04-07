@@ -845,7 +845,7 @@ CREATE TRIGGER update_ai_template_memories_updated_at
 CREATE TABLE IF NOT EXISTS ai_personas (
     id BIGINT PRIMARY KEY,
     qiao_id VARCHAR(32) NOT NULL UNIQUE,
-    username VARCHAR(20) NOT NULL,
+    username VARCHAR(20) NULL,
     type_id INTEGER NOT NULL,
     tags JSONB,
     remark TEXT,
@@ -867,7 +867,7 @@ COMMENT ON COLUMN ai_personas.status IS '1=active (visible), 2=inactive (hidden)
 -- Create indexes for ai_personas table
 CREATE INDEX idx_ai_personas_ai_type ON ai_personas(type_id);
 CREATE INDEX idx_ai_personas_status ON ai_personas(status);
-CREATE UNIQUE INDEX uq_ai_personas_username_lower ON ai_personas(LOWER(username));
+CREATE UNIQUE INDEX uq_ai_personas_username_lower ON ai_personas(LOWER(username)) WHERE username IS NOT NULL;
 
 -- Add foreign key constraint for ai_personas
 ALTER TABLE ai_personas ADD CONSTRAINT fk_ai_personas_type

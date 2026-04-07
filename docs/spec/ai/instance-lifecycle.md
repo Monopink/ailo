@@ -24,8 +24,9 @@
 **职责**：
 
 - 拥有唯一的 qiao_id（用户可见的实例标识）
-- 拥有唯一 AI 用户名 `username`（用于“按用户名搜索添加 AI”）
+- 可选 AI 用户名 `username`（非空时在 ai_personas 内大小写不敏感唯一；用于“按用户名搜索添加 AI”）
 - 关联一个 profile（owner_type=2）
+- 管理后台创建 persona 时必须同步创建最小 profile（空资料），禁止保留无 profile 的悬空 persona
 - 通过 type_id 关联到 square_type_entries（广场展示）
 - 控制是否可复用（reusable 字段）
 
@@ -168,7 +169,7 @@
 
 ### Username 规则
 
-- `ai_personas.username` 是 AI username 唯一真相源（搜索与展示）。
+- `ai_personas.username` 是 AI username 真相源（可为空；非空时唯一）。
 - `ai_instances` 不存 username；通过 `persona_id` 关联读取 persona.username。
 - `creation_metadata.source=persona`：`ai_instances.persona_id` 必须非空且指向有效 persona。
 - `creation_metadata.source=admin_manual`：`ai_instances.persona_id` 必须为 `NULL`，username 展示为空。

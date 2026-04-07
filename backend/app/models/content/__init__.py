@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from html import escape
 from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, ForeignKey, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from starlette.requests import Request
 
 from app.models.base import AutoIncrementModel
 
@@ -52,6 +54,9 @@ class SquareCategory(AutoIncrementModel):
         foreign_keys="SquareTypeEntry.category_key",
         viewonly=True,
     )
+
+    def __admin_select2_repr__(self, request: Request) -> str:
+        return f"<span>[{self.id}] {escape(self.title)} ({escape(self.category_key)})</span>"
 
 
 class SquareTypeEntry(AutoIncrementModel):

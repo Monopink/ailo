@@ -75,6 +75,9 @@ settings = get_settings()
 WECHAT_TEST_PHONE_NUMBERS = frozenset({"12066600001", "12066600002", "12066600003", "12066600004"})
 WECHAT_PHONE_MOCK_ENABLED_KEY = "wechat_phone_mock_enabled"
 WECHAT_PHONE_MOCK_NUMBER_KEY = "wechat_phone_mock_number"
+DEFAULT_NICKNAME_PREFIX_KEY = "default_nickname_prefix"
+DEFAULT_NICKNAME_SUFFIX_LENGTH_KEY = "default_nickname_suffix_length"
+DEFAULT_NICKNAME_SUFFIX_CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 # Format: phone -> (code, expires_at)
 _verification_codes: dict[str, tuple[str, datetime]] = {}
@@ -655,10 +658,14 @@ async def _ensure_profile_stub(
     if profile:
         return profile
 
+    resolved_nickname = nickname.strip() if isinstance(nickname, str) else ""
+    if resolved_nickname == "":
+        resolved_nickname = await _build_default_nickname(db)
+
     profile = await profile_crud.create_with_owner(
         db,
         obj_in=ProfileCreate(
-            nickname=nickname or f"用户{user.qiao_id[-6:]}",
+            nickname=resolved_nickname,
             avatar_key=None,
             avatar_media_id=None,
         ),
@@ -668,6 +675,23 @@ async def _ensure_profile_stub(
     )
     logger.info("profile_stub_created", qiao_id=user.qiao_id)
     return profile
+
+
+async def _build_default_nickname(db: AsyncSession) -> str:
+    """Build default nickname from system configs."""
+    prefix_value = await get_config(db, key=DEFAULT_NICKNAME_PREFIX_KEY, required=True)
+    if not isinstance(prefix_value, str):
+        raise TypeError(f"{DEFAULT_NICKNAME_PREFIX_KEY} must be a string")
+    prefix = prefix_value.strip()
+    if prefix == "":
+        raise ValueError(f"{DEFAULT_NICKNAME_PREFIX_KEY} must not be empty")
+
+    suffix_length = await get_config_int(db, key=DEFAULT_NICKNAME_SUFFIX_LENGTH_KEY, required=True)
+    if suffix_length < 1:
+        raise ValueError(f"{DEFAULT_NICKNAME_SUFFIX_LENGTH_KEY} must be >= 1")
+
+    suffix = "".join(secrets.choice(DEFAULT_NICKNAME_SUFFIX_CHARSET) for _ in range(suffix_length))
+    return f"{prefix}{suffix}"
 
 
 def _build_user_payload(

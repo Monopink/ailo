@@ -143,6 +143,7 @@
 ### 业务说明
 
 - **登录注册合一**：手机号首次登录会自动创建 `users` 与 `profiles` stub，并立即返回 JWT；之后再次登录将复用同一个账号。
+- **默认昵称生成**：当首次创建 `profiles` stub 且客户端未提交昵称时，服务端按 `system_configs.default_nickname_prefix + 随机大写字母后缀` 生成昵称；后缀长度由 `system_configs.default_nickname_suffix_length` 控制。
 - **资料补全标记**：`needs_profile_setup=true` 时客户端需要强制跳转到 Setup 页面，通过 `PUT /api/v1/user/profile` 填写昵称、头像等信息，完成后该标记会被清零。
 
 ## 微信登录（两段式）

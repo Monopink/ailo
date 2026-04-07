@@ -49,6 +49,8 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 ('wechat_phone_mock_number', '', '', 1, 'Mock phone number for WeChat virtual accounts (E.164 format)', 'auth', NULL),
 
 -- Username configurations
+('default_nickname_prefix', '无名敲客_', '无名敲客_', 1, 'Default prefix for system-generated profile nickname', 'profile', NULL),
+('default_nickname_suffix_length', '6', '6', 2, 'Random uppercase suffix length for system-generated profile nickname (>=1)', 'profile', NULL),
 ('username_reserved_words', '["admin","root","system","support","operator","moderator","service","official","help","security"]', '["admin","root","system","support","operator","moderator","service","official","help","security"]', 4, 'Reserved usernames (lowercase), JSON array', 'username', NULL),
 
 -- LeanCloud IM configurations

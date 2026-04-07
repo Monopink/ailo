@@ -64,7 +64,17 @@ declare global {
     }
 
     interface MessageAdapter {
-      connect(userId: QiaoID, signature: MessageSignature): Promise<void>;
+      connect(
+        userId: QiaoID,
+        signature: MessageSignature,
+        config: {
+          app_id: string;
+          app_key: string;
+          server_url: string;
+          config_version: string;
+          im_conv_id: string;
+        }
+      ): Promise<void>;
       disconnect(): Promise<void>;
       sendMessage(convId: string, message: Partial<MessagePayload>): Promise<MessagePayload>;
       sendTyping(convId: string, typing: boolean): Promise<void>;

@@ -60,7 +60,7 @@ async function resolveAuthoritativeImConvId(): Promise<string> {
   let authoritativeImConvId = await conversationStore.getImConvId();
   if (!isNonEmptyString(authoritativeImConvId)) {
     const refreshed = await conversationStore.refresh();
-    authoritativeImConvId = refreshed.im_conv_id;
+    authoritativeImConvId = refreshed.session.im_conv_id;
   }
   if (!isNonEmptyString(authoritativeImConvId)) {
     throw new Error('IM_CONVERSATION_ID_MISSING');

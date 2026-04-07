@@ -28,23 +28,6 @@ export const API_CONFIG: ApiConfig = {
   version: 'v1',
 };
 
-export interface LeanCloudConfig {
-  appId: string;
-  appKey: string;
-  serverUrl?: string;
-}
-
-export const LEANCLOUD_CONFIG: LeanCloudConfig = {
-  // LeanCloud App ID
-  appId: 'zcuK19lcF1YirAJbKLI2vr97-gzGzoHsz',
-
-  // LeanCloud App Key
-  appKey: 'v8GM18oGSxzQTKpgQvdIfy2I',
-
-  // LeanCloud Server URL (optional)
-  serverUrl: 'https://zcuk19lc.lc-cn-n1-shared.com',
-};
-
 export interface MessageConfig {
   maxLength: number;
   rateLimit: number;
@@ -240,7 +223,6 @@ const config = {
   APP_CONFIG,
   API_CONFIG,
   LOGIN_CONFIG,
-  LEANCLOUD_CONFIG,
   MESSAGE_CONFIG,
   STORAGE_KEYS,
   UI_CONFIG,

@@ -1,20 +1,22 @@
-"""LeanCloud IM configuration and signature endpoints."""
+"""LeanCloud bootstrap endpoint."""
+
+import hashlib
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.message import (
-    LeanCloudConfigResponse,
-    LeanCloudPresenceRequest,
-    LeanCloudPresenceResponse,
-    LeanCloudSignatureRequest,
-    LeanCloudSignatureResponse,
+    LeanCloudBootstrapConfig,
+    LeanCloudBootstrapPresence,
+    LeanCloudBootstrapRequest,
+    LeanCloudBootstrapResponse,
+    LeanCloudBootstrapSignature,
 )
 from app.services.message.providers.leancloud import service as leancloud_service
+from app.services.message.providers.leancloud.config import get_leancloud_runtime_config
 from app.services.message.providers.leancloud.presence import upsert_user_presence_endpoint
 from app.services.message.providers.leancloud.signature import create_login_signature
 from app.utils.logging import get_logger
@@ -29,88 +31,57 @@ SIGNATURE_TTL_SECONDS = 3600
 REGISTRATION_LEASE_TTL_DAYS = 365
 
 
-@router.get("/config", response_model=LeanCloudConfigResponse)
-async def get_lc_im_config(
+def _build_config_version(*, app_id: str, app_key: str, server_url: str, im_conv_id: str) -> str:
+    payload = "|".join(
+        [
+            app_id,
+            app_key,
+            server_url,
+            im_conv_id,
+            SIGNATURE_ALGORITHM,
+            SIGNATURE_VERSION,
+            str(SIGNATURE_TTL_SECONDS),
+        ]
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+@router.post("/bootstrap", response_model=LeanCloudBootstrapResponse)
+async def bootstrap_message_session(
+    payload: LeanCloudBootstrapRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> LeanCloudConfigResponse:
-    """Return LeanCloud IM configuration required by clients."""
-    state = await leancloud_service.get_conversation_registry_state(db)
-
-    # Type guard: validate im_conv_id from JSONDict
-    im_conv_id_raw = state.get("im_conv_id")
-    if not isinstance(im_conv_id_raw, str) or not im_conv_id_raw:
-        logger.error(
-            "invalid_im_conv_id_type", value=im_conv_id_raw, user_qiao_id=current_user.qiao_id
-        )
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误")
-
-    im_conv_id: str = im_conv_id_raw
-
-    logger.info("lc_im_config_retrieved", user_qiao_id=current_user.qiao_id)
-
-    return LeanCloudConfigResponse(
-        im_conv_id=im_conv_id,
-        signature_algorithm=SIGNATURE_ALGORITHM,
-        signature_version=SIGNATURE_VERSION,
-        signature_ttl_ms=SIGNATURE_TTL_SECONDS * 1000,
-    )
-
-
-@router.post("/signature", response_model=LeanCloudSignatureResponse)
-async def generate_lc_im_signature(
-    payload: LeanCloudSignatureRequest,
-    current_user: User = Depends(get_current_user),
-) -> LeanCloudSignatureResponse:
-    """Generate LeanCloud IM login signature for the authenticated client."""
-    if payload.client_id != current_user.qiao_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="客户端ID与当前用户不匹配"
-        )
-
-    app_id = get_settings().LEANCLOUD_IM_APP_ID
-
-    signature_data = await create_login_signature(app_id=app_id, client_id=payload.client_id)
-
-    logger.info("lc_im_signature_generated", client_id=payload.client_id)
-
-    return LeanCloudSignatureResponse(
-        client_id=payload.client_id,
-        signature=signature_data["signature"],
-        timestamp=signature_data["timestamp"],
-        nonce=signature_data["nonce"],
-        expires_in=SIGNATURE_TTL_SECONDS,
-    )
-
-
-@router.post("/presence", response_model=LeanCloudPresenceResponse)
-async def register_lc_im_presence(
-    payload: LeanCloudPresenceRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> LeanCloudPresenceResponse:
-    """Register or renew LeanCloud USER endpoint lease for dispatch."""
-    if payload.client_id != current_user.qiao_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="客户端ID与当前用户不匹配"
-        )
-
+) -> LeanCloudBootstrapResponse:
+    """Build complete LeanCloud client session in one call."""
     try:
+        runtime_config = await get_leancloud_runtime_config(db, required=True)
+        im_conv_id = await leancloud_service.ensure_system_conversation(db)
+        user_initialized = await leancloud_service.initialize_user(current_user.qiao_id, db)
+        if not user_initialized:
+            logger.error("message_session_user_init_failed", user_qiao_id=current_user.qiao_id)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="系统错误",
+            )
+
+        signature_data = await create_login_signature(
+            app_id=runtime_config.app_id, client_id=current_user.qiao_id
+        )
+
         lease_ttl_days = REGISTRATION_LEASE_TTL_DAYS
         endpoint = await upsert_user_presence_endpoint(
             db,
             user_id=int(current_user.id),
             user_qiao_id=current_user.qiao_id,
-            client_id=payload.client_id,
+            client_id=current_user.qiao_id,
             lease_ttl_days=lease_ttl_days,
             client_kind=payload.client_kind,
         )
         await db.commit()
     except Exception as exc:  # pragma: no cover - defensive API guard
         logger.error(
-            "lc_im_presence_register_failed",
+            "message_session_bootstrap_failed",
             user_qiao_id=current_user.qiao_id,
-            client_id=payload.client_id,
             error=str(exc),
         )
         raise HTTPException(
@@ -120,7 +91,7 @@ async def register_lc_im_presence(
 
     if endpoint.lease_expires_at is None:
         logger.error(
-            "lc_im_presence_lease_missing",
+            "message_session_presence_lease_missing",
             user_qiao_id=current_user.qiao_id,
             endpoint_id=int(endpoint.id),
         )
@@ -129,16 +100,41 @@ async def register_lc_im_presence(
             detail="系统错误",
         )
 
-    logger.info(
-        "lc_im_presence_registered",
-        user_qiao_id=current_user.qiao_id,
-        endpoint_id=int(endpoint.id),
-        lease_ttl_days=lease_ttl_days,
-    )
+    server_url = runtime_config.base_url
+    if not isinstance(server_url, str) or server_url == "":
+        logger.error("message_session_server_url_missing", user_qiao_id=current_user.qiao_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="系统错误",
+        )
 
-    return LeanCloudPresenceResponse(
-        endpoint_id=int(endpoint.id),
-        client_id=payload.client_id,
-        lease_ttl_days=lease_ttl_days,
-        lease_expires_at_ms=int(endpoint.lease_expires_at.timestamp() * 1000),
+    logger.info("message_session_bootstrap_succeeded", user_qiao_id=current_user.qiao_id)
+
+    return LeanCloudBootstrapResponse(
+        config_version=_build_config_version(
+            app_id=runtime_config.app_id,
+            app_key=runtime_config.app_key,
+            server_url=server_url,
+            im_conv_id=im_conv_id,
+        ),
+        session=LeanCloudBootstrapConfig(
+            client_id=current_user.qiao_id,
+            app_id=runtime_config.app_id,
+            app_key=runtime_config.app_key,
+            server_url=server_url,
+            im_conv_id=im_conv_id,
+            signature=LeanCloudBootstrapSignature(
+                algorithm=SIGNATURE_ALGORITHM,
+                version=SIGNATURE_VERSION,
+                value=signature_data["signature"],
+                timestamp=signature_data["timestamp"],
+                nonce=signature_data["nonce"],
+                expires_in_ms=SIGNATURE_TTL_SECONDS * 1000,
+            ),
+        ),
+        presence=LeanCloudBootstrapPresence(
+            endpoint_id=int(endpoint.id),
+            lease_ttl_days=lease_ttl_days,
+            lease_expires_at_ms=int(endpoint.lease_expires_at.timestamp() * 1000),
+        ),
     )

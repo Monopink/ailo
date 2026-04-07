@@ -209,13 +209,30 @@ export const OfflineAckResponseSchema = z.object({
 });
 export type OfflineAckResponse = z.infer<typeof OfflineAckResponseSchema>;
 
-export const ConversationConfigSchema = z.object({
-  im_conv_id: z.string(),
-  signature_algorithm: z.string(),
-  signature_version: z.string(),
-  signature_ttl_ms: z.number().int().nonnegative(),
+export const MessageSessionBootstrapSchema = z.object({
+  config_version: z.string().min(1),
+  session: z.object({
+    client_id: z.string().min(1),
+    app_id: z.string().min(1),
+    app_key: z.string().min(1),
+    server_url: z.string().min(1),
+    im_conv_id: z.string().min(1),
+    signature: z.object({
+      algorithm: z.string().min(1),
+      version: z.string().min(1),
+      value: z.string().min(1),
+      timestamp: z.number().int(),
+      nonce: z.string().min(1),
+      expires_in_ms: z.number().int().nonnegative(),
+    }),
+  }),
+  presence: z.object({
+    endpoint_id: z.number().int(),
+    lease_ttl_days: z.number().int().nonnegative(),
+    lease_expires_at_ms: z.number().int().nonnegative(),
+  }),
 });
-export type ConversationConfig = z.infer<typeof ConversationConfigSchema>;
+export type MessageSessionBootstrap = z.infer<typeof MessageSessionBootstrapSchema>;
 
 // ============================================================================
 // API Response Schemas

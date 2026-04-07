@@ -23,6 +23,14 @@ export type MessageSignature = {
   nonce: string;
 };
 
+export type LeanCloudConnectConfig = {
+  app_id: string;
+  app_key: string;
+  server_url: string;
+  config_version: string;
+  im_conv_id: string;
+};
+
 export type AdapterMessageStatus = (typeof MESSAGE_STATUS)[keyof typeof MESSAGE_STATUS];
 
 export interface AdapterSendResult extends BusinessMessagePayload {
@@ -45,7 +53,11 @@ export type AdapterTypingPayload = {
 export type ConnectionState = 'connected' | 'connecting' | 'disconnected' | 'suspending';
 
 export interface MessageAdapter {
-  connect(userId: string, signature: MessageSignature): Promise<void>;
+  connect(
+    userId: string,
+    signature: MessageSignature,
+    config: LeanCloudConnectConfig
+  ): Promise<void>;
   disconnect(): Promise<void>;
   sendMessage(message: BusinessMessagePayload, imConvId: string): Promise<AdapterSendResult>;
   onMessage(handler: (message: AdapterMessage) => void): void;

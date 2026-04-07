@@ -26,6 +26,12 @@ def _normalize_optional_str(value: object) -> str | None:
     return normalized or None
 
 
+def _require_non_empty(value: str | None, *, config_key: str) -> str:
+    if value is None or value.strip() == "":
+        raise MissingConfigurationError(config_key=config_key)
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class LeanCloudRuntimeConfig:
     app_id: str
@@ -53,6 +59,11 @@ async def get_leancloud_runtime_config(
 
     if required and not config.base_url:
         raise MissingConfigurationError(config_key="leancloud_im_server_url")
+    if required:
+        _require_non_empty(config.app_id, config_key="LEANCLOUD_IM_APP_ID")
+        _require_non_empty(config.app_key, config_key="LEANCLOUD_IM_APP_KEY")
+        _require_non_empty(config.master_key, config_key="LEANCLOUD_MASTER_KEY")
+        _require_non_empty(config.base_url, config_key="leancloud_im_server_url")
 
     return config
 

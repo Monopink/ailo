@@ -3,7 +3,7 @@
  * Adapter for LeanCloud Realtime messaging service
  *
  * Interface Contract (any message adapter must implement):
- * - connect(userId, signature): Promise<void>
+ * - connect(userId, signature, config): Promise<void>
  * - disconnect(): Promise<void>
  * - sendMessage(convId, content, type): Promise<Object>
  * - onMessage(callback): void
@@ -16,10 +16,8 @@
  * npm install leancloud-realtime leancloud-realtime-plugin-typed-messages --save
  */
 
-import { LEANCLOUD_CONFIG } from '../config';
 import { ENABLE_LEANCLOUD_DEBUG } from '../env';
 import { getLogger } from '../logger';
-import { registerMessagePresence } from '../message-signature';
 import { MESSAGE_STATUS, MESSAGE_TYPE } from '../constants/message';
 import type { MessageType } from '../constants/message';
 import { isNonEmptyString } from '../guards';
@@ -30,6 +28,7 @@ import type {
   ConnectionState,
   BusinessMessagePayload,
   MessageAdapter,
+  LeanCloudConnectConfig,
   MessageSignature,
 } from './adapter-types';
 
@@ -275,6 +274,7 @@ const resolveBusinessPayload = (message: BusinessMessage): ResolvedPayload | nul
 export class LCAdapter implements MessageAdapter {
   private connected = false;
   private realtime: IM.Realtime | null = null;
+  private realtimeConfigKey = '';
   private imClient: IM.IMClient | null = null;
   private conversations = new Map<string, Conversation>();
   private messageCallbacks: MessageCallback[] = [];
@@ -298,17 +298,32 @@ export class LCAdapter implements MessageAdapter {
    * @param {Object} signature - Authentication signature
    * @returns {Promise<void>}
    */
-  async connect(userId: string, signature: MessageSignature): Promise<void> {
+  async connect(
+    userId: string,
+    signature: MessageSignature,
+    config: LeanCloudConnectConfig
+  ): Promise<void> {
     try {
       logger.info('Connecting to LeanCloud', { userId });
+      const configKey = `${config.config_version}|${config.app_id}|${config.app_key}|${config.server_url}|${config.im_conv_id}`;
+
+      if (this.realtime !== null && this.realtimeConfigKey !== configKey) {
+        if (this.imClient !== null) {
+          await this.imClient.close();
+          this.imClient = null;
+        }
+        this.realtime = null;
+        this.conversations.clear();
+      }
 
       if (this.realtime === null) {
         this.realtime = new Realtime({
-          appId: LEANCLOUD_CONFIG.appId,
-          appKey: LEANCLOUD_CONFIG.appKey,
-          server: LEANCLOUD_CONFIG.serverUrl,
+          appId: config.app_id,
+          appKey: config.app_key,
+          server: config.server_url,
           plugins: [TypedMessagesPlugin],
         });
+        this.realtimeConfigKey = configKey;
         this.realtime.register(BusinessMessage);
       }
 
@@ -325,14 +340,6 @@ export class LCAdapter implements MessageAdapter {
             nonce: signature.nonce,
           }),
       });
-
-      try {
-        await registerMessagePresence(userId);
-      } catch (error) {
-        await this.imClient.close();
-        this.imClient = null;
-        throw error;
-      }
 
       this.imClient.on('message', this.handleMessage.bind(this));
       this.imClient.on('disconnect', this.handleDisconnect.bind(this));

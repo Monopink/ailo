@@ -23,7 +23,7 @@ const resolveEnvironment = (): Environment => {
   }
 
   const accountInfo = wx.getAccountInfoSync();
-  const envVersion = accountInfo?.miniProgram?.envVersion;
+  const envVersion = accountInfo.miniProgram.envVersion;
   switch (envVersion) {
     case 'develop':
     case 'trial':

@@ -1,27 +1,43 @@
-import { requestValidated } from '../api';
 import { getLogger } from '../logger';
-import { ConversationConfigSchema } from '../schemas';
 import { isNonEmptyString } from '../guards';
 import { normalizeError } from '../errors';
+import { bootstrapMessageSession } from '../message-signature';
 
 const logger = getLogger('ConversationStore');
-const STORAGE_KEY = 'conversation_state';
+const STORAGE_KEY = 'message_session_state';
 
-interface ConversationState {
-  im_conv_id: string;
-  signature_algorithm: string;
-  signature_version: string;
-  signature_ttl_ms: number;
+type MessageSessionState = {
+  config_version: string;
+  session: {
+    client_id: string;
+    app_id: string;
+    app_key: string;
+    server_url: string;
+    im_conv_id: string;
+    signature: {
+      algorithm: string;
+      version: string;
+      value: string;
+      timestamp: number;
+      nonce: string;
+      expires_in_ms: number;
+    };
+  };
+  presence: {
+    endpoint_id: number;
+    lease_ttl_days: number;
+    lease_expires_at_ms: number;
+  };
   fetched_at: number;
-}
+};
 
-type Subscriber = (state: ConversationState | null) => void;
+type Subscriber = (state: MessageSessionState | null) => void;
 
 class ConversationStore {
-  private state: ConversationState | null = null;
+  private state: MessageSessionState | null = null;
   private subscribers = new Set<Subscriber>();
-  private initializing: Promise<ConversationState | null> | null = null;
-  private refreshPromise: Promise<ConversationState> | null = null;
+  private initializing: Promise<MessageSessionState | null> | null = null;
+  private refreshPromise: Promise<MessageSessionState> | null = null;
 
   constructor() {
     this.loadFromStorage();
@@ -29,12 +45,16 @@ class ConversationStore {
 
   private loadFromStorage(): void {
     try {
-      const stored = wx.getStorageSync<ConversationState | null | undefined>(STORAGE_KEY);
+      const stored = wx.getStorageSync<MessageSessionState | null | undefined>(STORAGE_KEY);
       if (
         stored !== null &&
         stored !== undefined &&
-        isNonEmptyString(stored.im_conv_id) &&
-        isNonEmptyString(stored.signature_algorithm)
+        isNonEmptyString(stored.config_version) &&
+        isNonEmptyString(stored.session.im_conv_id) &&
+        isNonEmptyString(stored.session.app_id) &&
+        isNonEmptyString(stored.session.app_key) &&
+        isNonEmptyString(stored.session.server_url) &&
+        isNonEmptyString(stored.session.signature.value)
       ) {
         this.state = stored;
       }
@@ -46,7 +66,7 @@ class ConversationStore {
     }
   }
 
-  private persist(state: ConversationState): void {
+  private persist(state: MessageSessionState): void {
     try {
       wx.setStorageSync(STORAGE_KEY, state);
     } catch (error: unknown) {
@@ -57,7 +77,7 @@ class ConversationStore {
     }
   }
 
-  private notify(state: ConversationState | null): void {
+  private notify(state: MessageSessionState | null): void {
     this.subscribers.forEach((callback) => {
       try {
         callback(state);
@@ -78,7 +98,7 @@ class ConversationStore {
     };
   }
 
-  async init(force = false): Promise<ConversationState | null> {
+  async init(force = false): Promise<MessageSessionState | null> {
     if (this.state !== null && !force) {
       return this.state;
     }
@@ -99,7 +119,7 @@ class ConversationStore {
     return this.initializing;
   }
 
-  async getState(): Promise<ConversationState | null> {
+  async getState(): Promise<MessageSessionState | null> {
     if (this.state !== null) {
       return this.state;
     }
@@ -112,32 +132,58 @@ class ConversationStore {
     if (state === null) {
       return '';
     }
-    return state.im_conv_id;
+    return state.session.im_conv_id;
   }
 
-  async refresh(): Promise<ConversationState> {
+  async getConnectPayload(): Promise<{
+    userId: string;
+    appId: string;
+    appKey: string;
+    serverUrl: string;
+    imConvId: string;
+    signature: {
+      signature: string;
+      timestamp: number;
+      nonce: string;
+    };
+    configVersion: string;
+  }> {
+    const state = await this.refresh();
+    return {
+      userId: state.session.client_id,
+      appId: state.session.app_id,
+      appKey: state.session.app_key,
+      serverUrl: state.session.server_url,
+      imConvId: state.session.im_conv_id,
+      signature: {
+        signature: state.session.signature.value,
+        timestamp: state.session.signature.timestamp,
+        nonce: state.session.signature.nonce,
+      },
+      configVersion: state.config_version,
+    };
+  }
+
+  async refresh(): Promise<MessageSessionState> {
     if (this.refreshPromise !== null) {
       return this.refreshPromise;
     }
 
     const refreshing = (async () => {
-      const response = await requestValidated(ConversationConfigSchema, {
-        url: '/lc-im/config',
-        method: 'GET',
-      });
-      const nextState: ConversationState = {
-        im_conv_id: response.im_conv_id,
-        signature_algorithm: response.signature_algorithm,
-        signature_version: response.signature_version,
-        signature_ttl_ms: response.signature_ttl_ms,
+      const response = await bootstrapMessageSession();
+      const nextState: MessageSessionState = {
+        config_version: response.config_version,
+        session: response.session,
+        presence: response.presence,
         fetched_at: Date.now(),
       };
       this.state = nextState;
       this.persist(nextState);
       this.notify(nextState);
-      logger.info('Conversation state refreshed', {
-        signature_version: response.signature_version,
-        im_conv_id: response.im_conv_id,
+      logger.info('Message session refreshed', {
+        config_version: response.config_version,
+        im_conv_id: response.session.im_conv_id,
+        client_id: response.session.client_id,
       });
       return nextState;
     })().finally(() => {

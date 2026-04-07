@@ -1,49 +1,32 @@
 /**
- * Message signature utility
- * Provides helpers to fetch LeanCloud IM signatures from backend.
+ * Message session bootstrap utility.
  */
-import { post } from './api';
+import { requestValidated } from './api';
 import { getLogger } from './logger';
+import { MessageSessionBootstrapSchema, type MessageSessionBootstrap } from './schemas';
 
 const logger = getLogger('MessageSignature');
 
-type PresenceResponse = {
-  endpoint_id: number;
-  client_id: string;
-  lease_ttl_days: number;
-  lease_expires_at_ms: number;
-};
-
-export async function getMessageClientSignature(clientId: string): Promise<Ailo.MessageSignature> {
+export async function bootstrapMessageSession(): Promise<MessageSessionBootstrap> {
   try {
-    const signature = await post<Ailo.MessageSignature>('/lc-im/signature', {
-      client_id: clientId,
+    const response = await requestValidated(MessageSessionBootstrapSchema, {
+      url: '/lc-im/bootstrap',
+      method: 'POST',
+      data: {
+        client_kind: 2,
+      },
     });
-    logger.info('Message client signature obtained');
-    return signature;
-  } catch (error) {
-    logger.error('Get message client signature failed', { error });
-    throw error;
-  }
-}
-
-export async function registerMessagePresence(clientId: string): Promise<PresenceResponse> {
-  try {
-    const response = await post<PresenceResponse>('/lc-im/presence', {
-      client_id: clientId,
-    });
-    logger.info('Message presence registered', {
-      endpoint_id: response.endpoint_id,
-      lease_expires_at_ms: response.lease_expires_at_ms,
+    logger.info('Message session bootstrap obtained', {
+      config_version: response.config_version,
+      im_conv_id: response.session.im_conv_id,
     });
     return response;
   } catch (error) {
-    logger.error('Register message presence failed', { error });
+    logger.error('Message session bootstrap failed', { error });
     throw error;
   }
 }
 
 export default {
-  getMessageClientSignature,
-  registerMessagePresence,
+  bootstrapMessageSession,
 };

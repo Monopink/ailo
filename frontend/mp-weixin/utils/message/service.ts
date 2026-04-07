@@ -3,7 +3,6 @@
  * High-level message service that manages message adapter interactions.
  */
 
-import { getMessageClientSignature } from '../message-signature';
 import { getLogger } from '../logger';
 import { addMessage, getUserInfo } from '../storage';
 import type { StoredMessage } from '../storage';
@@ -109,6 +108,7 @@ export class MessageService {
   private adapter: MessageAdapter;
   private initialized = false;
   private userId: string | null = null;
+  private connectedConfigVersion: string | null = null;
   private connectionState: ConnectionState = 'disconnected';
   private connectPromise: Promise<void> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -188,6 +188,7 @@ export class MessageService {
     }
 
     if (state === 'disconnected') {
+      this.connectedConfigVersion = null;
       this.setConnectionState('disconnected');
       this.offlineSyncReady = false;
       this.scheduleReconnect();
@@ -199,13 +200,6 @@ export class MessageService {
     if (this.suspended) {
       throw new Error('MESSAGE_SERVICE_SUSPENDED');
     }
-    if (this.adapter.isConnected()) {
-      this.setConnectionState('connected');
-      return;
-    }
-    if (!allowConnect) {
-      throw new Error('MESSAGE_SERVICE_DISCONNECTED');
-    }
     if (this.connectPromise !== null) {
       return this.connectPromise;
     }
@@ -213,17 +207,43 @@ export class MessageService {
     if (!isNonEmptyString(userId)) {
       throw new Error('User info not found or invalid');
     }
+    const connectPayload = await conversationStore.getConnectPayload();
+    if (connectPayload.userId !== userId) {
+      throw new Error('MESSAGE_SESSION_USER_MISMATCH');
+    }
+    if (this.adapter.isConnected()) {
+      if (this.connectedConfigVersion === connectPayload.configVersion) {
+        this.setConnectionState('connected');
+        return;
+      }
+      logger.warn('Message session version changed, reconnecting adapter', {
+        old_config_version: this.connectedConfigVersion,
+        new_config_version: connectPayload.configVersion,
+      });
+      await this.adapter.disconnect();
+      this.setConnectionState('disconnected');
+    }
+    if (!allowConnect) {
+      throw new Error('MESSAGE_SERVICE_DISCONNECTED');
+    }
 
     this.setConnectionState('connecting');
     this.connectPromise = (async () => {
-      const signature = await getMessageClientSignature(userId);
-      await this.adapter.connect(userId, signature as MessageSignature);
+      await this.adapter.connect(userId, connectPayload.signature as MessageSignature, {
+        app_id: connectPayload.appId,
+        app_key: connectPayload.appKey,
+        server_url: connectPayload.serverUrl,
+        config_version: connectPayload.configVersion,
+        im_conv_id: connectPayload.imConvId,
+      });
+      this.connectedConfigVersion = connectPayload.configVersion;
       this.reconnectAttempt = 0;
       this.clearReconnectTimer();
       this.setConnectionState('connected');
     })()
       .catch((error) => {
         const err = normalizeError(error);
+        this.connectedConfigVersion = null;
         this.setConnectionState('disconnected');
         this.scheduleReconnect();
         throw err;
@@ -730,6 +750,7 @@ export class MessageService {
       this.reconnectAttempt = 0;
       this.clearReconnectTimer();
       this.connectPromise = null;
+      this.connectedConfigVersion = null;
       await this.adapter.disconnect();
       this.initialized = false;
       this.setConnectionState('disconnected');

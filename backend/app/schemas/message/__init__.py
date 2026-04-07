@@ -3,16 +3,16 @@
 This module imports all message-related Pydantic schemas.
 """
 
-# Message schemas removed - not currently used
+# Message schemas
+from .leancloud import (
+    LeanCloudBootstrapConfig,
+    LeanCloudBootstrapPresence,
+    LeanCloudBootstrapRequest,
+    LeanCloudBootstrapResponse,
+    LeanCloudBootstrapSignature,
+)
 
 # Media schemas
-from .leancloud import (
-    LeanCloudConfigResponse,
-    LeanCloudPresenceRequest,
-    LeanCloudPresenceResponse,
-    LeanCloudSignatureRequest,
-    LeanCloudSignatureResponse,
-)
 from .media import (
     MediaFileBase,
     MediaFileListResponse,
@@ -39,12 +39,12 @@ from .offline import (
 
 # Export all message schemas
 __all__ = [
-    # LeanCloud
-    "LeanCloudConfigResponse",
-    "LeanCloudSignatureRequest",
-    "LeanCloudSignatureResponse",
-    "LeanCloudPresenceRequest",
-    "LeanCloudPresenceResponse",
+    # Message session
+    "LeanCloudBootstrapRequest",
+    "LeanCloudBootstrapResponse",
+    "LeanCloudBootstrapConfig",
+    "LeanCloudBootstrapPresence",
+    "LeanCloudBootstrapSignature",
     # Media
     "MediaFileBase",
     "MediaFileUpload",

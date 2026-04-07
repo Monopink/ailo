@@ -185,9 +185,19 @@ const getDatasetValue = (event: WechatMiniprogram.BaseEvent, key: string): unkno
 
 const toStringValue = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
-const ensureMessageService = (): Ailo.MessageService => {
+const ensureMessageService = async (): Promise<Ailo.MessageService> => {
   const app = getApp<AppInstance>();
-  const messageService = app.getMessageService();
+  let messageService = app.getMessageService();
+  if (messageService !== null) {
+    return messageService;
+  }
+  try {
+    await app.initMessageService();
+  } catch (error: unknown) {
+    const err = normalizeError(error);
+    logger.warn('Init message service on demand failed', { error: err.message });
+  }
+  messageService = app.getMessageService();
   if (messageService === null) {
     throw new Error('MESSAGE_SERVICE_DISCONNECTED');
   }
@@ -678,10 +688,19 @@ Page<ChatPageData, ChatPageCustom>({
   },
 
   async refreshConversationChannel() {
-    const messageService = ensureMessageService();
     const previousImConvId = this.data.imConvId;
+    let messageService: Ailo.MessageService | null = null;
 
-    if (typeof messageService.invalidateConversation === 'function') {
+    try {
+      messageService = await ensureMessageService();
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      logger.warn('Message service unavailable while refreshing conversation channel', {
+        error: err.message,
+      });
+    }
+
+    if (messageService !== null && typeof messageService.invalidateConversation === 'function') {
       await messageService.invalidateConversation(previousImConvId);
     }
 
@@ -690,8 +709,8 @@ Page<ChatPageData, ChatPageCustom>({
 
     try {
       const refreshedState = await conversationStore.refresh();
-      if (isNonEmptyString(refreshedState.im_conv_id)) {
-        nextImConvId = refreshedState.im_conv_id;
+      if (isNonEmptyString(refreshedState.session.im_conv_id)) {
+        nextImConvId = refreshedState.session.im_conv_id;
       }
     } catch (error: unknown) {
       const err = normalizeError(error);
@@ -776,10 +795,10 @@ Page<ChatPageData, ChatPageCustom>({
       this.handleMessageServiceError(error);
     });
     this.unsubscribeConversationStore = conversationStore.subscribe((state) => {
-      if (state === null || !isNonEmptyString(state.im_conv_id)) {
+      if (state === null || !isNonEmptyString(state.session.im_conv_id)) {
         return;
       }
-      this.setData({ imConvId: state.im_conv_id });
+      this.setData({ imConvId: state.session.im_conv_id });
     });
 
     try {
@@ -1071,7 +1090,7 @@ Page<ChatPageData, ChatPageCustom>({
 
     conversationPresenceStore.clearTyping(this.data.convId);
     typingManager.forceStopTyping(this.data.convId);
-    const messageService = ensureMessageService();
+    let messageService: Ailo.MessageService | null = null;
     let newClientMsgId = '';
 
     try {
@@ -1100,6 +1119,7 @@ Page<ChatPageData, ChatPageCustom>({
       await messageStateStore.addOptimisticMessage(newMessage);
       await addMessage(this.data.convId, newMessage);
 
+      messageService = await ensureMessageService();
       await messageService.sendMessage({
         client_msg_id: newClientMsgId,
         from_qiao_id: userInfo.qiao_id,
@@ -1118,7 +1138,7 @@ Page<ChatPageData, ChatPageCustom>({
       const err = normalizeError(error);
       logger.error('Failed to retry message', { msg_id: msgIdValue, error: err.message });
 
-      if (err.message === 'CONVERSATION_NOT_FOUND') {
+      if (err.message === 'CONVERSATION_NOT_FOUND' && messageService !== null) {
         const retried = await this.retryMessageAfterConversationNotFound(
           msgIdValue,
           failedMessage,
@@ -1314,7 +1334,7 @@ Page<ChatPageData, ChatPageCustom>({
     conversationPresenceStore.clearTyping(this.data.convId);
     typingManager.forceStopTyping(this.data.convId);
 
-    const messageService = ensureMessageService();
+    let messageService: Ailo.MessageService | null = null;
     let clientMsgId = '';
 
     try {
@@ -1325,12 +1345,13 @@ Page<ChatPageData, ChatPageCustom>({
 
       clientMsgId = buildClientMessageId();
       await this.appendOptimisticTextMessage(clientMsgId, userInfo.qiao_id, content);
+      messageService = await ensureMessageService();
       await this.sendTextMessage(messageService, clientMsgId, userInfo.qiao_id, content);
     } catch (error: unknown) {
       const err = normalizeError(error);
       logger.error('Failed to send message', { error: err.message });
 
-      if (err.message === 'CONVERSATION_NOT_FOUND') {
+      if (err.message === 'CONVERSATION_NOT_FOUND' && messageService !== null) {
         const retried = await this.retrySendAfterConversationRefresh(
           messageService,
           clientMsgId,

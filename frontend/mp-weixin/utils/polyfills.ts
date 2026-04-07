@@ -10,6 +10,7 @@ type WxWithBaseInfo = typeof wx & {
 
 let appBaseInfoPatched = false;
 let promiseAllSettledPatched = false;
+let promiseFinallyPatched = false;
 
 const buildFallbackAppBaseInfo = (): WechatMiniprogram.AppBaseInfo => {
   try {
@@ -104,9 +105,53 @@ export const ensurePromiseAllSettledPolyfill = (): void => {
   }
 };
 
+export const ensurePromiseFinallyPolyfill = (): void => {
+  if (typeof Promise.prototype.finally === 'function') {
+    return;
+  }
+
+  const promiseFinally = function promiseFinally(
+    this: Promise<unknown>,
+    onFinally?: (() => unknown) | null
+  ): Promise<unknown> {
+    const Ctor = this.constructor as PromiseConstructor;
+    const handler = typeof onFinally === 'function' ? onFinally : null;
+
+    if (handler === null) {
+      return this.then(
+        (value: unknown) => value,
+        (reason: unknown) => {
+          throw reason;
+        }
+      );
+    }
+
+    return this.then(
+      (value: unknown) => Ctor.resolve(handler()).then(() => value),
+      (reason: unknown) =>
+        Ctor.resolve(handler()).then(() => {
+          throw reason;
+        })
+    );
+  };
+
+  void Object.defineProperty(Promise.prototype, 'finally', {
+    configurable: true,
+    writable: true,
+    enumerable: false,
+    value: promiseFinally,
+  });
+
+  if (!promiseFinallyPatched) {
+    promiseFinallyPatched = true;
+    logger.info('Polyfilled Promise.finally for legacy JS runtime');
+  }
+};
+
 export const applyGlobalPolyfills = (): void => {
   ensureAppBaseInfoPolyfill();
   ensurePromiseAllSettledPolyfill();
+  ensurePromiseFinallyPolyfill();
 };
 
 applyGlobalPolyfills();

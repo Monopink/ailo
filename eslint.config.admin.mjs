@@ -2,7 +2,10 @@
 export default [
   {
     files: ['backend/app/admin/static/**/*.js'],
-    ignores: ['backend/app/admin/static/js/chat-console/**/*.js'],
+    ignores: [
+      'backend/app/admin/static/js/chat-console/**/*.js',
+      'backend/app/admin/static/js/advanced-edit/**/*.js',
+    ],
     languageOptions: {
       ecmaVersion: 2020,
       sourceType: 'script',
@@ -47,6 +50,42 @@ export default [
         window: 'readonly',
         location: 'readonly',
         Cookies: 'readonly',
+      },
+    },
+    rules: {
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_|^e$' }],
+      'no-console': 'off',
+      semi: ['error', 'always'],
+      quotes: ['error', 'single', { avoidEscape: true, allowTemplateLiterals: true }],
+      'no-undef': 'error',
+      'no-redeclare': 'error',
+      'no-unreachable': 'error',
+    },
+  },
+  {
+    files: ['backend/app/admin/static/js/advanced-edit/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2020,
+      sourceType: 'module',
+      globals: {
+        WebSocket: 'readonly',
+        Intl: 'readonly',
+        crypto: 'readonly',
+        localStorage: 'readonly',
+        sessionStorage: 'readonly',
+        btoa: 'readonly',
+        fetch: 'readonly',
+        document: 'readonly',
+        window: 'readonly',
+        location: 'readonly',
+        Cookies: 'readonly',
+        bootstrap: 'readonly',
+        FormData: 'readonly',
+        alert: 'readonly',
+        navigator: 'readonly',
+        HTMLElement: 'readonly',
+        HTMLInputElement: 'readonly',
+        HTMLTextAreaElement: 'readonly',
       },
     },
     rules: {

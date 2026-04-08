@@ -35,13 +35,15 @@ class ProfileAvatarAdvancedEditView(CustomView):
         context = {
             "request": request,
             "profile": {
-                "id": profile.id,
+                "id": str(profile.id),
                 "owner_qiao_id": profile.owner_qiao_id,
                 "owner_type": profile.owner_type,
                 "owner_type_display": _owner_type_label(profile.owner_type),
                 "nickname": profile.nickname,
                 "avatar_url": avatar_url,
-                "avatar_media_id": profile.avatar_media_id,
+                "avatar_media_id": (
+                    str(profile.avatar_media_id) if profile.avatar_media_id is not None else None
+                ),
             },
         }
         return templates.TemplateResponse("custom_views/profile_avatar_advanced_edit.html", context)

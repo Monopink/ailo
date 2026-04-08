@@ -121,7 +121,7 @@ async def create_template_memory(data: TemplateMemoryCreateSchema, db: DbSession
     return {
         "success": True,
         "message": "Memory created successfully",
-        "memory_id": memory.id,
+        "memory_id": str(memory.id),
     }
 
 
@@ -218,7 +218,7 @@ async def create_instance_memory(data: InstanceMemoryCreateSchema, db: DbSession
     return {
         "success": True,
         "message": "Memory created successfully",
-        "memory_id": memory.id,
+        "memory_id": str(memory.id),
     }
 
 

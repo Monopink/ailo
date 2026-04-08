@@ -61,6 +61,14 @@ repos:
   # Local custom hooks
   - repo: local
     hooks:
+      - id: check-admin-jinja-templates
+        name: Check admin Jinja template syntax
+        entry: venv/Scripts/python.exe scripts/check_jinja_templates.py
+        language: system
+        pass_filenames: true
+        files: ^backend/app/admin/templates/.*\.html$
+        stages: [pre-commit]
+
       - id: check-deployment-env-example-overrides
         name: Check deployment .env.example overrides
         entry: venv/Scripts/python.exe scripts/check_deployment_env_example_overrides.py

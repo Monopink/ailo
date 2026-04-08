@@ -353,7 +353,7 @@ _WORD_MAP: dict[str, str] = {
     "Typing": "输入",
     "Speed": "速度",
     "Notes": "说明",
-    "Remark": "备注",
+    "Remark": "描述",
     "Sequences": "序列",
     "Severity": "严重性",
     "Target": "目标",

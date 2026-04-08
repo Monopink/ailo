@@ -29,6 +29,17 @@
   - 按字段恢复默认操作。
 - 按字段恢复默认仅作用于当前字段，并立即更新页面草稿态。
 
+### placeholder 管理交互
+
+- placeholder 采用列表行内编辑（Key/Display Name/Description/Example Value/Required），整页保存。
+- `placeholder_key` 规则：必填；不可重复；仅允许 `[A-Za-z0-9_]+`；禁止以 `score:` 开头。
+- 修改 `placeholder_key` 时：当提示词模板中已存在 `{{old_key}}`，弹出确认；用户确认后全量替换为 `{{new_key}}`。
+- 删除 placeholder：弹窗必须展示被删除条目的 `placeholder_key`。
+- “从提示词模板导入”：解析当前提示词模板中所有 `{{...}}`；对未知 placeholder 自动新增条目并填充 `placeholder_key`；不合法的 key 需提示并跳过。
+- CSV 导出/导入：
+  - 导出：复制为 CSV 文本（含表头：`placeholder_key,display_name,description,example_value,is_required`）。
+  - 导入：粘贴 CSV → 解析预览 → 二次确认；若与当前已存在 key 重复则标记并提示将覆盖；确认后按 key 覆盖/新增。
+
 ### 预设字段来源
 
 - “从预设添加”列表由后端配置聚合接口返回。

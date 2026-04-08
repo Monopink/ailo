@@ -98,6 +98,14 @@ get_files_to_check() {
     fi
 }
 
+get_template_files_to_check() {
+    if [ "$CHECK_MODE" = "quick" ]; then
+        git diff --name-only --diff-filter=ACMR HEAD | grep "^${BACKEND_DIR}/app/admin/templates/.*\.html$" || true
+    else
+        find "${BACKEND_DIR}/app/admin/templates" -name "*.html"
+    fi
+}
+
 # Check if tools are installed
 check_tools() {
     print_header "Checking Required Tools"
@@ -150,9 +158,29 @@ check_syntax() {
     fi
 }
 
+# Run Jinja template syntax check
+check_jinja_templates() {
+    print_header "2. Jinja Template Syntax"
+
+    local files
+    files=$(get_template_files_to_check)
+    if [ -z "$files" ]; then
+        print_warning "No template files to check"
+        return 0
+    fi
+
+    if echo "$files" | xargs python scripts/check_jinja_templates.py; then
+        print_success "Jinja templates have valid syntax"
+    else
+        print_error "Jinja template syntax check failed"
+        FAILED_CHECKS+=("Jinja Template Syntax")
+        return 1
+    fi
+}
+
 # Run import location check
 check_import_locations() {
-    print_header "2. Import Location Check"
+    print_header "3. Import Location Check"
 
     if python "$SCRIPTS_DIR/check_local_imports.py" $BACKEND_DIR; then
         print_success "All imports are at module level"
@@ -165,7 +193,7 @@ check_import_locations() {
 
 # Run Ruff format check (replaces black + isort)
 check_ruff_format() {
-    print_header "3. Code Formatting (Ruff)"
+    print_header "4. Code Formatting (Ruff)"
 
     if [ "$CHECK_MODE" = "quick" ]; then
         local files=$(get_files_to_check)
@@ -195,7 +223,7 @@ check_ruff_format() {
 
 # Run Ruff lint check (replaces pylint)
 check_ruff_lint() {
-    print_header "4. Code Quality (Ruff)"
+    print_header "5. Code Quality (Ruff)"
 
     if [ "$CHECK_MODE" = "quick" ]; then
         local files=$(get_files_to_check)
@@ -225,7 +253,7 @@ check_ruff_lint() {
 
 # Run mypy type check
 check_mypy() {
-    print_header "5. Type Checking (mypy)"
+    print_header "6. Type Checking (mypy)"
 
     if [ "$CHECK_MODE" = "quick" ]; then
         local files=$(get_files_to_check)
@@ -253,7 +281,7 @@ check_mypy() {
 
 # Run import-linter
 check_import_linter() {
-    print_header "6. Architecture Contracts (import-linter)"
+    print_header "7. Architecture Contracts (import-linter)"
 
     # Use the wrapper script which sets correct PYTHONPATH
     if python scripts/run_import_linter.py; then
@@ -282,6 +310,7 @@ main() {
 
     # Run all checks (continue even if some fail)
     check_syntax || true
+    check_jinja_templates || true
     check_import_locations || true
     check_ruff_format || true
     check_ruff_lint || true

@@ -95,7 +95,7 @@
                 <label for="var_{{ k }}" class="form-label text-warning">
                   {{ k }}
                 </label>
-                <input type="text" class="form-control border-warning" id="var_{{ k }}" name="var_{{ k }}" value="{{ v }}" placeholder="Leave empty to delete">
+                <textarea class="form-control border-warning" id="var_{{ k }}" name="var_{{ k }}" rows="3" placeholder="Leave empty to delete">{{ v }}</textarea>
                 <div class="form-text text-warning">字段不在占位符中，留空将删除，非空将保留</div>
               </div>
               {% endif %}
@@ -110,7 +110,7 @@
                 <span class="text-danger">*</span>
                 {% endif %}
               </label>
-              <input type="text" class="form-control" id="var_{{ placeholder.placeholder_key }}" name="var_{{ placeholder.placeholder_key }}" value="{{ template.prompt_variables.get(placeholder.placeholder_key, '') }}" {% if placeholder.is_required %}required{% endif %} placeholder="{{ placeholder.example_value or '' }}">
+              <textarea class="form-control prompt-variable-textarea" id="var_{{ placeholder.placeholder_key }}" name="var_{{ placeholder.placeholder_key }}" rows="3" {% if placeholder.is_required %}required{% endif %} placeholder="{{ placeholder.example_value or '' }}">{{ template.prompt_variables.get(placeholder.placeholder_key, '') }}</textarea>
               {% if placeholder.description %}
               <div class="form-text">{{ placeholder.description }}</div>
               {% endif %}
@@ -150,10 +150,10 @@
                     <p class="mb-0">{{ memory.content }}</p>
                   </div>
                   <div class="btn-group ms-3">
-                    <button type="button" class="btn btn-outline-primary" onclick="editMemory({{ memory.id }})">
+                    <button type="button" class="btn btn-outline-primary" onclick="editMemory({{ memory.id|string|tojson|safe }})">
                       <i class="fas fa-edit"></i> Edit
                     </button>
-                    <button type="button" class="btn btn-outline-danger" onclick="deleteMemory({{ memory.id }})">
+                    <button type="button" class="btn btn-outline-danger" onclick="deleteMemory({{ memory.id|string|tojson|safe }})">
                       <i class="fas fa-trash"></i> Delete
                     </button>
                   </div>
@@ -287,322 +287,20 @@
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
         <button type="button" class="btn btn-primary" onclick="saveMemory()">Save</button>
       </div>
-    </div>
-  </div>
+</div>
+</div>
 </div>
 
+{% endblock %}
+
+{% block script %}
 <script>
-  const V1_ALGORITHM = 2;
-  const algorithmParamSpecs = {{ (algorithm_param_specs or {}) | tojson | safe }};
-  const listUrl = "{{ url_for(__name__ ~ ':list', identity='ai_template') }}";
-  const dialogs = window.qiaoAdminDialogs;
-
-  function getSpecsForAlgorithm(algorithm) {
-    return algorithmParamSpecs[String(algorithm)] || [];
-  }
-
-  function buildTemplatePayload(formElement) {
-    const formData = new FormData(formElement);
-
-    const variables = {};
-    for (const [key, value] of formData.entries()) {
-      if (key.startsWith('var_') && value) {
-        variables[key.substring(4)] = value;
-      }
-    }
-
-    const positionMappingConfig = {};
-    const missingParamMessages = [];
-    document.querySelectorAll('.dimension-config-section').forEach(section => {
-      const dimensionName = section.dataset.dimensionName;
-      const dimensionDisplay = section.dataset.dimensionDisplay || dimensionName;
-      const algorithm = parseInt(formData.get(`algorithm_${dimensionName}`), 10);
-
-      positionMappingConfig[dimensionName] = { algorithm };
-
-      if (algorithm === V1_ALGORITHM) {
-        const specs = getSpecsForAlgorithm(algorithm);
-        const { params, missing } = collectAlgorithmParams(specs, dimensionName, formData);
-        if (missing.length) {
-          missingParamMessages.push(`${dimensionDisplay}: ${missing.join(', ')}`);
-        } else {
-          positionMappingConfig[dimensionName].params = params;
-        }
-      }
-    });
-
-    return {
-      payload: {
-        prompt_variables: variables,
-        position_mapping_config: positionMappingConfig,
-      },
-      missingParamMessages,
-    };
-  }
-
-  function serializeSnapshot(payload) {
-    return JSON.stringify(payload);
-  }
-
-  async function confirmAction(options) {
-    return dialogs.confirm(options);
-  }
-
-  const mainForm = document.getElementById('main-form');
-  let lastSavedSnapshot = serializeSnapshot(buildTemplatePayload(mainForm).payload);
-  const unsavedGuard = window.qiaoUnsavedGuard.create({
-    isDirty: () => serializeSnapshot(buildTemplatePayload(mainForm).payload) !== lastSavedSnapshot,
-  });
-
-  function collectAlgorithmParams(specs, dimensionKey, dataSource) {
-    const params = {};
-    const missing = [];
-    specs.forEach(spec => {
-      const fieldName = `${spec.name}_${dimensionKey}`;
-      const raw = dataSource.get(fieldName);
-      if (raw === null || raw.toString().trim() === '') {
-        missing.push(spec.label);
-        return;
-      }
-      const numeric = spec.input_type === 'integer' ? parseInt(raw, 10) : parseFloat(raw);
-      if (Number.isNaN(numeric)) {
-        missing.push(spec.label);
-        return;
-      }
-      params[spec.name] = numeric;
-    });
-    return { params, missing };
-  }
-
-  // Toggle algorithm params visibility
-  document.querySelectorAll('.algorithm-select').forEach(select => {
-    const dimension = select.dataset.dimension;
-    const paramsDiv = document.querySelector(`.algorithm-params[data-dimension="${dimension}"]`);
-
-    function toggleParams() {
-      if (select.value === '2') {
-        paramsDiv.style.display = 'block';
-        // Add required attribute back to required fields
-        paramsDiv.querySelectorAll('input[data-required="true"]').forEach(input => {
-          input.required = true;
-        });
-      } else {
-        paramsDiv.style.display = 'none';
-        // Remove required attribute from all inputs when hidden
-        paramsDiv.querySelectorAll('input[required]').forEach(input => {
-          input.dataset.required = 'true'; // Store that it was required
-          input.required = false;
-        });
-      }
-    }
-
-    toggleParams();
-    select.addEventListener('change', toggleParams);
-  });
-
-  document.getElementById('btn-cancel-template-edit')?.addEventListener('click', async (event) => {
-    event.preventDefault();
-    const ok = await confirmAction({
-      title: '确认返回列表',
-      message: '确认放弃当前编辑并返回 AI Templates 列表页吗？<br>未保存的修改将会丢失。',
-      confirmText: '放弃并返回',
-      cancelText: '继续编辑',
-      confirmButtonClass: 'btn btn-danger',
-    });
-    if (!ok) {
-      return;
-    }
-    unsavedGuard.bypassOnce();
-    window.location.assign(listUrl);
-  });
-
-  // Handle main form submission
-  document.getElementById('main-form')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const { payload, missingParamMessages } = buildTemplatePayload(e.target);
-    const action = (e.submitter && e.submitter.dataset && e.submitter.dataset.action) ? e.submitter.dataset.action : 'continue';
-
-    if (missingParamMessages.length) {
-      alert('请完善以下算法参数：\n' + missingParamMessages.join('\n'));
-      return;
-    }
-
-    const confirmed = await confirmAction({
-      title: action === 'save' ? '确认保存并返回' : '确认保存',
-      message: action === 'save'
-        ? '确认保存当前编辑内容，并返回 AI Templates 列表页吗？'
-        : '确认保存当前编辑内容，并继续留在本页面吗？',
-      confirmText: action === 'save' ? '保存并返回' : '保存',
-      cancelText: '取消',
-      confirmButtonClass: 'btn btn-primary',
-    });
-    if (!confirmed) {
-      return;
-    }
-
-    const submitBtn = e.submitter || e.target.querySelector('button[type="submit"]');
-    const originalHtml = submitBtn.innerHTML;
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
-
-    try {
-      const response = await fetch('/admin-api/ai/ai_template/{{ template.id }}/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.ok) {
-        lastSavedSnapshot = serializeSnapshot(payload);
-        unsavedGuard.bypassOnce();
-        if (action === 'save') {
-          window.location.href = listUrl;
-        } else {
-          alert('Saved successfully');
-          location.reload();
-        }
-      } else {
-        const error = await response.json();
-        alert('Save failed: ' + (error.detail || 'Unknown error'));
-      }
-    } catch (error) {
-      alert('Save failed: ' + error.message);
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = originalHtml;
-    }
-  });
-
-  // ============================================================================
-  // Memory Management Functions
-  // ============================================================================
-
-  let memoryModal;
-  const memoriesData = {{ memories | tojson | safe }};
-
-  document.addEventListener('DOMContentLoaded', () => {
-    memoryModal = new bootstrap.Modal(document.getElementById('memoryModal'));
-
-    // Format datetime displays
-    document.querySelectorAll('.datetime-display').forEach(el => {
-      const isoStr = el.dataset.datetime;
-      if (isoStr && isoStr !== 'N/A') {
-        try {
-          const date = new Date(isoStr);
-          const options = {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          };
-          el.textContent = date.toLocaleString(undefined, options);
-        } catch (e) {
-          // Keep original text if parsing fails
-        }
-      }
-    });
-  });
-
-  function openMemoryModal(memoryId = null) {
-    const form = document.getElementById('memory-form');
-    const title = document.getElementById('memoryModalTitle');
-
-    form.reset();
-
-    if (memoryId) {
-      // Edit mode
-      const memory = memoriesData.find(m => m.id === memoryId);
-      if (!memory) return;
-
-      title.textContent = 'Edit Memory';
-      document.getElementById('memory-id').value = memory.id;
-      document.getElementById('memory-type').value = memory.memory_type;
-      document.getElementById('memory-importance').value = memory.importance;
-      document.getElementById('memory-order').value = memory.display_order;
-      document.getElementById('memory-content').value = memory.content;
-    } else {
-      // Create mode
-      title.textContent = 'Add Memory';
-      document.getElementById('memory-id').value = '';
-    }
-
-    memoryModal.show();
-  }
-
-  function editMemory(memoryId) {
-    openMemoryModal(memoryId);
-  }
-
-  async function saveMemory() {
-    const form = document.getElementById('memory-form');
-    if (!form.checkValidity()) {
-      form.reportValidity();
-      return;
-    }
-
-    const formData = new FormData(form);
-    const memoryId = formData.get('memory_id');
-    const isEdit = !!memoryId;
-
-    const data = {
-      template_id: {{ template.id }},
-      memory_type: formData.get('memory_type'),
-      importance: parseInt(formData.get('importance')),
-      display_order: parseInt(formData.get('display_order')),
-      content: formData.get('content'),
-    };
-
-    try {
-      const url = isEdit
-        ? `/admin-api/ai/template-memory/${memoryId}/update`
-        : '/admin-api/ai/template-memory/create';
-      const method = isEdit ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method: method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
-      if (response.ok) {
-        memoryModal.hide();
-        location.reload();
-      } else {
-        const error = await response.json();
-        alert('Failed to save memory: ' + (error.detail || 'Unknown error'));
-      }
-    } catch (error) {
-      alert('Failed to save memory: ' + error.message);
-    }
-  }
-
-  async function deleteMemory(memoryId) {
-    const ok = await confirmAction({
-      title: '确认删除记忆',
-      message: '确定删除这条模板记忆吗？此操作不可恢复。',
-      confirmText: '删除',
-      cancelText: '取消',
-      confirmButtonClass: 'btn btn-danger',
-    });
-    if (!ok) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/admin-api/ai/template-memory/${memoryId}/delete`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        location.reload();
-      } else {
-        const error = await response.json();
-        alert('Failed to delete memory: ' + (error.detail || 'Unknown error'));
-      }
-    } catch (error) {
-      alert('Failed to delete memory: ' + error.message);
-    }
-  }
+window.qiaoAdvancedEditTemplateConfig = {
+  templateId: {{ template.id|string|tojson|safe }},
+  listUrl: "{{ url_for(__name__ ~ ':list', identity='ai_template') }}",
+  algorithmParamSpecs: {{ (algorithm_param_specs or {}) | tojson | safe }},
+  memories: {{ memories | tojson | safe }},
+};
 </script>
+<script type="module" src="{{ url_for(__name__ ~ ':statics', path='js/advanced-edit/pages/template.js') }}"></script>
 {% endblock %}

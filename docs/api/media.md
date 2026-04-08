@@ -158,6 +158,8 @@ MIME 类型不支持 (415):
 
 **认证**: 必需（Admin Session）
 
+**精度约束**: `profile_id` / `avatar_media_id` 为 Snowflake BIGINT。为避免前端 JS Number 精度丢失，本接口响应字段统一使用 **字符串**。
+
 **请求方式**: `multipart/form-data`
 
 **路径参数**:
@@ -200,7 +202,7 @@ MIME 类型不支持 (415):
 **成功响应 (200)**:
 ```json
 {
-  "profile_id": 10001,
+  "profile_id": "10001",
   "avatar_media_id": null,
   "avatar_url": "https://cdn.example.com/avatars/default.webp"
 }

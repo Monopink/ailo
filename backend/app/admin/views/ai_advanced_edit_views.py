@@ -65,14 +65,16 @@ class InstanceAdvancedEditView(CustomView):
             memories = memories_result.scalars().all()
             memories_data = [
                 {
-                    "id": m.id,
+                    "id": str(m.id),
                     "memory_type": m.memory_type,
                     "content": m.content,
                     "importance": m.importance,
                     "status": m.status,
                     "refreshed_at": m.refreshed_at.isoformat() if m.refreshed_at else None,
                     "expires_at": m.expires_at.isoformat() if m.expires_at else None,
-                    "source_message_id": m.source_message_id,
+                    "source_message_id": (
+                        str(m.source_message_id) if m.source_message_id is not None else None
+                    ),
                     "created_at": m.created_at.isoformat() if m.created_at else None,
                 }
                 for m in memories
@@ -259,9 +261,9 @@ class InstanceAdvancedEditView(CustomView):
             }
 
         return {
-            "id": instance.id,
+            "id": str(instance.id),
             "qiao_id": instance.qiao_id,
-            "persona_id": instance.persona_id,
+            "persona_id": str(instance.persona_id) if instance.persona_id is not None else None,
             "personality_display_name": (
                 instance.personality.display_name if instance.personality else "N/A"
             ),
@@ -304,7 +306,7 @@ class TemplateAdvancedEditView(CustomView):
             memories = memories_result.scalars().all()
             memories_data = [
                 {
-                    "id": m.id,
+                    "id": str(m.id),
                     "memory_type": m.memory_type,
                     "content": m.content,
                     "importance": m.importance,

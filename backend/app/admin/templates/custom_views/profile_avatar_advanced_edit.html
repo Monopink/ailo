@@ -17,11 +17,41 @@
   }
 
   .avatar-preview {
-    width: 160px;
-    height: 160px;
-    border-radius: 10px;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
     border: 1px solid var(--tblr-border-color, var(--bs-border-color));
     background: var(--tblr-bg-surface, #fff);
+  }
+
+  .avatar-preview-image {
+    object-fit: cover;
+  }
+
+  .avatar-drop-zone {
+    border: 1px dashed var(--tblr-border-color, var(--bs-border-color));
+    border-radius: 10px;
+    padding: 0.75rem;
+    transition: border-color 120ms ease, background-color 120ms ease;
+  }
+
+  .avatar-drop-zone.is-dragover {
+    border-color: var(--tblr-primary, #206bc4);
+    background: color-mix(in srgb, var(--tblr-primary, #206bc4) 8%, transparent);
+  }
+
+  .crop-reset-icon-btn {
+    border: none;
+    background: transparent;
+    color: var(--tblr-secondary, #6c757d);
+    font-size: 1.5rem;
+    line-height: 1;
+    padding: 0.25rem;
+    cursor: pointer;
+  }
+
+  .crop-reset-icon-btn:hover {
+    color: var(--tblr-primary, #206bc4);
   }
 </style>
 {% endblock %}
@@ -49,7 +79,7 @@
         </div>
         <div class="card-body">
           <div class="text-center">
-            <img id="currentAvatar" src="{{ profile.avatar_url }}" class="avatar-preview" alt="current avatar">
+            <img id="currentAvatar" src="{{ profile.avatar_url }}" class="avatar-preview avatar-preview-image" alt="current avatar">
           </div>
           <div class="mt-3 small">
             <div><span class="text-secondary">Profile ID:</span> <span>{{ profile.id }}</span></div>
@@ -71,7 +101,10 @@
           <form id="avatarForm" class="row g-3">
             <div class="col-12">
               <label class="form-label" for="avatarFile">Image File</label>
-              <input id="avatarFile" type="file" class="form-control" accept="image/*" required>
+              <div id="avatarDropZone" class="avatar-drop-zone">
+                <input id="avatarFile" type="file" class="form-control" accept="image/*" required>
+                <div class="form-text">Support click select, drag-and-drop, and paste image (Ctrl/Cmd + V).</div>
+              </div>
             </div>
 
             <div class="col-12">
@@ -82,23 +115,42 @@
 
             <div class="col-12">
               <label class="form-label">Crop Preview</label>
+              <div class="d-flex flex-wrap gap-3 align-items-start">
+                <div>
+                  <canvas id="cropPreviewSquare" width="160" height="160" class="avatar-preview" style="border-radius: 10px;"></canvas>
+                </div>
+                <div>
+                  <canvas id="cropPreviewCircle" width="160" height="160" class="avatar-preview"></canvas>
+                </div>
+              </div>
               <div class="text-start">
-                <canvas id="cropPreview" width="160" height="160" class="avatar-preview"></canvas>
                 <div id="statusText" class="small text-secondary mt-2"></div>
               </div>
             </div>
 
-            <div class="col-md-4">
-              <label class="form-label" for="cropX">Crop X</label>
-              <input id="cropX" type="range" class="form-range" min="0" max="0" value="0">
-            </div>
-            <div class="col-md-4">
-              <label class="form-label" for="cropY">Crop Y</label>
-              <input id="cropY" type="range" class="form-range" min="0" max="0" value="0">
-            </div>
-            <div class="col-md-4">
-              <label class="form-label" for="cropSize">Crop Size</label>
-              <input id="cropSize" type="range" class="form-range" min="1" max="1" value="1">
+            <div class="col-12">
+              <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                  <label class="form-label" for="cropX">Crop X</label>
+                  <input id="cropX" type="range" class="form-range" min="0" max="0" value="0">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label" for="cropY">Crop Y</label>
+                  <input id="cropY" type="range" class="form-range" min="0" max="0" value="0">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label" for="cropSize">Crop Size</label>
+                  <input id="cropSize" type="range" class="form-range" min="1" max="1" value="1">
+                </div>
+              </div>
+              <div class="d-flex justify-content-end mt-1">
+                <button
+                  type="button"
+                  id="resetCropBtn"
+                  class="crop-reset-icon-btn"
+                  title="Reset crop"
+                  aria-label="Reset crop">⟳</button>
+              </div>
             </div>
 
             <div class="col-12 d-flex gap-2 justify-content-end">
@@ -112,168 +164,13 @@
 
   </div>
 </div>
+{% endblock %}
 
+{% block script %}
 <script>
-(() => {
-  const profileId = "{{ profile.id }}";
-  const uploadUrl = `/admin-api/profile/${profileId}/avatar/upload`;
-  const clearUrl = `/admin-api/profile/${profileId}/avatar/clear`;
-
-  const avatarFile = document.getElementById('avatarFile');
-  const sourceImage = document.getElementById('sourceImage');
-  const cropPreview = document.getElementById('cropPreview');
-  const statusText = document.getElementById('statusText');
-  const cropX = document.getElementById('cropX');
-  const cropY = document.getElementById('cropY');
-  const cropSize = document.getElementById('cropSize');
-  const currentAvatar = document.getElementById('currentAvatar');
-  const currentMediaId = document.getElementById('currentMediaId');
-  const avatarForm = document.getElementById('avatarForm');
-  const uploadBtn = document.getElementById('uploadBtn');
-  const clearBtn = document.getElementById('clearBtn');
-
-  let imageNaturalWidth = 0;
-  let imageNaturalHeight = 0;
-
-  function setStatus(message, isError = false) {
-    statusText.textContent = message;
-    statusText.classList.toggle('text-danger', isError);
-    statusText.classList.toggle('text-secondary', !isError);
-  }
-
-  function getActualCropSize() {
-    const side = Math.min(imageNaturalWidth, imageNaturalHeight);
-    if (side <= 0) return 1;
-    const raw = Number(cropSize.value);
-    const clamped = Math.max(1, Math.min(side, raw || 1));
-    return side - clamped + 1;
-  }
-
-  function updateCropLimits() {
-    const side = Math.min(imageNaturalWidth, imageNaturalHeight);
-    cropSize.min = '1';
-    cropSize.max = String(side);
-    if (Number(cropSize.value) <= 0 || Number(cropSize.value) > side) {
-      cropSize.value = '1';
-    }
-    const size = getActualCropSize();
-    cropX.max = String(Math.max(0, imageNaturalWidth - size));
-    cropY.max = String(Math.max(0, imageNaturalHeight - size));
-    if (Number(cropX.value) > Number(cropX.max)) cropX.value = cropX.max;
-    if (Number(cropY.value) > Number(cropY.max)) cropY.value = cropY.max;
-  }
-
-  function drawPreview() {
-    if (!sourceImage.src || imageNaturalWidth === 0 || imageNaturalHeight === 0) {
-      return;
-    }
-    const x = Number(cropX.value);
-    const y = Number(cropY.value);
-    const size = getActualCropSize();
-    const ctx = cropPreview.getContext('2d');
-    ctx.clearRect(0, 0, cropPreview.width, cropPreview.height);
-    ctx.drawImage(sourceImage, x, y, size, size, 0, 0, cropPreview.width, cropPreview.height);
-  }
-
-  function centerCrop() {
-    cropSize.value = '1';
-    updateCropLimits();
-    const size = getActualCropSize();
-    cropX.value = String(Math.floor((imageNaturalWidth - size) / 2));
-    cropY.value = String(Math.floor((imageNaturalHeight - size) / 2));
-    updateCropLimits();
-    drawPreview();
-  }
-
-  async function uploadAvatar(event) {
-    event.preventDefault();
-    const file = avatarFile.files && avatarFile.files[0];
-    if (!file) {
-      setStatus('Please choose an image file first.', true);
-      return;
-    }
-    const shouldUpload = window.confirm('确认上传并覆盖当前头像吗？');
-    if (!shouldUpload) {
-      setStatus('Upload cancelled.');
-      return;
-    }
-
-    uploadBtn.disabled = true;
-    setStatus('Uploading...');
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('file_type', '1');
-      formData.append('mime_type', file.type || 'image/webp');
-      formData.append('file_size', String(file.size));
-      formData.append('original_name', file.name);
-      formData.append('crop_x', String(Number(cropX.value)));
-      formData.append('crop_y', String(Number(cropY.value)));
-      formData.append('crop_size', String(getActualCropSize()));
-
-      const resp = await fetch(uploadUrl, { method: 'POST', body: formData, credentials: 'same-origin' });
-      const payload = await resp.json();
-      if (!resp.ok) {
-        throw new Error(payload.detail || payload.message || 'Upload failed');
-      }
-
-      currentAvatar.src = payload.avatar_url;
-      currentMediaId.textContent = payload.avatar_media_id || '-';
-      setStatus(payload.duplicate ? 'Uploaded (deduplicated).' : 'Uploaded successfully.');
-    } catch (error) {
-      setStatus(error.message || 'Upload failed', true);
-    } finally {
-      uploadBtn.disabled = false;
-    }
-  }
-
-  async function clearAvatar() {
-    const shouldClear = window.confirm('确认清空当前头像吗？');
-    if (!shouldClear) {
-      setStatus('Clear cancelled.');
-      return;
-    }
-    clearBtn.disabled = true;
-    setStatus('Clearing avatar...');
-    try {
-      const resp = await fetch(clearUrl, { method: 'POST', credentials: 'same-origin' });
-      const payload = await resp.json();
-      if (!resp.ok) {
-        throw new Error(payload.detail || payload.message || 'Clear failed');
-      }
-      currentAvatar.src = payload.avatar_url;
-      currentMediaId.textContent = '-';
-      setStatus('Avatar cleared.');
-    } catch (error) {
-      setStatus(error.message || 'Clear failed', true);
-    } finally {
-      clearBtn.disabled = false;
-    }
-  }
-
-  avatarFile.addEventListener('change', () => {
-    const file = avatarFile.files && avatarFile.files[0];
-    if (!file) return;
-    const objectUrl = URL.createObjectURL(file);
-    sourceImage.onload = () => {
-      imageNaturalWidth = sourceImage.naturalWidth;
-      imageNaturalHeight = sourceImage.naturalHeight;
-      centerCrop();
-      setStatus(`Image loaded: ${imageNaturalWidth}x${imageNaturalHeight}`);
-      URL.revokeObjectURL(objectUrl);
-    };
-    sourceImage.src = objectUrl;
-    sourceImage.classList.remove('d-none');
-  });
-
-  cropX.addEventListener('input', drawPreview);
-  cropY.addEventListener('input', drawPreview);
-  cropSize.addEventListener('input', () => {
-    updateCropLimits();
-    drawPreview();
-  });
-  avatarForm.addEventListener('submit', uploadAvatar);
-  clearBtn.addEventListener('click', clearAvatar);
-})();
+window.qiaoAdvancedEditProfileAvatarConfig = {
+  profileId: {{ profile.id|string|tojson|safe }},
+};
 </script>
+<script type="module" src="{{ url_for(__name__ ~ ':statics', path='js/advanced-edit/pages/profile-avatar.js') }}"></script>
 {% endblock %}

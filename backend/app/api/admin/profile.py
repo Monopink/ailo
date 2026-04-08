@@ -33,8 +33,8 @@ profile_router = APIRouter()
 class AdminProfileAvatarUploadResponse(BaseModel):
     """Response payload for admin profile avatar upload."""
 
-    profile_id: int = Field(..., description="Target profile ID")
-    avatar_media_id: int | None = Field(None, description="Bound media ID")
+    profile_id: str = Field(..., description="Target profile ID (Snowflake as string)")
+    avatar_media_id: str | None = Field(None, description="Bound media ID (Snowflake as string)")
     avatar_url: str = Field(..., description="Resolved profile avatar URL")
     duplicate: bool = Field(..., description="Whether upload hit deduplication")
 
@@ -42,8 +42,8 @@ class AdminProfileAvatarUploadResponse(BaseModel):
 class AdminProfileAvatarClearResponse(BaseModel):
     """Response payload for admin profile avatar clear."""
 
-    profile_id: int = Field(..., description="Target profile ID")
-    avatar_media_id: int | None = Field(None, description="Cleared media ID (always null)")
+    profile_id: str = Field(..., description="Target profile ID (Snowflake as string)")
+    avatar_media_id: str | None = Field(None, description="Cleared media ID (always null)")
     avatar_url: str = Field(..., description="Resolved profile avatar URL")
 
 
@@ -164,8 +164,12 @@ async def upload_profile_avatar(
         deduplicated=deduplicated,
     )
     return AdminProfileAvatarUploadResponse(
-        profile_id=updated_profile.id,
-        avatar_media_id=updated_profile.avatar_media_id,
+        profile_id=str(updated_profile.id),
+        avatar_media_id=(
+            str(updated_profile.avatar_media_id)
+            if updated_profile.avatar_media_id is not None
+            else None
+        ),
         avatar_url=avatar_url,
         duplicate=deduplicated,
     )
@@ -192,8 +196,12 @@ async def clear_profile_avatar(
         admin_user_id=admin_id,
     )
     return AdminProfileAvatarClearResponse(
-        profile_id=updated_profile.id,
-        avatar_media_id=updated_profile.avatar_media_id,
+        profile_id=str(updated_profile.id),
+        avatar_media_id=(
+            str(updated_profile.avatar_media_id)
+            if updated_profile.avatar_media_id is not None
+            else None
+        ),
         avatar_url=avatar_url,
     )
 

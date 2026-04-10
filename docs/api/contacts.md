@@ -33,6 +33,7 @@
   "items": [
     {
       "conversation_id": "conv_xyz789",
+      "contact_type": 1,
       "contact_qiao_id": "qiao_xm001",
       "alias": "小萌",
       "tags": ["朋友"],
@@ -61,6 +62,7 @@
 **字段说明**:
 
 - `conversation_id` (string) - 对话ID，用于标识联系人关系
+- `contact_type` (integer) - 联系人类型：`1=user`，`2=ai`，`3=official`
 - `contact_qiao_id` (string) - 联系人的qiao_id
 - `alias` (string) - 备注
 - `tags` (array) - 标签列表
@@ -100,6 +102,7 @@
 ```json
 {
   "conversation_id": "conv_xyz789",
+  "contact_type": 1,
   "contact_qiao_id": "qiao_xm001",
   "alias": "小萌",
   "tags": ["朋友"],
@@ -123,6 +126,7 @@
 **字段说明**:
 
 - `conversation_id` (string) - 对话ID
+- `contact_type` (integer) - 联系人类型：`1=user`，`2=ai`，`3=official`
 - `contact_qiao_id` (string) - 联系人的qiao_id
 - `alias` (string) - 备注
 - `tags` (array) - 标签列表

@@ -34,6 +34,7 @@ class ContactListItem(BaseSchema):
     """List item for contact collections."""
 
     conversation_id: str = Field(..., description="Conversation identifier")
+    contact_type: ContactType = Field(..., description="Contact type")
     contact_qiao_id: str = Field(..., description="Contact external ID")
     alias: str | None = Field(None, description="Contact alias/remark name")
     tags: list[str] = Field(default_factory=list, description="Contact tags")

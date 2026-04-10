@@ -154,6 +154,7 @@ def _build_contact_list_item(
 
     return ContactListItem(
         conversation_id=contact.conversation_id,
+        contact_type=ContactType(contact.contact_type),
         contact_qiao_id=contact.contact_qiao_id,
         alias=contact.alias,
         tags=_extract_tags(contact.tags),

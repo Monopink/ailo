@@ -30,4 +30,4 @@ dist/
 !test/**/*.js
 
 # Generated runtime config
-utils/runtime-config.generated.js
+utils/build-info.generated.ts

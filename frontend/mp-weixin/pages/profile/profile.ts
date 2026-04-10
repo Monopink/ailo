@@ -7,6 +7,8 @@ import { createProfilePageService } from '../../services/pages/profile-service';
 import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 import { initTabBar } from '../../utils/tab-bar';
 import { isNonEmptyString } from '../../utils/guards';
+import { IS_PROD } from '../../utils/env';
+import { BUILD_INFO, formatBuildInfoText } from '../../utils/build-info';
 
 const logger = getLogger('Profile');
 const AUTO_RETRY_DELAYS_MS = [1200, 2600, 5200] as const;
@@ -18,6 +20,8 @@ type AuthGuardPage = WechatMiniprogram.Page.Instance<
 interface ProfilePageData extends Record<string, unknown> {
   pageLayoutData: PageLayoutData;
   profile: ProfileViewModel | null;
+  showBuildInfo: boolean;
+  buildInfoText: string;
 }
 
 interface ProfilePageCustom {
@@ -57,6 +61,8 @@ Page<ProfilePageData, ProfilePageCustom>({
       hasFooter: true,
     }),
     profile: null,
+    showBuildInfo: !IS_PROD,
+    buildInfoText: formatBuildInfoText(BUILD_INFO),
   },
 
   profilePageService: null as unknown as ReturnType<typeof createProfilePageService>,

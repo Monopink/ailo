@@ -67,6 +67,16 @@
   margin-top: var(--space-md);
 }
 
+.profile__build-info {
+  margin-top: var(--space-lg);
+  padding: 0 var(--padding-page) calc(var(--space-xl) + var(--safe-area-inset-bottom));
+  box-sizing: border-box;
+  text-align: center;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
+  color: var(--color-text-placeholder);
+}
+
 .profile .card-wrapper:first-child {
   margin-top: var(--space-lg);
 }

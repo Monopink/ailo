@@ -130,6 +130,11 @@ frontend/mp-weixin/
 
 提交前必须运行 `npm run check` 并通过，禁止跳过检查或提交未格式化代码。
 
+### 构建信息同步
+
+- 每次修改小程序相关代码后，必须重新生成 `utils/build-info.generated.ts`（由 `utils/build-info.ts` 引用）
+- 该步骤属于必做项，不允许跳过
+
 ```bash
 cd frontend/mp-weixin
 npm run check  # type-check + lint + lint:style + ui:audit

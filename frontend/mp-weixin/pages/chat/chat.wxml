@@ -1,5 +1,5 @@
 <page-layout
-  style="--color-bg-page: var(--color-bg-white); --color-bg-footer-fixed: var(--color-bg-muted); --footer-glass-blur: 0rpx; --color-navbar-glass-bg: {{navbarSolid ? 'var(--color-navbar-glass-bg-base)' : 'transparent'}};"
+  style="--color-bg-page: var(--color-bg-white); --color-bg-footer-fixed: var(--color-bg-muted); --footer-glass-blur: 0rpx; --color-navbar-glass-bg: {{navbarSolid ? 'var(--color-navbar-glass-bg-base)' : 'transparent'}}; --chat-keyboard-offset: {{keyboardOffsetRpx}}rpx; --chat-safe-area-inset-bottom: {{chatSafeAreaInsetBottomRpx}}rpx; --page-safe-area-inset-bottom: {{pageSafeAreaInsetBottomRpx}}rpx; --page-footer-offset-y: {{keyboardOffsetRpx}}rpx;"
   screenState="{{pageLayoutData.screenModel.screenState}}"
   contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
   refreshState="{{pageLayoutData.screenModel.refreshState}}"
@@ -21,13 +21,14 @@
 
   <!-- Chat Content -->
   <view slot="content" class="chat-page__content">
+    <view wx:if="{{isAiContact}}" class="chat-ai-watermark">AI生成内容请注意甄别</view>
     <scroll-view
       scroll-y
       enhanced="{{true}}"
       show-scrollbar="{{false}}"
       class="chat-page__messages {{showEmojiPanel ? 'chat-page__messages--with-emoji-panel' : ''}}"
-      scroll-into-view="{{pageLayoutData.contentScrollIntoView}}"
-      scroll-with-animation="{{pageLayoutData.contentScrollWithAnimation}}"
+      scroll-into-view="{{messageScrollIntoView}}"
+      scroll-with-animation="{{messageScrollWithAnimation}}"
       bindscroll="onMessageScroll">
       <!-- Messages -->
       <block wx:for="{{messages}}" wx:key="msg_id">
@@ -57,14 +58,14 @@
               <text class="msg-text">{{item.content}}</text>
             </view>
 
-            <view class="msg-avatar">
+            <view class="msg-avatar" catchtap="onAvatarTap" data-who="me">
               <app-avatar src="{{userAvatar}}" size="small" shape="circle" />
             </view>
           </block>
 
           <!-- Other messages (left side): avatar - bubble -->
           <block wx:else>
-            <view class="msg-avatar">
+            <view class="msg-avatar" catchtap="onAvatarTap" data-who="other">
               <app-avatar src="{{contactAvatar}}" size="small" shape="circle" />
             </view>
 
@@ -104,9 +105,11 @@
           bindcompositionend="onCompositionEnd"
           maxlength="{{maxMessageLength}}"
           confirm-type="send"
+          confirm-hold="{{true}}"
+          hold-keyboard="{{true}}"
           ignoreCompositionEvent="{{false}}"
           show-confirm-bar="{{false}}"
-          adjust-position="{{true}}"
+          adjust-position="{{false}}"
           cursor-spacing="16"
           focus="{{inputFocused}}" />
       </view>
@@ -114,7 +117,7 @@
       <!-- Send button - circular WeChat style with SVG icon -->
       <view
         class="chat-footer__send-button {{inputText ? 'chat-footer__send-button--active' : ''}}"
-        bindtap="onSendMessage">
+        bindtap="onSendButtonTap">
         <image
           class="chat-footer__send-icon"
           src="{{inputText ? sendIconActive : sendIconInactive}}"

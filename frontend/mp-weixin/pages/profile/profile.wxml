@@ -96,5 +96,9 @@
         </t-cell-group>
       </view>
     </view>
+
+    <view wx:if="{{showBuildInfo && buildInfoText}}" class="profile__build-info">
+      {{buildInfoText}}
+    </view>
   </view>
 </page-layout>

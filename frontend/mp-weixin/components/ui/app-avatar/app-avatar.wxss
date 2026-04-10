@@ -30,6 +30,9 @@
 }
 
 .ui-avatar__image {
+  position: absolute;
+  left: 0;
+  top: 0;
   display: block;
 }
 
@@ -38,6 +41,14 @@
   align-items: center;
   justify-content: center;
   background-color: var(--color-bg-secondary);
+}
+
+.ui-avatar__image--inactive {
+  opacity: 0;
+}
+
+.ui-avatar__image--active {
+  opacity: 1;
 }
 
 .ui-avatar__placeholder-image {

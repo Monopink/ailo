@@ -61,7 +61,10 @@ interface ChatPageData {
   contactQiaoId: string;
   imConvId: string;
   userAvatar: string;
+  isAiContact: boolean;
   messages: ChatMessage[];
+  messageScrollIntoView: string;
+  messageScrollWithAnimation: boolean;
   inputText: string;
   inputPlaceholder: string;
   inputFocused: boolean;
@@ -76,6 +79,9 @@ interface ChatPageData {
   navbarSolid: boolean;
   messageListHeight: number;
   scrollAnchorKey: number;
+  keyboardOffsetRpx: number;
+  chatSafeAreaInsetBottomRpx: number;
+  pageSafeAreaInsetBottomRpx: number;
 }
 
 type InputEvent = WechatMiniprogram.CustomEvent<{ value: string }>;
@@ -133,13 +139,15 @@ interface ChatPageCustom {
     content: string
   ): Promise<boolean>;
   onSendMessage(): Promise<void>;
+  onAvatarTap(event: WechatMiniprogram.BaseEvent): void;
   onNavbarTitleClick(): void;
   onRetryMessage(event: WechatMiniprogram.BaseEvent): Promise<void>;
   updateMessageStatus(messageId: string, status: MessageStatus): void;
+  onSendButtonTap(): Promise<void>;
   onEmojiButtonTap(): void;
   onEmojiSelect(event: WechatMiniprogram.BaseEvent): void;
   updateMessageListMetrics(): void;
-  scrollToBottom(): void;
+  scrollToBottom(animate?: boolean): void;
   resolveInitialScrollPlan(messages: ChatMessage[]): Promise<InitialScrollPlan>;
   persistViewState(): Promise<void>;
   schedulePersistViewState(): void;
@@ -158,6 +166,11 @@ interface ChatPageCustom {
   _initialScrollHandled: boolean;
   _persistViewStateTimer: number | null;
   _pendingMessageState: MessageStoreState | null;
+  _keyboardHeightChangeHandler: ((res: { height: number }) => void) | null;
+  _rpxPerPx: number;
+  _safeAreaInsetBottomRpx: number;
+  setupKeyboardAvoidance(): void;
+  teardownKeyboardAvoidance(): void;
 }
 
 const showToast = (
@@ -286,7 +299,10 @@ Page<ChatPageData, ChatPageCustom>({
     contactQiaoId: '',
     imConvId: '',
     userAvatar: '',
+    isAiContact: false,
     messages: [] as ChatMessage[],
+    messageScrollIntoView: '',
+    messageScrollWithAnimation: false,
     inputText: '',
     inputPlaceholder: '请输入消息',
     inputFocused: false,
@@ -328,6 +344,9 @@ Page<ChatPageData, ChatPageCustom>({
     navbarSolid: false,
     messageListHeight: 0,
     scrollAnchorKey: 0,
+    keyboardOffsetRpx: 0,
+    chatSafeAreaInsetBottomRpx: 0,
+    pageSafeAreaInsetBottomRpx: 0,
   },
 
   chatService: null as unknown as ChatPageService,
@@ -341,9 +360,93 @@ Page<ChatPageData, ChatPageCustom>({
   _initialScrollHandled: false,
   _persistViewStateTimer: null,
   _pendingMessageState: null,
+  _keyboardHeightChangeHandler: null,
+  _rpxPerPx: 1,
+  _safeAreaInsetBottomRpx: 0,
 
   applyScreenModel(screenModel: ScreenModel) {
     this.setData(buildPageLayoutScreenModelPayload(screenModel));
+  },
+
+  setupKeyboardAvoidance() {
+    if (this._keyboardHeightChangeHandler !== null) {
+      return;
+    }
+
+    const systemInfo = wx.getSystemInfoSync();
+    const windowWidthRaw = (systemInfo as { windowWidth?: unknown }).windowWidth;
+    const windowWidth =
+      typeof windowWidthRaw === 'number' && Number.isFinite(windowWidthRaw) && windowWidthRaw > 0
+        ? windowWidthRaw
+        : 375;
+    this._rpxPerPx = 750 / windowWidth;
+
+    const safeArea = (systemInfo as { safeArea?: { bottom?: unknown } }).safeArea;
+    const screenHeightRaw = (systemInfo as { screenHeight?: unknown }).screenHeight;
+    const screenHeight =
+      typeof screenHeightRaw === 'number' && Number.isFinite(screenHeightRaw)
+        ? screenHeightRaw
+        : null;
+    const safeAreaBottomRaw = safeArea?.bottom;
+    const safeAreaInsetBottomPx =
+      screenHeight !== null &&
+      typeof safeAreaBottomRaw === 'number' &&
+      Number.isFinite(safeAreaBottomRaw)
+        ? Math.max(0, Math.round(screenHeight - safeAreaBottomRaw))
+        : 0;
+    this._safeAreaInsetBottomRpx = Math.max(0, Math.round(safeAreaInsetBottomPx * this._rpxPerPx));
+
+    if (
+      this.data.chatSafeAreaInsetBottomRpx !== this._safeAreaInsetBottomRpx ||
+      this.data.pageSafeAreaInsetBottomRpx !== this._safeAreaInsetBottomRpx
+    ) {
+      this.setData({
+        chatSafeAreaInsetBottomRpx: this._safeAreaInsetBottomRpx,
+        pageSafeAreaInsetBottomRpx: this._safeAreaInsetBottomRpx,
+      });
+    }
+
+    this._keyboardHeightChangeHandler = (result) => {
+      const heightRaw = (result as { height?: unknown } | null)?.height;
+      const keyboardHeightPx =
+        typeof heightRaw === 'number' && Number.isFinite(heightRaw) ? Math.max(0, heightRaw) : 0;
+      const keyboardOffsetRpx = Math.max(0, Math.round(keyboardHeightPx * this._rpxPerPx));
+      const isKeyboardShown = keyboardOffsetRpx > 0;
+      const wasKeyboardShown = this.data.keyboardOffsetRpx > 0;
+      const nextSafeAreaInsetBottomRpx = isKeyboardShown ? 0 : this._safeAreaInsetBottomRpx;
+
+      const payload: Partial<ChatPageData> = {};
+      if (keyboardOffsetRpx !== this.data.keyboardOffsetRpx) {
+        payload.keyboardOffsetRpx = keyboardOffsetRpx;
+      }
+      if (nextSafeAreaInsetBottomRpx !== this.data.chatSafeAreaInsetBottomRpx) {
+        payload.chatSafeAreaInsetBottomRpx = nextSafeAreaInsetBottomRpx;
+      }
+      if (nextSafeAreaInsetBottomRpx !== this.data.pageSafeAreaInsetBottomRpx) {
+        payload.pageSafeAreaInsetBottomRpx = nextSafeAreaInsetBottomRpx;
+      }
+      if (Object.keys(payload).length === 0) {
+        return;
+      }
+
+      const shouldKeepBottom = this.data.isAtBottom && wasKeyboardShown !== isKeyboardShown;
+      this.setData(payload as Record<string, unknown>, () => {
+        if (shouldKeepBottom) {
+          this.scrollToBottom(false);
+        }
+        this.updateMessageListMetrics();
+      });
+    };
+
+    wx.onKeyboardHeightChange(this._keyboardHeightChangeHandler);
+  },
+
+  teardownKeyboardAvoidance() {
+    if (this._keyboardHeightChangeHandler === null) {
+      return;
+    }
+    wx.offKeyboardHeightChange(this._keyboardHeightChangeHandler);
+    this._keyboardHeightChangeHandler = null;
   },
 
   applyChatHeaderPatch(patch: Partial<ChatHeaderViewModel>) {
@@ -360,6 +463,9 @@ Page<ChatPageData, ChatPageCustom>({
     }
     if (patch.contactQiaoId !== undefined) {
       payload.contactQiaoId = patch.contactQiaoId;
+    }
+    if (patch.isAiContact !== undefined) {
+      payload.isAiContact = patch.isAiContact;
     }
     if (patch.imConvId !== undefined) {
       payload.imConvId = patch.imConvId;
@@ -414,7 +520,7 @@ Page<ChatPageData, ChatPageCustom>({
       messages,
     };
     if (options.scrollIntoView !== undefined) {
-      payload['pageLayoutData.contentScrollIntoView'] = options.scrollIntoView;
+      payload.messageScrollIntoView = options.scrollIntoView;
     }
     if (options.isContactTyping !== undefined) {
       payload.isContactTyping = options.isContactTyping;
@@ -441,7 +547,7 @@ Page<ChatPageData, ChatPageCustom>({
       const shouldDisableAnimation = !this._initialScrollHandled;
       const extraData: Record<string, unknown> = { scrollAnchorKey: nextAnchorKey };
       if (shouldDisableAnimation) {
-        extraData['pageLayoutData.contentScrollWithAnimation'] = false;
+        extraData.messageScrollWithAnimation = false;
       }
       this.updateMessagesState(state.messages, {
         scrollIntoView: `scroll-anchor-${nextAnchorKey}`,
@@ -450,7 +556,9 @@ Page<ChatPageData, ChatPageCustom>({
       if (shouldDisableAnimation) {
         this._initialScrollHandled = true;
         wx.nextTick(() => {
-          this.setData({ 'pageLayoutData.contentScrollWithAnimation': true });
+          wx.nextTick(() => {
+            this.setData({ messageScrollWithAnimation: true });
+          });
         });
       }
       return;
@@ -493,20 +601,20 @@ Page<ChatPageData, ChatPageCustom>({
     this.updateMessageListMetrics();
   },
 
-  scrollToBottom() {
+  scrollToBottom(animate: boolean = true) {
     const nextAnchorKey = this.data.scrollAnchorKey + 1;
-    const shouldDisableAnimation = !this._initialScrollHandled;
+    const shouldDisableAnimation = !animate || !this._initialScrollHandled;
     const payload: Record<string, unknown> = {
       isAtBottom: true,
       scrollAnchorKey: nextAnchorKey,
     };
     if (shouldDisableAnimation) {
-      payload['pageLayoutData.contentScrollWithAnimation'] = false;
+      payload.messageScrollWithAnimation = false;
     }
     this.setData(payload);
     wx.nextTick(() => {
       this.setData({
-        'pageLayoutData.contentScrollIntoView': `scroll-anchor-${nextAnchorKey}`,
+        messageScrollIntoView: `scroll-anchor-${nextAnchorKey}`,
       });
       // Programmatic scroll (scroll-into-view) may not reliably trigger scroll events on first render.
       // Sync navbarSolid from the actual scrollTop so the header matches the current position.
@@ -516,7 +624,9 @@ Page<ChatPageData, ChatPageCustom>({
       if (shouldDisableAnimation) {
         this._initialScrollHandled = true;
         wx.nextTick(() => {
-          this.setData({ 'pageLayoutData.contentScrollWithAnimation': true });
+          wx.nextTick(() => {
+            this.setData({ messageScrollWithAnimation: true });
+          });
         });
       }
     });
@@ -829,6 +939,7 @@ Page<ChatPageData, ChatPageCustom>({
   },
 
   onShow() {
+    this.setupKeyboardAvoidance();
     const convId = this.data.convId;
     if (!isNonEmptyString(convId)) {
       return;
@@ -847,12 +958,21 @@ Page<ChatPageData, ChatPageCustom>({
   onHide() {
     this.flushPersistViewState();
     unreadStore.clearActiveConversation(this.data.convId);
+    this.teardownKeyboardAvoidance();
+    if (this.data.keyboardOffsetRpx !== 0) {
+      this.setData({
+        keyboardOffsetRpx: 0,
+        chatSafeAreaInsetBottomRpx: this._safeAreaInsetBottomRpx,
+        pageSafeAreaInsetBottomRpx: this._safeAreaInsetBottomRpx,
+      });
+    }
   },
 
   onUnload() {
     this.flushPersistViewState();
     unreadStore.clearActiveConversation(this.data.convId);
     typingManager.cleanup(this.data.convId);
+    this.teardownKeyboardAvoidance();
     this.chatService.dispose();
     this.clearPersistViewStateTimer();
 
@@ -905,8 +1025,8 @@ Page<ChatPageData, ChatPageCustom>({
             contentVariant: 'data',
             refreshState: 'idle',
           },
-          'pageLayoutData.contentScrollIntoView': scrollPlan.scrollIntoView,
-          'pageLayoutData.contentScrollWithAnimation': false,
+          messageScrollIntoView: scrollPlan.scrollIntoView,
+          messageScrollWithAnimation: false,
         };
         if (scrollPlan.scrollAnchorKey !== undefined) {
           initialPayload.scrollAnchorKey = scrollPlan.scrollAnchorKey;
@@ -916,7 +1036,11 @@ Page<ChatPageData, ChatPageCustom>({
         });
         this._pendingViewRestore = false;
         this._initialScrollHandled = true;
-        this.setData({ 'pageLayoutData.contentScrollWithAnimation': true });
+        wx.nextTick(() => {
+          wx.nextTick(() => {
+            this.setData({ messageScrollWithAnimation: true });
+          });
+        });
 
         const bufferedState = this._pendingMessageState;
         this._pendingMessageState = null;
@@ -1076,6 +1200,28 @@ Page<ChatPageData, ChatPageCustom>({
 
     // Notify typing manager
     typingManager.onInputChange(this.data.convId, newValue, this.data.inputText);
+  },
+
+  onAvatarTap(event: WechatMiniprogram.BaseEvent) {
+    const who = toStringValue(getDatasetValue(event, 'who')) ?? '';
+    if (who === 'me') {
+      void wx.navigateTo({ url: '/pages/profile-detail/profile-detail' });
+      return;
+    }
+    if (who === 'other') {
+      const convId = this.data.convId;
+      if (!isNonEmptyString(convId)) {
+        return;
+      }
+      void wx.navigateTo({
+        url: `/pages/contact-info/contact-info?id=${convId}`,
+        events: {
+          contactAvatarUpdated: () => {
+            void this.refreshChatHeader();
+          },
+        },
+      });
+    }
   },
 
   async onRetryMessage(event: WechatMiniprogram.BaseEvent) {
@@ -1323,6 +1469,10 @@ Page<ChatPageData, ChatPageCustom>({
     } finally {
       this._sendRetried = false;
     }
+  },
+
+  async onSendButtonTap() {
+    await this.onSendMessage();
   },
 
   async onSendMessage() {

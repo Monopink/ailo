@@ -53,6 +53,12 @@
   overflow-y: auto;
 }
 
+.page-layout__content--static {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .page-layout__empty,
 .page-layout__blank {
   flex: 1;
@@ -76,7 +82,9 @@
   width: 100%;
   background-color: transparent; /* Transparent for seamless integration */
   padding: var(--space-xl) var(--padding-page);
-  padding-bottom: calc(var(--space-xl) + var(--safe-area-inset-bottom));
+  padding-bottom: calc(
+    var(--space-xl) + var(--page-safe-area-inset-bottom, var(--safe-area-inset-bottom))
+  );
   box-sizing: border-box;
 }
 
@@ -90,12 +98,14 @@
   left: 0;
   right: 0;
   width: 100%;
+  transform: translate3d(0, calc(-1 * var(--page-footer-offset-y, 0rpx)), 0);
+  will-change: transform;
   background-color: var(--color-bg-footer-fixed, var(--color-bg-primary));
   /* Optional glass blur for pages that want frosted footer (e.g., chat input safe area). */
   -webkit-backdrop-filter: blur(var(--footer-glass-blur, 0rpx));
   backdrop-filter: blur(var(--footer-glass-blur, 0rpx));
   border-top: 1rpx solid var(--color-separator);
-  padding-bottom: var(--safe-area-inset-bottom);
+  padding-bottom: var(--page-safe-area-inset-bottom, var(--safe-area-inset-bottom));
   box-sizing: border-box;
   z-index: var(--z-index-fixed);
 }

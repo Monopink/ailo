@@ -45,18 +45,6 @@
           </t-cell-group>
         </view>
 
-        <!-- Remark Card -->
-        <view wx:if="{{profile.remarkText}}" class="card-wrapper">
-          <t-cell-group theme="card">
-            <t-cell
-              title="备注"
-              t-class-title="profile-cell__title"
-              t-class-center="profile-cell__center">
-              <text slot="description" class="profile-cell__description">{{profile.remarkText}}</text>
-            </t-cell>
-          </t-cell-group>
-        </view>
-
         <!-- Region Card -->
         <view wx:if="{{profile.regionText}}" class="card-wrapper">
           <t-cell-group theme="card">
@@ -67,6 +55,18 @@
             </t-cell>
           </t-cell-group>
         </view>
+      </view>
+
+      <!-- Remark Card -->
+      <view wx:if="{{profile.remarkText}}" class="card-wrapper">
+        <t-cell-group theme="card">
+          <t-cell
+            title="描述"
+            t-class-title="profile-cell__title"
+            t-class-center="profile-cell__center">
+            <text slot="description" class="profile-cell__description">{{profile.remarkText}}</text>
+          </t-cell>
+        </t-cell-group>
       </view>
 
       <view class="stranger-info__actions">

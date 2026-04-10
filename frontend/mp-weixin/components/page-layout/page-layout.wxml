@@ -15,9 +15,9 @@
   </view>
 
   <scroll-view
-    wx:elif="{{contentVariant === 'data'}}"
+    wx:elif="{{contentVariant === 'data' && !disableScroll}}"
     class="page-layout__content"
-    scroll-y="{{!disableScroll}}"
+    scroll-y="{{true}}"
     enhanced="{{true}}"
     show-scrollbar="{{false}}"
     scroll-into-view="{{contentScrollIntoView}}"
@@ -29,6 +29,14 @@
       <slot name="footer" />
     </view>
   </scroll-view>
+
+  <view wx:elif="{{contentVariant === 'data'}}" class="page-layout__content page-layout__content--static">
+    <slot name="content" />
+
+    <view wx:if="{{hasFooter && !fixedFooter}}" class="page-layout__footer-inline">
+      <slot name="footer" />
+    </view>
+  </view>
 
   <view wx:else class="page-layout__blank">
     <slot name="blank" />

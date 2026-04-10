@@ -103,6 +103,7 @@ const mergeStoredContact = (
 export interface ChatContactViewModel {
   convId: string;
   contactQiaoId: string;
+  contactType: 1 | 2 | 3 | null;
   imConvId: string;
   displayName: string;
   displayAvatar: string;
@@ -173,6 +174,7 @@ export async function getChatContactViewModel(convId: string): Promise<ChatConta
   return {
     convId,
     contactQiaoId: source.contact_qiao_id,
+    contactType: typeof source.contact_type === 'number' ? source.contact_type : null,
     imConvId,
     displayName,
     displayAvatar,

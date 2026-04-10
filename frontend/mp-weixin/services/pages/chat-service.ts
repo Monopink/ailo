@@ -15,6 +15,7 @@ export interface ChatHeaderViewModel {
   navbarTitle: string;
   contactAvatar: string;
   contactQiaoId: string;
+  isAiContact: boolean;
   imConvId: string;
 }
 
@@ -43,6 +44,7 @@ export class ChatPageService extends BasePageService {
           navbarTitle: '',
           contactAvatar: '',
           contactQiaoId: '',
+          isAiContact: false,
           imConvId: '',
         },
       };
@@ -79,6 +81,7 @@ export class ChatPageService extends BasePageService {
         storedContact?.contact_qiao_id ?? ''
       ) ?? '';
     const imConvId = typeof storedContact?.im_conv_id === 'string' ? storedContact.im_conv_id : '';
+    const isAiContact = storedContact?.contact_type === 2;
     const avatarSource =
       firstNonEmptyString(
         storedContact?.avatar_url ?? '',
@@ -94,6 +97,7 @@ export class ChatPageService extends BasePageService {
         contactAvatar: getAvatarUrl(avatarSource),
         contactQiaoId:
           typeof storedContact?.contact_qiao_id === 'string' ? storedContact.contact_qiao_id : '',
+        isAiContact,
         imConvId,
       },
     };
@@ -123,6 +127,7 @@ export class ChatPageService extends BasePageService {
           navbarTitle: contactName,
           contactAvatar: viewModel.displayAvatar,
           contactQiaoId: viewModel.contactQiaoId,
+          isAiContact: viewModel.contactType === 2,
           imConvId: viewModel.imConvId,
         },
         authInvalid: false,

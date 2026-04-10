@@ -1,18 +1,29 @@
 <view
-  class="ui-avatar ui-avatar--{{shape}} ui-avatar--{{status}}"
+  class="ui-avatar ui-avatar--{{shape}}"
   style="{{sizeStyle}}"
   aria-role="img"
   aria-label="头像">
   <image
-    wx:if="{{showImage}}"
-    class="ui-avatar__image"
-    src="{{src}}"
+    wx:if="{{src0 !== ''}}"
+    class="ui-avatar__image {{activeBuffer === 0 ? 'ui-avatar__image--active' : 'ui-avatar__image--inactive'}}"
+    src="{{src0}}"
     mode="{{mode}}"
     webp="{{webp}}"
     lazy-load="{{lazy}}"
-    bindload="onImageLoad"
-    binderror="onImageError" />
-  <view wx:if="{{showPlaceholder}}" class="ui-avatar__placeholder">
+    data-buffer="0"
+    bindload="onBufferLoad"
+    binderror="onBufferError" />
+  <image
+    wx:if="{{src1 !== ''}}"
+    class="ui-avatar__image {{activeBuffer === 1 ? 'ui-avatar__image--active' : 'ui-avatar__image--inactive'}}"
+    src="{{src1}}"
+    mode="{{mode}}"
+    webp="{{webp}}"
+    lazy-load="{{lazy}}"
+    data-buffer="1"
+    bindload="onBufferLoad"
+    binderror="onBufferError" />
+  <view wx:if="{{showPlaceholderIcon}}" class="ui-avatar__placeholder" aria-hidden="{{true}}">
     <image
       wx:if="{{placeholderSrc !== ''}}"
       class="ui-avatar__placeholder-image"

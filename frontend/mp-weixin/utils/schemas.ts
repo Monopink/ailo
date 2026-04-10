@@ -99,6 +99,7 @@ export type WechatBindPhoneResponse = z.infer<typeof WechatBindPhoneResponseSche
 
 export const StoredContactSchema = z.object({
   conversation_id: z.string(),
+  contact_type: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   contact_qiao_id: z.string().optional(),
   im_conv_id: z.string().optional(),
   alias: z.string().optional().nullable(),

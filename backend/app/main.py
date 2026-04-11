@@ -19,6 +19,7 @@ from app.api.v1 import v1_router
 from app.api.ws import ws_router
 from app.core.config import Settings, get_settings
 from app.core.database import close_database, get_sessionmaker, init_database
+from app.exceptions import MissingConfigurationError
 from app.exceptions.handlers import register_exception_handlers
 from app.middleware.rate_limit import APIRateLimitMiddleware
 from app.services.alerting.cleanup import (
@@ -61,17 +62,29 @@ class ProxyHeadersMiddleware(BaseHTTPMiddleware):
 
 
 @api_router.get("/health", tags=["Health"])
-async def health_check() -> Response:
-    """Liveness probe for container orchestration."""
+async def health_check() -> JSONResponse:
+    """Health check endpoint.
+
+    Returns a JSON payload for clients and probes.
+    """
+    settings = get_settings()
     session_factory = get_sessionmaker()
+    database_ok = False
     try:
         async with session_factory() as db:
             await db.execute(text("SELECT 1"))
-        logger.debug("health_check_success")
-        return Response(status_code=200)
+        database_ok = True
     except Exception as exc:  # pragma: no cover - health probe logging only
         logger.error("health_check_failed", error=str(exc), exc_info=True)
-        return Response(status_code=503)
+
+    status_text = "healthy" if database_ok else "unhealthy"
+    payload = {
+        "status": status_text,
+        "database": {"ok": database_ok},
+        "app": {"name": settings.APP_NAME, "version": settings.VERSION},
+        "version": settings.VERSION,
+    }
+    return JSONResponse(status_code=200, content=payload)
 
 
 @api_router.get("/")
@@ -123,7 +136,13 @@ def _create_lifespan(
 
             async with session_factory() as db:
                 await reset_open_conversation_windows(db)
-                await refresh_media_base_url(db)
+                try:
+                    await refresh_media_base_url(db)
+                except MissingConfigurationError:
+                    logger.warning(
+                        "media_public_base_url_not_ready_at_startup",
+                        config_key="media_public_base_url",
+                    )
 
             logger.info("loading_rate_limit_config")
             async with session_factory() as db:

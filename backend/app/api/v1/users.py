@@ -9,8 +9,9 @@ from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.crud.message import media_file as media_file_crud
 from app.crud.profile import profile as profile_crud
+from app.crud.profile_logs import write_user_profile_change_logs
 from app.crud.user import user as user_crud
-from app.enums import FileStatus, ProfileOwnerType
+from app.enums import FileStatus, ProfileModifierType, ProfileOwnerType
 from app.models.profile import Profile
 from app.models.user import User
 from app.schemas.profile import ProfileCreate, ProfileUpdate
@@ -313,7 +314,7 @@ async def _upsert_profile(
     avatar_media_id: int | None,
     db: AsyncSession,
 ) -> Profile:
-    user_profile = await profile_crud.get_by_owner(
+    user_profile_before = await profile_crud.get_by_owner(
         db, owner_id=current_user.id, owner_type=ProfileOwnerType.USER
     )
 
@@ -344,22 +345,40 @@ async def _upsert_profile(
         del profile_data["avatar_file_id"]
 
     update_data = ProfileUpdate(**profile_data)
-    if user_profile:
+    changed_fields: set[str] = set(profile_data.keys())
+    if user_profile_before:
         updated_profile = await profile_crud.update_by_owner(
             db, owner_id=current_user.id, owner_type=ProfileOwnerType.USER, obj_in=update_data
         )
         if not updated_profile:
             raise HTTPException(status_code=500, detail="系统错误")
+        await write_user_profile_change_logs(
+            db,
+            before=user_profile_before,
+            after=updated_profile,
+            changed_fields=changed_fields,
+            modified_by_type=ProfileModifierType.USER,
+            change_reason="user_profile_update",
+        )
         return updated_profile
 
     create_data = ProfileCreate(**profile_data)
-    return await profile_crud.create_with_owner(
+    created_profile = await profile_crud.create_with_owner(
         db,
         obj_in=create_data,
         owner_id=current_user.id,
         owner_qiao_id=current_user.qiao_id,
         owner_type=ProfileOwnerType.USER,
     )
+    await write_user_profile_change_logs(
+        db,
+        before=None,
+        after=created_profile,
+        changed_fields=changed_fields,
+        modified_by_type=ProfileModifierType.USER,
+        change_reason="user_profile_update",
+    )
+    return created_profile
 
 
 @router.get("/profile", response_model=UserProfileResponse)

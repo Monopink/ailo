@@ -11,7 +11,7 @@ class UserProfileResponse(BaseModel):
     qiao_id: str = Field(..., description="User external ID")
     username: str | None = Field(None, description="User-customizable ID, NULL if not set")
     nickname: str | None = Field(None, description="Display nickname")
-    gender: int | None = Field(None, description="Gender: 1=male, 2=female, 3=other, 4=unknown")
+    gender: int | None = Field(None, description="Gender: 1=male, 2=female, 3=other; null=unknown")
     avatar_url: str | None = Field(None, description="Dynamically generated avatar CDN URL")
     bio: str | None = Field(None, description="Personal bio/description")
     region: str | None = Field(None, description="Location/region")
@@ -37,7 +37,7 @@ class UserProfileUpdateRequest(BaseModel):
     username: str | None = Field(None, description="Username, user can only set once")
     nickname: str | None = Field(None, max_length=32, description="Display nickname")
     gender: int | None = Field(
-        None, ge=1, le=4, description="Gender: 1=male, 2=female, 3=other, 4=unknown"
+        None, ge=1, le=3, description="Gender: 1=male, 2=female, 3=other; null=unknown"
     )
     avatar_file_id: str | None = Field(
         None,

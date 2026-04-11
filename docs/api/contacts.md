@@ -76,7 +76,7 @@
 - `avatar_display_mode` (integer) - 头像展示模式：`1=original`，`2=custom`
   - `profile` (object) - 联系人资料信息
   - `nickname` (string) - 昵称
-  - `gender` (integer) - 性别，枚举值见：`backend/app/enums/` - `Gender`
+  - `gender` (integer, nullable) - 性别（取值与 `GET /api/v1/user/profile` 的 `gender` 字段一致）
   - `bio` (string) - 个性签名（可选）
   - `region` (string) - 地区展示快照（可选）
 
@@ -140,7 +140,7 @@
 - `avatar_display_mode` (integer) - 头像展示模式：`1=original`，`2=custom`
   - `profile` (object) - 联系人资料信息
   - `nickname` (string) - 昵称
-  - `gender` (integer) - 性别，枚举值见：`backend/app/enums/` - `Gender`
+  - `gender` (integer, nullable) - 性别（取值与 `GET /api/v1/user/profile` 的 `gender` 字段一致）
   - `bio` (string) - 个性签名
   - `region` (string) - 地区展示快照
 

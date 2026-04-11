@@ -7,9 +7,10 @@ from __future__ import annotations
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.crud.profile_logs import write_user_profile_change_log
 from app.enums import FileType, ProfileModifierType, ProfileOwnerType, UploaderType
 from app.models.message import MediaFile
-from app.models.profile import Profile, UserProfileLog
+from app.models.profile import Profile
 from app.services.media.avatar_image import AvatarCrop, normalize_avatar_image
 from app.services.media.uploader import (
     UploadActor,
@@ -21,10 +22,6 @@ from app.services.storage.factory import get_storage_backend
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-def _to_log_value(value: int | None) -> str | None:
-    return str(value) if value is not None else None
 
 
 async def apply_admin_avatar_to_profile(
@@ -41,19 +38,17 @@ async def apply_admin_avatar_to_profile(
     profile.avatar_media_id = new_media_id
     db.add(profile)
 
-    if old_media_id != new_media_id:
-        db.add(
-            UserProfileLog(
-                owner_id=profile.owner_id,
-                owner_qiao_id=profile.owner_qiao_id,
-                owner_type=profile.owner_type,
-                modified_by_type=int(ProfileModifierType.ADMIN),
-                field_name="avatar_media_id",
-                old_value=_to_log_value(old_media_id),
-                new_value=_to_log_value(new_media_id),
-                change_reason="admin_avatar_upload",
-            )
-        )
+    await write_user_profile_change_log(
+        db,
+        owner_id=profile.owner_id,
+        owner_qiao_id=profile.owner_qiao_id,
+        owner_type=profile.owner_type,
+        modified_by_type=ProfileModifierType.ADMIN,
+        field_name="avatar_media_id",
+        old_value=old_media_id,
+        new_value=new_media_id,
+        change_reason="admin_avatar_upload",
+    )
     await db.flush()
 
 
@@ -65,19 +60,17 @@ async def clear_admin_avatar_for_profile(db: AsyncSession, *, profile: Profile) 
     profile.avatar_media_id = None
     db.add(profile)
 
-    if old_media_id is not None:
-        db.add(
-            UserProfileLog(
-                owner_id=profile.owner_id,
-                owner_qiao_id=profile.owner_qiao_id,
-                owner_type=profile.owner_type,
-                modified_by_type=int(ProfileModifierType.ADMIN),
-                field_name="avatar_media_id",
-                old_value=_to_log_value(old_media_id),
-                new_value=None,
-                change_reason="admin_avatar_clear",
-            )
-        )
+    await write_user_profile_change_log(
+        db,
+        owner_id=profile.owner_id,
+        owner_qiao_id=profile.owner_qiao_id,
+        owner_type=profile.owner_type,
+        modified_by_type=ProfileModifierType.ADMIN,
+        field_name="avatar_media_id",
+        old_value=old_media_id,
+        new_value=None,
+        change_reason="admin_avatar_clear",
+    )
 
     await db.commit()
     await db.refresh(profile)

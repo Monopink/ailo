@@ -30,6 +30,7 @@ from starlette_admin.fields import BaseField
 
 from app.admin.views.base import IntegerEnumField, convert_empty_strings_to_none
 from app.core.security import get_password_hash
+from app.crud.profile_logs import write_user_profile_change_log
 from app.enums import (
     ContactRequestSource,
     ContactRequestStatus,
@@ -467,7 +468,10 @@ class ProfileView(BaseRoleAwareModelView):
     ]
 
     async def before_edit(self, _request: Request, data: FormData, obj: Profile) -> None:
-        """Set auto-filled fields before database commit."""
+        """Set auto-filled fields before database commit and write audit logs."""
+        old_avatar_prompt = obj.avatar_prompt
+        old_avatar_media_id = obj.avatar_media_id
+
         # Auto-fill avatar_key and avatar_media_id from selected avatar_media
         avatar_media = data.get("avatar_media")
         if avatar_media and isinstance(avatar_media, MediaFile):
@@ -479,6 +483,32 @@ class ProfileView(BaseRoleAwareModelView):
                 obj.avatar_key = None
             if hasattr(obj, "avatar_media_id") and obj.avatar_media_id == "":  # type: ignore[comparison-overlap]
                 obj.avatar_media_id = None
+
+        if obj.owner_type == int(ProfileOwnerType.USER):
+            request_session = getattr(_request.state, "session", None)
+            if request_session is not None:
+                await write_user_profile_change_log(
+                    request_session,
+                    owner_id=obj.owner_id,
+                    owner_qiao_id=obj.owner_qiao_id,
+                    owner_type=obj.owner_type,
+                    modified_by_type=ProfileModifierType.ADMIN,
+                    field_name="avatar_prompt",
+                    old_value=old_avatar_prompt,
+                    new_value=obj.avatar_prompt,
+                    change_reason="admin_profile_edit",
+                )
+                await write_user_profile_change_log(
+                    request_session,
+                    owner_id=obj.owner_id,
+                    owner_qiao_id=obj.owner_qiao_id,
+                    owner_type=obj.owner_type,
+                    modified_by_type=ProfileModifierType.ADMIN,
+                    field_name="avatar_media_id",
+                    old_value=old_avatar_media_id,
+                    new_value=obj.avatar_media_id,
+                    change_reason="admin_profile_edit",
+                )
 
 
 class UserProfileLogView(ModelView):

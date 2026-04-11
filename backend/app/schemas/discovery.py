@@ -38,7 +38,7 @@ class SquareContactResponse(BaseModel):
     category_key: str = Field(..., description="Category key (kebab-case)")
     type_id: int = Field(..., description="AI type identifier backing this entry")
     nickname: str | None = Field(None, description="Persona nickname")
-    gender: int | None = Field(None, description="Gender: 1=male, 2=female, 3=other, 4=unknown")
+    gender: int | None = Field(None, description="Gender: 1=male, 2=female, 3=other; null=unknown")
     avatar_url: str | None = Field(
         None, description="Dynamically generated avatar CDN URL (not stored in database)"
     )
@@ -141,7 +141,7 @@ class StrangerProfileResponse(BaseModel):
 
     qiao_id: str = Field(..., description="Profile qiao_id")
     nickname: str | None = Field(None, description="Nickname")
-    gender: int | None = Field(None, description="Gender: 1=male, 2=female, 3=other, 4=unknown")
+    gender: int | None = Field(None, description="Gender: 1=male, 2=female, 3=other; null=unknown")
     avatar_url: str | None = Field(
         None, description="Dynamically generated avatar CDN URL (not stored in database)"
     )

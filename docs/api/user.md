@@ -41,7 +41,7 @@
 - `qiao_id` (string) - 对外稳定ID，注册时生成，不可修改
 - `username` (string, nullable) - 用户敲敲号，未设置时为 `null`；首次设置成功后不可修改
 - `nickname` (string) - 昵称
-- `gender` (integer) - 性别，枚举值见：`backend/app/enums/` - `Gender`
+- `gender` (integer, nullable) - 性别，枚举值见：`backend/app/enums/` - `Gender`
 - `avatar_url` (string) - 动态生成的头像 CDN URL，基于后台存储的 `avatar_file_id`
 - `bio` (string) - 个性签名
 - `region` (string) - 服务端生成的地区展示快照
@@ -139,7 +139,7 @@
   - 不支持传入 `null` 或空字符串清空
 
 - `gender` (integer, 可选)
-  - 性别，枚举值见：`backend/app/enums/` - `Gender`
+  - 性别（支持 `1/2/3`；传 `null` 表示清空/未知）
 
 - `avatar_file_id` (string, 可选)
   - 头像文件ID（例如 `file_custom_avatar_123`）
@@ -224,6 +224,7 @@
 - username 仅允许首次设置；已设置后提交 `username` 一律拒绝。
 - username 校验规则见 `docs/spec/user/username.md`，不满足规则会返回 400。
 - avatar_url 在响应中始终由后端根据 `avatar_file_id` 生成，客户端只需要维护 `avatar_file_id` 并在上传成功后重新调用本接口即可获取最终展示 URL。
+- 本接口成功写入资料后，会为本次写入发生变化的每个字段追加一条 `user_profile_logs` 记录（用于 `other_profile` 等系统占位符的“资料更新”描述）。
 
 ---
 

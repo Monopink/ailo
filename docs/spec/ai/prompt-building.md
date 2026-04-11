@@ -82,14 +82,46 @@
 
 - 来源：`instance_context.profile`（由实例上下文加载阶段提供）
 - 正常查询条件：owner_qiao_id = instance.qiao_id AND owner_type IN (2, 3)
-- 内容：profile 的文本描述
+- 内容：profile 的文本描述（固定格式见下文）
 - 缺失处理：profile 缺失时置空字符串，不中断对话处理，并记录告警日志
 
 **{{other_profile}}**
 
 - 来源：profiles 表 + user_profile_logs 表
 - 查询条件：owner_qiao_id = user_qiao_id AND owner_type = 1
-- 内容：用户 profile 的文本描述 + 近期修改内容描述
+- 内容：用户 profile 的文本描述 + 近期修改内容描述（固定格式见下文）
+
+### Profile 文本描述格式
+
+**{{self_profile}}** 与 **{{other_profile}}** 的“当前资料”段落格式一致：
+
+```
+头像描述:{avatar_prompt}; 昵称:{nickname}; 性别:{gender_text}; 个性签名:{bio}; 地区:{region}
+```
+
+- avatar_prompt：profiles.avatar_prompt
+- nickname：profiles.nickname
+- gender_text：当 profiles.gender 为 1/2/3 时分别为 男/女/其他；为 NULL 时为空
+- bio：profiles.bio
+- region：profiles.region（服务端生成展示快照）
+
+### 近期资料更新描述（{{other_profile}}）
+
+{{other_profile}} 会追加一段“资料更新（近3天）”描述，规则如下：
+
+- 仅展示近 3 天内发生变化的字段
+- 展示顺序固定：头像（avatar_media_id）、昵称、性别、个性签名、地区、头像（avatar_prompt）
+- 头像：当 avatar_media_id 在近 3 天内发生变化，输出一行 `头像：`（不附加任何说明）
+- 其他字段：输出 `对方最近更新了<字段名>，之前为 <旧值>`，其中旧值为“稳定旧值”（见下条）
+- 稳定旧值：对某字段的最近一次变更，若其旧值在变更前持续时间不足 6 小时，则向前回溯到上一个持续时间 ≥ 6 小时的旧值；若历史不足，则使用可追溯到的最早旧值
+
+字段名映射：
+
+- nickname → 昵称
+- gender → 性别
+- bio → 个性签名
+- region → 地区
+- avatar_prompt → 头像
 
 **{{current_datetime}}**
 

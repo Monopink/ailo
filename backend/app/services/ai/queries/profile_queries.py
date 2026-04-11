@@ -52,6 +52,8 @@ async def get_user_profile(db: AsyncSession, user_qiao_id: str) -> dict[str, Any
             "bio": profile.bio,
             "avatar_url": avatar_url,
             "gender": getattr(profile, "gender", None),
+            "avatar_prompt": getattr(profile, "avatar_prompt", None),
+            "region": getattr(profile, "region", None),
             "age": getattr(profile, "age", None),
             "location": getattr(profile, "location", None),
         }

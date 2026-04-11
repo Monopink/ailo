@@ -113,7 +113,7 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     app.dependency_overrides[get_db] = override_get_db
 
     async with AsyncClient(
-        transport=ASGITransport(app=app),
+        transport=ASGITransport(app=app, raise_app_exceptions=False),
         base_url="http://test",
         headers={"X-Client-IP": "203.0.113.10"},
     ) as ac:

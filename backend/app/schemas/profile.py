@@ -10,7 +10,7 @@ class ProfileBase(BaseModel):
 
     nickname: str | None = Field(None, max_length=32, description="Display nickname")
     gender: int | None = Field(
-        None, ge=1, le=4, description="Gender: 1=male, 2=female, 3=other, 4=unknown"
+        None, ge=1, le=3, description="Gender: 1=male, 2=female, 3=other; null=unknown"
     )
     avatar_key: str | None = Field(
         None, max_length=255, description="Object key for avatar (e.g. avatars/2025/12/xxx.webp)"

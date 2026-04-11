@@ -6,7 +6,7 @@ and JSON schema building for AI responses.
 """
 
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -15,7 +15,8 @@ from pendulum import DateTime as PendulumDateTime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums import ConversationRole
+from app.crud.profile_logs import find_stable_old_value, has_recent_profile_change
+from app.enums import ConversationRole, Gender
 from app.exceptions import AIServiceError
 from app.models.ai import AIConversationState
 from app.services.ai.memory import build_memory_prompt
@@ -259,14 +260,18 @@ async def _build_placeholder_values(
         profile_payload if isinstance(profile_payload, dict) else None
     )
     if instance_profile:
-        placeholder_values["self_profile"] = _format_profile(instance_profile)
+        placeholder_values["self_profile"] = _format_profile_current_line(instance_profile)
     else:
         placeholder_values["self_profile"] = ""
 
     # {{other_profile}} - user profile description
     user_profile = await _get_user_profile(db, user_qiao_id)
     if user_profile:
-        placeholder_values["other_profile"] = _format_profile(user_profile)
+        placeholder_values["other_profile"] = await _format_other_profile(
+            db=db,
+            user_qiao_id=user_qiao_id,
+            profile=user_profile,
+        )
     else:
         placeholder_values["other_profile"] = ""
 
@@ -376,52 +381,113 @@ async def _build_pending_messages_placeholder(
     )
 
 
-def _format_profile(profile: dict[str, Any] | object) -> str:
-    """
-    Format profile information for prompt.
-
-    Args:
-        profile: Profile model instance
-
-    Returns:
-        Formatted profile string
-    """
+async def _format_other_profile(
+    *,
+    db: AsyncSession,
+    user_qiao_id: str,
+    profile: dict[str, Any] | object,
+) -> str:
+    """Format other_profile including recent updates (last 3 days)."""
     try:
-        parts = []
-
-        # Support both dict and object
-        nickname = (
-            profile.get("nickname")
-            if isinstance(profile, dict)
-            else getattr(profile, "nickname", None)
+        current_line = _format_profile_current_line(profile)
+        updates = await _build_other_profile_recent_updates(
+            db=db,
+            user_qiao_id=user_qiao_id,
         )
-        gender = (
-            profile.get("gender") if isinstance(profile, dict) else getattr(profile, "gender", None)
-        )
-        bio = profile.get("bio") if isinstance(profile, dict) else getattr(profile, "bio", None)
-        region = (
-            profile.get("region") if isinstance(profile, dict) else getattr(profile, "region", None)
-        )
-
-        if nickname:
-            parts.append(f"昵称: {nickname}")
-
-        if gender:
-            gender_map = {1: "男", 2: "女", 3: "其他", 4: "未知"}
-            gender_str = gender_map.get(gender, "未知")
-            parts.append(f"性别: {gender_str}")
-
-        if bio:
-            parts.append(f"简介: {bio}")
-
-        if region:
-            parts.append(f"地区: {region}")
-
-        return "; ".join(parts) if parts else "暂无资料"
-
+        if not updates:
+            return current_line
+        updates_block = "\n".join(["资料更新（近3天）：", *updates])
+        return f"{current_line}\n{updates_block}"
     except Exception as exc:
-        logger.error("profile_formatting_failed", error=str(exc), exc_info=True)
-        return "资料格式化失败"
+        logger.error("other_profile_formatting_failed", error=str(exc), exc_info=True)
+        return _format_profile_current_line(profile)
+
+
+def _format_profile_current_line(profile: dict[str, Any] | object) -> str:
+    """Format current profile info for prompt (self_profile / other_profile)."""
+    if isinstance(profile, dict):
+        avatar_prompt = profile.get("avatar_prompt")
+        nickname = profile.get("nickname")
+        gender = profile.get("gender")
+        bio = profile.get("bio")
+        region = profile.get("region")
+    else:
+        avatar_prompt = getattr(profile, "avatar_prompt", None)
+        nickname = getattr(profile, "nickname", None)
+        gender = getattr(profile, "gender", None)
+        bio = getattr(profile, "bio", None)
+        region = getattr(profile, "region", None)
+
+    gender_text = ""
+    if gender == int(Gender.MALE):
+        gender_text = "男"
+    elif gender == int(Gender.FEMALE):
+        gender_text = "女"
+    elif gender == int(Gender.OTHER):
+        gender_text = "其他"
+
+    def _s(value: object) -> str:
+        return "" if value is None else str(value)
+
+    return (
+        f"头像描述:{_s(avatar_prompt)}; 昵称:{_s(nickname)}; 性别:{gender_text}; "
+        f"个性签名:{_s(bio)}; 地区:{_s(region)}"
+    )
+
+
+async def _build_other_profile_recent_updates(
+    *,
+    db: AsyncSession,
+    user_qiao_id: str,
+) -> list[str]:
+    """Build recent update lines for other_profile according to spec."""
+    now = pendulum.now("UTC")
+    since = (now - pendulum.duration(days=3)).naive().replace(tzinfo=UTC)
+
+    def _field_label(field_name: str) -> str:
+        return {
+            "nickname": "昵称",
+            "gender": "性别",
+            "bio": "个性签名",
+            "region": "地区",
+            "avatar_prompt": "头像",
+        }.get(field_name, field_name)
+
+    result_lines: list[str] = []
+
+    # Avatar media change: add "头像:" line without details
+    has_avatar_media_change = await has_recent_profile_change(
+        db,
+        owner_qiao_id=user_qiao_id,
+        field_name="avatar_media_id",
+        since=since,
+    )
+    if has_avatar_media_change:
+        result_lines.append("- 头像：")
+
+    # Other fields with stable old values
+    for field in ["nickname", "gender", "bio", "region", "avatar_prompt"]:
+        changed, stable_old = await find_stable_old_value(
+            db,
+            owner_qiao_id=user_qiao_id,
+            field_name=field,
+            since=since,
+        )
+        if not changed or stable_old is None:
+            continue
+        label = _field_label(field)
+        normalized_old = _normalize_old_value_for_prompt(field, stable_old)
+        result_lines.append(f"- 对方最近更新了{label}，之前为 {normalized_old}")
+
+    return result_lines
+
+
+def _normalize_old_value_for_prompt(field_name: str, value: str) -> str:
+    normalized = " ".join(str(value).split())
+    if field_name == "gender":
+        mapping = {"1": "男", "2": "女", "3": "其他"}
+        return mapping.get(normalized, normalized)
+    return normalized
 
 
 async def _get_user_profile(db: AsyncSession, user_qiao_id: str) -> dict[str, Any] | None:

@@ -1,6 +1,6 @@
 # Database Migration Workflow
 
-Use this protocol after schema model changes.
+Use this protocol for schema changes.
 
 ## Precheck
 
@@ -17,11 +17,11 @@ docker compose -f dev/compose.yaml exec backend alembic revision --autogenerate 
 ```
 
 2. Review generated file under `backend/alembic/versions/`.
-3. Generate schema artifacts from source-of-truth models/migrations.
+3. Generate schema artifacts from source-of-truth migrations.
 4. Ensure generated outputs include:
    - `backend/database/init/sql/01_schema.sql`
    - `docs/data-dict/*`
-5. Verify single-source sync (models+migrations -> generated SQL/data-dict).
+5. Verify single-source sync (migrations -> generated SQL/data-dict), and confirm model definitions are aligned.
 
 ## Verification
 
@@ -30,6 +30,8 @@ cd deployment
 docker compose -f dev/compose.yaml exec backend alembic upgrade head
 docker compose -f dev/compose.yaml exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB -c "\d+"
 ```
+
+For schema artifact export, prefer container-connected path (script default `--sql-export-mode pg_dump_docker`) to avoid Alembic offline SQL incompatibility in data migrations.
 
 ## Rules
 

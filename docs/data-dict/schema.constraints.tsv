@@ -1,206 +1,325 @@
 table	kind	name	expression
-admin_login_logs	primary_key	pk_admin_login_logs	(id)
-admin_operation_logs	primary_key	pk_admin_operation_logs	(id)
-admin_users	primary_key	pk_admin_users	(id)
-admin_users	unique		(username)
-ai_conversation_items	primary_key	pk_ai_conversation_items	(id)
-ai_conversation_items	check	ck_ai_conversation_items_content	(message_type = 'text' AND text_content IS NOT NULL AND media_url IS NULL) OR (message_type IN ('image','audio') AND media_url IS NOT NULL)
-ai_conversation_items	check	ck_ai_conversation_items_user_buffer	(role = 'user' AND buffer_id IS NOT NULL) OR (role <> 'user')
-ai_conversation_items	index	idx_ai_conv_items_buffer	ai_conversation_items.buffer_id WHERE buffer_id IS NOT NULL
-ai_conversation_items	index	idx_ai_conv_items_excluded	ai_conversation_items.user_qiao_id,ai_conversation_items.instance_qiao_id,ai_conversation_items.created_at WHERE is_excluded_from_context = 1
-ai_conversation_items	index	idx_ai_conv_items_session	ai_conversation_items.user_qiao_id,ai_conversation_items.instance_qiao_id,ai_conversation_items.created_at
-ai_conversation_items	index	idx_ai_conv_items_text_search	ai_conversation_items.text_content
-ai_conversation_items_archive	primary_key	pk_ai_conversation_items_archive	(id)
-ai_conversation_items_archive	index	idx_ai_conv_items_archive_session	ai_conversation_items_archive.user_qiao_id,ai_conversation_items_archive.instance_qiao_id,ai_conversation_items_archive.created_at
-ai_conversation_runtime	primary_key	pk_ai_conversation_runtime	(user_qiao_id,instance_qiao_id)
-ai_conversation_runtime	index	idx_ai_conversation_runtime_updated	ai_conversation_runtime.updated_at
-ai_conversation_state	primary_key	pk_ai_conversation_state	(user_qiao_id,instance_qiao_id)
-ai_conversation_state	index	idx_ai_conversation_state_updated	ai_conversation_state.updated_at
-ai_dimension_relationship_mappings	primary_key	pk_ai_dimension_relationship_mappings	(id)
-ai_dimensions	primary_key	pk_ai_dimensions	(id)
-ai_dimensions	unique		(name)
-ai_instance_dimensions	primary_key	pk_ai_instance_dimensions	(id)
+admin_login_logs	primary_key	admin_login_logs_pkey	(id)
+admin_operation_logs	primary_key	admin_operation_logs_pkey	(id)
+admin_users	primary_key	admin_users_pkey	(id)
+admin_users	unique	admin_users_username_key	(username)
+admin_users	index_unique	admin_users_username_key	username
+ai_buffer_wake_events	primary_key	pk_ai_buffer_wake_events	(id)
+ai_buffer_wake_events	index	idx_ai_buffer_wake_events_buffer_time	buffer_id,created_at
+ai_conversation_items	primary_key	ai_conversation_items_pkey	(id)
+ai_conversation_items	check	ck_ai_conversation_items_content	message_type::text = 'text'::text AND text_content IS NOT NULL AND media_url IS NULL OR (message_type::text = ANY (ARRAY['image'::character varying::text, 'audio'::character varying::text])) AND media_url IS NOT NULL
+ai_conversation_items	check	ck_ai_conversation_items_user_buffer	role::text = 'user'::text AND buffer_id IS NOT NULL OR role::text <> 'user'::text
+ai_conversation_items	index	idx_ai_conv_items_buffer	buffer_id WHERE (buffer_id IS NOT NULL)
+ai_conversation_items	index	idx_ai_conv_items_excluded	user_qiao_id,instance_qiao_id,created_at WHERE (is_excluded_from_context = 1)
+ai_conversation_items	index	idx_ai_conv_items_session	user_qiao_id,instance_qiao_id,created_at
+ai_conversation_items	index	idx_ai_conv_items_text_search	text_content
+ai_conversation_items_archive	primary_key	ai_conversation_items_archive_pkey	(id)
+ai_conversation_items_archive	index	idx_ai_conv_items_archive_session	user_qiao_id,instance_qiao_id,created_at
+ai_conversation_runtime	primary_key	ai_conversation_runtime_pkey	(user_qiao_id,instance_qiao_id)
+ai_conversation_runtime	index	idx_ai_conversation_runtime_updated	updated_at
+ai_conversation_state	primary_key	ai_conversation_state_pkey	(user_qiao_id,instance_qiao_id)
+ai_conversation_state	index	idx_ai_conversation_state_updated	updated_at
+ai_dimension_relationship_mappings	primary_key	ai_dimension_relationship_mappings_pkey	(id)
+ai_dimension_relationship_mappings	foreign_key	fk_ai_dim_rel_mappings_dimension	(dimension_id)->(ai_dimensions.id)
+ai_dimension_relationship_mappings	foreign_key	fk_ai_dim_rel_mappings_relationship	(relationship_id)->(ai_relationships.id)
+ai_dimension_relationship_mappings	index	idx_ai_dim_rel_mappings_dimension_id	dimension_id
+ai_dimension_relationship_mappings	index	idx_ai_dim_rel_mappings_relationship_id	relationship_id
+ai_dimensions	primary_key	ai_dimensions_pkey	(id)
+ai_dimensions	unique	ai_dimensions_name_key	(name)
+ai_dimensions	index_unique	ai_dimensions_name_key	name
+ai_instance_dimensions	primary_key	ai_instance_dimensions_pkey	(id)
 ai_instance_dimensions	unique	ai_instance_dimensions_instance_id_dimension_id_key	(instance_id,dimension_id)
-ai_instance_dimensions	index	idx_ai_instance_dimensions_dimension_id	ai_instance_dimensions.dimension_id
-ai_instance_dimensions	index	idx_ai_instance_dimensions_instance_id	ai_instance_dimensions.instance_id
-ai_instance_memories	primary_key	pk_ai_instance_memories	(id)
-ai_instance_memories	foreign_key		(instance_id)->(ai_instances.id)
-ai_instance_memories	foreign_key		(user_id)->(users.id)
-ai_instance_memories	check	ck_instance_memories_importance_range	importance BETWEEN 1 AND 10
-ai_instance_memories	check	ck_instance_memories_status	status IN (1,2)
-ai_instance_memories	check	ck_instance_memories_type	memory_type IN ('core','recent')
-ai_instance_memories	index	idx_ai_instance_memories_expires	ai_instance_memories.memory_type,ai_instance_memories.status,ai_instance_memories.expires_at WHERE memory_type = 'recent' AND status = 1
-ai_instance_memories	index	idx_ai_instance_memories_instance_id	ai_instance_memories.instance_id
-ai_instance_memories	index	idx_ai_instance_memories_session	ai_instance_memories.user_qiao_id,ai_instance_memories.instance_qiao_id,ai_instance_memories.status
-ai_instance_memories	index	idx_ai_instance_memories_source	ai_instance_memories.source_message_id WHERE source_message_id IS NOT NULL
-ai_instance_memories	index_unique	uq_ai_instance_memory_content	ai_instance_memories.instance_id,ai_instance_memories.content
-ai_instances	primary_key	pk_ai_instances	(id)
+ai_instance_dimensions	foreign_key	fk_ai_instance_dimensions_dimension	(dimension_id)->(ai_dimensions.id)
+ai_instance_dimensions	foreign_key	fk_ai_instance_dimensions_instance	(instance_id)->(ai_instances.id)
+ai_instance_dimensions	index_unique	ai_instance_dimensions_instance_id_dimension_id_key	instance_id,dimension_id
+ai_instance_dimensions	index	idx_ai_instance_dimensions_dimension_id	dimension_id
+ai_instance_dimensions	index	idx_ai_instance_dimensions_instance_id	instance_id
+ai_instance_memories	primary_key	ai_instance_memories_pkey	(id)
+ai_instance_memories	foreign_key	fk_ai_instance_memories_instance	(instance_id)->(ai_instances.id)
+ai_instance_memories	foreign_key	fk_ai_instance_memories_user	(user_id)->(users.id)
+ai_instance_memories	check	ck_ai_instance_memories_importance	importance >= 1 AND importance <= 10
+ai_instance_memories	check	ck_ai_instance_memories_status	status = ANY (ARRAY[1, 2])
+ai_instance_memories	check	ck_ai_instance_memories_type	memory_type::text = ANY (ARRAY['core'::character varying::text, 'recent'::character varying::text])
+ai_instance_memories	index	idx_ai_instance_memories_expires	memory_type,status,expires_at WHERE (((memory_type)::text = 'recent'::text) AND (status = 1))
+ai_instance_memories	index	idx_ai_instance_memories_instance_id	instance_id
+ai_instance_memories	index	idx_ai_instance_memories_session	user_qiao_id,instance_qiao_id,status
+ai_instance_memories	index	idx_ai_instance_memories_source	source_message_id WHERE (source_message_id IS NOT NULL)
+ai_instance_memories	index_unique	uq_ai_instance_memories_content	instance_id,content
+ai_instances	primary_key	ai_instances_pkey	(id)
 ai_instances	unique	uq_ai_instances_user_qiao	(user_id,qiao_id)
-ai_instances	index	idx_ai_instances_persona_id	ai_instances.persona_id WHERE persona_id IS NOT NULL
-ai_instances	index	idx_ai_instances_personality_id	ai_instances.personality_id
-ai_instances	index	idx_ai_instances_style_id	ai_instances.style_id
-ai_instances	index	idx_ai_instances_user_id	ai_instances.user_id
-ai_instances	index	idx_ai_instances_user_qiao_id	ai_instances.user_qiao_id
-ai_message_buffer	primary_key	pk_ai_message_buffer	(id)
-ai_message_buffer	index	idx_ai_message_buffer_expire_scan	ai_message_buffer.user_qiao_id,ai_message_buffer.instance_qiao_id,ai_message_buffer.buffer_expires_at_ms WHERE aggregate_state IN (0, 1) AND buffer_expires_at_ms IS NOT NULL
-ai_message_buffer	index_unique	idx_ai_message_buffer_locked	ai_message_buffer.user_qiao_id,ai_message_buffer.instance_qiao_id WHERE aggregate_state = 2
-ai_message_buffer	index	idx_ai_message_buffer_session_state	ai_message_buffer.user_qiao_id,ai_message_buffer.instance_qiao_id,ai_message_buffer.aggregate_state
-ai_personalities	primary_key	pk_ai_personalities	(id)
-ai_personality_placeholders	primary_key	pk_ai_personality_placeholders	(id)
-ai_personas	primary_key	pk_ai_personas	(id)
-ai_personas	unique		(qiao_id)
-ai_relationships	primary_key	pk_ai_relationships	(id)
-ai_relationships	check	ck_ai_relationships_no_reply_probability	no_reply_probability >= 0 AND no_reply_probability <= 1
-ai_relationships	check	ck_ai_relationships_response_time_bounds	wake_time_max_ms >= wake_time_min_ms
-ai_relationships	check	ck_ai_relationships_response_time_min	wake_time_min_ms >= 500
-ai_request_logs	primary_key	pk_ai_request_logs	(id)
-ai_style_dimensions	primary_key	pk_ai_style_dimensions	(id)
-ai_style_dimensions	check	ai_style_dimensions_position_range	initial_position >= 0 AND initial_position <= 1000
+ai_instances	foreign_key	fk_ai_instances_persona	(persona_id)->(ai_personas.id)
+ai_instances	foreign_key	fk_ai_instances_personality	(personality_id)->(ai_personalities.id)
+ai_instances	foreign_key	fk_ai_instances_relationship	(relationship_id)->(ai_relationships.id)
+ai_instances	foreign_key	fk_ai_instances_style	(style_id)->(ai_styles.id)
+ai_instances	foreign_key	fk_ai_instances_user	(user_id)->(users.id)
+ai_instances	index	idx_ai_instances_creation_persona	idx_ai_instances_creation_persona
+ai_instances	index	idx_ai_instances_llm_config	llm_config_id WHERE (llm_config_id IS NOT NULL)
+ai_instances	index	idx_ai_instances_persona_id	persona_id WHERE (persona_id IS NOT NULL)
+ai_instances	index	idx_ai_instances_personality_id	personality_id
+ai_instances	index	idx_ai_instances_qiao_id	qiao_id
+ai_instances	index	idx_ai_instances_style_id	style_id
+ai_instances	index	idx_ai_instances_user_id	user_id
+ai_instances	index	idx_ai_instances_user_qiao_id	user_qiao_id
+ai_instances	index_unique	uq_ai_instances_user_qiao	user_id,qiao_id
+ai_message_buffer	primary_key	ai_message_buffer_pkey	(id)
+ai_message_buffer	check	ck_wake_delay_state	aggregate_state = 0 AND wake_delay_ms IS NOT NULL OR aggregate_state <> 0 AND wake_delay_ms IS NULL
+ai_message_buffer	index	idx_ai_message_buffer_expire_scan	user_qiao_id,instance_qiao_id,buffer_expires_at_ms WHERE ((aggregate_state = 1) AND (buffer_expires_at_ms IS NOT NULL))
+ai_message_buffer	index	idx_ai_message_buffer_macro	macro_expires_at_ms WHERE ((aggregate_state = 1) AND (macro_expires_at_ms IS NOT NULL))
+ai_message_buffer	index	idx_ai_message_buffer_micro	micro_expires_at_ms WHERE ((aggregate_state = 1) AND (micro_expires_at_ms IS NOT NULL))
+ai_message_buffer	index	idx_ai_message_buffer_session_state	user_qiao_id,instance_qiao_id,aggregate_state
+ai_message_buffer	index_unique	uniq_ai_message_buffer_locked	user_qiao_id,instance_qiao_id WHERE (aggregate_state = 2)
+ai_personalities	primary_key	ai_personalities_pkey	(id)
+ai_personality_placeholders	primary_key	ai_personality_placeholders_pkey	(id)
+ai_personality_placeholders	foreign_key	fk_ai_personality_placeholders_personality	(personality_id)->(ai_personalities.id)
+ai_personas	primary_key	ai_personas_pkey	(id)
+ai_personas	unique	ai_personas_qiao_id_key	(qiao_id)
+ai_personas	foreign_key	fk_ai_personas_type	(type_id)->(ai_types.id)
+ai_personas	index_unique	ai_personas_qiao_id_key	qiao_id
+ai_personas	index	idx_ai_personas_ai_type	type_id
+ai_personas	index	idx_ai_personas_status	status
+ai_personas	index_unique	uq_ai_personas_username_lower	uq_ai_personas_username_lower
+ai_relationships	primary_key	ai_relationships_pkey	(id)
+ai_relationships	check	ai_relationships_check	wake_time_max_ms >= wake_time_min_ms
+ai_relationships	check	ai_relationships_followup_delay_ms_check	followup_delay_ms >= 0
+ai_relationships	check	ai_relationships_no_reply_probability_check	no_reply_probability >= 0::numeric AND no_reply_probability <= 1::numeric
+ai_relationships	check	ai_relationships_wake_time_adjustment_check	wake_time_adjustment::text <> ''::text
+ai_relationships	check	ai_relationships_wake_time_bias_check	wake_time_bias::text <> ''::text
+ai_relationships	check	ai_relationships_wake_time_min_ms_check	wake_time_min_ms >= 500
+ai_relationships	check	ai_relationships_wake_window_ms_check	wake_window_ms >= 0
+ai_request_logs	primary_key	ai_request_logs_pkey	(id)
+ai_request_logs	index	idx_ai_request_logs_response_id	response_id
+ai_request_logs	index	idx_ai_request_logs_user_qiao_id	user_qiao_id
+ai_style_dimensions	primary_key	ai_style_dimensions_pkey	(id)
 ai_style_dimensions	unique	ai_style_dimensions_style_id_dimension_id_key	(style_id,dimension_id)
-ai_styles	primary_key	pk_ai_styles	(id)
-ai_template_memories	primary_key	pk_ai_template_memories	(id)
-ai_template_memories	foreign_key		(template_id)->(ai_templates.id)
-ai_template_memories	check	ck_template_memories_importance_range	importance BETWEEN 1 AND 10
-ai_template_memories	check	ck_template_memories_type	memory_type IN ('core','recent')
-ai_template_memories	index	idx_template_memories_template	ai_template_memories.template_id,ai_template_memories.display_order
-ai_templates	primary_key	pk_ai_templates	(id)
-ai_types	primary_key	pk_ai_types	(id)
-alert_event_entities	primary_key	pk_alert_event_entities	(id)
-alert_event_entities	index	idx_alert_event_entities_event_id	alert_event_entities.event_id
-alert_event_entities	index	idx_alert_event_entities_type_id_created_at	alert_event_entities.entity_type,alert_event_entities.entity_id,alert_event_entities.created_at
-alert_events	primary_key	pk_alert_events	(id)
-alert_events	check	ck_alert_events_severity_level	severity_level IN (10, 20, 30, 40, 50)
-alert_events	index	idx_alert_events_created_at	alert_events.created_at
-alert_events	index	idx_alert_events_dedupe_key	alert_events.dedupe_key
-alert_events	index	idx_alert_events_domain_created_at	alert_events.domain,alert_events.created_at
-alert_events	index	idx_alert_events_event_type_created_at	alert_events.event_type,alert_events.created_at
-alert_events	index_unique	uq_alert_events_event_type_dedupe_key	alert_events.event_type,alert_events.dedupe_key WHERE alert_events.dedupe_key IS NOT NULL
-app_pages	primary_key	pk_app_pages	(id)
-app_pages	check	ck_app_pages_client_type	client_type IN ('mini-program')
-app_pages	check	ck_app_pages_locale	locale IN ('zh-CN')
-app_pages	check	ck_app_pages_page_category	page_category IN (1, 2)
-app_pages	check	ck_app_pages_source_type	source_type IN (1, 2)
-app_pages	check	ck_app_pages_status	status IN (1, 2)
+ai_style_dimensions	foreign_key	fk_ai_style_dimensions_dimension	(dimension_id)->(ai_dimensions.id)
+ai_style_dimensions	foreign_key	fk_ai_style_dimensions_style	(style_id)->(ai_styles.id)
+ai_style_dimensions	check	ai_style_dimensions_initial_position_check	initial_position >= 0 AND initial_position <= 1000
+ai_style_dimensions	index_unique	ai_style_dimensions_style_id_dimension_id_key	style_id,dimension_id
+ai_style_dimensions	index	idx_ai_style_dimensions_dimension_id	dimension_id
+ai_style_dimensions	index	idx_ai_style_dimensions_style_id	style_id
+ai_styles	primary_key	ai_styles_pkey	(id)
+ai_template_memories	primary_key	ai_template_memories_pkey	(id)
+ai_template_memories	foreign_key	fk_template_memories_template	(template_id)->(ai_templates.id)
+ai_template_memories	check	ck_template_memories_importance	importance >= 1 AND importance <= 10
+ai_template_memories	check	ck_template_memories_type	memory_type::text = ANY (ARRAY['core'::character varying::text, 'recent'::character varying::text])
+ai_template_memories	index	idx_template_memories_template	template_id,display_order
+ai_templates	primary_key	ai_templates_pkey	(id)
+ai_templates	foreign_key	fk_ai_templates_personality	(personality_id)->(ai_personalities.id)
+ai_templates	foreign_key	fk_ai_templates_style	(style_id)->(ai_styles.id)
+ai_templates	foreign_key	fk_ai_templates_type	(type_id)->(ai_types.id)
+ai_templates	index	idx_ai_templates_ai_type	type_id
+ai_templates	index	idx_ai_templates_llm_config	llm_config_id WHERE (llm_config_id IS NOT NULL)
+ai_templates	index	idx_ai_templates_usage	type_id,status,is_reusable
+ai_types	primary_key	ai_types_pkey	(id)
+alembic_version	primary_key	alembic_version_pkc	(version_num)
+alert_event_entities	primary_key	alert_event_entities_pkey	(id)
+alert_event_entities	index	idx_alert_event_entities_event_id	event_id
+alert_event_entities	index	idx_alert_event_entities_type_id_created_at	entity_type,entity_id,created_at
+alert_events	primary_key	alert_events_pkey	(id)
+alert_events	check	ck_alert_events_severity_level	severity_level = ANY (ARRAY[10, 20, 30, 40, 50])
+alert_events	index	idx_alert_events_created_at	created_at
+alert_events	index	idx_alert_events_dedupe_key	dedupe_key
+alert_events	index	idx_alert_events_domain_created_at	domain,created_at
+alert_events	index	idx_alert_events_event_type_created_at	event_type,created_at
+alert_events	index_unique	uq_alert_events_event_type_dedupe_key	event_type,dedupe_key WHERE (dedupe_key IS NOT NULL)
+app_pages	primary_key	app_pages_pkey	(id)
 app_pages	unique	uq_app_pages_page_client_locale	(page_key,client_type,locale)
-backup_jobs	primary_key	pk_backup_jobs	(id)
-contact_requests	primary_key	pk_contact_requests	(id)
-contact_requests	index	idx_contact_requests_expires_at	contact_requests.expires_at
-contacts	primary_key	pk_contacts	(id)
-contacts	foreign_key		(custom_avatar_media_id)->(media_files.id)
-contacts	unique		(conversation_id)
-contacts	check	ck_contacts_avatar_display_mode	avatar_display_mode IN (1, 2)
-contacts	check	ck_contacts_source	source IN (0, 1, 2, 3, 4, 5, 6)
-contacts	unique	contacts_user_contact_qiao_unique	(user_id,contact_qiao_id)
-contacts	index	idx_contacts_contact_qiao_id	contacts.contact_qiao_id
-contacts	index	idx_contacts_user_qiao_id	contacts.user_qiao_id
-llm_configs	primary_key	pk_llm_configs	(id)
-llm_configs	unique		(name)
-llm_configs	check	check_default_tool_choice	default_tool_choice IN ('auto', 'none', 'required')
-llm_configs	check	check_frequency_penalty	frequency_penalty >= -2 AND frequency_penalty <= 2
-llm_configs	check	check_max_tool_calls	max_tool_calls >= 0
-llm_configs	check	check_presence_penalty	presence_penalty >= -2 AND presence_penalty <= 2
-llm_configs	check	check_thinking_mode	thinking_mode IN ('enabled', 'disabled', 'auto')
-llm_configs	check	check_top_p	top_p >= 0 AND top_p <= 1
-llm_configs	index	idx_llm_configs_provider_id	llm_configs.provider_id
-llm_providers	primary_key	pk_llm_providers	(id)
-llm_providers	unique		(display_name)
-llm_test_logs	primary_key	pk_llm_test_logs	(id)
-login_records	primary_key	pk_login_records	(id)
-media_files	primary_key	pk_media_files	(id)
-media_files	check	ck_media_files_file_type	file_type IN (1,2,3,4)
-media_files	check	ck_media_files_status	status IN (1,2,3)
-media_files	check	ck_media_files_storage_provider	storage_provider = 'tencent_cos'
-media_files	unique	uq_media_files_storage_object	(storage_provider,bucket_name,object_key)
-media_files	index_unique	ix_media_files_file_id	media_files.file_id
-message_deliveries	primary_key	pk_message_deliveries	(id)
-message_deliveries	check	ck_message_deliveries_provider	provider IN (1, 2)
-message_deliveries	check	ck_message_deliveries_status	status IN (1, 2, 3)
+app_pages	check	ck_app_pages_client_type	client_type::text = 'mini-program'::text
+app_pages	check	ck_app_pages_locale	locale::text = 'zh-CN'::text
+app_pages	check	ck_app_pages_page_category	page_category = ANY (ARRAY[1, 2])
+app_pages	check	ck_app_pages_source_type	source_type = ANY (ARRAY[1, 2])
+app_pages	check	ck_app_pages_status	status = ANY (ARRAY[1, 2])
+app_pages	index	idx_app_pages_client_locale	client_type,locale
+app_pages	index	idx_app_pages_page_key	page_key
+app_pages	index	idx_app_pages_status	status
+app_pages	index_unique	uq_app_pages_page_client_locale	page_key,client_type,locale
+backup_jobs	primary_key	backup_jobs_pkey	(id)
+backup_jobs	check	ck_backup_jobs_status	status = ANY (ARRAY[1, 2, 3])
+backup_jobs	index	idx_backup_jobs_created_at	created_at
+backup_jobs	index	idx_backup_jobs_started_at	started_at
+backup_jobs	index	idx_backup_jobs_status	status
+contact_requests	primary_key	contact_requests_pkey	(id)
+contact_requests	index	idx_contact_requests_expires_at	expires_at
+contact_requests	index	idx_contact_requests_worker_query	status,to_type,expires_at WHERE (status = ANY (ARRAY[1, 8]))
+contact_requests	index_unique	uniq_contact_requests_pending_pair	from_qiao_id,to_qiao_id WHERE (status = ANY (ARRAY[1, 8]))
+contacts	primary_key	contacts_pkey	(id)
+contacts	unique	contacts_conversation_id_key	(conversation_id)
+contacts	unique	uq_contacts_user_contact_qiao	(user_id,contact_qiao_id)
+contacts	foreign_key	fk_contacts_custom_avatar_media	(custom_avatar_media_id)->(media_files.id)
+contacts	foreign_key	fk_contacts_user	(user_id)->(users.id)
+contacts	check	ck_contacts_avatar_display_mode	avatar_display_mode = ANY (ARRAY[1, 2])
+contacts	check	ck_contacts_source	source = ANY (ARRAY[0, 1, 2, 3, 4, 5, 6])
+contacts	index_unique	contacts_conversation_id_key	conversation_id
+contacts	index	idx_contacts_contact_qiao_id	contact_qiao_id
+contacts	index	idx_contacts_user_qiao_id	user_qiao_id
+contacts	index_unique	uq_contacts_user_contact_qiao	user_id,contact_qiao_id
+llm_configs	primary_key	llm_configs_pkey	(id)
+llm_configs	unique	llm_configs_name_key	(name)
+llm_configs	foreign_key	fk_llm_configs_provider	(provider_id)->(llm_providers.id)
+llm_configs	check	ck_llm_configs_default_tool_choice	default_tool_choice::text <> ''::text
+llm_configs	check	ck_llm_configs_frequency_penalty	frequency_penalty >= '-2'::integer::numeric AND frequency_penalty <= 2::numeric
+llm_configs	check	ck_llm_configs_max_tool_calls	max_tool_calls >= 0
+llm_configs	check	ck_llm_configs_presence_penalty	presence_penalty >= '-2'::integer::numeric AND presence_penalty <= 2::numeric
+llm_configs	check	ck_llm_configs_thinking_mode	thinking_mode::text <> ''::text
+llm_configs	check	ck_llm_configs_top_p	top_p >= 0::numeric AND top_p <= 1::numeric
+llm_configs	index	idx_llm_configs_provider_id	provider_id
+llm_configs	index_unique	llm_configs_name_key	name
+llm_providers	primary_key	llm_providers_pkey	(id)
+llm_providers	unique	llm_providers_display_name_key	(display_name)
+llm_providers	index_unique	llm_providers_display_name_key	display_name
+llm_test_logs	primary_key	llm_test_logs_pkey	(id)
+llm_test_logs	check	ck_llm_test_logs_thinking_mode	thinking_mode::text <> ''::text
+login_records	primary_key	login_records_pkey	(id)
+login_records	foreign_key	fk_login_records_user_token	(user_token_id)->(user_tokens.id)
+login_records	index	idx_login_records_user_token_id	user_token_id
+media_files	primary_key	media_files_pkey	(id)
+media_files	unique	media_files_file_id_key	(file_id)
+media_files	check	media_files_storage_provider_check	storage_provider::text = 'tencent_cos'::text
+media_files	index	idx_media_files_file_hash	file_hash
+media_files	index	idx_media_files_file_id	file_id
+media_files	index	idx_media_files_status	status
+media_files	index_unique	idx_media_files_storage_unique	storage_provider,bucket_name,object_key
+media_files	index	idx_media_files_upload_by	upload_by_type,upload_by_id
+media_files	index_unique	media_files_file_id_key	file_id
+message_deliveries	primary_key	message_deliveries_pkey	(id)
 message_deliveries	unique	uq_message_deliveries_msg_endpoint	(msg_id_server,endpoint_id)
-message_deliveries	index	idx_message_deliveries_endpoint_id	message_deliveries.endpoint_id
-message_deliveries	index	idx_message_deliveries_msg_id_server	message_deliveries.msg_id_server
-message_deliveries	index	idx_message_deliveries_status	message_deliveries.status
-message_devices	primary_key	pk_message_devices	(id)
+message_deliveries	foreign_key	fk_message_deliveries_endpoint	(endpoint_id)->(message_endpoints.id)
+message_deliveries	foreign_key	fk_message_deliveries_message	(msg_id_server)->(message_history.msg_id_server)
+message_deliveries	check	ck_message_deliveries_provider	provider = ANY (ARRAY[1, 2])
+message_deliveries	check	ck_message_deliveries_status	status = ANY (ARRAY[1, 2, 3])
+message_deliveries	index	idx_message_deliveries_endpoint_id	endpoint_id
+message_deliveries	index	idx_message_deliveries_msg_id_server	msg_id_server
+message_deliveries	index	idx_message_deliveries_status	status
+message_deliveries	index_unique	uq_message_deliveries_msg_endpoint	msg_id_server,endpoint_id
+message_devices	primary_key	message_devices_pkey	(id)
 message_devices	unique	uq_message_devices_user_device	(user_id,device_id)
-message_devices	index	idx_message_devices_device_id	message_devices.device_id
-message_devices	index	idx_message_devices_last_acked_msg_sent_at	message_devices.last_acked_msg_sent_at
-message_devices	index	idx_message_devices_user_qiao_id	message_devices.user_qiao_id
-message_dispatch_outbox	primary_key	pk_message_dispatch_outbox	(id)
-message_dispatch_outbox	check	ck_message_dispatch_outbox_attempt_count	attempt_count >= 0
-message_dispatch_outbox	check	ck_message_dispatch_outbox_status	status IN (1, 2, 3, 4)
-message_dispatch_outbox	check	ck_message_dispatch_outbox_type	outbox_type IN (1)
+message_devices	foreign_key	fk_message_devices_user	(user_id)->(users.id)
+message_devices	index	idx_message_devices_device_id	device_id
+message_devices	index	idx_message_devices_last_acked_msg_sent_at	last_acked_msg_sent_at
+message_devices	index	idx_message_devices_user_qiao_id	user_qiao_id
+message_devices	index_unique	uq_message_devices_user_device	user_id,device_id
+message_dispatch_outbox	primary_key	message_dispatch_outbox_pkey	(id)
 message_dispatch_outbox	unique	uq_message_dispatch_outbox_type_msg	(outbox_type,msg_id_server)
-message_dispatch_outbox	index	idx_message_dispatch_outbox_owner_user_id	message_dispatch_outbox.owner_user_id
-message_dispatch_outbox	index	idx_message_dispatch_outbox_status_next_retry	message_dispatch_outbox.status,message_dispatch_outbox.next_retry_at
-message_endpoints	primary_key	pk_message_endpoints	(id)
-message_endpoints	check	ck_message_endpoints_provider	provider IN (1, 2)
-message_endpoints	check	ck_message_endpoints_scope	endpoint_scope IN (1, 2)
-message_endpoints	check	ck_message_endpoints_scope_device	(endpoint_scope = 1 AND device_id IS NULL) OR (endpoint_scope = 2 AND device_id IS NOT NULL)
+message_dispatch_outbox	foreign_key	fk_message_dispatch_outbox_message	(msg_id_server)->(message_history.msg_id_server)
+message_dispatch_outbox	foreign_key	fk_message_dispatch_outbox_owner_user	(owner_user_id)->(users.id)
+message_dispatch_outbox	check	ck_message_dispatch_outbox_attempt_count	attempt_count >= 0
+message_dispatch_outbox	check	ck_message_dispatch_outbox_status	status = ANY (ARRAY[1, 2, 3, 4])
+message_dispatch_outbox	check	ck_message_dispatch_outbox_type	outbox_type = 1
+message_dispatch_outbox	index	idx_message_dispatch_outbox_owner_user_id	owner_user_id
+message_dispatch_outbox	index	idx_message_dispatch_outbox_status_next_retry	status,next_retry_at
+message_dispatch_outbox	index_unique	uq_message_dispatch_outbox_type_msg	outbox_type,msg_id_server
+message_endpoints	primary_key	message_endpoints_pkey	(id)
 message_endpoints	unique	uq_message_endpoints_provider_user_target	(provider,user_id,target_key)
-message_endpoints	index	idx_message_endpoints_device_id	message_endpoints.device_id
-message_endpoints	index	idx_message_endpoints_lease_expires_at	message_endpoints.lease_expires_at
-message_endpoints	index	idx_message_endpoints_provider	message_endpoints.provider
-message_endpoints	index	idx_message_endpoints_scope	message_endpoints.endpoint_scope
-message_endpoints	index	idx_message_endpoints_user_qiao_id	message_endpoints.user_qiao_id
-message_endpoints	index_unique	uq_message_endpoints_provider_user_device_scope	message_endpoints.provider,message_endpoints.user_id,message_endpoints.device_id WHERE endpoint_scope = 2
-message_history	primary_key	pk_message_history	(id)
-message_history	unique		(msg_id_server)
-message_history	check	ck_message_history_inbound_provider	inbound_provider IS NULL OR inbound_provider IN (1, 2)
+message_endpoints	foreign_key	fk_message_endpoints_device	(user_id,device_id)->(message_devices.user_id,message_devices.device_id)
+message_endpoints	foreign_key	fk_message_endpoints_user	(user_id)->(users.id)
+message_endpoints	check	ck_message_endpoints_provider	provider = ANY (ARRAY[1, 2])
+message_endpoints	check	ck_message_endpoints_scope	endpoint_scope = ANY (ARRAY[1, 2])
+message_endpoints	check	ck_message_endpoints_scope_device	endpoint_scope = 1 AND device_id IS NULL OR endpoint_scope = 2 AND device_id IS NOT NULL
+message_endpoints	index	idx_message_endpoints_device_id	device_id
+message_endpoints	index	idx_message_endpoints_lease_expires_at	lease_expires_at
+message_endpoints	index	idx_message_endpoints_provider	provider
+message_endpoints	index	idx_message_endpoints_scope	endpoint_scope
+message_endpoints	index	idx_message_endpoints_user_qiao_id	user_qiao_id
+message_endpoints	index_unique	uq_message_endpoints_provider_user_device_scope	provider,user_id,device_id WHERE (endpoint_scope = 2)
+message_endpoints	index_unique	uq_message_endpoints_provider_user_target	provider,user_id,target_key
+message_history	primary_key	message_history_pkey	(id)
+message_history	unique	message_history_msg_id_server_key	(msg_id_server)
 message_history	unique	uq_message_history_conv_client_id	(conversation_id,msg_id_client)
-message_history	index	idx_message_history_conversation_id	message_history.conversation_id
-message_history	index	idx_message_history_created_at	message_history.created_at
-message_history	index	idx_message_history_from_qiao_id	message_history.from_qiao_id
-message_history	index	idx_message_history_llm_request_id	message_history.llm_request_id
-message_history	index	idx_message_history_metadata_gin	message_history.message_metadata
-message_history	index	idx_message_history_msg_id_client	message_history.msg_id_client
-message_history	index	idx_message_history_to_qiao_id	message_history.to_qiao_id
-notification_push_history	primary_key	pk_notification_push_history	(id)
-notification_push_history	index	idx_notification_push_created_at	notification_push_history.created_at
-profiles	primary_key	pk_profiles	(id)
-profiles	foreign_key		(avatar_media_id)->(media_files.id)
-profiles	unique		(owner_qiao_id)
-square_categories	primary_key	pk_square_categories	(id)
-square_categories	unique		(category_key)
-square_type_entries	primary_key	pk_square_type_entries	(id)
-square_type_entries	foreign_key		(category_key)->(square_categories.category_key)
-square_type_entries	foreign_key		(type_id)->(ai_types.id)
-stats_ai_daily	primary_key	pk_stats_ai_daily	(id)
-stats_ai_daily	unique		(stat_date)
-stats_ai_monthly	primary_key	pk_stats_ai_monthly	(id)
-stats_ai_monthly	unique		(stat_date)
-stats_ai_weekly	primary_key	pk_stats_ai_weekly	(id)
-stats_ai_weekly	unique		(stat_date)
-stats_message_daily	primary_key	pk_stats_message_daily	(id)
-stats_message_daily	unique		(stat_date)
-stats_message_monthly	primary_key	pk_stats_message_monthly	(id)
-stats_message_monthly	unique		(stat_date)
-stats_message_weekly	primary_key	pk_stats_message_weekly	(id)
-stats_message_weekly	unique		(stat_date)
-stats_user_daily	primary_key	pk_stats_user_daily	(id)
-stats_user_daily	unique		(stat_date)
-stats_user_monthly	primary_key	pk_stats_user_monthly	(id)
-stats_user_monthly	unique		(stat_date)
-stats_user_weekly	primary_key	pk_stats_user_weekly	(id)
-stats_user_weekly	unique		(stat_date)
-system_configs	primary_key	pk_system_configs	(id)
-system_configs	unique		(config_key)
-user_auths	primary_key	pk_user_auths	(id)
+message_history	foreign_key	fk_message_history_llm_request	(llm_request_id)->(ai_request_logs.id)
+message_history	check	ck_message_history_inbound_provider	inbound_provider IS NULL OR (inbound_provider = ANY (ARRAY[1, 2]))
+message_history	index	idx_message_history_conversation_id	conversation_id
+message_history	index	idx_message_history_created_at	created_at
+message_history	index	idx_message_history_from_qiao_id	from_qiao_id
+message_history	index	idx_message_history_llm_request_id	llm_request_id
+message_history	index	idx_message_history_metadata_gin	message_metadata
+message_history	index	idx_message_history_msg_id_client	msg_id_client
+message_history	index	idx_message_history_to_qiao_id	to_qiao_id
+message_history	index_unique	message_history_msg_id_server_key	msg_id_server
+message_history	index_unique	uq_message_history_conv_client_id	conversation_id,msg_id_client
+notification_push_history	primary_key	notification_push_history_pkey	(id)
+notification_push_history	index	idx_notification_push_created_at	created_at
+profiles	primary_key	profiles_pkey	(id)
+profiles	unique	profiles_owner_qiao_id_key	(owner_qiao_id)
+profiles	foreign_key	fk_profiles_avatar_media	(avatar_media_id)->(media_files.id)
+profiles	index_unique	profiles_owner_qiao_id_key	owner_qiao_id
+square_categories	primary_key	square_categories_pkey	(id)
+square_categories	unique	uq_square_categories_category_key	(category_key)
+square_categories	check	ck_square_categories_category_key_format	category_key::text ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'::text
+square_categories	check	ck_square_categories_icon_ref_format	icon_ref::text ~ '^tdesign:[a-z0-9-]+$'::text
+square_categories	check	ck_square_categories_status	status = ANY (ARRAY[1, 2])
+square_categories	check	ck_square_categories_theme_key	theme_key::text = ANY (ARRAY['blue'::character varying, 'cyan'::character varying, 'teal'::character varying, 'green'::character varying, 'lime'::character varying, 'yellow'::character varying, 'orange'::character varying, 'purple'::character varying, 'pink'::character varying, 'magenta'::character varying, 'beige'::character varying, 'charcoal'::character varying]::text[])
+square_categories	check	ck_square_categories_title_length	char_length(title::text) <= 20
+square_categories	index	idx_square_categories_status_sort	status,sort_order,category_key
+square_categories	index_unique	uq_square_categories_category_key	category_key
+square_type_entries	primary_key	square_type_entries_pkey	(id)
+square_type_entries	unique	uq_square_type_entries_category_key_type_id	(category_key,type_id)
+square_type_entries	foreign_key	fk_square_type_entries_category	(category_key)->(square_categories.category_key)
+square_type_entries	foreign_key	fk_square_type_entries_type	(type_id)->(ai_types.id)
+square_type_entries	check	ck_square_type_entries_status	status = ANY (ARRAY[1, 2])
+square_type_entries	index	idx_square_type_entries_ai_type	type_id
+square_type_entries	index	idx_square_type_entries_category_key	category_key
+square_type_entries	index	idx_square_type_entries_status	status
+square_type_entries	index_unique	uq_square_type_entries_active_type_id	type_id WHERE (status = 1)
+square_type_entries	index_unique	uq_square_type_entries_category_key_type_id	category_key,type_id
+stats_ai_daily	primary_key	stats_ai_daily_pkey	(id)
+stats_ai_daily	unique	stats_ai_daily_stat_date_key	(stat_date)
+stats_ai_daily	index_unique	stats_ai_daily_stat_date_key	stat_date
+stats_ai_monthly	primary_key	stats_ai_monthly_pkey	(id)
+stats_ai_monthly	unique	stats_ai_monthly_stat_date_key	(stat_date)
+stats_ai_monthly	index_unique	stats_ai_monthly_stat_date_key	stat_date
+stats_ai_weekly	primary_key	stats_ai_weekly_pkey	(id)
+stats_ai_weekly	unique	stats_ai_weekly_stat_date_key	(stat_date)
+stats_ai_weekly	index_unique	stats_ai_weekly_stat_date_key	stat_date
+stats_message_daily	primary_key	stats_message_daily_pkey	(id)
+stats_message_daily	unique	stats_message_daily_stat_date_key	(stat_date)
+stats_message_daily	index_unique	stats_message_daily_stat_date_key	stat_date
+stats_message_monthly	primary_key	stats_message_monthly_pkey	(id)
+stats_message_monthly	unique	stats_message_monthly_stat_date_key	(stat_date)
+stats_message_monthly	index_unique	stats_message_monthly_stat_date_key	stat_date
+stats_message_weekly	primary_key	stats_message_weekly_pkey	(id)
+stats_message_weekly	unique	stats_message_weekly_stat_date_key	(stat_date)
+stats_message_weekly	index_unique	stats_message_weekly_stat_date_key	stat_date
+stats_user_daily	primary_key	stats_user_daily_pkey	(id)
+stats_user_daily	unique	stats_user_daily_stat_date_key	(stat_date)
+stats_user_daily	index_unique	stats_user_daily_stat_date_key	stat_date
+stats_user_monthly	primary_key	stats_user_monthly_pkey	(id)
+stats_user_monthly	unique	stats_user_monthly_stat_date_key	(stat_date)
+stats_user_monthly	index_unique	stats_user_monthly_stat_date_key	stat_date
+stats_user_weekly	primary_key	stats_user_weekly_pkey	(id)
+stats_user_weekly	unique	stats_user_weekly_stat_date_key	(stat_date)
+stats_user_weekly	index_unique	stats_user_weekly_stat_date_key	stat_date
+system_configs	primary_key	system_configs_pkey	(id)
+system_configs	unique	system_configs_config_key_key	(config_key)
+system_configs	index_unique	system_configs_config_key_key	config_key
+user_auths	primary_key	user_auths_pkey	(id)
 user_auths	unique	uq_user_auths_type_provider	(auth_type,provider_uid)
-user_auths	index	idx_user_auths_user_qiao_id	user_auths.user_qiao_id
-user_profile_logs	primary_key	pk_user_profile_logs	(id)
-user_profile_logs	index	idx_user_profile_logs_created_at	user_profile_logs.created_at
-user_profile_logs	index	idx_user_profile_logs_field_name	user_profile_logs.field_name
-user_profile_logs	index	idx_user_profile_logs_modified_by_type	user_profile_logs.modified_by_type
-user_profile_logs	index	idx_user_profile_logs_owner_id	user_profile_logs.owner_id
-user_profile_logs	index	idx_user_profile_logs_owner_qiao_id	user_profile_logs.owner_qiao_id
-user_risk_stats	primary_key	pk_user_risk_stats	(id)
-user_risk_stats	unique		(user_qiao_id)
-user_risk_stats	unique		(user_id)
-user_tokens	primary_key	pk_user_tokens	(id)
-user_tokens	unique		(access_token)
-user_tokens	index_unique	idx_user_tokens_refresh_hash	user_tokens.refresh_token_hash WHERE refresh_token_hash IS NOT NULL
-user_tokens	index	idx_user_tokens_user_qiao_id	user_tokens.user_qiao_id
-user_violation_logs	primary_key	pk_user_violation_logs	(id)
-users	primary_key	pk_users	(id)
-users	unique		(phone)
-users	unique		(email)
-users	unique		(qiao_id)
+user_auths	foreign_key	fk_user_auths_user	(user_id)->(users.id)
+user_auths	index	idx_user_auths_user_qiao_id	user_qiao_id
+user_auths	index_unique	uq_user_auths_type_provider	auth_type,provider_uid
+user_profile_logs	primary_key	user_profile_logs_pkey	(id)
+user_profile_logs	index	idx_user_profile_logs_created_at	created_at
+user_profile_logs	index	idx_user_profile_logs_field_name	field_name
+user_profile_logs	index	idx_user_profile_logs_modified_by_type	modified_by_type
+user_profile_logs	index	idx_user_profile_logs_owner_id	owner_id
+user_profile_logs	index	idx_user_profile_logs_owner_qiao_id	owner_qiao_id
+user_risk_stats	primary_key	user_risk_stats_pkey	(id)
+user_risk_stats	unique	user_risk_stats_user_id_key	(user_id)
+user_risk_stats	unique	user_risk_stats_user_qiao_id_key	(user_qiao_id)
+user_risk_stats	index_unique	user_risk_stats_user_id_key	user_id
+user_risk_stats	index_unique	user_risk_stats_user_qiao_id_key	user_qiao_id
+user_tokens	primary_key	user_tokens_pkey	(id)
+user_tokens	unique	user_tokens_access_token_key	(access_token)
+user_tokens	foreign_key	fk_user_tokens_user	(user_id)->(users.id)
+user_tokens	index_unique	idx_user_tokens_refresh_hash	refresh_token_hash WHERE (refresh_token_hash IS NOT NULL)
+user_tokens	index	idx_user_tokens_user_qiao_id	user_qiao_id
+user_tokens	index_unique	user_tokens_access_token_key	access_token
+user_violation_logs	primary_key	user_violation_logs_pkey	(id)
+users	primary_key	users_pkey	(id)
+users	unique	users_email_key	(email)
+users	unique	users_phone_key	(phone)
+users	unique	users_qiao_id_key	(qiao_id)
+users	check	ck_users_username_length	username IS NULL OR char_length(username::text) >= 5 AND char_length(username::text) <= 20
+users	index_unique	uq_users_username_lower	uq_users_username_lower WHERE (username IS NOT NULL)
+users	index_unique	users_email_key	email
+users	index_unique	users_phone_key	phone
+users	index_unique	users_qiao_id_key	qiao_id

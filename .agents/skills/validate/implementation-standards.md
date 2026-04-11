@@ -14,7 +14,7 @@ Checklist for implementation-level quality gates.
 | Modified files | Required updates |
 |---|---|
 | `backend/app/api/**/*.py` | `docs/api/*.md` |
-| `backend/app/models/*.py` | `backend/database/init/sql/01_schema.sql` and `docs/data-dict/schema.*.tsv` |
+| `backend/app/models/*.py` | matching `backend/alembic/versions/*.py`, then regenerate `backend/database/init/sql/01_schema.sql` and `docs/data-dict/schema.*.tsv` |
 | `backend/alembic/versions/*.py` | `backend/database/init/sql/01_schema.sql` and `docs/data-dict/schema.*.tsv` |
 | `frontend/mp-weixin/pages/**/*` | related `docs/spec/**/*.md` if behavior changes |
 | config/environment files | corresponding config docs |

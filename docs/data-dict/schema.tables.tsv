@@ -2,26 +2,28 @@ table	primary_key	model	comment
 admin_login_logs	id	app.models.admin.AdminLoginLog
 admin_operation_logs	id	app.models.admin.AdminOperationLog
 admin_users	id	app.models.admin.AdminUser
+ai_buffer_wake_events	id	app.models.ai.instance.AIMessageBufferWakeEvent
 ai_conversation_items	id	app.models.ai.instance.AIConversationItem
 ai_conversation_items_archive	id	app.models.ai.instance.AIConversationItemArchive
-ai_conversation_runtime	user_qiao_id,instance_qiao_id	app.models.ai.instance.AIConversationRuntime
-ai_conversation_state	user_qiao_id,instance_qiao_id	app.models.ai.instance.AIConversationState
+ai_conversation_runtime	user_qiao_id,instance_qiao_id	app.models.ai.instance.AIConversationRuntime	AI conversation runtime turn versions for delayed preemption
+ai_conversation_state	user_qiao_id,instance_qiao_id	app.models.ai.instance.AIConversationState	AI conversation state - tracks pending messages and interruption state
 ai_dimension_relationship_mappings	id	app.models.ai.style.AIDimensionRelationshipMapping
 ai_dimensions	id	app.models.ai.style.AIDimension
 ai_instance_dimensions	id	app.models.ai.instance_dimension.AIInstanceDimension
-ai_instance_memories	id	app.models.ai.memory.AIInstanceMemory
-ai_instances	id	app.models.ai.instance.AIInstance
+ai_instance_memories	id	app.models.ai.memory.AIInstanceMemory	AI instance memories - manages AI memories about users with importance-based lifetime
+ai_instances	id	app.models.ai.instance.AIInstance	AI instances - created when users add personas
 ai_message_buffer	id	app.models.ai.instance.AIMessageBuffer
 ai_personalities	id	app.models.ai.personality.AIPersonality
 ai_personality_placeholders	id	app.models.ai.personality.AIPersonalityPlaceholder
-ai_personas	id	app.models.ai.template.AIPersona
+ai_personas	id	app.models.ai.template.AIPersona	AI personas - manages unique qiao_id inventory (similar to product SKU)
 ai_relationships	id	app.models.ai.style.AIRelationship
 ai_request_logs	id	app.models.ai.log.AIRequestLog
 ai_style_dimensions	id	app.models.ai.style.AIStyleDimension
 ai_styles	id	app.models.ai.style.AIStyle
-ai_template_memories	id	app.models.ai.memory.AITemplateMemory
-ai_templates	id	app.models.ai.template.AITemplate
-ai_types	id	app.models.ai.template.AIType
+ai_template_memories	id	app.models.ai.memory.AITemplateMemory	Template seed memories - static memory definitions copied to instances during instantiation
+ai_templates	id	app.models.ai.template.AITemplate	AI templates - core configuration templates for AI instances
+ai_types	id	app.models.ai.template.AIType	AI template types - INTERNAL inventory groupings, NOT related to Square categories
+alembic_version	version_num
 alert_event_entities	id	app.models.system.alerting.AlertEventEntity
 alert_events	id	app.models.system.alerting.AlertEvent
 app_pages	id	app.models.content.app_page.AppPage
@@ -40,8 +42,8 @@ message_endpoints	id	app.models.message.routing.MessageEndpoint
 message_history	id	app.models.message.message.MessageHistory
 notification_push_history	id	app.models.message.notification.NotificationPushHistory
 profiles	id	app.models.profile.Profile
-square_categories	id	app.models.content.SquareCategory
-square_type_entries	id	app.models.content.SquareTypeEntry
+square_categories	id	app.models.content.SquareCategory	Square category definitions for dynamic discovery tabs
+square_type_entries	id	app.models.content.SquareTypeEntry	Square discovery entries - decoupled from template/profile inventory
 stats_ai_daily	id	app.models.system.stats.StatsAIDaily
 stats_ai_monthly	id	app.models.system.stats.StatsAIMonthly
 stats_ai_weekly	id	app.models.system.stats.StatsAIWeekly

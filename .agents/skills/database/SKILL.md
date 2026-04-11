@@ -25,9 +25,11 @@ Run database migration, reset, and sync workflows.
 
 1. Migration-first: never patch runtime DB manually as replacement for migration.
 2. Maintain single-source sync:
-   - source-of-truth: `backend/app/models/*.py` + `backend/alembic/versions/*.py`
+   - source-of-truth: `backend/alembic/versions/*.py`
    - generated artifacts: `backend/database/init/sql/01_schema.sql` + `docs/data-dict/*`
    - generation entry: `scripts/schema/generate_schema_artifacts.py` (or `/schema-autogen`)
+   - SQL export preferred mode: `pg_dump_docker` (container-connected)
+   - model files are implementation artifacts and must stay consistent with migrations
 3. Reset requires explicit user confirmation.
 4. Never run reset on production-like environments.
 5. Block completion if sync or migration verification fails.

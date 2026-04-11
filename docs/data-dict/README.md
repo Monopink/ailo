@@ -1,10 +1,12 @@
-# 数据库设计文档
+﻿# 数据库设计文档
 
 ## 真相源
 
-- 真相源仅为 `backend/app/models/*.py` 与 `backend/alembic/versions/*.py`
+- 真相源仅为 `backend/alembic/versions/*.py`
 - `docs/data-dict/*` 为自动生成产物，不是手工维护真相源
 - `backend/database/init/sql/01_schema.sql` 与 `docs/data-dict/*` 必须由同一生成流程产出
+- 生成流程先执行 `alembic upgrade head`，再导出 SQL 并反射数据库生成 TSV
+- SQL 导出默认使用容器 `pg_dump`，避免 Alembic 离线 SQL 模式与数据迁移不兼容
 
 ## 产物格式（AI优先）
 

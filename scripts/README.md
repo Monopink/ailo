@@ -1,4 +1,4 @@
-# Scripts Documentation
+﻿# Scripts Documentation
 
 This directory contains utility scripts for development, testing, and validation.
 
@@ -130,22 +130,30 @@ python scripts/check_jinja_templates.py backend/app/admin/templates/custom_views
 ---
 
 ### 5. schema/generate_schema_artifacts.py
-**Purpose**: Generate schema artifacts from SQLAlchemy models (preview-safe by default)
+**Purpose**: Generate init SQL and data-dict artifacts from Alembic migrations and migrated database schema
 
 **Usage**:
 ```bash
-# Generate preview artifacts (does not overwrite runtime files)
-python scripts/schema/generate_schema_artifacts.py --output-dir docs/plans/schema-autogen-preview
+# Standard generation (recommended)
+python scripts/schema/generate_schema_artifacts.py
+
+# SQL export via Docker pg_dump (default mode shown explicitly)
+python scripts/schema/generate_schema_artifacts.py --sql-export-mode pg_dump_docker --postgres-container postgres
+
+# Generate only data-dict TSV
+python scripts/schema/generate_schema_artifacts.py --skip-sql-export
 ```
 
 **What it generates**:
 1. `schema.tables.tsv` (table index)
 2. `schema.columns.tsv` (column index)
 3. `schema.constraints.tsv` (constraints/indexes)
-4. `01_schema.preview.sql` (optional DDL preview from metadata)
+4. `backend/database/init/sql/01_schema.sql` (schema SQL)
 
 **Notes**:
-- Source of truth is `backend/app/models/*.py` (+ migrations for evolution).
+- Source of truth is `backend/alembic/versions/*.py`.
+- Script runs `alembic upgrade head` by default before reflection.
+- Prefer SQL export mode `pg_dump_docker`; some historical data migrations are not compatible with Alembic offline SQL mode.
 - Generated files should not be edited manually.
 
 ---

@@ -11,6 +11,7 @@
     "pages/profile-detail/profile-detail",
     "pages/field-edit/field-edit",
     "pages/account-security/account-security",
+    "pages/minor-mode/minor-mode",
     "pages/contact-info/contact-info",
     "pages/contact-requests/contact-requests",
     "pages/stranger-info/stranger-info",

@@ -5,10 +5,6 @@
   background-color: var(--color-bg-primary);
 }
 
-.account-security .card-wrapper:first-child {
-  margin-top: var(--space-lg);
-}
-
 .account-security__danger-title {
   color: var(--color-error);
 }

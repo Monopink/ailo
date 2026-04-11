@@ -1,5 +1,7 @@
 """User profile API endpoints."""
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import update as sql_update
 from sqlalchemy.exc import IntegrityError
@@ -7,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.core.security import get_password_hash, verify_password
 from app.crud.message import media_file as media_file_crud
 from app.crud.profile import profile as profile_crud
 from app.crud.profile_logs import write_user_profile_change_logs
@@ -16,6 +19,10 @@ from app.models.profile import Profile
 from app.models.user import User
 from app.schemas.profile import ProfileCreate, ProfileUpdate
 from app.schemas.user_profile import (
+    MinorModePinRequest,
+    MinorModePinUpdateRequest,
+    MinorModePinVerifyResponse,
+    MinorModeStatusResponse,
     UserAccountResponse,
     UsernameCheckResponse,
     UserProfileResponse,
@@ -47,6 +54,10 @@ USERNAME_REASON_LOCKED = "USERNAME_LOCKED"
 USERNAME_REASON_CHECK_RATE_LIMIT_SHORT = "USERNAME_CHECK_RATE_LIMIT_SHORT"
 USERNAME_REASON_CHECK_RATE_LIMIT_LONG = "USERNAME_CHECK_RATE_LIMIT_LONG"
 USERNAME_REASON_SUBMIT_RATE_LIMIT = "USERNAME_SUBMIT_RATE_LIMIT"
+MINOR_MODE_REASON_PIN_REQUIRED = "MINOR_MODE_PIN_REQUIRED"
+MINOR_MODE_REASON_PIN_INVALID = "MINOR_MODE_PIN_INVALID"
+MINOR_MODE_REASON_NOT_ENABLED = "MINOR_MODE_NOT_ENABLED"
+MINOR_MODE_PIN_LENGTH = 4
 
 USERNAME_MESSAGE_BY_REASON: dict[UsernameValidationReason, str] = {
     UsernameValidationReason.EMPTY: "敲敲号不能为空",
@@ -60,6 +71,10 @@ USERNAME_MESSAGE_BY_REASON: dict[UsernameValidationReason, str] = {
 
 
 def _build_username_error_detail(*, message: str, reason: str) -> dict[str, str]:
+    return {"message": message, "reason": reason}
+
+
+def _build_minor_mode_error_detail(*, message: str, reason: str) -> dict[str, str]:
     return {"message": message, "reason": reason}
 
 
@@ -77,6 +92,42 @@ def _raise_username_error(
         status_code=status_code,
         detail=_build_username_error_detail(message=message, reason=reason),
         headers=headers,
+    )
+
+
+def _raise_minor_mode_error(
+    *,
+    status_code: int,
+    message: str,
+    reason: str,
+) -> None:
+    raise HTTPException(
+        status_code=status_code,
+        detail=_build_minor_mode_error_detail(message=message, reason=reason),
+    )
+
+
+def _validate_minor_mode_pin_or_raise(pin: str) -> str:
+    normalized = pin.strip()
+    if len(normalized) != MINOR_MODE_PIN_LENGTH or not normalized.isdigit():
+        _raise_minor_mode_error(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message="请输入4位数字密码",
+            reason=MINOR_MODE_REASON_PIN_REQUIRED,
+        )
+    return normalized
+
+
+def _serialize_minor_mode_status(user: User) -> MinorModeStatusResponse:
+    enabled_at = user.minor_mode_enabled_at.isoformat() if user.minor_mode_enabled_at else None
+    pin_updated_at = (
+        user.minor_mode_pin_updated_at.isoformat() if user.minor_mode_pin_updated_at else None
+    )
+    return MinorModeStatusResponse(
+        enabled=user.minor_mode_enabled,
+        has_pin=bool(user.minor_mode_pin_hash),
+        enabled_at=enabled_at,
+        pin_updated_at=pin_updated_at,
     )
 
 
@@ -477,6 +528,126 @@ async def get_user_account(
             "get_user_account_failed", error=str(e), qiao_id=current_user.qiao_id, exc_info=True
         )
         raise HTTPException(status_code=500, detail="系统错误") from e
+
+
+@router.get("/minor-mode", response_model=MinorModeStatusResponse)
+async def get_minor_mode_status(
+    current_user: User = Depends(get_current_user),
+) -> MinorModeStatusResponse:
+    """Get current user's minor mode status."""
+    return _serialize_minor_mode_status(current_user)
+
+
+@router.put("/minor-mode/enable", response_model=MinorModeStatusResponse)
+async def enable_minor_mode(
+    body: MinorModePinRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MinorModeStatusResponse:
+    """Enable minor mode and set 4-digit PIN."""
+    pin = _validate_minor_mode_pin_or_raise(body.pin)
+    now = datetime.now(UTC)
+    current_user.minor_mode_enabled = True
+    current_user.minor_mode_pin_hash = get_password_hash(pin)
+    current_user.minor_mode_enabled_at = now
+    current_user.minor_mode_pin_updated_at = now
+    current_user.minor_mode_disabled_at = None
+    db.add(current_user)
+    await db.commit()
+    await db.refresh(current_user)
+    logger.info("minor_mode_enabled", qiao_id=current_user.qiao_id)
+    return _serialize_minor_mode_status(current_user)
+
+
+@router.put("/minor-mode/disable", response_model=MinorModeStatusResponse)
+async def disable_minor_mode(
+    body: MinorModePinRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MinorModeStatusResponse:
+    """Disable minor mode and clear PIN hash."""
+    pin_hash = current_user.minor_mode_pin_hash
+    if not current_user.minor_mode_enabled or pin_hash is None:
+        _raise_minor_mode_error(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message="青少年模式未开启",
+            reason=MINOR_MODE_REASON_NOT_ENABLED,
+        )
+    assert pin_hash is not None
+    pin = _validate_minor_mode_pin_or_raise(body.pin)
+    if not verify_password(pin, pin_hash):
+        logger.info("minor_mode_disable_failed", qiao_id=current_user.qiao_id)
+        _raise_minor_mode_error(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message="密码错误",
+            reason=MINOR_MODE_REASON_PIN_INVALID,
+        )
+
+    current_user.minor_mode_enabled = False
+    current_user.minor_mode_pin_hash = None
+    current_user.minor_mode_disabled_at = datetime.now(UTC)
+    db.add(current_user)
+    await db.commit()
+    await db.refresh(current_user)
+    logger.info("minor_mode_disable_success", qiao_id=current_user.qiao_id)
+    return _serialize_minor_mode_status(current_user)
+
+
+@router.put("/minor-mode/pin", response_model=MinorModeStatusResponse)
+async def update_minor_mode_pin(
+    body: MinorModePinUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MinorModeStatusResponse:
+    """Update minor mode PIN."""
+    pin_hash = current_user.minor_mode_pin_hash
+    if not current_user.minor_mode_enabled or pin_hash is None:
+        _raise_minor_mode_error(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message="青少年模式未开启",
+            reason=MINOR_MODE_REASON_NOT_ENABLED,
+        )
+    assert pin_hash is not None
+    old_pin = _validate_minor_mode_pin_or_raise(body.old_pin)
+    new_pin = _validate_minor_mode_pin_or_raise(body.new_pin)
+    if not verify_password(old_pin, pin_hash):
+        _raise_minor_mode_error(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message="密码错误",
+            reason=MINOR_MODE_REASON_PIN_INVALID,
+        )
+    current_user.minor_mode_pin_hash = get_password_hash(new_pin)
+    current_user.minor_mode_pin_updated_at = datetime.now(UTC)
+    db.add(current_user)
+    await db.commit()
+    await db.refresh(current_user)
+    logger.info("minor_mode_pin_changed", qiao_id=current_user.qiao_id)
+    return _serialize_minor_mode_status(current_user)
+
+
+@router.post("/minor-mode/pin/verify", response_model=MinorModePinVerifyResponse)
+async def verify_minor_mode_pin(
+    body: MinorModePinRequest,
+    current_user: User = Depends(get_current_user),
+) -> MinorModePinVerifyResponse:
+    """Verify minor mode PIN for current user."""
+    pin_hash = current_user.minor_mode_pin_hash
+    if not current_user.minor_mode_enabled or pin_hash is None:
+        _raise_minor_mode_error(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message="青少年模式未开启",
+            reason=MINOR_MODE_REASON_NOT_ENABLED,
+        )
+    assert pin_hash is not None
+    pin = _validate_minor_mode_pin_or_raise(body.pin)
+    verified = verify_password(pin, pin_hash)
+    if not verified:
+        _raise_minor_mode_error(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            message="密码错误",
+            reason=MINOR_MODE_REASON_PIN_INVALID,
+        )
+    return MinorModePinVerifyResponse(verified=True)
 
 
 @router.get("/username/check", response_model=UsernameCheckResponse)

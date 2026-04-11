@@ -30,6 +30,22 @@
   min-height: 100%;
 }
 
+.square-entry-page__blank {
+  min-height: calc(100vh - 220rpx);
+  padding: var(--space-xl) var(--padding-page);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.square-entry-page__blank-text {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  text-align: center;
+}
+
 .square-entry-list {
   display: flex;
   flex-direction: column;

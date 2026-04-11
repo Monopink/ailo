@@ -10,7 +10,11 @@
     <t-navbar left-arrow="{{true}}">
       <view slot="title" class="navbar-title">发现</view>
     </t-navbar>
-    <scroll-view scroll-x class="square-tabs" show-scrollbar="{{false}}">
+    <scroll-view
+      wx:if="{{!minorModeDiscoveryBlocked}}"
+      scroll-x
+      class="square-tabs"
+      show-scrollbar="{{false}}">
       <view class="square-tabs__list">
         <view
           wx:for="{{categories}}"
@@ -22,6 +26,10 @@
         </view>
       </view>
     </scroll-view>
+  </view>
+
+  <view slot="blank" class="square-page__blank">
+    <text class="square-page__blank-text">青少年模式下 22:00-06:00 时段不可使用发现</text>
   </view>
 
   <view slot="empty" class="square-page__empty">

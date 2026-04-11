@@ -84,6 +84,30 @@ class User(SnowflakeQiaoModel, StatusMixin):
         TIMESTAMP(timezone=True), nullable=True, comment="Last login time"
     )
 
+    minor_mode_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("FALSE"),
+        comment="Whether minor mode is enabled",
+    )
+
+    minor_mode_pin_hash: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, comment="Minor mode PIN hash"
+    )
+
+    minor_mode_enabled_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True, comment="Minor mode enable timestamp"
+    )
+
+    minor_mode_disabled_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True, comment="Minor mode disable timestamp"
+    )
+
+    minor_mode_pin_updated_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True, comment="Minor mode PIN last update timestamp"
+    )
+
     # Indexes - Only essential indexes for MVP
     # Note: phone, email already have unique indexes
     __table_args__ = ()

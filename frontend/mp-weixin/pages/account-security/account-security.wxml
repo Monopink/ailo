@@ -1,4 +1,7 @@
 <page-layout
+  style="--color-navbar-glass-bg: var(--color-bg-primary); --color-bg-header-solid: var(--color-bg-primary);"
+  headerSolidMode="manual"
+  headerSolid="{{true}}"
   screenState="{{pageLayoutData.screenModel.screenState}}"
   contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
   refreshState="{{pageLayoutData.screenModel.refreshState}}"
@@ -8,13 +11,26 @@
     <view slot="title" class="navbar-title">账号与安全</view>
   </t-navbar>
   <view slot="content" class="account-security card-container">
-    <!-- Account info card -->
+    <!-- Phone card -->
     <view class="card-wrapper">
       <t-cell-group theme="card">
         <t-cell
           title="手机号"
           note="{{phoneMasked}}"
           hover="{{false}}"
+        />
+      </t-cell-group>
+    </view>
+
+    <!-- Minor mode card -->
+    <view class="card-wrapper">
+      <t-cell-group theme="card">
+        <t-cell
+          title="青少年模式"
+          note="{{minorModeStatus && minorModeStatus.enabled ? '已开启' : '未开启'}}"
+          arrow
+          hover
+          bindtap="openMinorModePage"
         />
       </t-cell-group>
     </view>

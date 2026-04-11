@@ -21,6 +21,23 @@
   line-height: 1.5;
 }
 
+.square-page__blank {
+  width: 100%;
+  min-height: calc(100vh - 220rpx);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl) var(--padding-page);
+  box-sizing: border-box;
+}
+
+.square-page__blank-text {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  text-align: center;
+}
+
 /* Header - Always visible */
 .square-header {
   background-color: var(--color-bg-white);

@@ -12,6 +12,10 @@
     </view>
   </view>
 
+  <view slot="blank" class="square-entry-page__blank">
+    <text class="square-entry-page__blank-text">青少年模式下22:00-06:00时段不可使用发现</text>
+  </view>
+
   <view slot="content" class="square-entry-page">
     <view class="page-large-title">
       <text class="page-large-title__text">发现</text>

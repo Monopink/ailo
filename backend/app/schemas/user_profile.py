@@ -73,3 +73,33 @@ class UsernameCheckResponse(BaseModel):
     """Username availability check response schema."""
 
     available: bool = Field(..., description="Whether username can be used now")
+
+
+class MinorModeStatusResponse(BaseModel):
+    """Minor mode status response schema."""
+
+    enabled: bool = Field(..., description="Whether minor mode is enabled")
+    has_pin: bool = Field(..., description="Whether minor mode PIN exists")
+    enabled_at: str | None = Field(None, description="Minor mode enable time in ISO8601")
+    pin_updated_at: str | None = Field(None, description="Minor mode PIN update time in ISO8601")
+
+
+class MinorModePinRequest(BaseModel):
+    """Minor mode single PIN request."""
+
+    model_config = ConfigDict(extra="forbid")
+    pin: str = Field(..., description="4-digit numeric PIN")
+
+
+class MinorModePinUpdateRequest(BaseModel):
+    """Minor mode PIN update request."""
+
+    model_config = ConfigDict(extra="forbid")
+    old_pin: str = Field(..., description="Current 4-digit PIN")
+    new_pin: str = Field(..., description="New 4-digit PIN")
+
+
+class MinorModePinVerifyResponse(BaseModel):
+    """Minor mode PIN verify response schema."""
+
+    verified: bool = Field(..., description="Whether provided PIN is valid")

@@ -1,4 +1,4 @@
-# Service 层架构规范
+﻿# Service 层架构规范
 
 ## 目的
 
@@ -18,7 +18,7 @@
 - 位置：`frontend/mp-weixin/services/pages/*`
 - 页面层调用页面 Service
 - 页面 Service 负责页面级编排，组合领域 Service 与存储
-- 页面 Service 覆盖页面：`login`、`chat`、`contact-info`、`field-edit`、`chat-detail`、`setup`、`account-security`、`profile`、`profile-detail`、`stranger-info`、`legal-document`、`index`、`square`、`contact-requests`
+- 页面 Service 覆盖页面：`login`、`chat`、`contact-info`、`field-edit`、`chat-detail`、`setup`、`account-security`、`minor-mode`、`profile`、`profile-detail`、`stranger-info`、`legal-document`、`index`、`square`、`contact-requests`
 
 ### 页面 Service 责任
 

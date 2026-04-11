@@ -1,4 +1,4 @@
-import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
+﻿import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { requireAuth } from '../../utils/auth-guard';
 import authService from '../../utils/auth-service';
 import { type AccountViewModel } from '../../utils/account-service';
@@ -7,6 +7,7 @@ import { normalizeError } from '../../utils/errors';
 import { type ScreenModel } from '../../services/pages/page-state';
 import { createAccountSecurityPageService } from '../../services/pages/account-security-service';
 import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
+import { type MinorModeStatus } from '../../utils/minor-mode';
 
 const logger = getLogger('AccountSecurity');
 
@@ -19,6 +20,7 @@ interface AccountSecurityPageData extends Record<string, unknown> {
   pageLayoutData: PageLayoutData;
   phoneMasked: string;
   account: AccountViewModel | null;
+  minorModeStatus: MinorModeStatus | null;
   isLogoutProcessing: boolean;
 }
 
@@ -26,6 +28,7 @@ interface AccountSecurityPageCustom {
   accountSecurityPageService: ReturnType<typeof createAccountSecurityPageService>;
   applyScreenModel(screenModel: ScreenModel): void;
   loadAccountInfo(): Promise<void>;
+  openMinorModePage(): void;
   handleLogout(): Promise<void>;
 }
 
@@ -57,6 +60,7 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
     }),
     phoneMasked: '',
     account: null,
+    minorModeStatus: null,
     isLogoutProcessing: false,
   },
 
@@ -108,7 +112,19 @@ Page<AccountSecurityPageData, AccountSecurityPageCustom>({
     this.setData({
       account: result.account,
       phoneMasked: result.account?.displayPhone ?? '',
+      minorModeStatus: result.minorModeStatus,
       ...buildPageLayoutScreenModelPayload(result.screenModel),
+    });
+  },
+
+  openMinorModePage() {
+    void wx.navigateTo({
+      url: '/pages/minor-mode/minor-mode',
+      events: {
+        statusChanged: () => {
+          void this.loadAccountInfo();
+        },
+      },
     });
   },
 

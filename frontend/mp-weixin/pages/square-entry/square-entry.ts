@@ -1,4 +1,4 @@
-import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
+﻿import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { type ScreenModel } from '../../services/pages/page-state';
 import { requireAuth } from '../../utils/auth-guard';
 import {
@@ -8,6 +8,11 @@ import {
 import squareDiscoveryService from '../../utils/discovery-service';
 import { isValidCategoryKey, type SquareCategoryCard } from '../../utils/constants/square';
 import { getLogger } from '../../utils/logger';
+import {
+  fetchMinorModeStatus,
+  getCachedMinorModeStatus,
+  isMinorModeDiscoveryRestricted,
+} from '../../utils/minor-mode';
 import { initTabBar } from '../../utils/tab-bar';
 
 const logger = getLogger('SquareEntry');
@@ -21,14 +26,22 @@ const showToast = (title: string): void => {
   void wx.showToast({ title, icon: 'none' });
 };
 
+const BLOCKED_SCREEN_MODEL: ScreenModel = {
+  screenState: 'ready',
+  contentVariant: 'blank',
+  refreshState: 'idle',
+};
+
 interface SquareEntryPageData {
   pageLayoutData: PageLayoutData;
   entryCards: SquareCategoryCard[];
   categoriesReady: boolean;
+  minorModeDiscoveryBlocked: boolean;
 }
 
 interface SquareEntryPageCustom {
   _navigating: boolean;
+  checkMinorModeDiscoveryBlocked(): Promise<boolean>;
   applyScreenModel(screenModel: ScreenModel): void;
   bootstrapCategories(): void;
   refreshCategories(): Promise<void>;
@@ -63,6 +76,7 @@ Page<SquareEntryPageData, SquareEntryPageCustom>({
     }),
     entryCards: squareDiscoveryService.getFallbackCategories(),
     categoriesReady: false,
+    minorModeDiscoveryBlocked: false,
   },
 
   _navigating: false,
@@ -120,17 +134,54 @@ Page<SquareEntryPageData, SquareEntryPageCustom>({
     }
   },
 
+  async checkMinorModeDiscoveryBlocked() {
+    const cached = getCachedMinorModeStatus();
+    if (isMinorModeDiscoveryRestricted(cached)) {
+      this.setData({
+        minorModeDiscoveryBlocked: true,
+        categoriesReady: false,
+      });
+      this.applyScreenModel(BLOCKED_SCREEN_MODEL);
+      return true;
+    }
+    try {
+      const latest = await fetchMinorModeStatus();
+      const blocked = isMinorModeDiscoveryRestricted(latest);
+      this.setData({
+        minorModeDiscoveryBlocked: blocked,
+        categoriesReady: blocked ? false : this.data.categoriesReady,
+      });
+      if (blocked) {
+        this.applyScreenModel(BLOCKED_SCREEN_MODEL);
+      }
+      return blocked;
+    } catch (error: unknown) {
+      logger.warn('Failed to fetch minor mode status in square-entry', { error });
+      return false;
+    }
+  },
+
   async onShow() {
     initTabBar(this);
     const isAuth = await requireAuth(this as unknown as AuthGuardPage);
     if (!isAuth) {
       return;
     }
+    const blocked = await this.checkMinorModeDiscoveryBlocked();
+    if (blocked) {
+      return;
+    }
+    if (this.data.minorModeDiscoveryBlocked) {
+      this.setData({ minorModeDiscoveryBlocked: false });
+    }
     this.bootstrapCategories();
     void this.refreshCategories();
   },
 
   handleCardTap(event) {
+    if (this.data.minorModeDiscoveryBlocked) {
+      return;
+    }
     if (this._navigating) {
       showToast('暂无内容');
       return;

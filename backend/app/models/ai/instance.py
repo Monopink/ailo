@@ -258,10 +258,10 @@ class AIMessageBuffer(SnowflakeModel):
     locked_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="Timestamp when buffer entered LOCKED state"
     )
-    wake_expires_at_ms: Mapped[int | None] = mapped_column(
-        BigInteger,
+    wake_delay_ms: Mapped[int | None] = mapped_column(
+        Integer,
         nullable=True,
-        comment="Wake gate deadline (ms), NULL when wake gate is inactive",
+        comment="Wake delay (ms) applied after timer_due_ms; NULL when wake gate is inactive",
     )
     wake_adjustment_count: Mapped[int] = mapped_column(
         SmallInteger,
@@ -494,4 +494,65 @@ class AIConversationItemArchive(ImmutableSnowflakeModel):
         Index(
             "idx_ai_conv_items_archive_session", "user_qiao_id", "instance_qiao_id", "created_at"
         ),
+    )
+
+
+class AIMessageBufferWakeEvent(ImmutableSnowflakeModel):
+    """Append-only wake computation audit events for a buffer window."""
+
+    __tablename__ = "ai_buffer_wake_events"
+
+    buffer_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, index=True, comment="Associated ai_message_buffer.id"
+    )
+    user_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="User external ID"
+    )
+    instance_qiao_id: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="Instance external ID"
+    )
+
+    event_time_ms: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, comment="Event time based on database clock (ms)"
+    )
+    reason: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="Wake event reason: created/adjusted"
+    )
+    trigger_message_type: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, comment="Trigger message type enum value"
+    )
+
+    prev_wake_delay_ms: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, comment="Previous wake delay (ms)"
+    )
+    new_wake_delay_ms: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, comment="New wake delay (ms)"
+    )
+    micro_expires_at_ms: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, comment="micro_expires_at_ms after applying this event"
+    )
+    macro_expires_at_ms: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, comment="macro_expires_at_ms after applying this event"
+    )
+    buffer_expires_at_ms: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, comment="buffer_expires_at_ms after applying this event"
+    )
+
+    adjustment_mode: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="Wake adjustment mode used"
+    )
+    wake_time_min_ms: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Relationship wake_time_min_ms snapshot"
+    )
+    wake_time_max_ms: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Relationship wake_time_max_ms snapshot"
+    )
+    wake_time_bias: Mapped[str] = mapped_column(
+        String(32), nullable=False, comment="Relationship wake_time_bias snapshot"
+    )
+    random_number: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, comment="Random number used for wake adjustment, if any"
+    )
+    wake_adjustment_count_after: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, comment="wake_adjustment_count after applying this event"
     )

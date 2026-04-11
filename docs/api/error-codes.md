@@ -1,4 +1,4 @@
-# API 错误码规范
+﻿# API 错误码规范
 
 ## 目标
 
@@ -146,7 +146,7 @@ WebSocket `error` 帧（`type=error`）使用同一字段：
 |----|----|--------|----------|------|
 | 11 | 01 | auth | /api/v1/auth | active |
 | 12 | 01 | account_security | /api/v1/user/email、/api/v1/user/phone、/api/v1/user/verify | active |
-| 13 | 01 | users | /api/v1/user/profile、/api/v1/user/account、/api/v1/user/username/check | active |
+| 13 | 01 | users | /api/v1/user/profile、/api/v1/user/account、/api/v1/user/username/check、/api/v1/user/minor-mode | active |
 | 21 | 01 | contacts | /api/v1/contacts | active |
 | 21 | 02 | contact_requests | /api/v1/contact-requests | active |
 | 22 | 01 | discovery | /api/v1/discovery | active |

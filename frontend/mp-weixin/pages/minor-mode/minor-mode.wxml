@@ -1,0 +1,104 @@
+<page-layout
+  screenState="ready"
+  contentVariant="data"
+  refreshState="idle"
+  hasFooter="{{true}}"
+  disableScroll="{{true}}">
+  <t-navbar slot="header" left-arrow="{{true}}">
+    <view slot="title" class="navbar-title">青少年模式</view>
+  </t-navbar>
+
+  <view slot="content" class="minor-mode">
+    <view wx:if="{{loading}}" class="minor-mode__content">
+      <text class="minor-mode__hint">加载中...</text>
+    </view>
+
+    <view wx:elif="{{step === 'intro'}}" class="minor-mode__content">
+      <text class="minor-mode__title">青少年模式</text>
+      <view class="minor-mode__intro-list">
+        <view class="minor-mode__intro-item">
+          <view class="minor-mode__intro-dot" />
+          <text class="minor-mode__intro-text">部分功能使用将受限制，并对不适合内容进行排除。</text>
+        </view>
+        <view class="minor-mode__intro-item">
+          <view class="minor-mode__intro-dot" />
+          <text class="minor-mode__intro-text">开启后需要密码才能关闭，可在已开启状态下修改密码。</text>
+        </view>
+      </view>
+    </view>
+
+    <view wx:else class="minor-mode__content">
+      <text wx:if="{{step === 'enable-set-pin'}}" class="minor-mode__title">设置 4 位数字密码</text>
+      <text wx:if="{{step === 'enable-confirm-pin'}}" class="minor-mode__title">确认 4 位数字密码</text>
+      <text wx:if="{{step === 'disable-verify-pin'}}" class="minor-mode__title">输入密码以关闭模式</text>
+      <text wx:if="{{step === 'change-verify-old-pin'}}" class="minor-mode__title">输入当前密码</text>
+      <text wx:if="{{step === 'change-set-new-pin'}}" class="minor-mode__title">设置新的 4 位数字密码</text>
+      <text wx:if="{{step === 'change-confirm-new-pin'}}" class="minor-mode__title">确认新的 4 位数字密码</text>
+
+      <text wx:if="{{step === 'enable-set-pin'}}" class="minor-mode__hint">请设置密码</text>
+      <text wx:if="{{step === 'enable-confirm-pin'}}" class="minor-mode__hint">请再次输入密码</text>
+      <text wx:if="{{step === 'disable-verify-pin'}}" class="minor-mode__hint">校验通过后将关闭青少年模式</text>
+      <text wx:if="{{step === 'change-verify-old-pin'}}" class="minor-mode__hint">先校验当前密码再设置新密码</text>
+      <text wx:if="{{step === 'change-set-new-pin'}}" class="minor-mode__hint">请输入新密码</text>
+      <text wx:if="{{step === 'change-confirm-new-pin'}}" class="minor-mode__hint">请再次输入新密码</text>
+
+      <view class="minor-mode__pin-panel" bindtap="focusPinInput">
+        <view
+          wx:for="{{pinCells}}"
+          wx:key="*this"
+          class="minor-mode__pin-cell {{pinFocused ? 'minor-mode__pin-cell--active' : ''}}">
+          <view wx:if="{{index < pinInput.length}}" class="minor-mode__pin-dot" />
+        </view>
+        <input
+          class="minor-mode__pin-hidden-input"
+          type="number"
+          maxlength="4"
+          value="{{pinInput}}"
+          focus="{{pinFocused}}"
+          hold-keyboard="{{true}}"
+          confirm-type="done"
+          bindinput="onPinInput"
+          bindblur="onPinBlur" />
+      </view>
+    </view>
+  </view>
+
+  <view slot="footer" class="minor-mode__footer">
+    <block wx:if="{{step === 'intro'}}">
+      <t-button
+        theme="primary"
+        block
+        loading="{{submitting}}"
+        disabled="{{loading || submitting}}"
+        bindtap="handlePrimaryAction">
+        {{status && status.enabled ? '关闭青少年模式' : '开启青少年模式'}}
+      </t-button>
+      <t-button
+        wx:if="{{status && status.enabled}}"
+        block
+        theme="default"
+        disabled="{{loading || submitting}}"
+        bindtap="startChangePinFlow">
+        修改青少年模式密码
+      </t-button>
+    </block>
+
+    <block wx:else>
+      <t-button
+        theme="primary"
+        block
+        loading="{{submitting}}"
+        disabled="{{loading || submitting}}"
+        bindtap="submitStep">
+        确认
+      </t-button>
+      <t-button
+        block
+        theme="default"
+        disabled="{{loading || submitting}}"
+        bindtap="returnToIntro">
+        返回
+      </t-button>
+    </block>
+  </view>
+</page-layout>

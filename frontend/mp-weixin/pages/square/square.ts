@@ -1,4 +1,4 @@
-import { requireAuth } from '../../utils/auth-guard';
+﻿import { requireAuth } from '../../utils/auth-guard';
 import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 import { promptContactRequestMessage, sendContactRequest } from '../../utils/contact-request';
 import {
@@ -10,6 +10,11 @@ import { isValidCategoryKey, type SquareCategoryCard } from '../../utils/constan
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { isNonEmptyString } from '../../utils/guards';
 import { getLogger } from '../../utils/logger';
+import {
+  fetchMinorModeStatus,
+  getCachedMinorModeStatus,
+  isMinorModeDiscoveryRestricted,
+} from '../../utils/minor-mode';
 import { type ScreenModel } from '../../services/pages/page-state';
 import { createSquarePageService } from '../../services/pages/square-service';
 
@@ -27,6 +32,7 @@ interface SquarePageData {
   contacts: SquareContactViewModel[];
   loading: boolean;
   nextRefreshAvailableAt: number | null;
+  minorModeDiscoveryBlocked: boolean;
 }
 
 interface LoadContactsOptions {
@@ -52,6 +58,7 @@ interface SquarePageCustom {
   squarePageService: ReturnType<typeof createSquarePageService>;
   _blankFailureToastShown: boolean;
   _requestedCategoryKey: string | null;
+  ensureMinorModeAllowed(): Promise<boolean>;
   applyScreenModel(screenModel: ScreenModel): void;
   notifyBlankLoadFailed(message: string): void;
   switchToEntry(toastMessage?: string): Promise<void>;
@@ -94,6 +101,12 @@ const showToast = (
   icon: WechatMiniprogram.ShowToastOption['icon'] = 'none'
 ): void => {
   void wx.showToast({ title, icon });
+};
+
+const BLOCKED_SCREEN_MODEL: ScreenModel = {
+  screenState: 'ready',
+  contentVariant: 'blank',
+  refreshState: 'idle',
 };
 
 const getDatasetValue = (event: WechatMiniprogram.BaseEvent, key: string): unknown => {
@@ -145,6 +158,7 @@ Page<SquarePageData, SquarePageCustom>({
     contacts: [],
     loading: false,
     nextRefreshAvailableAt: null,
+    minorModeDiscoveryBlocked: false,
   },
 
   _blankFailureToastShown: false,
@@ -268,9 +282,51 @@ Page<SquarePageData, SquarePageCustom>({
     this.bootstrapCategories();
   },
 
+  async ensureMinorModeAllowed() {
+    const cached = getCachedMinorModeStatus();
+    if (isMinorModeDiscoveryRestricted(cached)) {
+      this.setData({
+        minorModeDiscoveryBlocked: true,
+        contacts: [],
+        nextRefreshAvailableAt: null,
+        ...buildPageLayoutScreenModelPayload(BLOCKED_SCREEN_MODEL),
+      });
+      return false;
+    }
+    try {
+      const latest = await fetchMinorModeStatus();
+      if (isMinorModeDiscoveryRestricted(latest)) {
+        this.setData({
+          minorModeDiscoveryBlocked: true,
+          contacts: [],
+          nextRefreshAvailableAt: null,
+          ...buildPageLayoutScreenModelPayload(BLOCKED_SCREEN_MODEL),
+        });
+        return false;
+      }
+    } catch (error: unknown) {
+      logger.warn('Failed to fetch minor mode status in square page', { error });
+    }
+    if (this.data.minorModeDiscoveryBlocked) {
+      this.setData({
+        minorModeDiscoveryBlocked: false,
+        ...buildPageLayoutScreenModelPayload({
+          screenState: 'ready',
+          contentVariant: 'data',
+          refreshState: 'idle',
+        }),
+      });
+    }
+    return true;
+  },
+
   async onShow() {
     const isAuth = await requireAuth(this as unknown as AuthGuardPage);
     if (!isAuth) {
+      return;
+    }
+    const allowed = await this.ensureMinorModeAllowed();
+    if (!allowed) {
       return;
     }
 
@@ -408,6 +464,9 @@ Page<SquarePageData, SquarePageCustom>({
   },
 
   selectCategory(event) {
+    if (this.data.minorModeDiscoveryBlocked) {
+      return;
+    }
     const categoryKey = toCategoryKey(getDatasetValue(event, 'categoryKey'));
     if (categoryKey === null || categoryKey === this.data.currentCategoryKey) {
       return;
@@ -443,6 +502,9 @@ Page<SquarePageData, SquarePageCustom>({
   },
 
   handleContactTap(event) {
+    if (this.data.minorModeDiscoveryBlocked) {
+      return;
+    }
     const qiaoId = toStringValue(getDatasetValue(event, 'id'));
     if (!isNonEmptyString(qiaoId)) {
       return;
@@ -482,6 +544,9 @@ Page<SquarePageData, SquarePageCustom>({
   },
 
   async handleAddContact(event) {
+    if (this.data.minorModeDiscoveryBlocked) {
+      return;
+    }
     const qiaoId = toStringValue(getDatasetValue(event, 'id'));
     if (!isNonEmptyString(qiaoId)) {
       return;

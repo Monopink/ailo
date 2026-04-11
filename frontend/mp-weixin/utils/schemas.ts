@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Runtime validation schemas using Zod
  *
  * These schemas provide both TypeScript types and runtime validation.
@@ -61,6 +61,19 @@ export const AccountInfoSchema = z.object({
   email: z.string().optional().nullable(),
 });
 export type AccountInfo = z.infer<typeof AccountInfoSchema>;
+
+export const MinorModeStatusSchema = z.object({
+  enabled: z.boolean(),
+  has_pin: z.boolean(),
+  enabled_at: z.string().nullable(),
+  pin_updated_at: z.string().nullable(),
+});
+export type MinorModeStatus = z.infer<typeof MinorModeStatusSchema>;
+
+export const MinorModePinVerifyResponseSchema = z.object({
+  verified: z.boolean(),
+});
+export type MinorModePinVerifyResponse = z.infer<typeof MinorModePinVerifyResponseSchema>;
 
 // ============================================================================
 // Auth Schemas

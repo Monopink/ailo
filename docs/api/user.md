@@ -1,4 +1,4 @@
-# 用户资料和设置接口
+﻿# 用户资料和设置接口
 
 ## 接口列表
 
@@ -6,6 +6,11 @@
 - [校验敲敲号](#校验敲敲号) - `GET /api/v1/user/username/check`
 - [更新用户资料](#更新用户资料) - `PUT /api/v1/user/profile`
 - [获取账户信息](#获取账户信息) - `GET /api/v1/user/account`
+- [获取青少年模式状态](#获取青少年模式状态) - `GET /api/v1/user/minor-mode`
+- [开启青少年模式](#开启青少年模式) - `PUT /api/v1/user/minor-mode/enable`
+- [关闭青少年模式](#关闭青少年模式) - `PUT /api/v1/user/minor-mode/disable`
+- [修改青少年模式密码](#修改青少年模式密码) - `PUT /api/v1/user/minor-mode/pin`
+- [校验青少年模式密码](#校验青少年模式密码) - `POST /api/v1/user/minor-mode/pin/verify`
 - [获取用户设置](#获取用户设置) - `GET /api/v1/user/settings`
 - [更新用户设置](#更新用户设置) - `PUT /api/v1/user/settings`
 
@@ -265,6 +270,118 @@
 - 手机号脱敏显示：`138******00`
 - 邮箱脱敏显示：`u***@example.com`
 - 未绑定邮箱时，email字段为null
+
+---
+
+## 获取青少年模式状态
+
+- **路径**: `GET /api/v1/user/minor-mode`
+- **认证**: Bearer Token（必需）
+
+### 成功响应 (200)
+
+```json
+{
+  "enabled": true,
+  "has_pin": true,
+  "enabled_at": "2026-04-11T12:30:00+00:00",
+  "pin_updated_at": "2026-04-11T12:30:00+00:00"
+}
+```
+
+### 字段说明
+
+- `enabled` (boolean) - 青少年模式是否开启
+- `has_pin` (boolean) - 是否已设置 PIN（不会返回 PIN 或哈希）
+- `enabled_at` (string, nullable) - 开启时间（ISO8601）
+- `pin_updated_at` (string, nullable) - PIN 最近更新时间（ISO8601）
+
+---
+
+## 开启青少年模式
+
+- **路径**: `PUT /api/v1/user/minor-mode/enable`
+- **认证**: Bearer Token（必需）
+
+### 请求参数
+
+```json
+{
+  "pin": "1234"
+}
+```
+
+### 规则
+
+- `pin` 必须为 4 位数字字符串
+- 服务端仅保存哈希值，不返回明文/哈希
+
+### 成功响应
+
+返回体与 [获取青少年模式状态](#获取青少年模式状态) 一致。
+
+---
+
+## 关闭青少年模式
+
+- **路径**: `PUT /api/v1/user/minor-mode/disable`
+- **认证**: Bearer Token（必需）
+
+### 请求参数
+
+```json
+{
+  "pin": "1234"
+}
+```
+
+### 行为
+
+- 校验 PIN 成功后，关闭青少年模式并清空 PIN 哈希
+
+---
+
+## 修改青少年模式密码
+
+- **路径**: `PUT /api/v1/user/minor-mode/pin`
+- **认证**: Bearer Token（必需）
+
+### 请求参数
+
+```json
+{
+  "old_pin": "1234",
+  "new_pin": "5678"
+}
+```
+
+### 规则
+
+- `old_pin`/`new_pin` 必须为 4 位数字字符串
+- 仅在青少年模式已开启时可调用
+
+---
+
+## 校验青少年模式密码
+
+- **路径**: `POST /api/v1/user/minor-mode/pin/verify`
+- **认证**: Bearer Token（必需）
+
+### 请求参数
+
+```json
+{
+  "pin": "1234"
+}
+```
+
+### 成功响应 (200)
+
+```json
+{
+  "verified": true
+}
+```
 
 ---
 

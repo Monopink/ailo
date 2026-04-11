@@ -1,0 +1,20 @@
+# Shared Dozzle service for staging and production.
+# This file is merged via deployment/*/scripts/deploy.sh COMPOSE_FILES.
+
+services:
+  dozzle:
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "7"
+    container_name: dozzle
+    image: amir20/dozzle:latest
+    environment:
+      DOZZLE_BASE: /ops/logs
+      DOZZLE_NO_ANALYTICS: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    networks:
+      - default

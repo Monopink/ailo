@@ -49,6 +49,12 @@ cd /opt/ailo-<env>/ailo/deployment/<env>/scripts
 ./deploy.sh logs <service>
 ```
 
+Dozzle（容器日志 UI，经 Nginx Basic Auth 保护）：
+
+```text
+https://<DOMAIN>/ops/logs/
+```
+
 ## Nginx 网关模板
 
 - Nginx 使用 `nginx/entrypoint.sh` 渲染模板到容器内 `default.conf`。

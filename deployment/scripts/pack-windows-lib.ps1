@@ -29,7 +29,8 @@ function Invoke-PackDeployment {
 
     $DeploymentRootFiles = @(
         ".env.example",
-        "compose.base.yaml"
+        "compose.base.yaml",
+        "compose.dozzle.yaml"
     )
     foreach ($FileName in $DeploymentRootFiles) {
         $SourcePath = Join-Path $ProjectRoot "deployment\$FileName"
@@ -95,7 +96,9 @@ function Invoke-PackDeployment {
 
     $HtpasswdFilesToRemove = @(
         "deployment\staging\secrets\.htpasswd",
-        "deployment\prod\secrets\.htpasswd"
+        "deployment\staging\secrets\.htpasswd_logs",
+        "deployment\prod\secrets\.htpasswd",
+        "deployment\prod\secrets\.htpasswd_logs"
     )
     foreach ($HtpasswdFile in $HtpasswdFilesToRemove) {
         $HtpasswdPath = Join-Path $PackDir $HtpasswdFile

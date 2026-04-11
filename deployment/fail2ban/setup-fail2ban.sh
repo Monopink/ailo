@@ -25,10 +25,12 @@ if [[ "$TARGET_ENV" == "staging" ]]; then
     JAIL_SOURCE="$FAIL2BAN_DIR/jail.d/ailo-nginx-admin-auth-staging.local"
     JAIL_NAME="ailo-nginx-admin-auth-staging"
     NGINX_LOG_PATH="/opt/ailo-staging/logs/nginx/admin_access.log"
+    NGINX_LOGS_PATH="/opt/ailo-staging/logs/nginx/logs_access.log"
 else
     JAIL_SOURCE="$FAIL2BAN_DIR/jail.d/ailo-nginx-admin-auth-prod.local"
     JAIL_NAME="ailo-nginx-admin-auth-prod"
     NGINX_LOG_PATH="/opt/ailo-prod/logs/nginx/admin_access.log"
+    NGINX_LOGS_PATH="/opt/ailo-prod/logs/nginx/logs_access.log"
 fi
 
 if ! command -v fail2ban-client >/dev/null 2>&1; then
@@ -50,6 +52,7 @@ fi
 
 mkdir -p "$(dirname "$NGINX_LOG_PATH")"
 touch "$NGINX_LOG_PATH"
+touch "$NGINX_LOGS_PATH"
 
 install -m 0644 "$FAIL2BAN_DIR/filter.d/ailo-nginx-admin-auth.conf" \
     /etc/fail2ban/filter.d/ailo-nginx-admin-auth.conf

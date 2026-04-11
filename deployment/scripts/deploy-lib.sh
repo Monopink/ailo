@@ -116,6 +116,11 @@ get_container() {
 }
 
 check_requirements() {
+    local auth_env="$EXPECTED_ENVIRONMENT"
+    if [ "$auth_env" = "production" ]; then
+        auth_env="prod"
+    fi
+
     if declare -p COMPOSE_FILES >/dev/null 2>&1; then
         local compose_file
         for compose_file in "${COMPOSE_FILES[@]}"; do
@@ -137,13 +142,19 @@ check_requirements() {
     prepare_effective_env_file
     if [ ! -f "$BASIC_AUTH_FILE" ]; then
         log_error "Basic auth file not found: $BASIC_AUTH_FILE"
-        log_error "Run: bash $DEPLOYMENT_SCRIPTS_DIR/generate-basic-auth.sh $EXPECTED_ENVIRONMENT admin"
+        log_error "Run: bash $DEPLOYMENT_SCRIPTS_DIR/generate-basic-auth.sh $auth_env admin"
+        exit 1
+    fi
+    if [ ! -f "$LOGS_BASIC_AUTH_FILE" ]; then
+        log_error "Logs basic auth file not found: $LOGS_BASIC_AUTH_FILE"
+        log_error "Run: bash $DEPLOYMENT_SCRIPTS_DIR/generate-basic-auth.sh $auth_env logs_admin --target logs"
         exit 1
     fi
 
     # Nginx inside container must be able to read the file.
     # If the file is too restrictive (e.g. 600), nginx will fail with "Permission denied".
     chmod 644 "$BASIC_AUTH_FILE" 2>/dev/null || true
+    chmod 644 "$LOGS_BASIC_AUTH_FILE" 2>/dev/null || true
 
     if [ -n "$EXPECTED_ENVIRONMENT" ]; then
         local current_env
@@ -161,6 +172,7 @@ check_requirements() {
     if [ -n "$NGINX_LOG_DIR" ]; then
         mkdir -p "$NGINX_LOG_DIR"
         touch "$NGINX_LOG_DIR/admin_access.log"
+        touch "$NGINX_LOG_DIR/logs_access.log"
     fi
 }
 

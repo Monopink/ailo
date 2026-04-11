@@ -11,11 +11,13 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 DEPLOYMENT_DIR="$PROJECT_DIR/deployment/staging"
 COMPOSE_FILES=(
     "$PROJECT_DIR/deployment/compose.base.yaml"
+    "$PROJECT_DIR/deployment/compose.dozzle.yaml"
     "$DEPLOYMENT_DIR/compose.yaml"
 )
 ENV_FILE="$DEPLOYMENT_DIR/.env"
 BACKUP_DIR="/opt/ailo-staging/backups"
 BASIC_AUTH_FILE="$DEPLOYMENT_DIR/secrets/.htpasswd"
+LOGS_BASIC_AUTH_FILE="$DEPLOYMENT_DIR/secrets/.htpasswd_logs"
 DEPLOYMENT_SCRIPTS_DIR="$PROJECT_DIR/deployment/scripts"
 EXPECTED_ENVIRONMENT="staging"
 NGINX_LOG_DIR="/opt/ailo-staging/logs/nginx"
@@ -74,6 +76,7 @@ deploy_package() {
     local base_env_backup="$temp_dir/.env.base.backup"
     local env_backup="$temp_dir/.env.backup"
     local auth_backup="$temp_dir/.htpasswd.backup"
+    local logs_auth_backup="$temp_dir/.htpasswd_logs.backup"
 
     log_info "Deploying package: $package"
     tar -xzf "$package" -C "$temp_dir"
@@ -107,6 +110,13 @@ deploy_package() {
     if [ -f "$auth_backup" ]; then
         mkdir -p "$extracted_project/deployment/staging/secrets"
         cp "$auth_backup" "$extracted_project/deployment/staging/secrets/.htpasswd"
+    fi
+    if [ -f "$target_project/deployment/staging/secrets/.htpasswd_logs" ]; then
+        cp "$target_project/deployment/staging/secrets/.htpasswd_logs" "$logs_auth_backup"
+    fi
+    if [ -f "$logs_auth_backup" ]; then
+        mkdir -p "$extracted_project/deployment/staging/secrets"
+        cp "$logs_auth_backup" "$extracted_project/deployment/staging/secrets/.htpasswd_logs"
     fi
 
     if [ -d "$target_project" ]; then

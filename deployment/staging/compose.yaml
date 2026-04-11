@@ -37,6 +37,7 @@ services:
     volumes:
       - ../nginx/ssl:/etc/nginx/ssl:ro
       - ./staging/secrets/.htpasswd:/etc/nginx/.htpasswd:ro
+      - ./staging/secrets/.htpasswd_logs:/etc/nginx/.htpasswd_logs:ro
       - /opt/ailo-staging/logs/nginx:/var/log/nginx
       - certbot_webroot:/var/www/certbot:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro

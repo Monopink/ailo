@@ -9,7 +9,9 @@
 - 脚本路径：/opt/ailo-prod/ailo/deployment/prod/scripts/
 - 环境文件：/opt/ailo-prod/ailo/deployment/prod/.env
 - Basic Auth：/opt/ailo-prod/ailo/deployment/prod/secrets/.htpasswd
+- Logs Basic Auth：/opt/ailo-prod/ailo/deployment/prod/secrets/.htpasswd_logs
 - DB_HOST：postgres
+- Dozzle：`https://<DOMAIN>/ops/logs/`
 
 ## 首次初始化
 
@@ -18,7 +20,7 @@ cp /opt/ailo-prod/ailo/deployment/.env.example /opt/ailo-prod/ailo/deployment/.e
 cp /opt/ailo-prod/ailo/deployment/prod/.env.example /opt/ailo-prod/ailo/deployment/prod/.env
 
 cd /opt/ailo-prod/ailo/deployment/scripts
-sudo ./generate-random-secrets.sh prod --basic-auth-user admin
+sudo ./generate-random-secrets.sh prod --basic-auth-user admin --logs-auth-user logs_admin
 
 cd /opt/ailo-prod/ailo/deployment/prod/scripts
 ./deploy.sh start

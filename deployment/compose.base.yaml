@@ -3,8 +3,16 @@
 # deployment/prod/compose.yaml by the deploy scripts.
 # The development environment does not use this file.
 
+x-logging-defaults: &logging-defaults
+  logging:
+    driver: json-file
+    options:
+      max-size: "50m"
+      max-file: "7"
+
 services:
   postgres:
+    <<: *logging-defaults
     image: postgres:18
     container_name: postgres
     environment:
@@ -21,6 +29,7 @@ services:
       start_period: 30s
 
   backend:
+    <<: *logging-defaults
     container_name: backend
     build:
       context: ../backend
@@ -44,6 +53,7 @@ services:
       start_period: 40s
 
   nginx:
+    <<: *logging-defaults
     container_name: nginx
     build:
       context: ../nginx

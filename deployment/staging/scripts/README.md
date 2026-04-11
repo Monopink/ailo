@@ -9,7 +9,9 @@
 - 脚本路径：/opt/ailo-staging/ailo/deployment/staging/scripts/
 - 环境文件：/opt/ailo-staging/ailo/deployment/staging/.env
 - Basic Auth：/opt/ailo-staging/ailo/deployment/staging/secrets/.htpasswd
+- Logs Basic Auth：/opt/ailo-staging/ailo/deployment/staging/secrets/.htpasswd_logs
 - DB_HOST：postgres
+- Dozzle：`https://<DOMAIN>/ops/logs/`
 
 ## 首次初始化
 
@@ -24,6 +26,7 @@ cp /opt/ailo-staging/ailo/deployment/staging/.env.example /opt/ailo-staging/ailo
 
 cd /opt/ailo-staging/ailo/deployment/scripts
 ./generate-basic-auth.sh staging admin
+./generate-basic-auth.sh staging logs_admin --target logs
 
 cd /opt/ailo-staging/ailo/deployment/staging/scripts
 ./deploy.sh start

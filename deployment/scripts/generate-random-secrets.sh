@@ -1,7 +1,7 @@
 #!/bin/bash
 # Generate random secrets for staging/prod without printing plaintext to terminal.
 # Usage:
-#   ./generate-random-secrets.sh <staging|prod> [--no-apply-env] [--basic-auth-user USER]
+#   ./generate-random-secrets.sh <staging|prod> [--no-apply-env] [--basic-auth-user USER] [--logs-auth-user USER]
 
 set -euo pipefail
 
@@ -10,12 +10,13 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 TARGET_ENV="${1:-}"
 if [[ -z "$TARGET_ENV" || ( "$TARGET_ENV" != "staging" && "$TARGET_ENV" != "prod" ) ]]; then
-    echo "Usage: $0 <staging|prod> [--no-apply-env] [--basic-auth-user USER]"
+    echo "Usage: $0 <staging|prod> [--no-apply-env] [--basic-auth-user USER] [--logs-auth-user USER]"
     exit 1
 fi
 
 APPLY_ENV=true
 BASIC_AUTH_USER=""
+LOGS_AUTH_USER=""
 shift || true
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -31,6 +32,14 @@ while [[ $# -gt 0 ]]; do
             BASIC_AUTH_USER="$2"
             shift 2
             ;;
+        --logs-auth-user)
+            if [[ -z "${2:-}" ]]; then
+                echo "--logs-auth-user requires a username"
+                exit 1
+            fi
+            LOGS_AUTH_USER="$2"
+            shift 2
+            ;;
         *)
             echo "Unknown option: $1"
             exit 1
@@ -42,6 +51,7 @@ ENV_FILE="$PROJECT_DIR/deployment/$TARGET_ENV/.env"
 SECRETS_DIR="$PROJECT_DIR/deployment/$TARGET_ENV/secrets"
 GENERATED_FILE="$SECRETS_DIR/.generated-secrets.env"
 HTPASSWD_FILE="$SECRETS_DIR/.htpasswd"
+LOGS_HTPASSWD_FILE="$SECRETS_DIR/.htpasswd_logs"
 
 if [[ ! -f "$ENV_FILE" ]]; then
     echo "Environment file not found: $ENV_FILE"
@@ -64,6 +74,7 @@ POSTGRES_PASSWORD="$(gen_secret)"
 JWT_SECRET_KEY="$(gen_secret)"
 ADMIN_SECRET_KEY="$(gen_secret)"
 BASIC_AUTH_PASSWORD="$(gen_secret)"
+LOGS_BASIC_AUTH_PASSWORD="$(gen_secret)"
 
 # Keep DB app password equal to POSTGRES_PASSWORD to avoid mismatch.
 DB_PASSWORD="$POSTGRES_PASSWORD"
@@ -75,6 +86,7 @@ DB_PASSWORD=$DB_PASSWORD
 JWT_SECRET_KEY=$JWT_SECRET_KEY
 ADMIN_SECRET_KEY=$ADMIN_SECRET_KEY
 BASIC_AUTH_PASSWORD=$BASIC_AUTH_PASSWORD
+LOGS_BASIC_AUTH_PASSWORD=$LOGS_BASIC_AUTH_PASSWORD
 EOF
 chmod 600 "$GENERATED_FILE"
 
@@ -94,11 +106,25 @@ if [[ -n "$BASIC_AUTH_USER" ]]; then
     chmod 600 "$HTPASSWD_FILE"
 fi
 
+if [[ -n "$LOGS_AUTH_USER" ]]; then
+    if ! command -v htpasswd >/dev/null 2>&1; then
+        echo "htpasswd is required but not found (install apache2-utils or httpd-tools)"
+        exit 1
+    fi
+    printf '%s\n' "$LOGS_BASIC_AUTH_PASSWORD" | htpasswd -i -c -B -C 12 "$LOGS_HTPASSWD_FILE" "$LOGS_AUTH_USER" >/dev/null
+    chmod 600 "$LOGS_HTPASSWD_FILE"
+fi
+
 echo "Generated secrets file: $GENERATED_FILE"
 echo "Applied env updates: $APPLY_ENV ($ENV_FILE)"
 if [[ -n "$BASIC_AUTH_USER" ]]; then
     echo "Generated htpasswd: $HTPASSWD_FILE (user: $BASIC_AUTH_USER)"
 else
     echo "htpasswd not generated (use --basic-auth-user USER if needed)"
+fi
+if [[ -n "$LOGS_AUTH_USER" ]]; then
+    echo "Generated logs htpasswd: $LOGS_HTPASSWD_FILE (user: $LOGS_AUTH_USER)"
+else
+    echo "Logs htpasswd not generated (use --logs-auth-user USER if needed)"
 fi
 echo "Plaintext secrets were NOT printed. Read them only from secured file."

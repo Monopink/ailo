@@ -18,6 +18,7 @@ from app.models.ai.instance import (
     AIConversationRuntime,
     AIConversationState,
     AIMessageBuffer,
+    AIMessageBufferWakeEvent,
 )
 
 
@@ -62,7 +63,7 @@ class AIMessageBufferView(ModelView):
             "macro_expires_at_ms",
             "buffer_expires_at_ms",
             "last_msg_time_ms",
-            "wake_expires_at_ms",
+            "wake_delay_ms",
         ]
         for field in bigint_fields:
             if field in data:
@@ -497,6 +498,143 @@ class AIConversationRuntimeView(ModelView):
     ]
 
 
+class AIMessageBufferWakeEventView(ModelView):
+    """AI Message Buffer Wake Event view - wake delay audit history."""
+
+    exclude_fields_from_create: ClassVar[list[str]] = [
+        "id",
+        "buffer_id",
+        "user_qiao_id",
+        "instance_qiao_id",
+        "event_time_ms",
+        "reason",
+        "trigger_message_type",
+        "prev_wake_delay_ms",
+        "new_wake_delay_ms",
+        "micro_expires_at_ms",
+        "macro_expires_at_ms",
+        "buffer_expires_at_ms",
+        "adjustment_mode",
+        "wake_time_min_ms",
+        "wake_time_max_ms",
+        "wake_time_bias",
+        "random_number",
+        "wake_adjustment_count_after",
+        "created_at",
+    ]
+    exclude_fields_from_edit: ClassVar[list[str]] = exclude_fields_from_create.copy()
+    exclude_fields_from_list: ClassVar[list[str]] = []
+
+    def can_create(self, _request: Request) -> bool:
+        return False
+
+    def can_edit(self, _request: Request) -> bool:
+        return False
+
+    def can_delete(self, _request: Request) -> bool:
+        return False
+
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
+    searchable_fields: ClassVar[list[str]] = [
+        "id",
+        "buffer_id",
+        "user_qiao_id",
+        "instance_qiao_id",
+        "reason",
+    ]
+    sortable_fields: ClassVar[list[str]] = [
+        "id",
+        "buffer_id",
+        "event_time_ms",
+        "reason",
+        "trigger_message_type",
+        "wake_adjustment_count_after",
+        "created_at",
+    ]
+
+    fields: ClassVar[list[object]] = [
+        StringField("id", label="Event ID", help_text="Internal wake event ID"),
+        StringField("buffer_id", label="Buffer ID", help_text="Associated message buffer ID"),
+        StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
+        StringField(
+            "instance_qiao_id",
+            label="Instance Qiao ID",
+            help_text="Instance external ID",
+        ),
+        StringField(
+            "event_time_ms",
+            label="Event Time (ms)",
+            help_text="Event timestamp from DB clock in milliseconds",
+        ),
+        StringField(
+            "reason",
+            label="Reason",
+            help_text="Wake event reason: created/adjusted",
+        ),
+        IntegerField(
+            "trigger_message_type",
+            label="Trigger Message Type",
+            help_text="Message type enum value that triggered this wake event",
+        ),
+        IntegerField(
+            "prev_wake_delay_ms",
+            label="Previous Wake Delay (ms)",
+            help_text="Wake delay before adjustment (nullable)",
+        ),
+        IntegerField(
+            "new_wake_delay_ms",
+            label="New Wake Delay (ms)",
+            help_text="Wake delay after adjustment (nullable)",
+        ),
+        StringField(
+            "micro_expires_at_ms",
+            label="Micro Expires (ms)",
+            help_text="Micro timer expiration after applying the wake event",
+        ),
+        StringField(
+            "macro_expires_at_ms",
+            label="Macro Expires (ms)",
+            help_text="Macro timer expiration after applying the wake event",
+        ),
+        StringField(
+            "buffer_expires_at_ms",
+            label="Buffer Expires (ms)",
+            help_text="Effective buffer expiration after applying the wake event",
+        ),
+        StringField(
+            "adjustment_mode",
+            label="Adjustment Mode",
+            help_text="Wake adjustment mode from relationship config",
+        ),
+        IntegerField(
+            "wake_time_min_ms",
+            label="Wake Min (ms)",
+            help_text="Relationship wake_time_min_ms snapshot",
+        ),
+        IntegerField(
+            "wake_time_max_ms",
+            label="Wake Max (ms)",
+            help_text="Relationship wake_time_max_ms snapshot",
+        ),
+        StringField(
+            "wake_time_bias",
+            label="Wake Bias",
+            help_text="Relationship wake_time_bias snapshot",
+        ),
+        IntegerField(
+            "random_number",
+            label="Random Number",
+            help_text="Random value used by random_half adjustment mode",
+        ),
+        IntegerField(
+            "wake_adjustment_count_after",
+            label="Wake Adjustment Count",
+            help_text="wake_adjustment_count after applying this event",
+        ),
+        DateTimeField("created_at", label="Created At", help_text="Wake event creation time"),
+    ]
+
+
 # Create view instances
 ai_message_buffer_view = AIMessageBufferView(
     AIMessageBuffer,
@@ -538,11 +676,20 @@ ai_conversation_runtime_view = AIConversationRuntimeView(
     identity="ai_conversation_runtime",
 )
 
+ai_message_buffer_wake_event_view = AIMessageBufferWakeEventView(
+    AIMessageBufferWakeEvent,
+    name="Buffer Wake Events",
+    label="Buffer Wake Events",
+    icon="fa fa-history",
+    identity="ai_message_buffer_wake_event",
+)
+
 # Export conversation views
 AI_CONVERSATION_VIEWS = [
     ai_conversation_state_view,
     ai_conversation_runtime_view,
     ai_message_buffer_view,
+    ai_message_buffer_wake_event_view,
     ai_conversation_item_view,
     ai_conversation_item_archive_view,
 ]

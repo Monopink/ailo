@@ -65,6 +65,8 @@
 - 判定必须同时满足：
   - `conversation_id` 等于当前会话
   - `from_qiao_id/to_qiao_id` 与当前自己/对方身份严格匹配
+- 时序要求：
+  - 同一会话内，对方 typing 事件的展示与丢弃去重必须以对端 `sent_time` 为权威时序基准。
 
 隐藏规则：
 

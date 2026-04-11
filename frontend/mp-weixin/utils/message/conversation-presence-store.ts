@@ -15,16 +15,16 @@ type ConversationPresenceState = {
   isTyping: boolean;
   expiresAtMs: number | null;
   timer: ReturnType<typeof setTimeout> | null;
-  lastTypingReceivedAtMs: number;
-  lastNonTypingActivityAtMs: number;
+  lastTypingSentTimeMs: number;
+  lastNonTypingSentTimeMs: number;
 };
 
 const createInitialState = (): ConversationPresenceState => ({
   isTyping: false,
   expiresAtMs: null,
   timer: null,
-  lastTypingReceivedAtMs: 0,
-  lastNonTypingActivityAtMs: 0,
+  lastTypingSentTimeMs: 0,
+  lastNonTypingSentTimeMs: 0,
 });
 
 class ConversationPresenceStore {
@@ -65,9 +65,8 @@ class ConversationPresenceStore {
     if (!isNonEmptyString(convId)) {
       return;
     }
-    const now = Date.now();
     const state = this.getState(convId);
-    state.lastNonTypingActivityAtMs = now;
+    state.lastNonTypingSentTimeMs = Date.now();
     this.setTypingState(convId, false, { clearExpires: true });
   }
 
@@ -80,8 +79,8 @@ class ConversationPresenceStore {
       const wasTyping = state.isTyping;
       state.isTyping = false;
       state.expiresAtMs = null;
-      state.lastTypingReceivedAtMs = 0;
-      state.lastNonTypingActivityAtMs = 0;
+      state.lastTypingSentTimeMs = 0;
+      state.lastNonTypingSentTimeMs = 0;
       if (wasTyping) {
         this.emitTypingChange(convId, false);
       }
@@ -207,8 +206,8 @@ class ConversationPresenceStore {
       return;
     }
 
-    if (!Number.isFinite(payload.received_time)) {
-      logger.error('Typing payload missing received_time', {
+    if (!Number.isFinite(payload.sent_time)) {
+      logger.error('Typing payload missing sent_time', {
         conv_id: payload.conv_id,
         from_qiao_id: payload.from_qiao_id,
         to_qiao_id: payload.to_qiao_id,
@@ -230,12 +229,12 @@ class ConversationPresenceStore {
     }
 
     const state = this.getState(convId);
-    const dropBeforeMs = Math.max(state.lastNonTypingActivityAtMs, state.lastTypingReceivedAtMs);
-    if (payload.received_time < dropBeforeMs) {
+    const dropBeforeMs = Math.max(state.lastNonTypingSentTimeMs, state.lastTypingSentTimeMs);
+    if (payload.sent_time < dropBeforeMs) {
       return;
     }
 
-    state.lastTypingReceivedAtMs = payload.received_time;
+    state.lastTypingSentTimeMs = payload.sent_time;
 
     if (payload.typing) {
       state.expiresAtMs = Date.now() + MESSAGE_CONFIG.typingTimeout;
@@ -298,7 +297,8 @@ class ConversationPresenceStore {
     }
 
     const state = this.getState(convId);
-    state.lastNonTypingActivityAtMs = Date.now();
+    const sentTimeMs = Number.isFinite(message.sent_time) ? Number(message.sent_time) : Date.now();
+    state.lastNonTypingSentTimeMs = sentTimeMs;
     this.setTypingState(convId, false, { clearExpires: true });
   }
 }

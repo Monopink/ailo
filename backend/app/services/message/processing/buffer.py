@@ -25,7 +25,7 @@ from app.enums import (
     ConversationRole,
     MessageType,
 )
-from app.models.ai.instance import AIConversationItem, AIMessageBuffer
+from app.models.ai.instance import AIConversationItem, AIMessageBuffer, AIMessageBufferWakeEvent
 from app.services.ai.queries.instance_queries import get_instance_relationship_config
 from app.services.ai.queries.updates import create_conversation_item
 from app.services.message.processing.runtime import (
@@ -254,7 +254,7 @@ async def lock_conversation_preemptively(
                 micro_expires_at_ms=None,
                 macro_expires_at_ms=None,
                 buffer_expires_at_ms=None,
-                wake_expires_at_ms=None,
+                wake_delay_ms=None,
             )
             .execution_options(synchronize_session=False)
         )
@@ -337,7 +337,7 @@ async def force_lock_latest_window(
         buffer_obj.micro_expires_at_ms = None
         buffer_obj.macro_expires_at_ms = None
         buffer_obj.buffer_expires_at_ms = None
-        buffer_obj.wake_expires_at_ms = None
+        buffer_obj.wake_delay_ms = None
         await db.flush()
         await db.commit()
 
@@ -476,7 +476,7 @@ async def reset_open_conversation_windows(db: AsyncSession) -> int:
             micro_expires_at_ms=None,
             macro_expires_at_ms=None,
             last_message_category=None,
-            wake_expires_at_ms=None,
+            wake_delay_ms=None,
             wake_adjustment_count=0,
         )
     )
@@ -550,7 +550,7 @@ async def _create_wake_buffer(
     wake_bias = relationship_config["wake_time_bias"]
 
     sampled_delay = sample_wake_time(wake_min, wake_max, wake_bias)
-    wake_expires_at_ms = current_time + sampled_delay
+    wake_delay_ms = sampled_delay
 
     timer_state = _compute_timer_state(
         prev_category=None,
@@ -559,7 +559,8 @@ async def _create_wake_buffer(
         current_macro=None,
         now_ms=current_time,
         config=config,
-        wake_expires_at_ms=wake_expires_at_ms,
+        wake_delay_ms=wake_delay_ms,
+        now_ms_override=current_time,
     )
 
     msg_id_client = event.msg_id_client or event.msg_id_provider_inbound
@@ -577,11 +578,33 @@ async def _create_wake_buffer(
         last_msg_id_client=msg_id_client,
         message_count=1,
         last_msg_time_ms=current_time,
-        wake_expires_at_ms=wake_expires_at_ms,
+        wake_delay_ms=wake_delay_ms,
         wake_adjustment_count=0,
     )
     db.add(buffer_obj)
     await db.flush()
+
+    db.add(
+        AIMessageBufferWakeEvent(
+            buffer_id=buffer_obj.id,
+            user_qiao_id=user_qiao_id,
+            instance_qiao_id=instance_qiao_id,
+            event_time_ms=current_time,
+            reason="created",
+            trigger_message_type=int(event.message_type),
+            prev_wake_delay_ms=None,
+            new_wake_delay_ms=wake_delay_ms,
+            micro_expires_at_ms=timer_state.micro_expires_at_ms,
+            macro_expires_at_ms=timer_state.macro_expires_at_ms,
+            buffer_expires_at_ms=timer_state.buffer_expires_at_ms,
+            adjustment_mode="sample",
+            wake_time_min_ms=int(wake_min),
+            wake_time_max_ms=int(wake_max),
+            wake_time_bias=str(wake_bias),
+            random_number=None,
+            wake_adjustment_count_after=0,
+        )
+    )
 
     await create_conversation_item(
         db,
@@ -601,7 +624,10 @@ async def _create_wake_buffer(
         buffer_id=buffer_obj.id,
         user_qiao_id=user_qiao_id,
         instance_qiao_id=instance_qiao_id,
-        wake_duration_ms=sampled_delay,
+        wake_delay_ms=wake_delay_ms,
+        micro_expires_at_ms=timer_state.micro_expires_at_ms,
+        macro_expires_at_ms=timer_state.macro_expires_at_ms,
+        buffer_expires_at_ms=timer_state.buffer_expires_at_ms,
     )
 
 
@@ -625,12 +651,12 @@ async def _handle_wake_adjustment(
     if not relationship_config:
         relationship_config = _default_relationship_timing()
 
-    wake_expires_at_ms = buffer_obj.wake_expires_at_ms or current_time
-    remaining_ms = max(wake_expires_at_ms - current_time, 0)
+    prev_wake_delay_ms = buffer_obj.wake_delay_ms
+    remaining_ms = max(int(prev_wake_delay_ms or 0), 0)
     adjustment_mode = relationship_config.get("wake_time_adjustment", "none")
     min_wake_ms = int(relationship_config.get("wake_time_min_ms", 0))
-    adjusted_remaining = adjust_wake_time(remaining_ms, adjustment_mode, min_wake_ms)
-    new_wake_expires_at_ms = current_time + adjusted_remaining
+    adjusted_remaining, random_number = adjust_wake_time(remaining_ms, adjustment_mode, min_wake_ms)
+    new_wake_delay_ms = adjusted_remaining
 
     timer_state = _compute_timer_state(
         prev_category=_category_from_value(buffer_obj.last_message_category),
@@ -639,13 +665,14 @@ async def _handle_wake_adjustment(
         current_macro=buffer_obj.macro_expires_at_ms,
         now_ms=current_time,
         config=config,
-        wake_expires_at_ms=new_wake_expires_at_ms,
+        wake_delay_ms=new_wake_delay_ms,
+        now_ms_override=current_time,
     )
 
     msg_id_client = event.msg_id_client or event.msg_id_provider_inbound
     is_text_event = event.message_type == MessageType.TEXT
     update_values: dict[str, Any] = {
-        "wake_expires_at_ms": new_wake_expires_at_ms,
+        "wake_delay_ms": new_wake_delay_ms,
         "wake_adjustment_count": (
             (buffer_obj.wake_adjustment_count or 0) + 1
             if is_text_event
@@ -664,6 +691,29 @@ async def _handle_wake_adjustment(
 
     await db.execute(
         update(AIMessageBuffer).where(AIMessageBuffer.id == buffer_obj.id).values(update_values)
+    )
+
+    wake_adjustment_count_after = int(update_values["wake_adjustment_count"])
+    db.add(
+        AIMessageBufferWakeEvent(
+            buffer_id=buffer_obj.id,
+            user_qiao_id=buffer_obj.user_qiao_id,
+            instance_qiao_id=buffer_obj.instance_qiao_id,
+            event_time_ms=current_time,
+            reason="adjusted",
+            trigger_message_type=int(event.message_type),
+            prev_wake_delay_ms=prev_wake_delay_ms,
+            new_wake_delay_ms=new_wake_delay_ms,
+            micro_expires_at_ms=timer_state.micro_expires_at_ms,
+            macro_expires_at_ms=timer_state.macro_expires_at_ms,
+            buffer_expires_at_ms=timer_state.buffer_expires_at_ms,
+            adjustment_mode=str(adjustment_mode),
+            wake_time_min_ms=int(relationship_config.get("wake_time_min_ms", 0)),
+            wake_time_max_ms=int(relationship_config.get("wake_time_max_ms", 0)),
+            wake_time_bias=str(relationship_config.get("wake_time_bias", "")),
+            random_number=random_number,
+            wake_adjustment_count_after=wake_adjustment_count_after,
+        )
     )
 
     if is_text_event:
@@ -688,12 +738,17 @@ async def _handle_wake_adjustment(
                 },
             )
 
-    logger.debug(
+    logger.info(
         "wake_buffer_adjusted",
         buffer_id=buffer_obj.id,
-        new_wake_remaining_ms=adjusted_remaining,
+        prev_wake_delay_ms=prev_wake_delay_ms,
+        new_wake_delay_ms=new_wake_delay_ms,
         adjustment_mode=adjustment_mode,
+        random_number=random_number,
         message_type=event.message_type,
+        micro_expires_at_ms=timer_state.micro_expires_at_ms,
+        macro_expires_at_ms=timer_state.macro_expires_at_ms,
+        buffer_expires_at_ms=timer_state.buffer_expires_at_ms,
     )
 
 
@@ -723,7 +778,9 @@ def sample_wake_time(min_ms: int, max_ms: int, bias: str = "balanced") -> int:
     return int(min_ms + ratio * (max_ms - min_ms))
 
 
-def adjust_wake_time(current_remaining_ms: int, adjustment_mode: str, wake_time_min_ms: int) -> int:
+def adjust_wake_time(
+    current_remaining_ms: int, adjustment_mode: str, wake_time_min_ms: int
+) -> tuple[int, int | None]:
     """
     Adjust the wake timer when new messages arrive during the waiting window.
 
@@ -735,10 +792,10 @@ def adjust_wake_time(current_remaining_ms: int, adjustment_mode: str, wake_time_
 
     minimum_ms = max(wake_time_min_ms, 500)
     if current_remaining_ms <= 0:
-        return minimum_ms
+        return minimum_ms, None
 
     if adjustment_mode != "random_half":
-        return max(current_remaining_ms, minimum_ms)
+        return max(current_remaining_ms, minimum_ms), None
 
     random_number = random.randint(1, 100)
     if random_number <= RANDOM_HALF_SCALE_DIVISOR:
@@ -748,7 +805,7 @@ def adjust_wake_time(current_remaining_ms: int, adjustment_mode: str, wake_time_
     else:
         adjusted = current_remaining_ms
 
-    return max(adjusted, minimum_ms)
+    return max(adjusted, minimum_ms), random_number
 
 
 def _default_relationship_timing() -> RelationshipTiming:
@@ -890,6 +947,9 @@ async def _create_new_buffer_window(
         user_qiao_id=user_qiao_id,
         instance_qiao_id=instance_qiao_id,
         buffer_id=buffer_obj.id,
+        micro_expires_at_ms=timer_state.micro_expires_at_ms,
+        macro_expires_at_ms=timer_state.macro_expires_at_ms,
+        buffer_expires_at_ms=timer_state.buffer_expires_at_ms,
     )
 
 
@@ -950,7 +1010,14 @@ async def _update_buffer_window(
                 },
             )
 
-    logger.info("buffer_window_updated", buffer_id=buffer_obj.id, category=category.name)
+    logger.info(
+        "buffer_window_updated",
+        buffer_id=buffer_obj.id,
+        category=category.name,
+        micro_expires_at_ms=timer_state.micro_expires_at_ms,
+        macro_expires_at_ms=timer_state.macro_expires_at_ms,
+        buffer_expires_at_ms=timer_state.buffer_expires_at_ms,
+    )
 
 
 def _append_text(existing: str | None, addition: str) -> str:
@@ -992,8 +1059,10 @@ def _compute_timer_state(
     current_macro: int | None,
     now_ms: int,
     config: BufferTimerConfig,
-    wake_expires_at_ms: int | None = None,
+    wake_delay_ms: int | None = None,
+    now_ms_override: int | None = None,
 ) -> TimerComputationResult:
+    now_base_ms = int(now_ms_override if now_ms_override is not None else now_ms)
     new_micro = current_micro
     new_macro = current_macro
     last_category_value = prev_category.value if prev_category else None
@@ -1005,7 +1074,8 @@ def _compute_timer_state(
             buffer_expires_at_ms=_compute_buffer_expiration(
                 new_micro,
                 new_macro,
-                wake_expires_at_ms=wake_expires_at_ms,
+                wake_delay_ms=wake_delay_ms,
+                now_ms=now_base_ms,
             ),
             last_message_category=last_category_value,
         )
@@ -1045,7 +1115,8 @@ def _compute_timer_state(
     buffer_expires = _compute_buffer_expiration(
         new_micro,
         new_macro,
-        wake_expires_at_ms=wake_expires_at_ms,
+        wake_delay_ms=wake_delay_ms,
+        now_ms=now_base_ms,
     )
 
     return TimerComputationResult(
@@ -1060,16 +1131,21 @@ def _compute_buffer_expiration(
     micro_expires_at_ms: int | None,
     macro_expires_at_ms: int | None,
     *,
-    wake_expires_at_ms: int | None = None,
+    wake_delay_ms: int | None = None,
+    now_ms: int | None = None,
 ) -> int | None:
     timer_candidates = [t for t in (micro_expires_at_ms, macro_expires_at_ms) if t is not None]
     timer_due_ms = min(timer_candidates) if timer_candidates else None
 
-    if wake_expires_at_ms is None:
+    if wake_delay_ms is None:
         return timer_due_ms
     if timer_due_ms is None:
-        return wake_expires_at_ms
-    return max(timer_due_ms, wake_expires_at_ms)
+        if now_ms is None:
+            raise ValueError("now_ms is required when wake_delay_ms is set and timers are absent")
+        return int(now_ms) + max(int(wake_delay_ms), 0)
+
+    # Serial composition (legacy behavior): wait timer_due_ms first, then wait wake_delay_ms.
+    return timer_due_ms + max(int(wake_delay_ms), 0)
 
 
 async def _get_buffer_config(db: AsyncSession) -> BufferTimerConfig:

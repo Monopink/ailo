@@ -51,8 +51,15 @@
 `buffer_expires_at_ms` 是唯一调度截止时间，计算规则为：
 
 1. `timer_due_ms = min(micro_expires_at_ms, macro_expires_at_ms)`（忽略 NULL）
-2. 若存在 `wake_expires_at_ms` 且存在 `timer_due_ms`，则 `buffer_expires_at_ms = max(wake_expires_at_ms, timer_due_ms)`
-3. 若仅存在其一，则 `buffer_expires_at_ms` 取存在值
+2. 若不存在 `wake_delay_ms`，则 `buffer_expires_at_ms = timer_due_ms`
+3. 若存在 `wake_delay_ms` 且存在 `timer_due_ms`，则：
+   - `buffer_expires_at_ms = timer_due_ms + wake_delay_ms`
+4. 若存在 `wake_delay_ms` 但 `timer_due_ms` 为 NULL，则 `buffer_expires_at_ms = now_ms + wake_delay_ms`
+
+说明：
+
+- Wake 与 timer 的语义为**串行叠加**：先等待 timer 到期，再等待 wake 剩余时间。
+- `wake_delay_ms` 的时间基准为 `now_ms`（优先 DB 时钟），并且是“串行追加延迟”而非绝对到期时间戳。
 
 ### 消息类型与等待时间
 
@@ -119,7 +126,7 @@
 
 ### 新增字段
 
-- wake_expires_at_ms - 唤醒计时器到期时间（毫秒时间戳），仅在 WAITING_WAKEUP 状态下非 NULL
+- wake_delay_ms - 唤醒延迟（毫秒），仅在 WAITING_WAKEUP 状态下非 NULL
 - wake_adjustment_count - 等待期间收到新消息的调整次数
 
 ### 流程集成
@@ -132,7 +139,7 @@
 
 **2. 等待期间收到新消息（含 typing_start / typing_end）**：
 
-- 根据 wake_time_adjustment 算法调整 wake_expires_at_ms
+- 根据 wake_time_adjustment 算法调整 wake_delay_ms
 - 统一重算 micro/macro/wake 三者对应的 `buffer_expires_at_ms`
 - 计数规则：
   - TEXT：`wake_adjustment_count += 1`，并更新聚合内容

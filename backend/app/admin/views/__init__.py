@@ -11,6 +11,7 @@ from .ai_conversation_views import (
     ai_conversation_runtime_view,
     ai_conversation_state_view,
     ai_message_buffer_view,
+    ai_message_buffer_wake_event_view,
 )
 from .ai_instance_views import (
     AI_INSTANCE_VIEWS,
@@ -173,6 +174,7 @@ __all__ = [
     "ai_conversation_state_view",
     "ai_conversation_runtime_view",
     "ai_message_buffer_view",
+    "ai_message_buffer_wake_event_view",
     "ai_conversation_item_view",
     "ai_conversation_item_archive_view",
     # Individual user/admin views

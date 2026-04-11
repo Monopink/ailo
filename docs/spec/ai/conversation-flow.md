@@ -58,7 +58,7 @@
 ### 阶段 4：缓冲聚合与计时
 
 - 同会话存在活跃窗口（`WAITING_WAKEUP` 或 `OPEN`）时必须合并，不存在时创建新窗口。
-- 是否进入唤醒等待由 `wake_window_ms` 决定，唤醒作为计时门控参与统一截止时间计算。
+- 是否进入唤醒等待由 `wake_window_ms` 决定；唤醒等待与 timer 等待采用串行叠加语义，统一体现在 `buffer_expires_at_ms` 的计算中。
 - `typing_start/typing_end` 在 `WAITING_WAKEUP` 与 `OPEN` 都必须更新计时。
 - 统一以 `buffer_expires_at_ms` 判定是否到期进入处理。
 

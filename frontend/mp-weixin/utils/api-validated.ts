@@ -5,10 +5,9 @@
  * Use these functions when you need to ensure API responses match expected schemas.
  */
 
-import { z } from 'zod';
-
 import * as api from './api';
 import { getLogger } from './logger';
+import type { RuntimeSchema } from './schemas-core';
 
 const logger = getLogger('API-Validated');
 
@@ -24,7 +23,7 @@ type WxResponseData = string | WechatMiniprogram.IAnyObject | ArrayBuffer;
  */
 export async function getValidated<T>(
   url: string,
-  schema: z.ZodSchema<T>,
+  schema: RuntimeSchema<T>,
   params: QueryParams = {},
   options: Omit<api.RequestOptions, 'url' | 'method' | 'data'> = {}
 ): Promise<T> {

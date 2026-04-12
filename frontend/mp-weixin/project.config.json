@@ -19,6 +19,10 @@
         "type": "folder"
       },
       {
+        "value": "deleted",
+        "type": "folder"
+      },
+      {
         "value": "package-lock.json",
         "type": "file"
       },
@@ -60,6 +64,10 @@
       },
       {
         "value": ".md",
+        "type": "suffix"
+      },
+      {
+        "value": ".ts",
         "type": "suffix"
       }
     ],
@@ -108,7 +116,7 @@
     "compileWorklet": false,
     "localPlugins": false,
     "disableUseStrict": false,
-    "useCompilerPlugins": ["typescript"],
+    "useCompilerPlugins": [],
     "swc": false,
     "disableSWC": true
   },

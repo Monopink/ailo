@@ -1,8 +1,8 @@
 import { requestValidated } from './api';
 import { getLogger } from './logger';
 import { fetchAccountInfo } from './profile';
-import type { AccountInfo } from './schemas';
-import { PhoneRefreshResponseSchema } from './schemas';
+import type { AccountInfo } from './schemas-core';
+import { PhoneRefreshResponseSchema } from './schemas-validation';
 import { isNonEmptyString } from './guards';
 
 export interface AccountViewModel extends AccountInfo {

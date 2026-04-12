@@ -7,8 +7,7 @@ import authService from './utils/auth-service';
 import { checkGlobalData, checkStorage } from './utils/debug';
 import { ENABLE_DEBUG_TOOLS } from './utils/env';
 import { getLogger } from './utils/logger';
-import { initMessageService } from './utils/message/service';
-import type { MessageService } from './utils/message/service';
+import { initMessageService, type MessageService } from './utils/message/service';
 import conversationStore from './utils/message/conversation-store';
 import { normalizeError } from './utils/errors';
 

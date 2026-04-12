@@ -1,6 +1,7 @@
 import { requestValidated } from './api';
 import { getLogger } from './logger';
-import { AppPageSchema, type AppPage } from './schemas';
+import type { AppPage } from './schemas-core';
+import { AppPageSchema } from './schemas-validation';
 
 const logger = getLogger('AppPageService');
 const PAGE_KEY_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;

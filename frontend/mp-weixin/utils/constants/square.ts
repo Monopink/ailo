@@ -1,4 +1,4 @@
-import type { SquareCategory, SquareThemeKey } from '../schemas';
+import type { SquareCategory, SquareThemeKey } from '../schemas-core';
 
 export interface SquareCategoryCard {
   categoryKey: string;

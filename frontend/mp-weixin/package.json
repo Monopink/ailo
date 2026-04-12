@@ -14,7 +14,9 @@
     "type-check": "tsc --noEmit",
     "ui:audit": "node ./ui-audit.mjs",
     "check:fallbacks": "node ./scripts/check-wxml-fallbacks.js",
+    "verify:runtime-js-sync": "node ./scripts/verify-runtime-js-sync.js",
     "check": "npm run type-check && npm run lint && npm run lint:style && npm run ui:audit && npm run check:fallbacks",
+    "upload:check": "npm run build && npm run verify:runtime-js-sync && npm run check",
     "test": "npm run check",
     "prepare": "husky"
   },

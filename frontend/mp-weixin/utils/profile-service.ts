@@ -5,7 +5,7 @@ import {
   fetchCurrentUserProfile,
   updateCurrentUserProfile,
 } from './profile';
-import type { UserProfile } from './schemas';
+import type { UserProfile } from './schemas-core';
 
 export interface ProfileViewModel extends UserProfile {
   displayAvatar: string;

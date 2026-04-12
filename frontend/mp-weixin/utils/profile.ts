@@ -1,12 +1,10 @@
 import { requestValidated } from './api';
+import type { AccountInfo, UserProfile, UsernameCheckResponse } from './schemas-core';
 import {
-  AccountInfo,
   AccountInfoSchema,
-  UserProfile,
   UserProfileSchema,
-  UsernameCheckResponse,
   UsernameCheckResponseSchema,
-} from './schemas';
+} from './schemas-validation';
 
 export type UserProfileResponse = UserProfile;
 export type AccountInfoResponse = AccountInfo;

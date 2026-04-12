@@ -24,7 +24,7 @@ import messageEventBus from './event-bus';
 import unreadStore from './unread-store';
 import { isDefined, isNonEmptyString } from '../guards';
 import { ackOfflineMessages, fetchOfflineMessages } from './offline';
-import type { OfflineMessage } from '../schemas';
+import type { OfflineMessage } from '../schemas-core';
 
 const logger = getLogger('MessageService');
 

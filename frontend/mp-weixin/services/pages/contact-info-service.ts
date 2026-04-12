@@ -13,7 +13,7 @@ import {
   saveContacts,
   type StoredContact,
 } from '../../utils/storage';
-import type { ContactProfile } from '../../utils/schemas';
+import type { ContactProfile } from '../../utils/schemas-core';
 import { del } from '../../utils/api';
 import { clearLocalConversationState } from '../../utils/message/conversation-cleanup';
 import { BasePageService } from './base-page-service';

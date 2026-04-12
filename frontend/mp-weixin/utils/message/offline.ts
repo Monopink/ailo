@@ -4,8 +4,8 @@
  */
 
 import { requestValidated } from '../api';
-import type { OfflineMessagesResponse } from '../schemas';
-import { OfflineAckResponseSchema, OfflineMessagesResponseSchema } from '../schemas';
+import type { OfflineMessagesResponse } from '../schemas-core';
+import { OfflineAckResponseSchema, OfflineMessagesResponseSchema } from '../schemas-validation';
 import { getDeviceId } from '../storage';
 
 export async function fetchOfflineMessages(params?: {

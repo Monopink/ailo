@@ -4,9 +4,9 @@
  */
 import { API_CONFIG, STORAGE_KEYS } from './config';
 import { getLogger } from './logger';
-import type { ZodTypeAny } from 'zod';
 import { isNonEmptyString } from './guards';
 import { normalizeError } from './errors';
+import type { RuntimeSchema } from './schemas-core';
 
 const logger = getLogger('API');
 
@@ -416,9 +416,9 @@ export async function request<
 }
 
 export async function requestValidated<
-  TSchema extends ZodTypeAny,
+  TOutput,
   TPayload extends WxRequestData | undefined = WechatMiniprogram.IAnyObject,
->(schema: TSchema, options: RequestOptions<TPayload>): Promise<TSchema['_output']> {
+>(schema: RuntimeSchema<TOutput>, options: RequestOptions<TPayload>): Promise<TOutput> {
   const raw = await request<WxResponseData, TPayload>(options);
   logger.debug('requestValidated: received raw data', { raw, url: options.url });
 

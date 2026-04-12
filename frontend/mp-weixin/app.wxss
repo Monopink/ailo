@@ -1,5 +1,19 @@
-/* Import TDesign miniprogram styles */
-@import 'miniprogram_npm/tdesign-miniprogram/common/style/index.wxss';
+/* Avoid full global TDesign style entry to control package size. */
+/* Keep only the hotspot utility required by TDesign interaction areas. */
+.hotspot-expanded.relative {
+  position: relative;
+}
+
+.hotspot-expanded::after {
+  content: '';
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  transform: scale(1.5);
+}
 
 /* Import custom TDesign theme overrides */
 @import '/styles/tdesign-theme.wxss';

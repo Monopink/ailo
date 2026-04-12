@@ -14,7 +14,6 @@ from typing import cast
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions.llm import (
-    ConfigNotVerifiedError,
     JSONSchemaNotSupportedError,
     LLMConfigurationError,
     LLMNoConfigError,
@@ -209,7 +208,7 @@ async def select_config_for_ai(
     """
     Select and validate LLM config for AI Instance usage.
 
-    Ensures the selected config supports JSON Schema.
+    Ensures the selected config is usable for JSON Schema responses.
     """
 
     if name:
@@ -230,8 +229,16 @@ async def select_config_for_ai(
 
     config, provider = config_result
 
-    if config.json_schema_mode == "auto":
-        raise ConfigNotVerifiedError(config_name=config.name)
+    if provider.name == "mock":
+        return config, provider
+
+    if config.json_schema_mode in (None, "auto"):
+        logger.info(
+            "config_json_schema_not_verified",
+            config_name=config.name,
+            provider=provider.name,
+            json_schema_mode=config.json_schema_mode,
+        )
 
     if config.json_schema_mode == "disabled":
         raise JSONSchemaNotSupportedError(config_name=config.name)
@@ -286,6 +293,39 @@ async def validate_ai_response(
                 "auto_update_allowed": allow_auto_update,
             },
         )
+
+
+async def invoke_llm_with_explicit_config(
+    *,
+    config: LLMConfig,
+    provider: LLMProvider,
+    messages: list[JSONDict],
+    json_schema: JSONDict | None = None,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+    thinking_mode: str | None = None,
+    instance_request_params: JSONDict | None = None,
+    preemption_checker: PreemptionChecker | None = None,
+    session_context: LLMSessionContext | None = None,
+) -> JSONDict:
+    """
+    Invoke a provider using an explicit config+provider pair (no selection/failover).
+
+    This is used by admin save-time verification, where we want to validate a draft
+    configuration without relying on name-based selection.
+    """
+    return await _call_provider(
+        config=config,
+        provider=provider,
+        messages=messages,
+        json_schema=json_schema,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        thinking_mode=thinking_mode,
+        instance_request_params=instance_request_params,
+        preemption_checker=preemption_checker,
+        session_context=session_context,
+    )
 
 
 # ---------------------------------------------------------------------------

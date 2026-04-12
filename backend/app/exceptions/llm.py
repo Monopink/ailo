@@ -208,29 +208,6 @@ class LLMRequestError(LLMServiceError):
         self.status_code = http_status.HTTP_500_INTERNAL_SERVER_ERROR
 
 
-class ConfigNotVerifiedError(LLMConfigurationError):
-    """Exception raised when LLM config has not been verified for JSON Schema support."""
-
-    def __init__(
-        self,
-        config_name: str,
-        message: str | None = None,
-        details: dict[str, Any] | None = None,
-    ) -> None:
-        if not message:
-            message = (
-                f"配置 '{config_name}' 未经过测试验证。"
-                f"请先在配置测试页面进行测试，系统会自动检测JSON Schema支持情况。"
-            )
-
-        super().__init__(
-            config_name=config_name,
-            message=message,
-            details=details,
-        )
-        self.error_code = "CONFIG_NOT_VERIFIED"
-
-
 class JSONSchemaNotSupportedError(LLMConfigurationError):
     """Exception raised when LLM config does not support JSON Schema."""
 

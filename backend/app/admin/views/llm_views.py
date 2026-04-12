@@ -17,14 +17,14 @@ from starlette_admin import (
     JSONField,
     StringField,
 )
-from starlette_admin.actions import link_row_action, row_action
+from starlette_admin.actions import link_row_action
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 
 from app.admin.views.base import IntegerEnumField
 from app.core.database import get_sessionmaker
 from app.models.llm import LLMConfig, LLMProvider, LLMTestLog
-from app.services.admin.testing.llm_json_schema import test_json_schema_compatibility
+from app.services.admin.llm_config_save_policy import ensure_llm_config_json_schema_mode_on_save
 
 
 class LLMProviderView(ModelView):
@@ -165,8 +165,8 @@ class LLMConfigView(ModelView):
     label = "Configs"
     name = "Configs"
 
-    exclude_fields_from_create = ["id", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
+    exclude_fields_from_create = ["id", "created_at", "updated_at", "json_schema_mode"]
+    exclude_fields_from_edit = ["id", "created_at", "updated_at", "json_schema_mode"]
 
     def is_active(self, request: Request) -> bool:
         """Check if current page is related to this model (including test page)."""
@@ -199,7 +199,6 @@ class LLMConfigView(ModelView):
             "top_p": 0.70,
             "frequency_penalty": 0.00,
             "presence_penalty": 0.00,
-            "json_schema_mode": "auto",
             "default_tool_choice": "auto",
             "parallel_tool_calls": False,
             "max_tool_calls": 1,
@@ -231,6 +230,26 @@ class LLMConfigView(ModelView):
         """Normalize field types before persisting."""
         normalized_data = self._normalize_config_data(data)
         return await super().edit(request, pk, normalized_data)
+
+    async def before_create(self, request: Request, _data: dict[str, Any], obj: Any) -> None:
+        session = request.state.session
+        try:
+            if not isinstance(obj, LLMConfig):
+                return
+            await ensure_llm_config_json_schema_mode_on_save(session, config=obj, is_create=True)
+        except ValueError as exc:
+            await session.rollback()
+            raise FormValidationError({"provider": str(exc)}) from exc
+
+    async def before_edit(self, request: Request, _data: dict[str, Any], obj: Any) -> None:
+        session = request.state.session
+        try:
+            if not isinstance(obj, LLMConfig):
+                return
+            await ensure_llm_config_json_schema_mode_on_save(session, config=obj, is_create=False)
+        except ValueError as exc:
+            await session.rollback()
+            raise FormValidationError({"provider": str(exc)}) from exc
 
     fields_default_sort = [("name", False)]
     searchable_fields = ["name", "model_name"]
@@ -316,10 +335,10 @@ class LLMConfigView(ModelView):
             label="JSON Schema Mode",
             help_text=(
                 "JSON Schema support status. "
-                "This field is automatically updated after testing. "
+                "For Active non-mock configs this is verified on save. "
                 "strict=Verified supported (can be used for AI Instance), "
-                "disabled=Verified not supported (test only), "
-                "auto=Not verified (please test first)"
+                "disabled=Verified not supported, "
+                "auto=Not verified (typically Inactive configs)"
             ),
             required=False,
         ),
@@ -387,7 +406,7 @@ class LLMConfigView(ModelView):
         DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    row_actions = ["view", "edit", "test_config", "test_json_schema"]
+    row_actions = ["view", "edit", "test_config"]
 
     @link_row_action(
         name="test_config",
@@ -398,57 +417,6 @@ class LLMConfigView(ModelView):
         """Custom row action to test this LLM configuration."""
         # Redirect to test interface with RESTful path
         return f"/qiao-dash/llm_config/test/{pk}"
-
-    @row_action(
-        name="test_json_schema",
-        text="Test JSON Schema",
-        icon_class="fas fa-sync",
-        confirmation="Test JSON Schema compatibility for this configuration? This will automatically update the JSON Schema Mode field based on the result.",
-        submit_btn_text="Run Test",
-        submit_btn_class="btn-primary",
-    )
-    async def test_json_schema_action(self, request: Request, pk: Any) -> str:
-        """Test JSON Schema compatibility and update json_schema_mode."""
-        session_factory = get_sessionmaker()
-        async with session_factory() as session:
-            result = await test_json_schema_compatibility(session, int(pk))
-
-            def _format_field(value: Any, fallback: str = "N/A") -> str:
-                if isinstance(value, str):
-                    return value
-                if value is None:
-                    return fallback
-                return str(value)
-
-            # Build detailed message
-            message_value = result.get("message")
-            message = message_value if isinstance(message_value, str) else ""
-
-            # Add test log link if available
-            if result.get("test_log_id"):
-                message += f"\n\n📝 Test Log ID: {result['test_log_id']}"
-
-            # Add response details for successful tests
-            if result.get("success") and isinstance(result.get("response"), str):
-                message += f"\n\n📤 Response: {result['response'][:100]}..."
-
-            # Add performance metrics
-            if result.get("response_time_ms") is not None:
-                message += f"\n⏱️ Response Time: {_format_field(result['response_time_ms'])}ms"
-
-            usage_value = result.get("usage")
-            usage = usage_value if isinstance(usage_value, dict) else {}
-            if usage:
-                message += (
-                    f"\n📊 Tokens: {_format_field(usage.get('total_tokens'))} "
-                    f"(prompt: {_format_field(usage.get('prompt_tokens'))}, "
-                    f"completion: {_format_field(usage.get('completion_tokens'))})"
-                )
-
-            if result.get("model") is not None:
-                message += f"\n🤖 Model: {_format_field(result['model'])}"
-
-        return message
 
     async def validate(self, request: Request, data: dict[str, Any]) -> None:
         """Custom validation."""

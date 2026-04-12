@@ -164,7 +164,7 @@ ON CONFLICT (config_key) DO UPDATE SET
 -- Insert basic LLM providers
 INSERT INTO llm_providers (id, name, display_name, api_key_env, base_url, default_model, supports_streaming, supports_json_schema, supports_thinking) VALUES
 (1, 'doubao', 'Doubao Production', 'DOUBAO_API_KEY', 'https://ark.cn-beijing.volces.com/api/v3', 'doubao-seed-1-6-250615', 1, 1, 1),
-(2, 'mock', 'Mock LLM (Testing)', NULL, NULL, 'mock-model-v1', 0, 1, 0)
+(2, 'mock', 'Mock LLM (Testing)', NULL, NULL, 'mock-mirror', 0, 1, 0)
 ON CONFLICT (display_name) DO UPDATE SET
     name = EXCLUDED.name,
     api_key_env = EXCLUDED.api_key_env,
@@ -194,7 +194,8 @@ INSERT INTO llm_configs (
     extra_params
 ) VALUES
 (1, 'advanced', 'ep-20250619205554-wwsr7', 0.7, 4000, 30, 'disabled', 0.70, 0.00, 0.00, '[]'::jsonb, 'strict', 1, 1, '{"memory_limits": {"core": 30, "recent": 50}}'::jsonb),
-(2, 'mock', 'mock-model-v1', 0.7, 2000, 5, 'disabled', 0.70, 0.00, 0.00, '[]'::jsonb, 'strict', 1, 999, '{"memory_limits": {"core": 30, "recent": 50}}'::jsonb)
+(2, 'mock', 'mock-mirror', 0.7, 2000, 5, 'disabled', 0.70, 0.00, 0.00, '[]'::jsonb, 'strict', 1, 999, '{"memory_limits": {"core": 30, "recent": 50}}'::jsonb),
+(2, 'mock-random', 'mock-random', 0.7, 2000, 5, 'disabled', 0.70, 0.00, 0.00, '[]'::jsonb, 'strict', 1, 1000, '{"memory_limits": {"core": 30, "recent": 50}}'::jsonb)
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================================

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import secrets
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -22,6 +23,84 @@ logger = get_logger(__name__)
 
 
 _converter = ResponsesFormatConverter()
+
+_MOCK_RANDOM_CONFIG_NAME = "mock-random"
+
+_RANDOM_OUTGOING_PRESETS: list[str] = [
+    "原来是这样",
+    "确实有道理",
+    "滴！你的专属陪聊已上线。",
+    "哇，你终于出现了！",
+    "你好呀",
+    "哈啰呀",
+    "嗨，很高兴见到你",
+    "嗨!",
+    "你好",
+    "哈喽呀",
+    "想聊啥呀",
+    "在干啥呀",
+    "冒个泡呀",
+    "在滴",
+    "在",
+    "在呢",
+    "收到啦",
+    "在呢在呢",
+    "然后呢然后呢",
+    "真的假的呀",
+    "有点意思诶",
+    "我也觉得呢",
+    "还有这种事",
+    "展开说说呗",
+    "懂你意思啦",
+    "确实没想到",
+    "咱俩想一块去了。",
+    "然后呢？",
+    "后来怎么样了？",
+    "具体说说呗。",
+]
+
+_RANDOM_FOLLOWUP_PRESETS: list[str] = [
+    "是不是在思考人生大事？还是单纯在发呆？",
+    "我想分享一个今天看到的超好笑的笑话给你。",
+    "记得喝口水休息一下哦。",
+    "呼叫呼叫！这里有一只无聊到长蘑菇的机器人。",
+    "刚才我去火星考察了一圈，地球这边有什么新鲜事吗？",
+    "哈哈，我就知道你会这么说！",
+    "嗨～刚看到你的消息！今天过得怎么样呀？",
+    "我在呢。你想先从哪儿聊起？",
+    "收到！正在认真听你说～请继续～",
+    "哇，听起来很有意思！能多跟我讲讲吗？",
+    "居然主动找我？太阳打西边出来了？",
+    "很高兴收到你的消息。",
+    "终于等到你，还好我没放弃……",
+    "有什么我可以帮你的吗？",
+    "突然好想吃火锅/奶茶啊……你呢？",
+    "今天天气好奇怪，你那边怎么样？",
+    "最近有没有发现什么好听的歌/好看的剧？",
+    "如果明天不用上班/上学，你最想做什么？",
+    "真的！我也这么觉得",
+    "太真实了，简直世另我。",
+    "没错，就是这种感觉。",
+    "确实，这点无法反驳。",
+    "没事没事，我在听。",
+    "收到！",
+    "有点东西。",
+]
+
+
+def _random_outgoing_message() -> str:
+    return secrets.choice(_RANDOM_OUTGOING_PRESETS)
+
+
+def _random_followups() -> list[str]:
+    count = 1 + secrets.randbelow(2)
+    target = min(count, len(_RANDOM_FOLLOWUP_PRESETS))
+    selected: list[str] = []
+    while len(selected) < target:
+        candidate = secrets.choice(_RANDOM_FOLLOWUP_PRESETS)
+        if candidate not in selected:
+            selected.append(candidate)
+    return selected
 
 
 def _build_current_state(user_message: str) -> str:
@@ -123,7 +202,7 @@ def _build_payload(
     """
 
     payload: dict[str, Any] = {
-        "model": options.model or config.model_name or provider.default_model or "mock-model-v1",
+        "model": options.model or config.model_name or provider.default_model or "mock-mirror",
         "messages": options.messages,
         "input": provider_messages,
         "temperature": (
@@ -158,11 +237,16 @@ def _build_payload(
 
 
 def _build_mock_content(
-    user_message: str, json_schema: dict[str, Any] | None, config: LLMConfig, provider: LLMProvider
+    user_message: str,
+    json_schema: dict[str, Any] | None,
+    config: LLMConfig,
+    provider: LLMProvider,
+    resolved_model: str,
 ) -> str:
     """Generate deterministic mock content."""
 
     timestamp = datetime.now(UTC).isoformat()
+    is_random_preset = resolved_model == _MOCK_RANDOM_CONFIG_NAME
 
     if json_schema:
         # Generate mock response matching the required schema structure
@@ -186,6 +270,14 @@ def _build_mock_content(
 
             if field == "score":
                 mock_body[field] = _build_score_from_schema(field_schema)
+                continue
+
+            if is_random_preset and field == "outgoing_messages":
+                mock_body[field] = [_random_outgoing_message()]
+                continue
+
+            if is_random_preset and field == "followup_messages":
+                mock_body[field] = _random_followups()
                 continue
 
             builder = _FIELD_BUILDERS.get(field)
@@ -213,6 +305,9 @@ def _build_mock_content(
 
         return json.dumps(mock_body, ensure_ascii=False)
 
+    if is_random_preset:
+        return _random_outgoing_message()
+
     return f"(Mock reply) {user_message or 'no input'} — {timestamp}"
 
 
@@ -237,6 +332,7 @@ async def send_request(
 
     _ = stream  # maintained for API parity
     provider_messages = _converter.convert_to_provider_format(options.messages)
+    resolved_model = options.model or config.model_name or provider.default_model or "mock-mirror"
     payload = _build_payload(config, provider, options, provider_messages)
 
     # Simulate inference latency
@@ -247,7 +343,7 @@ async def send_request(
         preempted_raw_response: dict[str, Any] = {"mock": True, "payload": payload}
         return LLMProviderResult(
             content=None,
-            model=config.model_name or provider.default_model or "mock-model-v1",
+            model=resolved_model,
             usage=None,
             finish_reason="preempted",
             raw_response=preempted_raw_response,
@@ -258,7 +354,13 @@ async def send_request(
     # Extract last user message, handling both string and list content formats
     last_user_message = _extract_last_user_message(provider_messages)
 
-    content = _build_mock_content(last_user_message, options.json_schema, config, provider)
+    content = _build_mock_content(
+        last_user_message,
+        options.json_schema,
+        config,
+        provider,
+        resolved_model,
+    )
 
     prompt_tokens = _estimate_tokens(provider_messages)
     completion_tokens = len(content) // 4 + 1
@@ -295,7 +397,7 @@ async def send_request(
 
     raw_response: dict[str, Any] = {
         "id": response_identifier,
-        "model": config.model_name or provider.default_model or "mock-model-v1",
+        "model": resolved_model,
         "output": [{"type": "message", "role": "assistant", "content": content_blocks}],
         "usage": usage,
         "finish_reason": "stop",
@@ -304,7 +406,7 @@ async def send_request(
 
     return LLMProviderResult(
         content=content,
-        model=config.model_name or provider.default_model or "mock-model-v1",
+        model=resolved_model,
         usage=usage,
         finish_reason="stop",
         raw_response=raw_response,

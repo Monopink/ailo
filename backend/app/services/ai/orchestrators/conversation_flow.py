@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_sessionmaker
 from app.enums import CHAT_INFO_TEMPLATES, AIMessageBufferState, ChatInfoType, ContactType
 from app.exceptions import AIConversationError, AIInstanceInactiveError, AIInstanceNotFoundError
-from app.exceptions.llm import ConfigNotVerifiedError, JSONSchemaNotSupportedError
+from app.exceptions.llm import JSONSchemaNotSupportedError
 from app.models.ai.instance import AIInstance, AIMessageBuffer
 from app.models.contact import Contact
 from app.models.llm import LLMConfig, LLMProvider
@@ -1013,9 +1013,7 @@ async def _process_conversation_impl(
     # Get JSON schema for response validation
     json_schema = build_response_schema(context)
 
-    # Pre-check: Validate config supports JSON Schema
-    # This will raise ConfigNotVerifiedError or JSONSchemaNotSupportedError
-    # if the selected configuration is not suitable
+    # Select config (override or instance). Block only if JSON Schema is explicitly disabled.
     if config_name:
         config, provider = await select_config_for_ai(db, config_name)
         config_lookup_mode = "test_override"
@@ -1024,10 +1022,7 @@ async def _process_conversation_impl(
         config, provider = await get_instance_llm_config(db, instance_id)
         config_lookup_mode = "instance"
 
-    if config.json_schema_mode == "auto":
-        raise ConfigNotVerifiedError(config_name=config.name)
-
-    if config.json_schema_mode == "disabled":
+    if provider.name != "mock" and config.json_schema_mode == "disabled":
         raise JSONSchemaNotSupportedError(config_name=config.name)
 
     logger.info(

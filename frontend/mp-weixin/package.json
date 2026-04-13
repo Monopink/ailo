@@ -8,7 +8,7 @@
     "watch": "tsc --watch",
     "lint": "eslint . --ext .ts,.js,.wxml",
     "lint:fix": "eslint . --ext .ts,.js,.wxml --fix",
-    "lint:style": "stylelint \"pages/**/*.wxss\"",
+    "lint:style": "stylelint \"{pages,pkg}/**/*.wxss\"",
     "format": "prettier --write \"**/*.{ts,js,json,wxss}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json,wxss}\"",
     "type-check": "tsc --noEmit",
@@ -112,7 +112,7 @@
       },
       {
         "files": [
-          "pages/chat/chat.wxss"
+          "pkg/chat/chat.wxss"
         ],
         "rules": {
           "color-no-hex": null

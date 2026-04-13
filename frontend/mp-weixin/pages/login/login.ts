@@ -261,7 +261,7 @@ Page<LoginPageData, LoginPageCustom>({
   },
 
   navigateToSquareDemo() {
-    void wx.navigateTo({ url: '/pages/square-demo/square-demo' });
+    void wx.navigateTo({ url: '/pkg/square-demo/square-demo' });
   },
 
   async handleAuthSuccess(authResult: AuthSuccessPayload) {
@@ -284,13 +284,13 @@ Page<LoginPageData, LoginPageCustom>({
 
   navigateToUserAgreement() {
     void wx.navigateTo({
-      url: `/pages/app-page/app-page?pageKey=${USER_AGREEMENT_PAGE_KEY}`,
+      url: `/pkg/app-page/app-page?pageKey=${USER_AGREEMENT_PAGE_KEY}`,
     });
   },
 
   navigateToPrivacyPolicy() {
     void wx.navigateTo({
-      url: `/pages/app-page/app-page?pageKey=${PRIVACY_POLICY_PAGE_KEY}`,
+      url: `/pkg/app-page/app-page?pageKey=${PRIVACY_POLICY_PAGE_KEY}`,
     });
   },
 

@@ -185,19 +185,19 @@ Page<ProfilePageData, ProfilePageCustom>({
 
   navigateToProfileDetail() {
     void wx.navigateTo({
-      url: '/pages/profile-detail/profile-detail',
+      url: '/pkg/profile-detail/profile-detail',
     });
   },
 
   navigateToAccountSecurity() {
     void wx.navigateTo({
-      url: '/pages/account-security/account-security',
+      url: '/pkg/account-security/account-security',
     });
   },
 
   navigateToAbout() {
     void wx.navigateTo({
-      url: '/pages/about/about',
+      url: '/pkg/about/about',
     });
   },
 

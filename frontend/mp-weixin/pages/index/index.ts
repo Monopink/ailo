@@ -1042,7 +1042,7 @@ Page<ContactListPageData, ContactListPageCustom>({
     if (!isNonEmptyString(convId)) {
       return;
     }
-    void wx.navigateTo({ url: `/pages/chat/chat?id=${convId}` });
+    void wx.navigateTo({ url: `/pkg/chat/chat?id=${convId}` });
   },
 
   goToSquareEntry() {
@@ -1074,7 +1074,7 @@ Page<ContactListPageData, ContactListPageCustom>({
       return;
     }
     void wx.navigateTo({
-      url: `/pages/contact-info/contact-info?id=${convId}`,
+      url: `/pkg/contact-info/contact-info?id=${convId}`,
       events: {
         contactAvatarUpdated: () => {
           void this.loadContactsFromCache();

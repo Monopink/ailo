@@ -137,7 +137,7 @@ const openCropper = (filePath: string): Promise<string | null> =>
   new Promise((resolve, reject) => {
     let resolved = false;
     wx.navigateTo({
-      url: '/pages/avatar-cropper/avatar-cropper',
+      url: '/pkg/avatar-cropper/avatar-cropper',
       events: {
         cropComplete: (data: { tempFilePath?: string }) => {
           resolved = true;

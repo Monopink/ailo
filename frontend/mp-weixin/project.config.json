@@ -129,5 +129,10 @@
     "tabIndent": "insertSpaces",
     "tabSize": 2
   },
-  "simulatorPluginLibVersion": {}
+  "simulatorPluginLibVersion": {},
+  "scripts": {
+    "beforeCompile": "npm run build:ts",
+    "beforePreview": "npm run build:ts",
+    "beforeUpload": "npm run build:ts"
+  }
 }

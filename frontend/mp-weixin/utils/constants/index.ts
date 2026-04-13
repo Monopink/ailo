@@ -13,6 +13,3 @@ export * from './message';
 
 // Square discovery constants
 export * from './square';
-
-// Contact-related constants
-export * from './contact';

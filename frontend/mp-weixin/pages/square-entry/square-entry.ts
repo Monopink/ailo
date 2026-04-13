@@ -1,4 +1,4 @@
-﻿import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
+import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { type ScreenModel } from '../../services/pages/page-state';
 import { requireAuth } from '../../utils/auth-guard';
 import {
@@ -197,7 +197,7 @@ Page<SquareEntryPageData, SquareEntryPageCustom>({
     }
     this._navigating = true;
     void wx.navigateTo({
-      url: `/pages/square/square?category_key=${encodeURIComponent(categoryKey)}`,
+      url: `/pkg/square/square?category_key=${encodeURIComponent(categoryKey)}`,
       fail: (error) => {
         logger.warn('Square entry navigation failed', { error, categoryKey });
         showToast('暂无内容');

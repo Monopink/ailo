@@ -25,10 +25,14 @@
     binderror="onBufferError" />
   <view wx:if="{{showPlaceholderIcon}}" class="ui-avatar__placeholder" aria-hidden="{{true}}">
     <image
-      wx:if="{{placeholderSrc !== ''}}"
+      wx:if="{{placeholderSrc !== '' && !placeholderFailed}}"
       class="ui-avatar__placeholder-image"
       src="{{placeholderSrc}}"
       mode="aspectFit"
       binderror="onPlaceholderError" />
+    <view wx:else class="ui-avatar__fallback">
+      <view class="ui-avatar__fallback-head"></view>
+      <view class="ui-avatar__fallback-body"></view>
+    </view>
   </view>
 </view>

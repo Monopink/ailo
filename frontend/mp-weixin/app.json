@@ -3,6 +3,7 @@
     "pages/boot/boot",
     "pages/square-entry/square-entry",
     "pages/square/square",
+    "pages/square-demo/square-demo",
     "pages/login/login",
     "pages/setup/setup",
     "pages/index/index",

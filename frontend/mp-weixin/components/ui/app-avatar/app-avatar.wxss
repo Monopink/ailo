@@ -57,3 +57,29 @@
   opacity: 0.56;
   display: block;
 }
+
+.ui-avatar__fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+}
+
+.ui-avatar__fallback-head {
+  width: 30%;
+  height: 30%;
+  border-radius: var(--radius-full);
+  background-color: var(--color-text-tertiary);
+  opacity: 0.36;
+}
+
+.ui-avatar__fallback-body {
+  width: 54%;
+  height: 24%;
+  border-radius: 9999rpx 9999rpx 12rpx 12rpx;
+  background-color: var(--color-text-tertiary);
+  opacity: 0.28;
+}

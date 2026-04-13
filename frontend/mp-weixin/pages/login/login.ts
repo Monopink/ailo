@@ -22,6 +22,10 @@ interface LoginPageData {
   remoteBackgroundShouldLoad: boolean;
   remoteBackgroundVisible: boolean;
   remoteBackgroundUrl: string;
+  privacyAccepted: boolean;
+  privacyDialogVisible: boolean;
+  privacyDialogCancelBtn: string | Record<string, unknown>;
+  privacyDialogConfirmBtn: string | Record<string, unknown>;
 }
 
 interface LoginPageCustom {
@@ -32,7 +36,13 @@ interface LoginPageCustom {
   handleRemoteBackgroundLoad(): void;
   handleRemoteBackgroundError(event: WechatMiniprogram.BaseEvent): void;
   handleWeChatLogin(event: WechatMiniprogram.ButtonGetPhoneNumber): Promise<void>;
+  handlePrivacyChange(event: WechatMiniprogram.CustomEvent<{ checked?: boolean }>): void;
+  handleLoginTapWithoutPrivacy(): void;
+  handlePrivacyDialogOpenTypeEvent(event: WechatMiniprogram.BaseEvent): void;
+  handlePrivacyDialogOpenTypeError(event: WechatMiniprogram.BaseEvent): void;
+  handlePrivacyDialogClose(): void;
   handleAuthSuccess(authResult: AuthSuccessPayload): Promise<void>;
+  navigateToSquareDemo(): void;
   navigateToUserAgreement(): void;
   navigateToPrivacyPolicy(): void;
 }
@@ -60,6 +70,19 @@ Page<LoginPageData, LoginPageCustom>({
     remoteBackgroundShouldLoad: false,
     remoteBackgroundVisible: false,
     remoteBackgroundUrl: '',
+    privacyAccepted: false,
+    privacyDialogVisible: false,
+    privacyDialogCancelBtn: {
+      content: '取消',
+      variant: 'base',
+      theme: 'default',
+    },
+    privacyDialogConfirmBtn: {
+      content: '同意并继续',
+      variant: 'base',
+      theme: 'primary',
+      openType: 'getPhoneNumber',
+    },
   },
 
   loginPageService: null as unknown as ReturnType<typeof createLoginPageService>,
@@ -155,6 +178,11 @@ Page<LoginPageData, LoginPageCustom>({
   },
 
   async handleWeChatLogin(event) {
+    if (!this.data.privacyAccepted) {
+      this.setData({ privacyDialogVisible: true });
+      return;
+    }
+
     const detail = (event as unknown as { detail?: Record<string, unknown> }).detail ?? {};
     const eventDetail = detail as {
       errMsg?: string;
@@ -164,10 +192,10 @@ Page<LoginPageData, LoginPageCustom>({
     };
 
     if (event.detail.errMsg !== 'getPhoneNumber:ok') {
-      logger.warn('WeChat phone authorization rejected', {
+      logger.warn('Phone authorization rejected', {
         errMsg: event.detail.errMsg,
       });
-      showToast('请先登录后即可开始使用');
+      showToast('已取消登录');
       return;
     }
 
@@ -182,7 +210,7 @@ Page<LoginPageData, LoginPageCustom>({
     }
 
     if (phoneAuthPayload === null) {
-      showToast('登录失败，请尝试更新微信');
+      showToast('登录失败，请重试');
       return;
     }
 
@@ -198,8 +226,42 @@ Page<LoginPageData, LoginPageCustom>({
         rawError: error,
       });
       this.setData({ wechatLoading: false });
-      showToast(isNonEmptyString(err.message) ? err.message : '登录失败，请尝试更新微信', 'none');
+      showToast(isNonEmptyString(err.message) ? err.message : '登录失败，请重试', 'none');
     }
+  },
+
+  handlePrivacyChange(event) {
+    const detail = (event as unknown as { detail?: { checked?: unknown } }).detail;
+    const checked = detail?.checked === true;
+    this.setData({ privacyAccepted: checked });
+  },
+
+  handleLoginTapWithoutPrivacy() {
+    this.setData({ privacyDialogVisible: true });
+  },
+
+  handlePrivacyDialogOpenTypeEvent(event) {
+    const detail = (event as unknown as { detail?: { errMsg?: string } }).detail;
+    if (detail?.errMsg !== 'getPhoneNumber:ok') {
+      this.setData({ privacyDialogVisible: false });
+      return;
+    }
+
+    this.setData({ privacyAccepted: true, privacyDialogVisible: false }, () => {
+      void this.handleWeChatLogin(event as unknown as WechatMiniprogram.ButtonGetPhoneNumber);
+    });
+  },
+
+  handlePrivacyDialogOpenTypeError() {
+    this.setData({ privacyDialogVisible: false });
+  },
+
+  handlePrivacyDialogClose() {
+    this.setData({ privacyDialogVisible: false });
+  },
+
+  navigateToSquareDemo() {
+    void wx.navigateTo({ url: '/pages/square-demo/square-demo' });
   },
 
   async handleAuthSuccess(authResult: AuthSuccessPayload) {

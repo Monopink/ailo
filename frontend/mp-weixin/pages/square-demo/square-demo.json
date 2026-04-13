@@ -1,0 +1,9 @@
+{
+  "navigationBarTitleText": "发现",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "t-navbar": "tdesign-miniprogram/navbar/navbar",
+    "page-layout": "/components/page-layout/page-layout",
+    "app-avatar": "/components/ui/app-avatar/app-avatar"
+  }
+}

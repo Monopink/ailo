@@ -71,16 +71,7 @@ const hasActiveLoadedImage = (data: AvatarComponentData): boolean => {
   return data.src1 !== '' && data.loaded1;
 };
 
-const resolvePlaceholderIconVisibility = (
-  data: AvatarComponentData,
-  placeholderSrc: string
-): boolean => {
-  if (data.placeholderFailed) {
-    return false;
-  }
-  if (resolveNonEmptyString(placeholderSrc) === '') {
-    return false;
-  }
+const resolvePlaceholderIconVisibility = (data: AvatarComponentData): boolean => {
   if (hasActiveLoadedImage(data)) {
     return false;
   }
@@ -170,10 +161,10 @@ Component({
         };
         const patched: Partial<AvatarComponentData> = {
           ...next,
-          showPlaceholderIcon: resolvePlaceholderIconVisibility(
-            { ...this.data, ...next } as AvatarComponentData,
-            this.data.placeholderSrc
-          ),
+          showPlaceholderIcon: resolvePlaceholderIconVisibility({
+            ...this.data,
+            ...next,
+          } as AvatarComponentData),
         };
         this.setData(patched);
         return;
@@ -194,7 +185,7 @@ Component({
         const nextData = { ...this.data, ...next } as AvatarComponentData;
         this.setData({
           ...next,
-          showPlaceholderIcon: resolvePlaceholderIconVisibility(nextData, this.data.placeholderSrc),
+          showPlaceholderIcon: resolvePlaceholderIconVisibility(nextData),
         });
         return;
       }
@@ -222,10 +213,7 @@ Component({
       }
 
       const nextData = { ...this.data, ...next } as AvatarComponentData;
-      next.showPlaceholderIcon = resolvePlaceholderIconVisibility(
-        nextData,
-        this.data.placeholderSrc
-      );
+      next.showPlaceholderIcon = resolvePlaceholderIconVisibility(nextData);
       this.setData(next);
     },
 
@@ -256,19 +244,19 @@ Component({
 
       if (bufferSrc === desiredSrc) {
         patch.activeBuffer = buffer;
-        patch.showPlaceholderIcon = resolvePlaceholderIconVisibility(
-          { ...this.data, ...patch } as AvatarComponentData,
-          this.data.placeholderSrc
-        );
+        patch.showPlaceholderIcon = resolvePlaceholderIconVisibility({
+          ...this.data,
+          ...patch,
+        } as AvatarComponentData);
         this.setData(patch);
         this.triggerEvent('load', event.detail);
         return;
       }
 
-      patch.showPlaceholderIcon = resolvePlaceholderIconVisibility(
-        { ...this.data, ...patch } as AvatarComponentData,
-        this.data.placeholderSrc
-      );
+      patch.showPlaceholderIcon = resolvePlaceholderIconVisibility({
+        ...this.data,
+        ...patch,
+      } as AvatarComponentData);
       this.setData(patch);
     },
 
@@ -276,10 +264,10 @@ Component({
       const patch: Partial<AvatarComponentData> = {
         placeholderFailed: true,
       };
-      patch.showPlaceholderIcon = resolvePlaceholderIconVisibility(
-        { ...this.data, ...patch } as AvatarComponentData,
-        ''
-      );
+      patch.showPlaceholderIcon = resolvePlaceholderIconVisibility({
+        ...this.data,
+        ...patch,
+      } as AvatarComponentData);
       this.setData(patch);
     },
 
@@ -304,10 +292,10 @@ Component({
         patch.failed1 = true;
       }
 
-      patch.showPlaceholderIcon = resolvePlaceholderIconVisibility(
-        { ...this.data, ...patch } as AvatarComponentData,
-        this.data.placeholderSrc
-      );
+      patch.showPlaceholderIcon = resolvePlaceholderIconVisibility({
+        ...this.data,
+        ...patch,
+      } as AvatarComponentData);
       this.setData(patch);
       if (bufferSrc === desiredSrc) {
         this.triggerEvent('error', event.detail);

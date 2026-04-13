@@ -115,6 +115,27 @@
   margin-top: var(--space-xs);
 }
 
+.login-actions__secondary {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
+  color: rgb(255 255 255 / 72%);
+  user-select: none;
+}
+
+.login-actions__secondary-text {
+  margin-right: 8rpx;
+}
+
+.login-actions__secondary-icon {
+  display: block;
+}
+
 .login-legal {
   margin-top: var(--space-xs);
   display: flex;
@@ -122,6 +143,12 @@
   justify-content: center;
   align-items: center;
   row-gap: 6rpx;
+}
+
+.login-legal__checkbox {
+  --td-checkbox-bg-color: transparent;
+
+  background: transparent;
 }
 
 .login-legal__text,
@@ -138,6 +165,27 @@
   color: rgb(255 255 255 / 96%);
   text-decoration: underline;
   text-underline-offset: 4rpx;
+}
+
+.login-privacy-dialog {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.login-privacy-dialog__text,
+.login-privacy-dialog__link {
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
+  color: var(--color-text-secondary);
+}
+
+.login-privacy-dialog__link {
+  color: var(--color-text-primary);
+  text-decoration: underline;
+  text-underline-offset: 6rpx;
 }
 
 .login-actions__hint {

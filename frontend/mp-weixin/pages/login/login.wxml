@@ -23,23 +23,65 @@
       </view>
 
       <view class="login-actions">
-        <t-button
-          class="login-actions__button"
-          theme="primary"
-          block
-          open-type="getPhoneNumber"
-          loading="{{wechatLoading}}"
-          bindgetphonenumber="handleWeChatLogin">
-          微信授权登录
-        </t-button>
+        <block wx:if="{{privacyAccepted}}">
+          <t-button
+            class="login-actions__button"
+            theme="primary"
+            block
+            open-type="getPhoneNumber"
+            loading="{{wechatLoading}}"
+            bindgetphonenumber="handleWeChatLogin">
+            登录 / 注册
+          </t-button>
+        </block>
+        <block wx:else>
+          <t-button
+            class="login-actions__button"
+            theme="primary"
+            block
+            loading="{{wechatLoading}}"
+            bindtap="handleLoginTapWithoutPrivacy">
+            登录 / 注册
+          </t-button>
+        </block>
         <view class="login-legal">
-          <text class="login-legal__text">登录代表您已阅读并同意</text>
+          <t-checkbox
+            checked="{{privacyAccepted}}"
+            block="{{false}}"
+            borderless="{{true}}"
+            t-class="login-legal__checkbox"
+            bindchange="handlePrivacyChange">
+            <text class="login-legal__text">我已阅读并同意</text>
+          </t-checkbox>
           <text class="login-legal__link" bindtap="navigateToUserAgreement">用户使用协议</text>
           <text class="login-legal__text">、</text>
           <text class="login-legal__link" bindtap="navigateToPrivacyPolicy">隐私政策</text>
         </view>
         <text class="login-actions__hint">未注册手机号登录将自动注册</text>
+        <view class="login-actions__secondary" bindtap="navigateToSquareDemo">
+          <text class="login-actions__secondary-text">暂不登录，先看看</text>
+          <t-icon
+            class="login-actions__secondary-icon"
+            name="chevron-right"
+            size="40rpx"
+            color="rgba(255,255,255,0.72)" />
+        </view>
       </view>
     </view>
+
+    <t-dialog
+      visible="{{privacyDialogVisible}}"
+      cancelBtn="{{privacyDialogCancelBtn}}"
+      confirmBtn="{{privacyDialogConfirmBtn}}"
+      bind:open-type-event="handlePrivacyDialogOpenTypeEvent"
+      bind:open-type-error-event="handlePrivacyDialogOpenTypeError"
+      bind:close="handlePrivacyDialogClose">
+      <view slot="content" class="login-privacy-dialog">
+        <text class="login-privacy-dialog__text">请先阅读并同意</text>
+        <text class="login-privacy-dialog__link" bindtap="navigateToUserAgreement">《用户使用协议》</text>
+        <text class="login-privacy-dialog__text">和</text>
+        <text class="login-privacy-dialog__link" bindtap="navigateToPrivacyPolicy">《隐私政策》</text>
+      </view>
+    </t-dialog>
   </view>
 </page-layout>

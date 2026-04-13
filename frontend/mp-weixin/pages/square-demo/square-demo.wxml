@@ -1,0 +1,71 @@
+<page-layout
+  style="--color-bg-page: var(--color-bg-secondary); --color-bg-header-solid: var(--color-bg-white);"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}">
+  <view slot="header" class="square-header">
+    <t-navbar left-arrow="{{true}}">
+      <view slot="title" class="navbar-title">发现</view>
+    </t-navbar>
+    <scroll-view scroll-x class="square-tabs" show-scrollbar="{{false}}">
+      <view class="square-tabs__list">
+        <block wx:for="{{categories}}" wx:key="categoryKey">
+          <view
+            wx:if="{{item.categoryKey === 'more'}}"
+            class="square-tabs__item square-tabs__item--more"
+            bindtap="selectCategory"
+            data-category-key="{{item.categoryKey}}">
+            {{item.label}}
+          </view>
+          <view
+            wx:else
+            class="square-tabs__item square-tabs__item--{{item.themeKey}} {{currentCategoryKey === item.categoryKey ? 'square-tabs__item--active' : ''}}"
+            bindtap="selectCategory"
+            data-category-key="{{item.categoryKey}}">
+            {{item.label}}
+          </view>
+        </block>
+      </view>
+    </scroll-view>
+  </view>
+
+  <view slot="empty" class="square-page__empty">
+    <text class="square-page__empty-text">{{pageLayoutData.emptyMessage}}</text>
+  </view>
+
+  <view slot="content" class="square-page">
+    <view class="square-list">
+      <view
+        wx:for="{{contactsPreview}}"
+        wx:key="qiao_id"
+        class="square-item list-row"
+        bindtap="handleContactTap"
+        data-id="{{item.qiao_id}}">
+        <app-avatar
+          src="{{item.avatar_url}}"
+          placeholderSrc="{{avatarPlaceholderUrl}}"
+          size="medium"
+          shape="circle"
+          class="list-row__avatar" />
+        <view class="list-row__info">
+          <view class="square-item__header">
+            <text class="square-item__name list-text-primary">{{item.nickname}}</text>
+          </view>
+          <text wx:if="{{item.bio}}" class="square-item__bio list-text-secondary">{{item.bio}}</text>
+        </view>
+      </view>
+
+      <view wx:if="{{hasMore}}" class="square-more">
+        <view class="square-more__fade"></view>
+        <view class="square-more__cta">
+          <view class="square-more__cta-link" bindtap="handleViewMoreTap">
+            <text class="square-more__cta-text">查看更多</text>
+            <text class="square-more__cta-arrow">›</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+</page-layout>

@@ -51,11 +51,6 @@
   margin-bottom: var(--space-xs);
 }
 
-.stranger-info__category {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-}
-
 .stranger-info__tags {
   margin-top: var(--space-sm);
   width: 100%;

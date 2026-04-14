@@ -25,7 +25,6 @@
         <text wx:if="{{profile.username}}" class="stranger-info__qiao-id">
           敲敲号：{{profile.username}}
         </text>
-        <text wx:if="{{profile.categoryText}}" class="stranger-info__category">{{profile.categoryText}}</text>
         <view wx:if="{{profile.tags.length}}" class="stranger-info__tags">
           <tag-pills tags="{{profile.tags}}" align="center" />
         </view>

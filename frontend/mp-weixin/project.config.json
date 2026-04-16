@@ -55,6 +55,10 @@
         "type": "file"
       },
       {
+        "value": "tsconfig.effective.json",
+        "type": "file"
+      },
+      {
         "value": ".map",
         "type": "suffix"
       },
@@ -68,6 +72,10 @@
       },
       {
         "value": ".ts",
+        "type": "suffix"
+      },
+      {
+        "value": "-cwd",
         "type": "suffix"
       }
     ],
@@ -131,8 +139,8 @@
   },
   "simulatorPluginLibVersion": {},
   "scripts": {
-    "beforeCompile": "npm run build:ts",
-    "beforePreview": "npm run build:ts",
-    "beforeUpload": "npm run build:ts"
+    "beforeCompile": "node ./scripts/devtools/run.js compile",
+    "beforePreview": "node ./scripts/devtools/run.js preview",
+    "beforeUpload": "node ./scripts/devtools/run.js upload"
   }
 }

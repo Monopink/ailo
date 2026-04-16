@@ -606,7 +606,7 @@ async def password_login(
         await record_auth_failure(auth_identifier, "user_auth", db)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="账号已被禁用",
+            detail="账号状态异常",
         )
 
     await reset_failures(auth_identifier, "user_auth")
@@ -854,7 +854,7 @@ async def wechat_login(
                 user_agent=user_agent,
             )
             logger.warning("wechat_login_user_inactive", qiao_id=user.qiao_id, ip=client_ip)
-            raise HTTPException(status_code=400, detail="账号已被禁用")
+            raise HTTPException(status_code=400, detail="账号状态异常")
 
         token_pair = await _issue_jwt_token_for_user(
             db,
@@ -1164,7 +1164,7 @@ async def bind_wechat_phone(
                 user_agent=user_agent,
             )
             logger.warning("wechat_login_user_inactive", qiao_id=user.qiao_id, ip=client_ip)
-            raise HTTPException(status_code=400, detail="账号已被禁用")
+            raise HTTPException(status_code=400, detail="账号状态异常")
 
         token_pair = await _issue_jwt_token_for_user(
             db,
@@ -1569,7 +1569,7 @@ async def verify_phone(
                 user_agent=user_agent,
             )
             logger.warning("verify_phone_user_inactive", qiao_id=user.qiao_id, ip=client_ip)
-            raise HTTPException(status_code=400, detail="账号已被禁用")
+            raise HTTPException(status_code=400, detail="账号状态异常")
 
         profile = await _ensure_profile_stub(db, user=user)
         avatar_url = await get_avatar_url(profile)

@@ -85,4 +85,4 @@ async def test_password_login_inactive_user_returns_status_message(
         await auth_api.password_login(_build_request(), body, db=fake_db)
 
     assert exc_info.value.status_code == 400
-    assert exc_info.value.detail == "账号已被禁用"
+    assert exc_info.value.detail == "账号状态异常"

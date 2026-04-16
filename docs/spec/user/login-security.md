@@ -91,5 +91,5 @@
 4) 进行双窗口 rate limit：超限返回保护性拒绝同态（对外复用普通失败三元组：`HTTP 400` + `error_code` + `message=登录失败，请稍后再试`），真实原因仅写日志（含 `retry_after`）
 5) 校验密码：
    - 凭证无效（账号不存在 / 密码错误）：记录一次 failure（计入 `failure_window`），返回 400 + `账号或密码错误`
-   - 账号状态非 ACTIVE：记录一次 failure（计入 `failure_window`），返回 400 + `账号已被禁用`
+   - 账号状态非 ACTIVE：记录一次 failure（计入 `failure_window`），返回 400 + `账号状态异常`
    - 成功：清空 failure 记录，继续签发 token

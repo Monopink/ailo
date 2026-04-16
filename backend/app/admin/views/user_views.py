@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from typing import ClassVar, cast
 
 from sqlalchemy import delete, desc, func, select
+from sqlalchemy.exc import IntegrityError
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 from starlette.templating import Jinja2Templates
@@ -50,11 +51,7 @@ from app.services.contact.request_service import retry_pending_contact_request
 from app.services.entitlement.service import ensure_system_initial_ai_contact_limit
 from app.services.profile.avatar import get_avatar_url
 from app.services.profile.integrity import ensure_user_profile
-from app.services.security.username import (
-    USERNAME_HELP_TEXT,
-    UsernameValidationConfigError,
-    validate_username_or_error,
-)
+from app.services.security.username import USERNAME_HELP_TEXT
 from app.services.system_config import get_config_int
 from app.type_defs import JSONDict
 from app.utils.phone import is_china_phone, normalize_phone
@@ -129,6 +126,7 @@ class UserView(BaseRoleAwareModelView):
         "avatar_preview",
         "qiao_id",
         "password_hash",
+        "verified_at",
         "created_at",
         "updated_at",
         "last_login",
@@ -244,25 +242,6 @@ class UserView(BaseRoleAwareModelView):
                     f"Password must be at least {PASSWORD_MIN_LENGTH} characters long"
                 )
 
-        username_value = data.get("username")
-        if isinstance(username_value, str):
-            if username_value == "":
-                # Treat empty input as unset; will be normalized to NULL in before_create/before_edit.
-                pass
-            else:
-                try:
-                    username_error = await validate_username_or_error(
-                        request.state.session,
-                        username_value,
-                    )
-                except UsernameValidationConfigError as exc:
-                    errors["username"] = str(exc)
-                else:
-                    if username_error is not None:
-                        errors["username"] = username_error
-        elif username_value is not None:
-            errors["username"] = "Invalid username"
-
         phone_value = data.get("phone")
         if isinstance(phone_value, str):
             normalized_phone_input = phone_value.strip()
@@ -299,8 +278,9 @@ class UserView(BaseRoleAwareModelView):
 
     async def create(self, request: Request, data: FormData) -> User:
         """Create user and ensure profile row exists."""
-        user = await super().create(request, data)
+        user: User | None = None
         try:
+            user = await super().create(request, data)
             await ensure_user_profile(
                 request.state.session,
                 user_id=getattr(user, "id", None),
@@ -312,6 +292,10 @@ class UserView(BaseRoleAwareModelView):
             if isinstance(user_id, int):
                 await ensure_system_initial_ai_contact_limit(request.state.session, user_id=user_id)
                 await request.state.session.commit()
+            return user
+        except IntegrityError as exc:
+            self._raise_integrity_error(exc)
+            raise
         except Exception as exc:
             user_id = getattr(user, "id", None)
             if isinstance(user_id, int):
@@ -326,7 +310,14 @@ class UserView(BaseRoleAwareModelView):
             raise FormValidationError(
                 {"username": f"User profile initialization failed: {exc!s}"}
             ) from exc
-        return user
+
+    async def edit(self, request: Request, pk: int | str, data: FormData) -> User:
+        """Edit user and surface DB constraint errors as field-level messages."""
+        try:
+            return await super().edit(request, pk, data)
+        except IntegrityError as exc:
+            self._raise_integrity_error(exc)
+            raise
 
     async def before_edit(self, _request: Request, data: FormData, obj: User) -> None:
         """Hash password before updating user if password is changed.
@@ -335,16 +326,27 @@ class UserView(BaseRoleAwareModelView):
         """
         password = data.pop("password", None)
 
-        username_value = data.get("username")
-        if obj.username is not None and (username_value is None or username_value == ""):
-            raise FormValidationError({"username": "Username cannot be cleared once set"})
-
         # Only update password if a new one is provided
         if isinstance(password, str) and password:
             obj.password_hash = get_password_hash(password)
 
         # Convert empty unique fields to NULL to avoid unique constraint violation
         convert_empty_strings_to_none(obj, ["phone", "email", "username"])
+
+    @staticmethod
+    def _raise_integrity_error(exc: IntegrityError) -> None:
+        error_msg = str(exc.orig) if hasattr(exc, "orig") else str(exc)
+        if "uq_users_username_lower" in error_msg:
+            raise FormValidationError({"username": "Username already exists"}) from exc
+        if "ck_users_username_length" in error_msg:
+            raise FormValidationError(
+                {"username": "Username must be 5-20 characters, or left empty"}
+            ) from exc
+        if "users_phone_key" in error_msg:
+            raise FormValidationError({"phone": "Phone number already exists"}) from exc
+        if "users_email_key" in error_msg:
+            raise FormValidationError({"email": "Email already exists"}) from exc
+        raise exc
 
 
 class ProfileView(BaseRoleAwareModelView):

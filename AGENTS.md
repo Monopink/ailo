@@ -8,7 +8,7 @@
 
 - 现在项目在开发阶段，主要依赖AI开发，并且整个项目只有一个人负责。
 - 代码实施应该始忠于文档, 但是如果发现文档出错或不合理应该提出而不是盲目遵守:
-  [功能设计目录](docs\spec\) [数据字典目录](docs\data-dict\) [API文档目录](docs\api\)
+  [功能设计目录](docs\spec\) [API文档目录](docs\api\)
 - 开发后端前务必了解 [后端规则](backend\AGENTS.md)
 - 开发小程序前务必了解 [小程序规则](frontend\mp-weixin\AGENTS.md)
 - [参考资料目录](docs\references\) ，相关参考内容:
@@ -61,7 +61,7 @@
 ### 2. 方案规划（**禁止修改任何代码**）
 - 如果用户提出创建任务文档，创建在 docs/plans/*
 - 功能/接口变更：同步更新 docs/spec/* 和 docs/api/*
-- 数据库修改：先修改 `backend/app/models/*.py` 与 Alembic migration；`backend/database/init/sql/01_schema.sql` 与 `docs/data-dict/*` 统一由生成脚本产出，禁止手工双写
+- 数据库修改：以 `backend/alembic/versions/*.py` 为唯一真相源；`backend/app/models/*.py` 与迁移保持一致
 - 修改文档前必读 docs/AGENTS.md
 - 依赖修改 backend/app/equirements.txt
 - 环境变量和部署文件修改 deployment/*
@@ -91,7 +91,6 @@
 - 会话开始 → `/session-start`
 - 修改代码后（后端/前端） → `/validate`
 - 修改数据库模型后 → `/database migrate`
-- 生成 schema 与 data-dict 产物（预览/同步） → `/schema-autogen`
 - 需要重置数据库 → `/database reset`
 - 实施验收审查（用户明确提出时） → `/code-review-expert`
 - 准备提交前 → `/pre-commit-check`

@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict says123
+\restrict 2W7sasjf8G2Xs3ZVtXcsA5zGiBxFc43TXeNBaPCMQAMLYvAMQRniybaxDkggwjl
 
 -- Dumped from database version 18.3 (Debian 18.3-1.pgdg13+1)
 -- Dumped by pg_dump version 18.3 (Debian 18.3-1.pgdg13+1)
@@ -1273,15 +1273,6 @@ ALTER SEQUENCE public.ai_types_id_seq OWNED BY public.ai_types.id;
 
 
 --
--- Name: alembic_version; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.alembic_version (
-    version_num character varying(32) NOT NULL
-);
-
-
---
 -- Name: alert_event_entities; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1997,7 +1988,7 @@ CREATE TABLE public.square_categories (
     CONSTRAINT ck_square_categories_category_key_format CHECK (((category_key)::text ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'::text)),
     CONSTRAINT ck_square_categories_icon_ref_format CHECK (((icon_ref)::text ~ '^tdesign:[a-z0-9-]+$'::text)),
     CONSTRAINT ck_square_categories_status CHECK ((status = ANY (ARRAY[1, 2]))),
-    CONSTRAINT ck_square_categories_theme_key CHECK (((theme_key)::text = ANY ((ARRAY['blue'::character varying, 'cyan'::character varying, 'teal'::character varying, 'green'::character varying, 'lime'::character varying, 'yellow'::character varying, 'orange'::character varying, 'purple'::character varying, 'pink'::character varying, 'magenta'::character varying, 'beige'::character varying, 'charcoal'::character varying])::text[]))),
+    CONSTRAINT ck_square_categories_theme_key CHECK (((theme_key)::text = ANY (ARRAY[('blue'::character varying)::text, ('cyan'::character varying)::text, ('teal'::character varying)::text, ('green'::character varying)::text, ('lime'::character varying)::text, ('yellow'::character varying)::text, ('orange'::character varying)::text, ('purple'::character varying)::text, ('pink'::character varying)::text, ('magenta'::character varying)::text, ('beige'::character varying)::text, ('charcoal'::character varying)::text]))),
     CONSTRAINT ck_square_categories_title_length CHECK ((char_length((title)::text) <= 20))
 );
 
@@ -3055,14 +3046,6 @@ ALTER TABLE ONLY public.ai_templates
 
 ALTER TABLE ONLY public.ai_types
     ADD CONSTRAINT ai_types_pkey PRIMARY KEY (id);
-
-
---
--- Name: alembic_version alembic_version_pkc; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.alembic_version
-    ADD CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num);
 
 
 --
@@ -4898,10 +4881,3 @@ ALTER TABLE ONLY public.user_auths
 
 ALTER TABLE ONLY public.user_tokens
     ADD CONSTRAINT fk_user_tokens_user FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
-
-
---
--- PostgreSQL database dump complete
---
-
-\unrestrict says123

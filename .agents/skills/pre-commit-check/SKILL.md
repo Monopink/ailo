@@ -14,7 +14,7 @@ Run final commit gate checks by orchestrating project skills.
    - Prefer using `git diff --name-only --cached` to scope what will be committed.
 2. Run `/validate`.
 3. Verify documentation sync using `.agents/skills/validate/implementation-standards.md`.
-4. If database schema changed, verify single-source sync (migrations -> generated SQL/data-dict) and model alignment, or run `/database` + `/schema-autogen`.
+4. If database schema changed, verify `backend/alembic/versions/*.py` as single source-of-truth and confirm model alignment, or run `/database`.
 5. Run relevant tests when present.
 6. Review final diff for debug code and sensitive output.
 7. Return commit readiness.

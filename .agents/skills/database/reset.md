@@ -11,13 +11,7 @@ Reset database to clean state. This is destructive.
 ## Reset Steps
 
 ```bash
-cd deployment
-docker compose -f dev/compose.yaml stop backend
-docker compose -f dev/compose.yaml exec postgres psql -U $POSTGRES_USER -c "DROP DATABASE IF EXISTS $POSTGRES_DB;"
-docker compose -f dev/compose.yaml exec postgres psql -U $POSTGRES_USER -c "CREATE DATABASE $POSTGRES_DB;"
-docker compose -f dev/compose.yaml exec postgres bash /docker-entrypoint-initdb.d/00_init_database.sh
-docker compose -f dev/compose.yaml exec backend alembic stamp head
-docker compose -f dev/compose.yaml start backend
+python scripts/deploy/provision.py --env dev --fresh --with-fixtures
 ```
 
 ## Verification
@@ -25,7 +19,7 @@ docker compose -f dev/compose.yaml start backend
 ```bash
 cd deployment
 docker compose -f dev/compose.yaml exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB -c "\dt"
-docker compose -f dev/compose.yaml ps backend
+docker compose -f dev/compose.yaml ps postgres backend
 ```
 
 ## Rules

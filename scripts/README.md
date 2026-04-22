@@ -1,8 +1,46 @@
-﻿# Scripts Documentation
+# Scripts Documentation
 
 This directory contains utility scripts for development, testing, and validation.
 
 ## Available Scripts
+
+### 0. deploy/provision.py ⭐ (Fresh Provision)
+**Purpose**: Provision infrastructure, migrations, bootstrap data, and optional fixtures in one command
+
+**Usage**:
+```bash
+# Fresh dev provisioning (recommended for first setup)
+python scripts/deploy/provision.py --env dev --fresh --with-fixtures
+
+# Fresh staging provisioning
+python scripts/deploy/provision.py --env staging --fresh
+
+# Incremental provisioning on existing dev environment
+python scripts/deploy/provision.py --env dev
+
+# Apply env-specific SQL overrides on incremental runs (opt-in)
+python scripts/deploy/provision.py --env staging --apply-env-overrides
+```
+
+**What it does**:
+1. Runs infrastructure init script (`backend/database/init/init.sh`)
+2. Runs `alembic upgrade head`
+3. Runs bootstrap baseline (`backend/database/bootstrap/base.sql`)
+4. Runs env bootstrap overrides (`backend/database/bootstrap/env/<env>.sql`) when `--fresh` or `--apply-env-overrides`
+5. Optionally runs dev fixtures (`backend/database/bootstrap/seeds/dev.sql`)
+6. Ensures backend service is up
+
+**Rules**:
+- `--with-fixtures` is only supported in `dev`
+- `prod --fresh` requires `--allow-prod-fresh`
+- Env-specific SQL (`bootstrap/env/<env>.sql`) runs only with `--fresh` by default.
+- Use `--apply-env-overrides` to run env-specific SQL on non-fresh runs.
+- `staging/prod` require `ADMIN_BOOTSTRAP_PASSWORD_HASH` (bcrypt hash) in deployment env files.
+- Invite/entitlement required baseline data is seeded by Alembic migration `20260412_00` as the source of truth.
+- Migration `20260412_00` also backfills missing `ai_contact_limit` entitlement accounts for existing users.
+- `bootstrap/base.sql` only inserts missing shared defaults and does not overwrite existing operator-modified values.
+
+---
 
 ### 1. check_docker.sh
 **Purpose**: Check Docker container health status
@@ -111,7 +149,7 @@ This directory contains utility scripts for development, testing, and validation
 
 ---
 
-### 6. check_jinja_templates.py
+### 5. check_jinja_templates.py
 **Purpose**: Validate Jinja syntax for Admin HTML templates
 
 **Usage**:
@@ -126,35 +164,6 @@ python scripts/check_jinja_templates.py backend/app/admin/templates/custom_views
 **Exit codes**:
 - 0: All templates are valid
 - 1: Syntax errors found
-
----
-
-### 5. schema/generate_schema_artifacts.py
-**Purpose**: Generate init SQL and data-dict artifacts from Alembic migrations and migrated database schema
-
-**Usage**:
-```bash
-# Standard generation (recommended)
-python scripts/schema/generate_schema_artifacts.py
-
-# SQL export via Docker pg_dump (default mode shown explicitly)
-python scripts/schema/generate_schema_artifacts.py --sql-export-mode pg_dump_docker --postgres-container postgres
-
-# Generate only data-dict TSV
-python scripts/schema/generate_schema_artifacts.py --skip-sql-export
-```
-
-**What it generates**:
-1. `schema.tables.tsv` (table index)
-2. `schema.columns.tsv` (column index)
-3. `schema.constraints.tsv` (constraints/indexes)
-4. `backend/database/init/sql/01_schema.sql` (schema SQL)
-
-**Notes**:
-- Source of truth is `backend/alembic/versions/*.py`.
-- Script runs `alembic upgrade head` by default before reflection.
-- Prefer SQL export mode `pg_dump_docker`; some historical data migrations are not compatible with Alembic offline SQL mode.
-- Generated files should not be edited manually.
 
 ---
 
@@ -182,6 +191,12 @@ This will:
 ```
 
 This ensures everything is working correctly.
+
+### For Fresh Environment Setup
+
+```bash
+python scripts/deploy/provision.py --env dev --fresh --with-fixtures
+```
 
 ### Debugging Issues
 

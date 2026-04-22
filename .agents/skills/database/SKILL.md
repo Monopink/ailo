@@ -1,6 +1,6 @@
 ---
 name: database
-description: "Database operations: migration (create Alembic migrations) and reset (drop/recreate database), with generated schema artifacts. Actions: migrate, reset, sync. Triggers: after model changes, when user asks to reset database. Files: backend/app/models/*.py, backend/alembic/versions/*.py, backend/database/init/sql/01_schema.sql, docs/data-dict/*"
+description: "Database operations: migration (create Alembic migrations), bootstrap provisioning, and reset. Actions: migrate, reset, sync. Triggers: after model changes, when user asks to reset database. Files: backend/app/models/*.py, backend/alembic/versions/*.py, backend/database/bootstrap/*, backend/database/init/init.sh, scripts/deploy/provision.py"
 ---
 
 # Database
@@ -26,9 +26,9 @@ Run database migration, reset, and sync workflows.
 1. Migration-first: never patch runtime DB manually as replacement for migration.
 2. Maintain single-source sync:
    - source-of-truth: `backend/alembic/versions/*.py`
-   - generated artifacts: `backend/database/init/sql/01_schema.sql` + `docs/data-dict/*`
-   - generation entry: `scripts/schema/generate_schema_artifacts.py` (or `/schema-autogen`)
-   - SQL export preferred mode: `pg_dump_docker` (container-connected)
+   - init infra: `backend/database/init/init.sh` (extensions/privileges only)
+   - bootstrap baseline: `backend/database/bootstrap/base.sql` + `backend/database/bootstrap/env/*.sql`
+   - dev fixtures: `backend/database/bootstrap/seeds/dev.sql`
    - model files are implementation artifacts and must stay consistent with migrations
 3. Reset requires explicit user confirmation.
 4. Never run reset on production-like environments.

@@ -28,6 +28,7 @@ from app.schemas.user_profile import (
     UserProfileResponse,
     UserProfileUpdateRequest,
 )
+from app.services.growth.reward_service import apply_inviter_rewards_for_invitee_setup
 from app.services.profile.avatar import get_avatar_url
 from app.services.profile.region import build_cn_region_snapshot
 from app.services.security.rate_limiter import (
@@ -316,13 +317,14 @@ async def _update_username_if_needed(
             .values(username=body.username)
         )
         if result.rowcount != 1:
-            await db.rollback()
             _raise_username_error(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 message="敲敲号不可修改",
                 reason=USERNAME_REASON_LOCKED,
             )
-        await db.commit()
+        current_user.username = body.username
+        db.add(current_user)
+        await db.flush()
     except IntegrityError:
         await db.rollback()
         _raise_username_error(
@@ -330,8 +332,6 @@ async def _update_username_if_needed(
             message="该用户名已被使用",
             reason=USERNAME_REASON_ALREADY_USED,
         )
-
-    await db.refresh(current_user)
     return current_user
 
 
@@ -399,7 +399,11 @@ async def _upsert_profile(
     changed_fields: set[str] = set(profile_data.keys())
     if user_profile_before:
         updated_profile = await profile_crud.update_by_owner(
-            db, owner_id=current_user.id, owner_type=ProfileOwnerType.USER, obj_in=update_data
+            db,
+            owner_id=current_user.id,
+            owner_type=ProfileOwnerType.USER,
+            obj_in=update_data,
+            commit=False,
         )
         if not updated_profile:
             raise HTTPException(status_code=500, detail="系统错误")
@@ -420,6 +424,7 @@ async def _upsert_profile(
         owner_id=current_user.id,
         owner_qiao_id=current_user.qiao_id,
         owner_type=ProfileOwnerType.USER,
+        commit=False,
     )
     await write_user_profile_change_logs(
         db,
@@ -722,10 +727,13 @@ async def update_user_profile(
         avatar_url = await get_avatar_url(updated_profile)
 
         if current_user.needs_profile_setup:
-            current_user = await user_crud.update(
-                db, db_obj=current_user, obj_in={"needs_profile_setup": False}
-            )
+            current_user.needs_profile_setup = False
+            db.add(current_user)
+            await db.flush()
+            await apply_inviter_rewards_for_invitee_setup(db, invitee_user_id=int(current_user.id))
             logger.info("needs_profile_setup_cleared", qiao_id=current_user.qiao_id)
+
+        await db.commit()
 
         # Build response
         response = UserProfileResponse(

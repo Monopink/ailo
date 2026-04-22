@@ -5,7 +5,11 @@ import {
   type StrangerProfileView,
 } from '../services/pages/stranger-info-service';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
-import { promptContactRequestMessage, sendContactRequest } from '../utils/contact-request';
+import {
+  isContactRequestLimitExceededError,
+  promptContactRequestMessage,
+  sendContactRequest,
+} from '../utils/contact-request';
 import { normalizeError } from '../../utils/errors';
 import { classifyError } from '../../utils/error-classifier';
 import { isNonEmptyString } from '../../utils/guards';
@@ -29,6 +33,7 @@ interface StrangerInfoPageCustom {
   applyScreenModel(screenModel: ScreenModel): void;
   loadProfile(): Promise<void>;
   handleAddContact(): Promise<void>;
+  promptContactLimitReached(): Promise<void>;
   sendContactRequest(message: string): Promise<void>;
 }
 
@@ -278,12 +283,49 @@ Page<StrangerInfoPageData, StrangerInfoPageCustom>({
   },
 
   async handleAddContact() {
+    const profile = this.data.profile;
+    if (profile === null) {
+      return;
+    }
+
+    try {
+      const availableTotal = await this.strangerInfoService.getCurrentContactLimit();
+      if (availableTotal <= 0) {
+        await this.promptContactLimitReached();
+        return;
+      }
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      logger.warn('Failed to fetch ai contact limit before add contact', { error: err.message });
+    }
+
     const message = await promptContactRequestMessage();
     if (message === null) {
       return;
     }
 
     await this.sendContactRequest(message);
+  },
+
+  async promptContactLimitReached() {
+    const result = await new Promise<WechatMiniprogram.ShowModalSuccessCallbackResult>(
+      (resolve) => {
+        wx.showModal({
+          title: '联系人达到上限',
+          content: '联系人达到上限，先和他们聊聊吧。',
+          cancelText: '好',
+          confirmText: '增加上限',
+          success: resolve,
+          fail: () =>
+            resolve({ confirm: false, cancel: true, content: '', errMsg: 'showModal:fail' }),
+        });
+      }
+    );
+
+    if (!result.confirm) {
+      return;
+    }
+    void wx.navigateTo({ url: '/pages/invite-share/invite-share' });
   },
 
   async sendContactRequest(message: string) {
@@ -313,6 +355,11 @@ Page<StrangerInfoPageData, StrangerInfoPageCustom>({
       const semantics = classifyError(error);
       if (semantics.reason === 'auth-invalid') {
         await showAuthExpiredModalAndRelogin();
+        return;
+      }
+
+      if (isContactRequestLimitExceededError(error)) {
+        await this.promptContactLimitReached();
         return;
       }
 

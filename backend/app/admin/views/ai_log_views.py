@@ -6,7 +6,7 @@ This module contains Starlette-Admin views for AI request logging.
 from typing import ClassVar
 
 from starlette.requests import Request
-from starlette_admin import BooleanField, DateTimeField, IntegerField, StringField
+from starlette_admin import BooleanField, DateTimeField, HasOne, IntegerField, StringField
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.fields import JSONField
 
@@ -92,25 +92,57 @@ class AIRequestLogView(ModelView):
 
     fields: ClassVar[list[object]] = [
         StringField("id", label="ID", help_text="Internal request log ID"),
-        StringField("instance_id", label="AI Instance ID", help_text="AI instance snowflake ID"),
-        StringField("user_id", label="User ID", help_text="User snowflake ID"),
+        HasOne(
+            "instance",
+            identity="ai_instance",
+            label="AI Instance",
+            help_text="AI instance for this request",
+            required=False,
+        ),
+        HasOne(
+            "user",
+            identity="user",
+            label="User",
+            help_text="User for this request",
+            required=False,
+        ),
         StringField(
             "user_qiao_id",
             label="User Qiao ID",
             help_text="User external qiao_id identifier",
         ),
-        IntegerField("style_id", label="AI Style ID"),
-        IntegerField("personality_id", label="AI Personality ID"),
+        HasOne(
+            "style",
+            identity="ai_style",
+            label="AI Style",
+            help_text="Style used in this request",
+            required=False,
+        ),
+        HasOne(
+            "personality",
+            identity="ai_personality",
+            label="AI Personality",
+            help_text="Personality used in this request",
+            required=False,
+        ),
         StringField("request_type", label="Request Type", help_text="production or test"),
         StringField("provider_name", label="Provider", help_text="LLM provider name"),
         StringField("model_name", label="Model", help_text="Model name used"),
-        IntegerField("llm_config_id", label="LLM Config ID"),
+        HasOne(
+            "llm_config",
+            identity="llm_config",
+            label="LLM Config",
+            help_text="LLM config used in this request",
+            required=False,
+        ),
         StringField("response_id", label="Response ID", help_text="Provider response identifier"),
         BooleanField("cache_hit", label="Cache Hit"),
-        StringField(
-            "buffer_id",
-            label="Buffer ID",
+        HasOne(
+            "buffer",
+            identity="ai_message_buffer",
+            label="Message Buffer",
             help_text="Associated buffer that triggered the request",
+            required=False,
         ),
         JSONField("request", label="Request", help_text="Request content in JSON format"),
         JSONField("response", label="Response", help_text="Response content in JSON format"),

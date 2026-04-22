@@ -3,6 +3,7 @@ import { STORAGE_KEYS } from './config';
 import { getLogger } from './logger';
 import { fetchCurrentUserProfile, type UserProfileResponse } from './profile';
 import profileService from './profile-service';
+import inviteBindingService from './invite-binding-service';
 import { saveUserInfo, StoredAuthUser } from './storage';
 import { isNonEmptyString } from './guards';
 import { normalizeError } from './errors';
@@ -399,6 +400,7 @@ class AuthService {
   private _clearStoredSession(): void {
     conversationPresenceStore.clearAll();
     profileService.clearProfile();
+    inviteBindingService.clear();
     wx.removeStorageSync(STORAGE_KEYS.AUTH_TOKEN);
     wx.removeStorageSync(STORAGE_KEYS.REFRESH_TOKEN);
     wx.removeStorageSync(STORAGE_KEYS.USER_INFO);

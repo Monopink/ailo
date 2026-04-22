@@ -48,9 +48,21 @@ from .views import (
     alert_event_view,
     app_page_view,
     backup_job_view,
+    campaign_attribution_view,
+    campaign_view,
     chat_console_view,
     contact_request_view,
     contact_view,
+    entitlement_operation_view,
+    entitlement_reason_code_view,
+    entitlement_type_view,
+    growth_reward_apply_view,
+    growth_reward_rule_view,
+    invite_binding_view,
+    invite_code_view,
+    invite_event_view,
+    invite_recognition_log_view,
+    invite_share_template_view,
     llm_config_test_view,
     llm_config_view,
     llm_provider_view,
@@ -63,9 +75,15 @@ from .views import (
     message_endpoint_view,
     message_history_view,
     notification_push_history_view,
+    operation_asset_view,
+    operation_publish_log_view,
+    operation_slot_config_view,
     pending_contact_request_view,
     profile_avatar_advanced_edit_view,
     profile_view,
+    redeem_code_batch_view,
+    redeem_code_claim_view,
+    redeem_code_view,
     square_category_view,
     square_type_entry_view,
     stats_ai_daily_view,
@@ -79,6 +97,8 @@ from .views import (
     stats_user_weekly_view,
     system_config_view,
     user_auth_view,
+    user_entitlement_account_view,
+    user_entitlement_ledger_view,
     user_profile_log_view,
     user_risk_stats_view,
     user_token_view,
@@ -135,9 +155,14 @@ def _register_dropdowns(admin_instance: Admin) -> None:
         views=[
             user_view,
             profile_view,
+            user_profile_log_view,
             contact_view,
             contact_request_view,
-            user_profile_log_view,
+            user_auth_view,
+            user_token_view,
+            login_record_view,
+            user_risk_stats_view,
+            user_violation_log_view,
         ],
         always_open=False,
     )
@@ -214,39 +239,6 @@ def _register_dropdowns(admin_instance: Admin) -> None:
     )
     admin_instance.add_view(llm_group)
 
-    security_group = DropDown(
-        "Security",
-        icon="fa fa-shield",
-        views=[
-            user_risk_stats_view,
-            user_violation_log_view,
-        ],
-        always_open=False,
-    )
-    admin_instance.add_view(security_group)
-
-    auth_group = DropDown(
-        "Authorization",
-        icon="fa fa-key",
-        views=[
-            user_auth_view,
-            user_token_view,
-            login_record_view,
-        ],
-        always_open=False,
-    )
-    admin_instance.add_view(auth_group)
-
-    media_group = DropDown(
-        "Media",
-        icon="fa fa-file-image",
-        views=[
-            media_file_view,
-        ],
-        always_open=False,
-    )
-    admin_instance.add_view(media_group)
-
     app_content_group = DropDown(
         "App Content",
         icon="fa fa-mobile",
@@ -254,10 +246,48 @@ def _register_dropdowns(admin_instance: Admin) -> None:
             square_category_view,
             square_type_entry_view,
             app_page_view,
+            operation_asset_view,
+            operation_slot_config_view,
+            operation_publish_log_view,
         ],
         always_open=False,
     )
     admin_instance.add_view(app_content_group)
+
+    growth_ops_group = DropDown(
+        "Growth",
+        icon="fa fa-line-chart",
+        views=[
+            campaign_view,
+            campaign_attribution_view,
+            invite_code_view,
+            invite_binding_view,
+            invite_event_view,
+            invite_recognition_log_view,
+            invite_share_template_view,
+            redeem_code_batch_view,
+            redeem_code_view,
+            redeem_code_claim_view,
+        ],
+        always_open=False,
+    )
+    admin_instance.add_view(growth_ops_group)
+
+    entitlement_group = DropDown(
+        "Entitlement",
+        icon="fa fa-database",
+        views=[
+            entitlement_operation_view,
+            growth_reward_rule_view,
+            growth_reward_apply_view,
+            entitlement_type_view,
+            entitlement_reason_code_view,
+            user_entitlement_account_view,
+            user_entitlement_ledger_view,
+        ],
+        always_open=False,
+    )
+    admin_instance.add_view(entitlement_group)
 
     stats_group = DropDown(
         "Statistics",
@@ -288,9 +318,10 @@ def _register_dropdowns(admin_instance: Admin) -> None:
                 methods=["GET", "POST"],
             ),
             backup_job_view,
-            system_config_view,
+            media_file_view,
             alert_event_view,
             alert_event_entity_view,
+            system_config_view,
             admin_user_view,
             admin_operation_log_view,
             admin_login_log_view,

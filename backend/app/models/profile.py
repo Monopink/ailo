@@ -180,6 +180,18 @@ class UserProfileLog(ImmutableSnowflakeModel):
         String(255), nullable=True, comment="Change reason"
     )
 
+    owner_user: Mapped[User | None] = relationship(
+        "User",
+        primaryjoin=(
+            f"and_(UserProfileLog.owner_id == User.id, "
+            f"UserProfileLog.owner_type == {ProfileOwnerType.USER.value})"
+        ),
+        foreign_keys=[owner_id],
+        lazy="select",
+        viewonly=True,
+        uselist=False,
+    )
+
     # Indexes
     __table_args__ = (
         Index("idx_user_profile_logs_owner_id", "owner_id"),

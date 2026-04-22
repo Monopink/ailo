@@ -3,6 +3,7 @@
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
+from urllib.parse import urlencode
 
 import uvicorn
 from fastapi import APIRouter, FastAPI, Request
@@ -19,6 +20,7 @@ from app.api.v1 import v1_router
 from app.api.ws import ws_router
 from app.core.config import Settings, get_settings
 from app.core.database import close_database, get_sessionmaker, init_database
+from app.crud.invite import invite_code as invite_code_crud
 from app.exceptions import MissingConfigurationError
 from app.exceptions.handlers import register_exception_handlers
 from app.middleware.rate_limit import APIRateLimitMiddleware
@@ -37,6 +39,7 @@ from app.services.message.processing import reset_open_conversation_windows
 from app.services.message.processing.scanner import start_buffer_scanner, stop_buffer_scanner
 from app.services.message.providers.leancloud import create_leancloud_provider
 from app.services.system_config import get_config_int
+from app.services.wechat.client import WeChatAPIError, WeChatClient
 from app.utils.logging import configure_logging, get_logger
 from app.utils.snowflake import init_snowflake
 
@@ -46,6 +49,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 api_router = APIRouter()
+INVITE_CODE_LENGTH = 6
 
 
 class ProxyHeadersMiddleware(BaseHTTPMiddleware):
@@ -98,6 +102,57 @@ async def root() -> JSONResponse:
             "docs": "/docs" if settings.DEBUG else None,
         }
     )
+
+
+def _normalize_invite_token(token: str) -> str | None:
+    normalized = token.strip().upper()
+    if len(normalized) != INVITE_CODE_LENGTH:
+        return None
+    if not (normalized.isascii() and normalized.isalnum()):
+        return None
+    return normalized
+
+
+@api_router.get("/i/{token}", include_in_schema=False, response_model=None)
+async def redirect_invite_link(token: str) -> Response:
+    """Resolve invite token and redirect to WeChat URL Link."""
+    normalized_code = _normalize_invite_token(token)
+    if normalized_code is None:
+        return JSONResponse(status_code=404, content={"detail": "邀请码链接无效"})
+
+    session_factory = get_sessionmaker()
+    async with session_factory() as db:
+        invite_code = await invite_code_crud.get_active_by_code(db, code=normalized_code)
+    if invite_code is None:
+        return JSONResponse(status_code=404, content={"detail": "邀请码链接无效"})
+
+    wechat_client = WeChatClient()
+    try:
+        query = urlencode({"inviteCode": normalized_code})
+        url_link = await wechat_client.generate_url_link(
+            path="/pages/setup/setup",
+            query=query,
+            env_version="release",
+        )
+        return RedirectResponse(url=url_link, status_code=302)
+    except WeChatAPIError as exc:
+        logger.warning(
+            "invite_link_redirect_failed",
+            code=normalized_code,
+            errcode=exc.errcode,
+            errmsg=exc.errmsg,
+        )
+        return JSONResponse(status_code=503, content={"detail": "跳转服务暂不可用"})
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.error(
+            "invite_link_redirect_error",
+            code=normalized_code,
+            error=str(exc),
+            exc_info=True,
+        )
+        return JSONResponse(status_code=503, content={"detail": "跳转服务暂不可用"})
+    finally:
+        await wechat_client.close()
 
 
 @api_router.get("/qiao-dash/theme/{mode}")

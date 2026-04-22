@@ -30,6 +30,7 @@ from app.models.ai.instance import AIInstance
 from app.models.ai.template import AIPersona
 from app.models.contact import Contact, ContactRequest
 from app.models.content import SquareCategory
+from app.models.user import User
 from app.schemas.contact import (
     ContactCreate,
     ContactDetailResponse,
@@ -42,6 +43,14 @@ from app.schemas.contact import (
 from app.services.ai.contact_handler import ContactRequestDecision, handle_ai_contact_request
 from app.services.ai.instance_creation import create_instance_from_persona
 from app.services.contact.service import get_contact_with_profile
+from app.services.entitlement.service import (
+    ENTITLEMENT_AI_CONTACT_LIMIT,
+    ENTITLEMENT_SOURCE_CONTACT_AI_SLOT,
+    consume_entitlement,
+)
+from app.services.entitlement.service import (
+    get_ai_contact_limit as get_ai_contact_limit_by_user_id,
+)
 from app.services.message.outbound.helpers import send_chat_info, send_contact_request_notification
 from app.services.profile.avatar import get_avatar_url
 from app.services.system_config import get_config_int
@@ -112,23 +121,24 @@ async def _get_contact_expiration_days(db: AsyncSession) -> int:
 
 async def get_ai_contact_limit(db: AsyncSession, user_qiao_id: str) -> int:
     """
-    Get AI contact limit for user.
+    Get available AI contact slots for user.
 
     Args:
         db: Database session
         user_qiao_id: User's qiao_id
 
     Returns:
-        AI contact limit
+        Available AI contact slots
 
     Raises:
         ValueError: If limit not configured
     """
-    limit = await get_config_int(db, key="default_contact_limit")
-    if limit < 1:
-        logger.error("contact_limit_config_invalid", user_qiao_id=user_qiao_id, value=limit)
-        raise ValueError("Contact limit not configured")
-    return limit
+    user = await user_crud.get_by_qiao_id(db, qiao_id=user_qiao_id)
+    if not user:
+        logger.error("user_not_found_for_contact_limit", user_qiao_id=user_qiao_id)
+        raise ValueError("User not found")
+
+    return await get_ai_contact_limit_by_user_id(db, user_id=user.id)
 
 
 def _build_request_tags_payload(tags: list[str] | None) -> JSONDict | None:
@@ -152,6 +162,42 @@ def _extract_request_tags(tags_payload: JSONValue | None) -> list[str] | None:
 
 def _normalize_contact_tags(raw_tags: list[str] | None) -> list[str] | None:
     return normalize_tags(raw_tags)
+
+
+async def _consume_ai_slot_for_restored_contact(
+    db: AsyncSession,
+    *,
+    user_id: int,
+    contact: Contact,
+    request_to_qiao_id: str,
+    restore_token_ms: int,
+) -> None:
+    available_total = await get_ai_contact_limit_by_user_id(db, user_id=user_id)
+    if available_total <= 0:
+        logger.error(
+            "ai_contact_limit_exceeded_restore",
+            user_id=user_id,
+            contact_id=contact.id,
+            available_total=available_total,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="联系人数量已达上限",
+        )
+
+    await consume_entitlement(
+        db,
+        user_id=user_id,
+        entitlement_type_code=ENTITLEMENT_AI_CONTACT_LIMIT,
+        value=1,
+        source_type=ENTITLEMENT_SOURCE_CONTACT_AI_SLOT,
+        source_id=int(contact.id),
+        idempotency_key=f"contact_ai_restore_consume:{int(contact.id)}:{restore_token_ms}",
+        event_payload={
+            "contact_qiao_id": request_to_qiao_id,
+            "restore_token_ms": restore_token_ms,
+        },
+    )
 
 
 async def _get_active_square_category_title(
@@ -351,6 +397,23 @@ async def _process_ai_contact_request(
             )
             return {"message": "请求已发送"}
 
+        # Serialize per-user contact creation to prevent limit races.
+        await db.execute(select(User).where(User.id == user_id).with_for_update())
+
+        available_total = await get_ai_contact_limit_by_user_id(db, user_id=user_id)
+        if available_total <= 0:
+            contact_request.status = ContactRequestStatus.IGNORED
+            contact_request.failure_code = None
+            contact_request.failure_detail = None
+            await db.commit()
+            logger.warning(
+                "ai_contact_limit_exceeded_worker",
+                request_id=_req_id,
+                user_qiao_id=user_qiao_id,
+                available_total=available_total,
+            )
+            return {"message": "请求已发送"}
+
         ai_instance = await create_instance_from_persona(
             db=db,
             persona=decision.persona,
@@ -399,6 +462,21 @@ async def _process_ai_contact_request(
         contact_request.status = ContactRequestStatus.ACCEPTED
         contact_request.to_id = ai_instance.id
         _clear_pending_failure(contact_request)
+
+        await consume_entitlement(
+            db,
+            user_id=user_id,
+            entitlement_type_code=ENTITLEMENT_AI_CONTACT_LIMIT,
+            value=1,
+            source_type=ENTITLEMENT_SOURCE_CONTACT_AI_SLOT,
+            source_id=contact.id,
+            idempotency_key=f"contact_ai_consume:{contact.id}",
+            event_payload={
+                "request_id": _req_id,
+                "conversation_id": conversation_id,
+                "contact_qiao_id": ai_instance.qiao_id,
+            },
+        )
 
         ai_qiao_id = decision.persona.qiao_id
         contact_id = contact.id
@@ -544,19 +622,55 @@ async def _check_and_restore_contact(
         Success message if contact exists/restored, None if should continue processing
     """
     existing = await contact_crud.get_user_contact_including_deleted(
-        db, user_qiao_id=user_qiao_id, contact_qiao_id=request.to_qiao_id
+        db,
+        user_qiao_id=user_qiao_id,
+        contact_qiao_id=request.to_qiao_id,
+        for_update=True,
     )
 
     if not existing:
         return None
 
     if existing.is_deleted == 1:
+        if existing.deleted_at is None:
+            logger.error(
+                "contact_deleted_at_missing_for_restore",
+                user_qiao_id=user_qiao_id,
+                contact_id=existing.id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="系统错误",
+            )
+        restore_token_ms = int(existing.deleted_at.astimezone(UTC).timestamp() * 1000)
+
         # Restore deleted contact
         restored_contact = await contact_crud.restore_contact(
             db,
             contact=existing,
             alias=request.alias,
         )
+        if int(restored_contact.contact_type) == int(ContactType.AI):
+            owner_user_id = (
+                int(restored_contact.user_id) if restored_contact.user_id is not None else None
+            )
+            if owner_user_id is None:
+                owner_user = await user_crud.get_by_qiao_id(db, qiao_id=user_qiao_id)
+                if owner_user is None:
+                    logger.error("user_not_found_for_restore", user_qiao_id=user_qiao_id)
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="用户不存在",
+                    )
+                owner_user_id = int(owner_user.id)
+            await _consume_ai_slot_for_restored_contact(
+                db,
+                user_id=owner_user_id,
+                contact=restored_contact,
+                request_to_qiao_id=request.to_qiao_id,
+                restore_token_ms=restore_token_ms,
+            )
+        await db.commit()
         logger.info(
             "contact_restored",
             user_qiao_id=user_qiao_id,
@@ -602,6 +716,8 @@ async def _check_ai_persona_duplicate(
                 cast(AIInstance.creation_metadata["persona_id"].astext, BigInteger) == persona.id,
             )
             .order_by(Contact.id.desc())
+            .limit(1)
+            .with_for_update(of=Contact)
         )
 
         result = await db.execute(stmt)
@@ -612,11 +728,43 @@ async def _check_ai_persona_duplicate(
         existing_contact, _ = row
 
         if existing_contact.is_deleted == 1:
+            if existing_contact.deleted_at is None:
+                logger.error(
+                    "persona_contact_deleted_at_missing_for_restore",
+                    user_qiao_id=user_qiao_id,
+                    contact_id=existing_contact.id,
+                    persona_id=persona.id,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="系统错误",
+                )
+            restore_token_ms = int(existing_contact.deleted_at.astimezone(UTC).timestamp() * 1000)
             restored_contact = await contact_crud.restore_contact(
                 db,
                 contact=existing_contact,
                 alias=request.alias,
             )
+            owner_user_id = (
+                int(restored_contact.user_id) if restored_contact.user_id is not None else None
+            )
+            if owner_user_id is None:
+                owner_user = await user_crud.get_by_qiao_id(db, qiao_id=user_qiao_id)
+                if owner_user is None:
+                    logger.error("user_not_found_for_persona_restore", user_qiao_id=user_qiao_id)
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="用户不存在",
+                    )
+                owner_user_id = int(owner_user.id)
+            await _consume_ai_slot_for_restored_contact(
+                db,
+                user_id=owner_user_id,
+                contact=restored_contact,
+                request_to_qiao_id=request.to_qiao_id,
+                restore_token_ms=restore_token_ms,
+            )
+            await db.commit()
             logger.info(
                 "contact_restored_via_persona",
                 user_qiao_id=user_qiao_id,
@@ -748,17 +896,12 @@ async def _validate_ai_contact_limit(
     if target_type != ContactType.AI:
         return
 
-    limit = await get_ai_contact_limit(db, user_qiao_id)
-    current_count = await contact_crud.count_user_contacts(
-        db, user_qiao_id=user_qiao_id, contact_type=ContactType.AI
-    )
-
-    if current_count >= limit:
+    available_total = await get_ai_contact_limit(db, user_qiao_id)
+    if available_total <= 0:
         logger.error(
             "ai_contact_limit_exceeded",
             user_qiao_id=user_qiao_id,
-            current_count=current_count,
-            limit=limit,
+            available_total=available_total,
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

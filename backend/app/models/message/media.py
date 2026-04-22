@@ -4,6 +4,7 @@ This module contains SQLAlchemy models for media file management.
 """
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from markupsafe import escape
 from sqlalchemy import (
@@ -17,9 +18,14 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import relationship as orm_relationship
 from starlette.requests import Request
 
 from app.models.base import SnowflakeModel
+
+if TYPE_CHECKING:
+    from app.models.admin import AdminUser
+    from app.models.user import User
 
 
 class MediaFile(SnowflakeModel):
@@ -86,6 +92,23 @@ class MediaFile(SnowflakeModel):
         default=2,
         server_default=text("2"),
         comment="File status: 1=active,2=pending,3=deleted",
+    )
+
+    uploader_user: Mapped["User | None"] = orm_relationship(
+        "User",
+        primaryjoin="MediaFile.upload_by_id == User.id",
+        foreign_keys="[MediaFile.upload_by_id]",
+        lazy="select",
+        viewonly=True,
+        uselist=False,
+    )
+    confirmed_by_admin: Mapped["AdminUser | None"] = orm_relationship(
+        "AdminUser",
+        primaryjoin="MediaFile.confirmed_by_id == AdminUser.id",
+        foreign_keys="[MediaFile.confirmed_by_id]",
+        lazy="select",
+        viewonly=True,
+        uselist=False,
     )
 
     __table_args__ = (

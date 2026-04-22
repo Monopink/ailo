@@ -103,7 +103,6 @@ declare global {
 
   interface AppInstance extends WechatMiniprogram.App.Instance<WechatMiniprogram.IAnyObject> {
     globalData: Ailo.GlobalData;
-    initializeAuth(): Promise<void>;
     initMessageService(): Promise<void>;
     getMessageService(): Ailo.MessageService | null;
     getConversationStore(): Ailo.ConversationStoreInstance;

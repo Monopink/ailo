@@ -1,0 +1,44 @@
+<page-layout
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}">
+  <t-navbar slot="header" left-arrow="{{true}}">
+    <view slot="title" class="navbar-title">填写邀请码</view>
+  </t-navbar>
+
+  <view slot="content" class="invite-bind">
+    <view class="invite-bind__content">
+      <view class="invite-bind__input-wrap">
+        <input
+          class="invite-bind__input"
+          type="text"
+          maxlength="20"
+          placeholder="输入邀请码"
+          bindinput="onInviteCodeInput"
+          value="{{bindCodeInput}}" />
+      </view>
+      <view class="invite-bind__desc-list">
+        <view class="invite-bind__desc-item">
+          <view class="invite-bind__desc-dot" />
+          <text class="invite-bind__desc-text">绑定邀请码后，视为你被对方邀请</text>
+        </view>
+        <view class="invite-bind__desc-item">
+          <view class="invite-bind__desc-dot" />
+          <text class="invite-bind__desc-text">你和邀请方将会增加1个联系人上限</text>
+        </view>
+        <view class="invite-bind__desc-item">
+          <view class="invite-bind__desc-dot" />
+          <text class="invite-bind__desc-text">你只能绑定一次邀请码</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="invite-bind__actions">
+      <t-button theme="primary" block loading="{{submitting}}" bindtap="handleBindCode">
+        绑定邀请码
+      </t-button>
+    </view>
+  </view>
+</page-layout>

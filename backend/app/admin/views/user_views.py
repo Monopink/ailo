@@ -47,6 +47,7 @@ from app.models.message import MediaFile
 from app.models.profile import Profile, UserProfileLog
 from app.models.user import User
 from app.services.contact.request_service import retry_pending_contact_request
+from app.services.entitlement.service import ensure_system_initial_ai_contact_limit
 from app.services.profile.avatar import get_avatar_url
 from app.services.profile.integrity import ensure_user_profile
 from app.services.security.username import (
@@ -307,6 +308,10 @@ class UserView(BaseRoleAwareModelView):
                 source="admin_create_user",
                 commit=True,
             )
+            user_id = getattr(user, "id", None)
+            if isinstance(user_id, int):
+                await ensure_system_initial_ai_contact_limit(request.state.session, user_id=user_id)
+                await request.state.session.commit()
         except Exception as exc:
             user_id = getattr(user, "id", None)
             if isinstance(user_id, int):
@@ -565,7 +570,13 @@ class UserProfileLogView(ModelView):
 
     fields: ClassVar[list[BaseField]] = [
         StringField("id", label="ID", help_text="Internal log ID"),
-        StringField("owner_id", label="Owner ID", help_text="Owner internal ID"),
+        HasOne(
+            "owner_user",
+            identity="user",
+            label="Owner User",
+            help_text="Owner user (available when owner_type=user)",
+            required=False,
+        ),
         StringField("owner_qiao_id", label="Owner Qiao ID", help_text="Owner external ID"),
         IntegerEnumField(
             "owner_type",

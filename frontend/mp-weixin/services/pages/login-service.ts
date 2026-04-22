@@ -7,12 +7,14 @@ import { getLogger } from '../../utils/logger';
 import { getDeviceId, saveContacts, type StoredAuthUser } from '../../utils/storage';
 import {
   type AuthUserPayload,
+  InvitationPublicIntakeResponseSchema,
   WechatBindPhoneResponseSchema,
   WechatLoginCheckSchema,
 } from '../../utils/schemas';
 import { BasePageService } from './base-page-service';
 
 const logger = getLogger('LoginPageService');
+const PUBLIC_INVITATION_INTAKE_ENDPOINT = '/public/invitations/intake';
 
 export type LoginStatus = 'idle' | 'need_phone';
 
@@ -194,6 +196,33 @@ export class LoginPageService extends BasePageService {
     })();
 
     await Promise.all([loadContactsTask, initMessagingTask]);
+  }
+
+  async intakeInviteCode(options: {
+    source: 'login' | 'link';
+    trigger: 'clipboard' | 'link_param' | 'manual_input';
+    rawText?: string;
+    inviteCode?: string;
+  }): Promise<string> {
+    const seq = this.startRequest();
+    const response = await requestValidated(InvitationPublicIntakeResponseSchema, {
+      url: PUBLIC_INVITATION_INTAKE_ENDPOINT,
+      method: 'POST',
+      data: {
+        source: options.source,
+        trigger: options.trigger,
+        raw_text: options.rawText,
+        invite_code: options.inviteCode,
+      },
+      auth: false,
+    });
+    if (!this.isRequestActive(seq)) {
+      return '';
+    }
+    if (!response.valid || !isNonEmptyString(response.recognized_code)) {
+      return '';
+    }
+    return response.recognized_code;
   }
 
   private async getFreshLoginCode(fallback: string): Promise<string> {

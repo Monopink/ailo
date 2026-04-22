@@ -33,6 +33,8 @@ RATE_LIMIT_REQUEST_KEYS: dict[str, str] = {
     "username_submit": "username_submit_rate_limit_requests",
     "square": "square_rate_limit_requests",
     "media_upload": "media_upload_rate_limit_requests",
+    "invite_code_resolve": "invite_code_resolve_rate_limit_requests",
+    "invite_code_bind": "invite_code_bind_rate_limit_requests",
 }
 
 RATE_LIMIT_WINDOW_KEYS: dict[str, tuple[str, int]] = {
@@ -47,6 +49,8 @@ RATE_LIMIT_WINDOW_KEYS: dict[str, tuple[str, int]] = {
     "username_submit": ("username_submit_rate_limit_window_seconds", 1),
     "square": ("square_rate_limit_window_seconds", 1),
     "media_upload": ("media_upload_rate_limit_window_seconds", 1),
+    "invite_code_resolve": ("invite_code_resolve_rate_limit_window_seconds", 1),
+    "invite_code_bind": ("invite_code_bind_rate_limit_window_seconds", 1),
 }
 
 RATE_LIMIT_WHITELIST_KEYS: dict[str, str | None] = {
@@ -61,6 +65,8 @@ RATE_LIMIT_WHITELIST_KEYS: dict[str, str | None] = {
     "username_submit": None,
     "square": None,
     "media_upload": None,
+    "invite_code_resolve": None,
+    "invite_code_bind": None,
 }
 
 

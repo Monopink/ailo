@@ -113,6 +113,28 @@
       </t-swipe-cell>
     </t-cell-group>
 
+    <view wx:if="{{showContactLimitHint}}" class="index-contact-limit">
+      <text class="index-contact-limit__text">{{contactLimitHintText}}</text>
+      <t-button
+        wx:if="{{!showContactLimitReached}}"
+        class="index-contact-limit__action"
+        theme="primary"
+        variant="text"
+        size="small"
+        bindtap="goToSquareEntry">
+        去添加 ❯
+      </t-button>
+      <t-button
+        wx:else
+        class="index-contact-limit__action"
+        theme="primary"
+        variant="text"
+        size="small"
+        bindtap="goToInviteShare">
+        邀请朋友加入增加联系人上限 ❯
+      </t-button>
+    </view>
+
     <view class="index-tag-measure">
       <view
         wx:for="{{tagMeasureItems}}"

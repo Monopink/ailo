@@ -1,5 +1,5 @@
 import { getAvatarUrl } from '../../utils/avatar';
-import { fetchAllContactsFromApi } from '../../utils/contact-sync';
+import { fetchAllContactsFromApi, fetchContactLimitFromApi } from '../../utils/contact-sync';
 import { classifyError } from '../../utils/error-classifier';
 import { formatMessageTime } from '../../utils/format';
 import { firstNonEmptyString, isNonEmptyString } from '../../utils/guards';
@@ -79,6 +79,7 @@ export interface IndexBootstrapResult {
   screenModel: ScreenModel;
   contactList: ContactListItem[];
   unreadTotal: number;
+  availableContactSlots: number | null;
 }
 
 export interface IndexRefreshResult extends IndexBootstrapResult {
@@ -89,6 +90,7 @@ export interface IndexRefreshContext {
   contactList: ContactListItem[];
   unreadTotal: number;
   currentContentVariant: ContentVariant;
+  availableContactSlots: number | null;
 }
 
 const parseComparableTimestamp = (value: number | string | null | undefined): number | null => {
@@ -231,9 +233,13 @@ export class IndexPageService extends BasePageService {
   async refresh(context: IndexRefreshContext): Promise<IndexRefreshResult | null> {
     const seq = this.startRequest();
     try {
+      const contactLimitPromise = fetchContactLimitFromApi()
+        .then((result) => result.available_total)
+        .catch(() => null);
       const remoteContacts = await fetchAllContactsFromApi();
       const normalizedContacts = await saveContacts(remoteContacts);
       const contactList = await this.buildContactList(normalizedContacts);
+      const availableContactSlots = await contactLimitPromise;
       if (!this.isRequestActive(seq)) {
         return null;
       }
@@ -244,6 +250,7 @@ export class IndexPageService extends BasePageService {
         }),
         contactList,
         unreadTotal: resolveUnreadTotal(contactList),
+        availableContactSlots,
         authInvalid: false,
       };
     } catch (error: unknown) {
@@ -264,6 +271,7 @@ export class IndexPageService extends BasePageService {
         }),
         contactList: hasCurrentModel ? context.contactList : [],
         unreadTotal: hasCurrentModel ? context.unreadTotal : 0,
+        availableContactSlots: hasCurrentModel ? context.availableContactSlots : null,
         authInvalid: semantics.reason === 'auth-invalid',
       };
     }
@@ -355,6 +363,7 @@ export class IndexPageService extends BasePageService {
       }),
       contactList: contacts,
       unreadTotal: resolveUnreadTotal(contacts),
+      availableContactSlots: null,
     };
   }
 

@@ -11,9 +11,13 @@ import { createSetupPageService } from '../../services/pages/setup-service';
 import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 import { PROFILE_BIO_RULE, PROFILE_NICKNAME_RULE, validateTextLimit } from '../../utils/text-limit';
 import { getWechatProfileCapabilities } from '../../utils/wechat-profile-capability';
+import { normalizeCampaignCodeParam, normalizeInviteCodeParam } from '../../utils/invite-code';
+import inviteBindingService from '../../utils/invite-binding-service';
 
 const MIN_NICKNAME_LENGTH = 2;
 const WHITESPACE_REGEX = /\s/u;
+const LOGIN_PAGE_URL = '/pages/login/login';
+const LOGIN_SOURCE_SETUP = 'setup';
 
 type RegionValue = [] | [string] | [string, string];
 
@@ -38,6 +42,8 @@ interface SetupPageData {
   genderOptions: readonly GenderOption[];
   genderIndex: number;
   bio: string;
+  inviteCode: string;
+  campaignCode: string;
   regionValue: RegionValue;
   regionDisplay: string;
   regionCnCityCode: string | null;
@@ -55,12 +61,14 @@ interface SetupPageData {
 interface SetupPageCustom {
   setupPageService: ReturnType<typeof createSetupPageService>;
   loadProfile(): Promise<void>;
+  prefillInviteCodeFromClipboard(): Promise<void>;
   ensureProfileRequired(): boolean;
   onUnload(): void;
   onNicknameInput(event: InputEvent): void;
   onNicknameReview(event: NicknameReviewEvent): void;
   onGenderChange(event: WechatMiniprogram.PickerChange): void;
   onBioInput(event: InputEvent): void;
+  onInviteCodeInput(event: InputEvent): void;
   onRegionChange(event: RegionPickerChangeEvent): void;
   handleChooseAvatar(): Promise<void>;
   onChooseWechatAvatar(event: ChooseAvatarEvent): Promise<void>;
@@ -205,6 +213,28 @@ const resolveSubmittedNickname = (currentNickname: string, event?: FormSubmitEve
   return typeof formValue === 'string' ? formValue : currentNickname;
 };
 
+const buildLoginUrl = (inviteCode: string, campaignCode: string): string => {
+  const base = `${LOGIN_PAGE_URL}?source=${LOGIN_SOURCE_SETUP}`;
+  const params: string[] = [];
+  if (inviteCode.trim() !== '') {
+    params.push(`inviteCode=${encodeURIComponent(inviteCode.trim().toUpperCase())}`);
+  }
+  if (campaignCode.trim() !== '') {
+    params.push(`campaignCode=${encodeURIComponent(campaignCode.trim().toUpperCase())}`);
+  }
+  if (params.length === 0) {
+    return base;
+  }
+  return `${base}&${params.join('&')}`;
+};
+
+const isInviteAlreadyBoundError = (error: unknown): boolean => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  return error.message.includes('已绑定邀请码');
+};
+
 Page<SetupPageData, SetupPageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
@@ -223,6 +253,8 @@ Page<SetupPageData, SetupPageCustom>({
     genderOptions: GENDER_OPTIONS,
     genderIndex: -1,
     bio: '',
+    inviteCode: '',
+    campaignCode: '',
     regionValue: [],
     regionDisplay: '',
     regionCnCityCode: null,
@@ -239,19 +271,48 @@ Page<SetupPageData, SetupPageCustom>({
 
   setupPageService: null as unknown as ReturnType<typeof createSetupPageService>,
 
-  async onLoad() {
+  async onLoad(options?: Record<string, string | undefined>) {
     logger.info('Profile setup page loaded');
     this.setupPageService = createSetupPageService();
     const capabilities = getWechatProfileCapabilities();
+    const linkInviteCode = normalizeInviteCodeParam(options?.inviteCode);
+    const campaignCode = normalizeCampaignCodeParam(options?.campaignCode);
     this.setData({
       canUseChooseAvatar: capabilities.canUseChooseAvatar,
       useWechatNicknameInput: capabilities.canUseNicknameInput,
       canUseNicknameReview: capabilities.canUseNicknameReview,
+      campaignCode,
     });
+    if (!authService.isAuthenticated()) {
+      void wx.redirectTo({ url: buildLoginUrl(linkInviteCode, campaignCode) });
+      return;
+    }
+    if (linkInviteCode !== '') {
+      try {
+        const intake = await this.setupPageService.intakeInviteCode({
+          source: 'link',
+          trigger: 'link_param',
+          inviteCode: linkInviteCode,
+        });
+        if (intake !== null && intake.valid && intake.recognized_code !== null) {
+          this.setData({ inviteCode: intake.recognized_code });
+        }
+      } catch (error) {
+        logger.debug('Link invite intake failed on setup page', { error });
+      }
+    }
     if (!this.ensureProfileRequired()) {
       return;
     }
+    if (campaignCode !== '') {
+      void this.setupPageService.trackGrowthAttribution({
+        campaignCode,
+        source: 'setup',
+        payload: { page: 'setup' },
+      });
+    }
     await this.loadProfile();
+    await this.prefillInviteCodeFromClipboard();
   },
 
   onShow() {
@@ -263,6 +324,10 @@ Page<SetupPageData, SetupPageCustom>({
   },
 
   ensureProfileRequired() {
+    if (!authService.isAuthenticated()) {
+      logger.info('Setup page requires authenticated session');
+      return false;
+    }
     if (!authService.needsProfileSetup()) {
       logger.info('Profile setup already completed, redirecting to home');
       void wx.switchTab({ url: '/pages/index/index' });
@@ -273,7 +338,7 @@ Page<SetupPageData, SetupPageCustom>({
 
   async loadProfile() {
     if (!authService.isAuthenticated()) {
-      void wx.reLaunch({ url: '/pages/login/login' });
+      void wx.reLaunch({ url: buildLoginUrl(this.data.inviteCode, this.data.campaignCode) });
       return;
     }
 
@@ -330,6 +395,42 @@ Page<SetupPageData, SetupPageCustom>({
     }
   },
 
+  async prefillInviteCodeFromClipboard() {
+    if (!authService.isAuthenticated()) {
+      return;
+    }
+    if (!this.ensureProfileRequired()) {
+      return;
+    }
+    if (this.data.inviteCode.trim() !== '') {
+      return;
+    }
+
+    try {
+      const clipboard = await wx.getClipboardData();
+      const clipboardText = clipboard.data;
+      if (!isNonEmptyString(clipboardText)) {
+        return;
+      }
+      const intake = await this.setupPageService.intakeInviteCode({
+        source: 'setup',
+        trigger: 'clipboard',
+        rawText: clipboardText,
+      });
+      if (
+        intake === null ||
+        !intake.valid ||
+        !intake.bindable ||
+        !isNonEmptyString(intake.recognized_code)
+      ) {
+        return;
+      }
+      this.setData({ inviteCode: intake.recognized_code });
+    } catch (error) {
+      logger.debug('Invite code clipboard prefill skipped', { error });
+    }
+  },
+
   onNicknameInput(event) {
     this.setData({ nickname: event.detail.value });
   },
@@ -358,6 +459,10 @@ Page<SetupPageData, SetupPageCustom>({
 
   onBioInput(event) {
     this.setData({ bio: event.detail.value });
+  },
+
+  onInviteCodeInput(event) {
+    this.setData({ inviteCode: event.detail.value });
   },
 
   onRegionChange(event: RegionPickerChangeEvent) {
@@ -489,9 +594,30 @@ Page<SetupPageData, SetupPageCustom>({
       await authService.updateUserInfo(storedUser);
       authService.setNeedsProfileSetup(false);
 
+      let completionToastTitle = '资料已更新';
+      let completionToastIcon: WechatMiniprogram.ShowToastOption['icon'] = 'success';
+      const inviteCode = this.data.inviteCode.trim();
+      if (inviteCode !== '') {
+        try {
+          await this.setupPageService.bindInviteCode(inviteCode, 'setup');
+          inviteBindingService.markBound();
+          inviteBindingService.markDirty();
+        } catch (error) {
+          if (isInviteAlreadyBoundError(error)) {
+            logger.info('Invite code already bound during setup, continue');
+            inviteBindingService.markBound();
+            inviteBindingService.markDirty();
+          } else {
+            logger.info('Bind invite code failed during setup, profile already updated', { error });
+            completionToastTitle = '资料已更新，邀请码未生效';
+            completionToastIcon = 'none';
+          }
+        }
+      }
+
       void wx.showToast({
-        title: '资料已更新',
-        icon: 'success',
+        title: completionToastTitle,
+        icon: completionToastIcon,
       });
 
       const app = getApp<AppInstance>();

@@ -10,9 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.crud.contact import contact as contact_crud
+from app.enums import ContactType
 from app.models.user import User
 from app.schemas.contact import (
     ContactDetailResponse,
+    ContactLimitResponse,
     ContactListPagination,
     ContactListResult,
     ContactUpdate,
@@ -25,6 +28,7 @@ from app.services.contact import (
     unblock_contact,
     update_contact,
 )
+from app.services.entitlement.service import get_ai_contact_limit as get_ai_contact_limit_by_user_id
 from app.utils.contact_tags import normalize_tags, validate_tags
 from app.utils.logging import get_logger
 from app.utils.text_limits import CONTACT_ALIAS_RULE, CONTACT_REMARK_RULE, validate_text_limit
@@ -35,6 +39,33 @@ router = APIRouter(prefix="/contacts", tags=["Contacts"])
 
 CONTACTS_LIMIT_MIN = 1
 CONTACTS_LIMIT_MAX = 100
+
+
+@router.get("/limit", response_model=ContactLimitResponse)
+async def get_contact_limit_summary(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ContactLimitResponse:
+    """Get contact usage and available slot count for current user."""
+    try:
+        available_total = await get_ai_contact_limit_by_user_id(db, user_id=current_user.id)
+        used = await contact_crud.count_user_contacts(
+            db,
+            user_qiao_id=current_user.qiao_id,
+            contact_type=ContactType.AI,
+        )
+        return ContactLimitResponse(used=used, available_total=available_total)
+    except Exception as exc:
+        logger.error(
+            "contacts_ai_limit_failed",
+            user_qiao_id=current_user.qiao_id,
+            error=str(exc),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="系统错误",
+        )
 
 
 def _normalize_and_validate_contact_update_payload_or_raise(

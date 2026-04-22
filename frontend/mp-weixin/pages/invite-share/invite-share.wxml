@@ -1,0 +1,162 @@
+<page-layout
+  style="--color-navbar-glass-bg: transparent; --color-bg-header-solid: transparent; --color-bg-footer-fixed: transparent; --footer-glass-blur: var(--navbar-glass-blur); --color-separator: transparent;"
+  headerSolidMode="manual"
+  headerSolid="{{false}}"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  fixedFooter="{{true}}">
+  <t-navbar slot="header" left-arrow="{{true}}">
+    <view slot="title" class="navbar-title invite-share__navbar-title">邀请好友来敲敲</view>
+  </t-navbar>
+
+  <view slot="content" class="invite-share">
+    <view class="invite-share__content">
+      <view class="invite-share__activity">
+        <text class="invite-share__activity-title">邀请好友，一起扩列</text>
+        <text class="invite-share__activity-subtitle"
+          >每邀请1位用户，双方各增加 {{rewardContactLimitPerInvite}} 个联系人上限。</text
+        >
+      </view>
+
+      <view class="invite-share__hero-art">
+        <view class="invite-share__hero-glow invite-share__hero-glow--red" />
+        <view class="invite-share__hero-glow invite-share__hero-glow--gold" />
+        <view class="invite-share__hero-glow invite-share__hero-glow--pearl" />
+        <view class="invite-share__hero-sheen invite-share__hero-sheen--left" />
+        <view class="invite-share__hero-sheen invite-share__hero-sheen--right" />
+        <view class="invite-share__hero-envelope">
+          <view class="invite-share__hero-shadow" />
+          <view class="invite-share__hero-ticket">
+            <text class="invite-share__hero-ticket-text">+{{rewardContactLimitPerInvite}}</text>
+          </view>
+          <view class="invite-share__hero-envelope-letter">
+            <view class="invite-share__hero-envelope-letter-head" />
+            <view class="invite-share__hero-envelope-letter-line invite-share__hero-envelope-letter-line--short" />
+            <view class="invite-share__hero-envelope-letter-line" />
+            <view class="invite-share__hero-envelope-letter-line invite-share__hero-envelope-letter-line--wide" />
+            <view class="invite-share__hero-envelope-letter-chip" />
+          </view>
+          <view class="invite-share__hero-envelope-back" />
+          <view class="invite-share__hero-envelope-flap" />
+          <view class="invite-share__hero-envelope-body">
+            <view class="invite-share__hero-envelope-front invite-share__hero-envelope-front--left" />
+            <view class="invite-share__hero-envelope-front invite-share__hero-envelope-front--right" />
+            <view class="invite-share__hero-envelope-front invite-share__hero-envelope-front--center" />
+          </view>
+          <view class="invite-share__hero-envelope-seal" />
+        </view>
+      </view>
+
+      <view class="invite-share__ticket-card">
+        <view class="invite-share__ticket-notch invite-share__ticket-notch--left" />
+        <view class="invite-share__ticket-notch invite-share__ticket-notch--right" />
+
+        <view class="invite-share__ticket-head">
+          <view class="invite-share__ticket-head-copy">
+            <text class="invite-share__ticket-label">我的邀请码</text>
+            <text class="invite-share__ticket-caption">邀请好友注册敲敲，填写邀请码一起拿奖励</text>
+          </view>
+        </view>
+
+        <view class="invite-share__ticket-dash" />
+
+        <text user-select="{{true}}" class="invite-share__ticket-code">{{myCode}}</text>
+        <view class="invite-share__ticket-copy-row">
+          <view class="invite-share__ticket-copy invite-share__ticket-copy--below" bindtap="handleCopyCode">
+            <t-icon name="copy" size="28rpx" color="var(--color-text-primary)" />
+            <text class="invite-share__ticket-copy-text">复制</text>
+          </view>
+        </view>
+
+        <view class="invite-share__ticket-foot">
+          <text class="invite-share__ticket-tip">邀请码长期有效</text>
+        </view>
+      </view>
+
+      <view class="invite-share__section">
+        <text class="invite-share__section-title">邀请流程</text>
+        <view class="invite-share__step-list">
+          <view class="invite-share__step-card">
+            <text class="invite-share__step-index">01</text>
+            <text class="invite-share__step-title">发出邀请</text>
+            <text class="invite-share__step-text">通过分享发送给好友或群聊，或复制邀请口令发送。</text>
+          </view>
+          <view class="invite-share__step-card">
+            <text class="invite-share__step-index">02</text>
+            <text class="invite-share__step-title">好友绑定</text>
+            <text class="invite-share__step-text">好友在资料流程里填写你的邀请码，完成一次绑定。</text>
+          </view>
+          <view class="invite-share__step-card">
+            <text class="invite-share__step-index">03</text>
+            <text class="invite-share__step-title">奖励到账</text>
+            <text class="invite-share__step-text"
+              >绑定成功后，双方立即各增加 {{rewardContactLimitPerInvite}} 个联系人上限。</text
+            >
+          </view>
+        </view>
+      </view>
+
+      <view class="invite-share__stats-card">
+        <text class="invite-share__stats-title">邀请统计</text>
+
+        <view wx:if="{{successInviteCount > 0}}" class="invite-share__stats-grid">
+          <view class="invite-share__stats-item">
+            <view class="invite-share__stats-count">
+              <text class="invite-share__stats-count-number">{{successInviteCount}}</text>
+            </view>
+            <text class="invite-share__stats-count-label">邀请成功</text>
+          </view>
+          <view class="invite-share__stats-divider" />
+          <view class="invite-share__stats-item">
+            <view class="invite-share__stats-count">
+              <text class="invite-share__stats-count-number">{{rewardedContactLimitTotal}}</text>
+            </view>
+            <text class="invite-share__stats-count-label">增加联系人上限</text>
+          </view>
+        </view>
+
+        <view wx:else class="invite-share__stats-empty">
+          <text class="invite-share__stats-empty-text">暂时没有邀请到用户</text>
+        </view>
+      </view>
+
+      <view class="invite-share__section invite-share__section--rules">
+        <text class="invite-share__section-title">活动规则</text>
+        <view class="invite-share__rule-list">
+          <view class="invite-share__rule-item">
+            <view class="invite-share__rule-dot" />
+            <text class="invite-share__rule-text"
+              >每次成功绑定后，邀请双方各增加 {{rewardContactLimitPerInvite}} 个联系人上限。</text
+            >
+          </view>
+          <view wx:if="{{maxInviteCount != null}}" class="invite-share__rule-item">
+            <view class="invite-share__rule-dot" />
+            <text class="invite-share__rule-text"
+              >奖励发放直到用户邀请超过 {{maxInviteCount}} 人。</text
+            >
+          </view>
+          <view class="invite-share__rule-item">
+            <view class="invite-share__rule-dot" />
+            <text class="invite-share__rule-text">每位用户只能绑定 1 次邀请码，绑定后不可更改。</text>
+          </view>
+          <view class="invite-share__rule-item">
+            <view class="invite-share__rule-dot" />
+            <text class="invite-share__rule-text">你和邀请对象不会成为敲敲联系人，也不会在敲敲中看到对方。</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view slot="footer" class="invite-share__footer">
+    <button class="invite-share__action invite-share__action--primary" open-type="share">
+      分享给好友或群聊
+    </button>
+    <button class="invite-share__action invite-share__action--secondary" bindtap="handleCopyCommand">
+      复制邀请口令
+    </button>
+  </view>
+</page-layout>

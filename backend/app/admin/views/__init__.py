@@ -51,6 +51,29 @@ from .content_views import (
     square_category_view,
     square_type_entry_view,
 )
+from .entitlement_operation_view import entitlement_operation_view
+from .entitlement_views import (
+    ENTITLEMENT_MODEL_VIEWS,
+    entitlement_reason_code_view,
+    entitlement_type_view,
+    user_entitlement_account_view,
+    user_entitlement_ledger_view,
+)
+from .growth_views import (
+    GROWTH_MODEL_VIEWS,
+    campaign_attribution_view,
+    campaign_view,
+    growth_reward_apply_view,
+    growth_reward_rule_view,
+    invite_binding_view,
+    invite_code_view,
+    invite_event_view,
+    invite_recognition_log_view,
+    invite_share_template_view,
+    redeem_code_batch_view,
+    redeem_code_claim_view,
+    redeem_code_view,
+)
 from .llm_test_views import llm_config_test_view
 from .llm_views import (
     LLM_MODEL_VIEWS,
@@ -67,6 +90,12 @@ from .message_media_views import (
     message_endpoint_view,
     message_history_view,
     notification_push_history_view,
+)
+from .operation_views import (
+    OPERATION_MODEL_VIEWS,
+    operation_asset_view,
+    operation_publish_log_view,
+    operation_slot_config_view,
 )
 from .profile_avatar_advanced_edit_view import profile_avatar_advanced_edit_view
 from .security_views import (
@@ -131,6 +160,9 @@ ALL_MODEL_VIEWS = [
     *LLM_MODEL_VIEWS,
     *SECURITY_MODEL_VIEWS,
     *TOKEN_MODEL_VIEWS,
+    *GROWTH_MODEL_VIEWS,
+    *OPERATION_MODEL_VIEWS,
+    *ENTITLEMENT_MODEL_VIEWS,
     *SYSTEM_MODEL_VIEWS,
     *STATS_MODEL_VIEWS,
     *CONTENT_MODEL_VIEWS,
@@ -152,6 +184,9 @@ __all__ = [
     "LLM_MODEL_VIEWS",
     "SECURITY_MODEL_VIEWS",
     "TOKEN_MODEL_VIEWS",
+    "GROWTH_MODEL_VIEWS",
+    "OPERATION_MODEL_VIEWS",
+    "ENTITLEMENT_MODEL_VIEWS",
     "SYSTEM_MODEL_VIEWS",
     "STATS_MODEL_VIEWS",
     "CONTENT_MODEL_VIEWS",
@@ -183,6 +218,9 @@ __all__ = [
     "admin_login_log_view",
     "alert_event_view",
     "alert_event_entity_view",
+    "entitlement_reason_code_view",
+    "entitlement_type_view",
+    "entitlement_operation_view",
     "app_page_view",
     "user_view",
     "profile_view",
@@ -198,6 +236,23 @@ __all__ = [
     "message_endpoint_view",
     "media_file_view",
     "system_config_view",
+    "campaign_view",
+    "campaign_attribution_view",
+    "growth_reward_apply_view",
+    "growth_reward_rule_view",
+    "invite_binding_view",
+    "invite_code_view",
+    "invite_event_view",
+    "invite_recognition_log_view",
+    "invite_share_template_view",
+    "operation_asset_view",
+    "operation_slot_config_view",
+    "operation_publish_log_view",
+    "redeem_code_batch_view",
+    "redeem_code_view",
+    "redeem_code_claim_view",
+    "user_entitlement_account_view",
+    "user_entitlement_ledger_view",
     "notification_push_history_view",
     "square_category_view",
     "square_type_entry_view",

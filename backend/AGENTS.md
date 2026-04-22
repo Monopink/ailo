@@ -8,7 +8,6 @@
 ## 必读入口
 
 - API 文档：`../docs/api/`
-- 数据字典：`../docs/data-dict/`
 - 参考资料：`../docs/references/`
 - Admin 规则：`app/admin/AGENTS.md`（修改 `app/admin/` 前必读）
 
@@ -75,11 +74,10 @@ orchestrators
 
 ## 数据库变更同步
 
-当 schema 发生变更，必须保持单一真相源并生成产物：
+当 schema 发生变更，必须保持单一真相源：
 
-1. 真相源：`backend/app/models/*.py` + `backend/alembic/versions/*.py`
-2. 生成产物：`backend/database/init/sql/01_schema.sql` + `docs/data-dict/*`
-3. 生成方式：使用 schema 生成脚本（禁止手工编辑产物文件）
+1. 真相源：`backend/alembic/versions/*.py`
+2. `backend/app/models/*.py` 必须与迁移定义保持一致
 
 禁止以“手工改线上库”替代迁移。
 

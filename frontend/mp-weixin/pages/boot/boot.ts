@@ -1,6 +1,6 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { getLogger } from '../../utils/logger';
-import { isNonEmptyString } from '../../utils/guards';
+import authService from '../../utils/auth-service';
 
 const logger = getLogger('Boot');
 const LOADING_INDICATOR_DELAY_MS = 220;
@@ -57,31 +57,46 @@ Page<BootPageData, BootPageCustom>({
   _loadingIndicatorTimer: null,
   _loadingTextTimer: null,
 
-  onLoad(options: RouteOptions) {
+  async onLoad(options: RouteOptions) {
     if (this.data.routed) {
       return;
     }
     this._startLoadingFeedback();
 
     try {
-      const token = wx.getStorageSync<string | null>('auth_token');
-      const hasToken = isNonEmptyString(token);
+      const app = getApp<AppInstance>();
+      const isAuthenticated = await authService.initialize();
 
       logger.info('Boot routing', {
-        hasToken,
+        isAuthenticated,
+        needsProfileSetup: authService.needsProfileSetup(),
         options,
       });
 
-      if (hasToken) {
+      if (!isAuthenticated) {
         this._routeOnce(() => {
-          void wx.switchTab({ url: '/pages/index/index' });
+          void wx.redirectTo({ url: '/pages/login/login' });
         });
         return;
       }
 
-      // Always show login page when not logged in
+      try {
+        await app.getConversationStore().init();
+        await app.initMessageService();
+      } catch (error) {
+        const err = toError(error);
+        logger.warn('Boot warmup failed, continue routing', { error: err.message });
+      }
+
+      if (authService.needsProfileSetup()) {
+        this._routeOnce(() => {
+          void wx.redirectTo({ url: '/pages/setup/setup' });
+        });
+        return;
+      }
+
       this._routeOnce(() => {
-        void wx.redirectTo({ url: '/pages/login/login' });
+        void wx.switchTab({ url: '/pages/index/index' });
       });
     } catch (error) {
       const err = toError(error);

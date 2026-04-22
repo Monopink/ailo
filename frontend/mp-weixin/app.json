@@ -5,7 +5,9 @@
     "pages/login/login",
     "pages/setup/setup",
     "pages/index/index",
-    "pages/profile/profile"
+    "pages/profile/profile",
+    "pages/invite-bind/invite-bind",
+    "pages/invite-share/invite-share"
   ],
   "subPackages": [
     {

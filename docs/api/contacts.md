@@ -3,11 +3,41 @@
 ## 接口列表
 
 - [获取联系人列表](#获取联系人列表) - `GET /api/v1/contacts`
+- [获取联系人上限](#获取联系人上限) - `GET /api/v1/contacts/limit`
 - [获取单个联系人详情](#获取单个联系人详情) - `GET /api/v1/contacts/{conversation_id}`
 - [更新联系人信息](#更新联系人信息) - `PUT /api/v1/contacts/{conversation_id}`
 - [屏蔽联系人](#屏蔽联系人) - `POST /api/v1/contacts/{conversation_id}/block`
 - [取消屏蔽联系人](#取消屏蔽联系人) - `POST /api/v1/contacts/{conversation_id}/unblock`
 - [删除联系人](#删除联系人) - `DELETE /api/v1/contacts/{conversation_id}`
+
+---
+
+## 获取 AI 联系人上限
+
+### 基本信息
+
+- **路径**: `GET /api/v1/contacts/limit`
+- **认证**: Bearer Token（必需）
+
+### 成功响应 (200)
+
+```json
+{
+  "used": 0,
+  "available_total": 1
+}
+```
+
+**字段说明**:
+
+- `used` (integer) - 已用 AI 联系人数量（当前实现统计 `contacts.contact_type=AI` 且 `is_deleted=0`）
+- `available_total` (integer) - 当前可新增 AI 联系人槽位（读取 `user_entitlement_accounts.available_total`）
+
+### 错误响应
+
+**500 Internal Server Error**:
+
+- `"系统错误"` - 服务器内部错误
 
 ---
 
@@ -347,6 +377,7 @@
 ### 成功响应 (204)
 
 无返回体，删除成功后返回 HTTP 204 No Content。
+当联系人已处于删除状态时，重复删除同样返回 HTTP 204（幂等）。
 
 ### 错误响应
 

@@ -270,13 +270,12 @@ async def get_current_user(request: Request, db: DBSession) -> User:
     # 6. Check user status
     if not await user_crud.is_active(user):
         raise HTTPException(
-            status_code=401, detail="账号已被禁用", headers={"WWW-Authenticate": "Bearer"}
+            status_code=401, detail="账号状态异常", headers={"WWW-Authenticate": "Bearer"}
         )
 
     # 7. Update last_activity_at
     user_token.last_activity_at = datetime.now(UTC)
     db.add(user_token)
-    await db.commit()
 
     logger.debug("user_authenticated", qiao_id=user.qiao_id)
 

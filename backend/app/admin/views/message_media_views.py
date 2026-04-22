@@ -197,7 +197,11 @@ class MessageHistoryView(ModelView):
                 help_text="Type of message",
             ),
             TextAreaField("content", label="Content", help_text="Message content"),
-            "message_metadata",
+            JSONField(
+                "message_metadata",
+                label="Message Metadata",
+                help_text="Structured message metadata payload",
+            ),
             DateTimeField(
                 "created_at",
                 label="Created At",
@@ -302,7 +306,13 @@ class MediaFileView(ModelView):
                 label="Uploaded By Type",
                 help_text="Type of uploader",
             ),
-            StringField("upload_by_id", label="Uploader ID", help_text="Uploader snowflake ID"),
+            HasOne(
+                "uploader_user",
+                identity="user",
+                label="Uploader User",
+                help_text="Uploader user (for USER uploader type)",
+                required=False,
+            ),
             StringField(
                 "upload_by_qiao_id",
                 label="Uploader Qiao ID",
@@ -314,10 +324,11 @@ class MediaFileView(ModelView):
                 help_text="Upload confirmation time",
                 required=False,
             ),
-            StringField(
-                "confirmed_by_id",
-                label="Confirmed By",
-                help_text="Confirming operator ID",
+            HasOne(
+                "confirmed_by_admin",
+                identity="admin_user",
+                label="Confirmed By Admin",
+                help_text="Confirming admin operator",
                 required=False,
             ),
             IntegerEnumField("status", enum=FileStatus, label="Status", help_text="File status"),
@@ -365,8 +376,20 @@ class MessageDeliveryView(ModelView):
         Sequence[BaseField],
         [
             StringField("id", label="ID", help_text="Delivery ID"),
-            StringField("msg_id_server", label="Msg ID Server", help_text="Timeline message ID"),
-            StringField("endpoint_id", label="Endpoint ID", help_text="Delivery endpoint ID"),
+            HasOne(
+                "message_history",
+                identity="message_history",
+                label="Message History",
+                help_text="Linked timeline message",
+                required=False,
+            ),
+            HasOne(
+                "endpoint",
+                identity="message_endpoint",
+                label="Endpoint",
+                help_text="Delivery endpoint",
+                required=False,
+            ),
             IntegerEnumField(
                 "provider",
                 enum=MessageTransportProvider,
@@ -454,7 +477,13 @@ class NotificationPushHistoryView(ModelView):
         Sequence[BaseField],
         [
             StringField("id", label="ID", help_text="Notification record ID"),
-            StringField("to_qiao_id", label="To Qiao ID", help_text="Receiver external ID"),
+            HasOne(
+                "user",
+                identity="user",
+                label="To User",
+                help_text="Receiver user by qiao_id",
+                required=False,
+            ),
             IntegerEnumField(
                 "notification_type",
                 enum=NotificationType,
@@ -516,7 +545,13 @@ class MessageDeviceView(ModelView):
         Sequence[BaseField],
         [
             StringField("id", label="ID", help_text="Record ID"),
-            IntegerField("user_id", label="User ID", help_text="User internal ID"),
+            HasOne(
+                "user",
+                identity="user",
+                label="User",
+                help_text="Associated user account",
+                required=False,
+            ),
             StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
             StringField("device_id", label="Device ID", help_text="Device UUID"),
             StringField(
@@ -571,7 +606,13 @@ class MessageEndpointView(ModelView):
         Sequence[BaseField],
         [
             StringField("id", label="ID", help_text="Endpoint ID"),
-            IntegerField("user_id", label="User ID", help_text="User internal ID"),
+            HasOne(
+                "user",
+                identity="user",
+                label="User",
+                help_text="Associated user account",
+                required=False,
+            ),
             StringField("user_qiao_id", label="User Qiao ID", help_text="User external ID"),
             StringField("device_id", label="Device ID", help_text="Device UUID"),
             IntegerEnumField(
@@ -641,15 +682,19 @@ class MessageDispatchOutboxView(ModelView):
                 label="Outbox Type",
                 help_text="Dispatch task type",
             ),
-            StringField(
-                "msg_id_server",
-                label="Msg ID Server",
-                help_text="Timeline message ID",
+            HasOne(
+                "message_history",
+                identity="message_history",
+                label="Message History",
+                help_text="Linked timeline message",
+                required=False,
             ),
-            IntegerField(
-                "owner_user_id",
-                label="Owner User ID",
-                help_text="Owner user internal ID",
+            HasOne(
+                "owner_user",
+                identity="user",
+                label="Owner User",
+                help_text="Owner user account",
+                required=False,
             ),
             IntegerEnumField(
                 "status",

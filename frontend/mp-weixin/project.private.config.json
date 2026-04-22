@@ -1,24 +1,24 @@
 {
-  "libVersion": "3.7.12",
-  "projectname": "ailo",
-  "condition": {},
-  "setting": {
-    "urlCheck": false,
-    "coverView": true,
-    "lazyloadPlaceholderEnable": false,
-    "skylineRenderEnable": false,
-    "preloadBackgroundData": false,
-    "autoAudits": false,
-    "useApiHook": true,
-    "useApiHostProcess": true,
-    "showShadowRootInWxmlPanel": true,
-    "useStaticServer": false,
-    "useLanDebug": false,
-    "showES6CompileOption": false,
-    "compileHotReLoad": true,
-    "checkInvalidKey": true,
-    "ignoreDevUnusedFiles": false,
-    "bigPackageSizeSupport": false,
-    "useIsolateContext": true
-  }
+    "libVersion": "3.7.12",
+    "projectname": "ailo",
+    "condition": {},
+    "setting": {
+        "urlCheck": false,
+        "coverView": true,
+        "lazyloadPlaceholderEnable": false,
+        "skylineRenderEnable": false,
+        "preloadBackgroundData": false,
+        "autoAudits": false,
+        "useApiHook": true,
+        "useApiHostProcess": true,
+        "showShadowRootInWxmlPanel": true,
+        "useStaticServer": false,
+        "useLanDebug": false,
+        "showES6CompileOption": false,
+        "compileHotReLoad": true,
+        "checkInvalidKey": true,
+        "ignoreDevUnusedFiles": false,
+        "bigPackageSizeSupport": false,
+        "useIsolateContext": true
+    }
 }

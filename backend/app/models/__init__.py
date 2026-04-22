@@ -39,8 +39,26 @@ from .base import (
     SnowflakeModel,
     SnowflakeQiaoModel,
 )
+from .campaign import Campaign, CampaignAttribution
 from .contact import Contact, ContactRequest
 from .content import AppPage, SquareCategory, SquareTypeEntry
+from .entitlement import (
+    EntitlementReasonCode,
+    EntitlementType,
+    UserEntitlementAccount,
+    UserEntitlementLedger,
+)
+from .growth_reward import GrowthRewardApply, GrowthRewardRule
+from .invite import (
+    InviteBinding,
+    InviteCode,
+    InviteEvent,
+    InviteRecognitionLog,
+    InviteShareTemplate,
+    OperationAsset,
+    OperationPublishLog,
+    OperationSlotConfig,
+)
 from .llm import LLMConfig, LLMProvider, LLMTestLog
 from .message import (
     MediaFile,
@@ -51,6 +69,7 @@ from .message import (
     MessageHistory,
 )
 from .profile import Profile, UserProfileLog
+from .redeem import RedeemCode, RedeemCodeBatch, RedeemCodeClaim
 from .security import UserRiskStats, UserViolationLog
 from .system import (
     AlertEvent,
@@ -116,6 +135,25 @@ __all__ = [
     "MessageDispatchOutbox",
     "MessageHistory",
     "Profile",
+    "EntitlementReasonCode",
+    "EntitlementType",
+    "UserEntitlementAccount",
+    "UserEntitlementLedger",
+    "InviteCode",
+    "InviteBinding",
+    "InviteEvent",
+    "InviteRecognitionLog",
+    "InviteShareTemplate",
+    "OperationAsset",
+    "OperationSlotConfig",
+    "OperationPublishLog",
+    "Campaign",
+    "CampaignAttribution",
+    "RedeemCodeBatch",
+    "RedeemCode",
+    "RedeemCodeClaim",
+    "GrowthRewardRule",
+    "GrowthRewardApply",
     "SnowflakeModel",
     "SnowflakeQiaoModel",
     "SquareTypeEntry",

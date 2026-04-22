@@ -31,6 +31,7 @@ from .ai import (
     ReusableStatus,
 )
 from .backup import BackupJobStatus
+from .campaign import CampaignStatus
 from .client import ClientType, LocaleCode
 from .contact import (
     AvatarDisplayMode,
@@ -48,6 +49,21 @@ from .discovery import (
     SquareCategoryTheme,
     SquareEntryStatus,
     is_valid_square_category_theme,
+)
+from .entitlement import EntitlementSourceType
+from .growth import (
+    GrowthRewardRuleStatus,
+    GrowthRewardScopeType,
+    GrowthRewardTargetRole,
+    GrowthRewardTriggerEvent,
+)
+from .invite import (
+    InviteCodeStatus,
+    InviteEventType,
+    InviteResolveCodeType,
+    InviteShareTemplateStatus,
+    OperationAssetType,
+    OperationStatus,
 )
 from .llm import LLMConfigStatus, LLMErrorCode, LLMTestStatus, ThinkingMode, ToolChoice
 from .media import FileStatus, FileType, UploaderType
@@ -69,6 +85,11 @@ from .message import (
     NotificationType,
 )
 from .profile import Gender, ProfileModifierType, ProfileOwnerType
+from .redeem import (
+    RedeemCodeBatchStatus,
+    RedeemCodeMode,
+    RedeemCodeStatus,
+)
 from .security import AutoAction, ManualReviewStatus, RiskLevel, SeverityLevel, ViolationType
 from .system import (
     AlertDomain,
@@ -164,6 +185,22 @@ __all__ = [
     "RequiredStatus",
     "ReusableStatus",
     "SquareEntryStatus",
+    "EntitlementSourceType",
+    # Invitation
+    "InviteShareTemplateStatus",
+    "InviteCodeStatus",
+    "InviteEventType",
+    "InviteResolveCodeType",
+    "OperationAssetType",
+    "OperationStatus",
+    "CampaignStatus",
+    "GrowthRewardScopeType",
+    "GrowthRewardTargetRole",
+    "GrowthRewardTriggerEvent",
+    "GrowthRewardRuleStatus",
+    "RedeemCodeBatchStatus",
+    "RedeemCodeMode",
+    "RedeemCodeStatus",
     # Security
     "ViolationType",
     "SeverityLevel",

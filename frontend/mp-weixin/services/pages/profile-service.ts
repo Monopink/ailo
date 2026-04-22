@@ -1,4 +1,5 @@
 import { classifyError } from '../../utils/error-classifier';
+import inviteBindingService, { type InviteBindingState } from '../../utils/invite-binding-service';
 import { type ProfileViewModel } from '../../utils/profile-service';
 import profileService from '../../utils/profile-service';
 import { BasePageService } from './base-page-service';
@@ -7,6 +8,7 @@ import { createReadyScreenModel, type ScreenModel } from './page-state';
 export interface ProfileBootstrapResult {
   screenModel: ScreenModel;
   profile: ProfileViewModel | null;
+  inviteBindingState: InviteBindingState;
 }
 
 export interface ProfileLoadResult extends ProfileBootstrapResult {
@@ -22,13 +24,22 @@ export class ProfilePageService extends BasePageService {
         refreshState: 'idle',
       }),
       profile,
+      inviteBindingState: inviteBindingService.getState(),
     };
   }
 
-  async load(currentProfile: ProfileViewModel | null): Promise<ProfileLoadResult | null> {
+  async load(
+    currentProfile: ProfileViewModel | null,
+    currentInviteBindingState: InviteBindingState,
+    options: { forceRefreshBinding?: boolean } = {}
+  ): Promise<ProfileLoadResult | null> {
     const seq = this.startRequest();
+    const { forceRefreshBinding = false } = options;
     try {
-      const profile = await profileService.loadProfile();
+      const [profile, inviteBindingState] = await Promise.all([
+        profileService.loadProfile(),
+        inviteBindingService.load({ forceRefresh: forceRefreshBinding }),
+      ]);
       if (!this.isRequestActive(seq)) {
         return null;
       }
@@ -38,6 +49,7 @@ export class ProfilePageService extends BasePageService {
           refreshState: 'idle',
         }),
         profile,
+        inviteBindingState,
         authInvalid: false,
       };
     } catch (error: unknown) {
@@ -51,6 +63,7 @@ export class ProfilePageService extends BasePageService {
           refreshState: 'degraded',
         }),
         profile: currentProfile,
+        inviteBindingState: currentInviteBindingState,
         authInvalid: semantics.reason === 'auth-invalid',
       };
     }

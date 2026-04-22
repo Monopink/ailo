@@ -45,7 +45,7 @@
     <!-- Cards Section -->
     <view class="profile__cards card-container">
 
-      <!-- Settings Card -->
+      <!-- Group 1: Profile & Security -->
       <view class="card-wrapper">
         <t-cell-group theme="card">
           <t-cell
@@ -78,6 +78,49 @@
                 color="#ff8a00" />
             </view>
           </t-cell>
+        </t-cell-group>
+      </view>
+
+      <!-- Group 2: Invitation -->
+      <view class="card-wrapper">
+        <t-cell-group theme="card">
+          <t-cell
+            wx:if="{{showInviteBindEntry}}"
+            title="填写邀请码"
+            t-class-left="profile__menu-left"
+            t-class-title="profile__menu-title"
+            arrow
+            hover
+            bindtap="navigateToInviteBind">
+            <view slot="left-icon" class="profile__menu-icon-wrap">
+              <t-icon
+                t-class="profile__menu-icon"
+                name="share"
+                size="var(--font-size-lg)"
+                color="#06b6d4" />
+            </view>
+          </t-cell>
+          <t-cell
+            title="邀请得联系人上限"
+            t-class-left="profile__menu-left"
+            t-class-title="profile__menu-title"
+            arrow
+            hover
+            bindtap="navigateToInviteShare">
+            <view slot="left-icon" class="profile__menu-icon-wrap">
+              <t-icon
+                t-class="profile__menu-icon"
+                name="user-arrow-up"
+                size="var(--font-size-lg)"
+                color="#f43f5e" />
+            </view>
+          </t-cell>
+        </t-cell-group>
+      </view>
+
+      <!-- Group 3: About -->
+      <view class="card-wrapper">
+        <t-cell-group theme="card">
           <t-cell
             title="关于"
             t-class-left="profile__menu-left"

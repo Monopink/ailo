@@ -87,9 +87,8 @@
               t-class-title="profile-cell__title"
               arrow
               hover>
-              <text wx:if="{{genderIndex >= 0}}" slot="note" class="profile-cell__note">
-                {{genderOptions[genderIndex].label}}
-              </text>
+              <text wx:if="{{genderIndex >= 0}}" slot="note" class="profile-cell__note"
+                >{{genderOptions[genderIndex].label}}</text>
               <text wx:else slot="note" class="profile-cell__note">请选择性别</text>
             </t-cell>
           </picker>
@@ -108,9 +107,8 @@
               t-class-title="profile-cell__title"
               arrow
               hover>
-              <text wx:if="{{regionDisplay !== ''}}" slot="note" class="profile-cell__note">
-                {{regionDisplay}}
-              </text>
+              <text wx:if="{{regionDisplay !== ''}}" slot="note" class="profile-cell__note"
+                >{{regionDisplay}}</text>
               <text wx:else slot="note" class="profile-cell__note">请选择地区</text>
             </t-cell>
           </picker>
@@ -126,6 +124,24 @@
               value="{{bio}}"
               maxlength="{{maxBioLength}}"
               auto-height />
+          </t-cell>
+        </t-cell-group>
+      </view>
+
+      <view class="card-wrapper">
+        <t-cell-group theme="card">
+          <t-cell
+            title="邀请码（选填）"
+            t-class-title="profile-cell__title">
+            <input
+              slot="note"
+              class="setup-input"
+              name="inviteCode"
+              type="text"
+              placeholder="填写邀请码"
+              bindinput="onInviteCodeInput"
+              value="{{inviteCode}}"
+              maxlength="20" />
           </t-cell>
         </t-cell-group>
       </view>

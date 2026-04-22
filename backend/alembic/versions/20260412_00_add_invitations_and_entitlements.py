@@ -281,6 +281,117 @@ def _create_invitation_and_entitlement_tables() -> None:
     )
 
     op.create_table(
+        "invite_recognition_logs",
+        sa.Column(
+            "id",
+            sa.Integer(),
+            primary_key=True,
+            autoincrement=True,
+            comment="Auto-increment ID primary key",
+        ),
+        sa.Column(
+            "actor_user_id",
+            sa.BigInteger(),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column("source", sa.String(length=32), nullable=False),
+        sa.Column(
+            "trigger",
+            sa.String(length=32),
+            nullable=False,
+            server_default=sa.text("'unknown'"),
+        ),
+        sa.Column("raw_text", sa.Text(), nullable=False),
+        sa.Column("first_candidate", sa.String(length=6), nullable=True),
+        sa.Column("recognized_code", sa.String(length=6), nullable=True),
+        sa.Column(
+            "invite_code_id",
+            sa.Integer(),
+            sa.ForeignKey("invite_codes.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column("valid", sa.Boolean(), nullable=False, server_default=sa.text("FALSE")),
+        sa.Column("bindable", sa.Boolean(), nullable=True),
+        _created_at_column(),
+        sa.CheckConstraint(
+            "source IN ('login', 'setup', 'link', 'invite_bind_page', 'invite_share_page')",
+            name="ck_invite_recognition_logs_source",
+        ),
+        sa.CheckConstraint(
+            "trigger ~ '^[a-z0-9_\\-]{1,32}$'",
+            name="ck_invite_recognition_logs_trigger_format",
+        ),
+        sa.CheckConstraint(
+            "first_candidate IS NULL OR first_candidate ~ '^[A-Z0-9]{6}$'",
+            name="ck_invite_recognition_logs_first_candidate_format",
+        ),
+        sa.CheckConstraint(
+            "recognized_code IS NULL OR recognized_code ~ '^[A-Z0-9]{6}$'",
+            name="ck_invite_recognition_logs_recognized_code_format",
+        ),
+    )
+    op.create_index(
+        "idx_invite_recognition_logs_created_at",
+        "invite_recognition_logs",
+        ["created_at"],
+        unique=False,
+    )
+    op.create_index(
+        "idx_invite_recognition_logs_source_created_at",
+        "invite_recognition_logs",
+        ["source", "created_at"],
+        unique=False,
+    )
+    op.create_index(
+        "idx_invite_recognition_logs_recognized_code",
+        "invite_recognition_logs",
+        ["recognized_code"],
+        unique=False,
+    )
+
+    op.create_table(
+        "invite_share_templates",
+        sa.Column(
+            "id",
+            sa.Integer(),
+            primary_key=True,
+            autoincrement=True,
+            comment="Auto-increment ID primary key",
+        ),
+        sa.Column("template_text", sa.Text(), nullable=False),
+        sa.Column(
+            "status",
+            sa.Integer(),
+            nullable=False,
+            server_default=sa.text("1"),
+            comment="Status: 1=active, 2=inactive",
+        ),
+        sa.Column("priority", sa.Integer(), nullable=False, server_default=sa.text("100")),
+        sa.Column(
+            "locale", sa.String(length=16), nullable=False, server_default=sa.text("'zh-CN'")
+        ),
+        *_ts_columns(),
+        sa.CheckConstraint("status IN (1, 2)", name="ck_invite_share_templates_status"),
+        sa.CheckConstraint(
+            "locale ~ '^[a-z]{2}(\\-[A-Z]{2})?$'",
+            name="ck_invite_share_templates_locale_format",
+        ),
+    )
+    op.create_index(
+        "idx_invite_share_templates_status_priority",
+        "invite_share_templates",
+        ["status", "priority", "id"],
+        unique=False,
+    )
+    op.create_index(
+        "idx_invite_share_templates_locale",
+        "invite_share_templates",
+        ["locale"],
+        unique=False,
+    )
+
+    op.create_table(
         "user_entitlement_accounts",
         sa.Column(
             "id",
@@ -951,6 +1062,269 @@ def _create_growth_reward_apply_table() -> None:
     )
 
 
+def _create_operation_material_tables() -> None:
+    op.create_table(
+        "operation_assets",
+        sa.Column(
+            "id",
+            sa.Integer(),
+            primary_key=True,
+            autoincrement=True,
+            comment="Auto-increment ID primary key",
+        ),
+        sa.Column("asset_code", sa.String(length=64), nullable=False),
+        sa.Column(
+            "media_file_id",
+            sa.BigInteger(),
+            sa.ForeignKey("media_files.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column(
+            "asset_type",
+            sa.Integer(),
+            nullable=False,
+            server_default=sa.text("1"),
+            comment="Asset type: 1=image",
+        ),
+        sa.Column("cdn_url", sa.String(length=1024), nullable=False),
+        sa.Column("mime_type", sa.String(length=100), nullable=True),
+        sa.Column("width", sa.Integer(), nullable=True),
+        sa.Column("height", sa.Integer(), nullable=True),
+        sa.Column(
+            "status",
+            sa.Integer(),
+            nullable=False,
+            server_default=sa.text("1"),
+            comment="Status: 1=active, 2=inactive",
+        ),
+        sa.Column("version", sa.Integer(), nullable=False, server_default=sa.text("1")),
+        sa.Column(
+            "created_by",
+            sa.Integer(),
+            sa.ForeignKey("admin_users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column(
+            "updated_by",
+            sa.Integer(),
+            sa.ForeignKey("admin_users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        *_ts_columns(),
+        sa.CheckConstraint("asset_type IN (1)", name="ck_operation_assets_asset_type"),
+        sa.CheckConstraint("status IN (1, 2)", name="ck_operation_assets_status"),
+        sa.CheckConstraint("version > 0", name="ck_operation_assets_version_positive"),
+        sa.CheckConstraint("cdn_url ~ '^https://'", name="ck_operation_assets_cdn_url_https"),
+        sa.CheckConstraint("width IS NULL OR width > 0", name="ck_operation_assets_width_positive"),
+        sa.CheckConstraint(
+            "height IS NULL OR height > 0",
+            name="ck_operation_assets_height_positive",
+        ),
+        sa.UniqueConstraint("asset_code", name="uq_operation_assets_asset_code"),
+    )
+    op.create_index("idx_operation_assets_status", "operation_assets", ["status"], unique=False)
+    op.create_index(
+        "idx_operation_assets_media_file",
+        "operation_assets",
+        ["media_file_id"],
+        unique=False,
+    )
+
+    op.create_table(
+        "operation_slot_configs",
+        sa.Column(
+            "id",
+            sa.Integer(),
+            primary_key=True,
+            autoincrement=True,
+            comment="Auto-increment ID primary key",
+        ),
+        sa.Column("slot_code", sa.String(length=64), nullable=False),
+        sa.Column("channel", sa.String(length=32), nullable=False),
+        sa.Column("title", sa.String(length=128), nullable=False),
+        sa.Column("path_template", sa.String(length=512), nullable=False),
+        sa.Column(
+            "asset_id",
+            sa.Integer(),
+            sa.ForeignKey("operation_assets.id", ondelete="RESTRICT"),
+            nullable=False,
+        ),
+        sa.Column("priority", sa.Integer(), nullable=False, server_default=sa.text("100")),
+        sa.Column("start_at", sa.TIMESTAMP(timezone=True), nullable=True),
+        sa.Column("end_at", sa.TIMESTAMP(timezone=True), nullable=True),
+        sa.Column(
+            "status",
+            sa.Integer(),
+            nullable=False,
+            server_default=sa.text("1"),
+            comment="Status: 1=active, 2=inactive",
+        ),
+        sa.Column("version", sa.Integer(), nullable=False, server_default=sa.text("1")),
+        sa.Column(
+            "created_by",
+            sa.Integer(),
+            sa.ForeignKey("admin_users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column(
+            "updated_by",
+            sa.Integer(),
+            sa.ForeignKey("admin_users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        *_ts_columns(),
+        sa.CheckConstraint("status IN (1, 2)", name="ck_operation_slot_configs_status"),
+        sa.CheckConstraint(
+            "slot_code ~ '^[a-z0-9_\\-]{1,64}$'",
+            name="ck_operation_slot_configs_slot_code_format",
+        ),
+        sa.CheckConstraint(
+            "channel ~ '^[a-z0-9_\\-]{1,32}$'",
+            name="ck_operation_slot_configs_channel_format",
+        ),
+        sa.CheckConstraint(
+            "path_template ~ '^/.+'",
+            name="ck_operation_slot_configs_path_template",
+        ),
+        sa.CheckConstraint(
+            "version > 0",
+            name="ck_operation_slot_configs_version_positive",
+        ),
+        sa.CheckConstraint(
+            "end_at IS NULL OR start_at IS NULL OR end_at > start_at",
+            name="ck_operation_slot_configs_time_range",
+        ),
+        sa.UniqueConstraint(
+            "slot_code",
+            "channel",
+            "version",
+            name="uq_operation_slot_configs_slot_channel_version",
+        ),
+    )
+    op.create_index(
+        "idx_operation_slot_configs_lookup",
+        "operation_slot_configs",
+        ["slot_code", "channel", "status", "priority", "id"],
+        unique=False,
+    )
+    op.create_index(
+        "idx_operation_slot_configs_time",
+        "operation_slot_configs",
+        ["start_at", "end_at"],
+        unique=False,
+    )
+
+    op.create_table(
+        "operation_publish_logs",
+        sa.Column(
+            "id",
+            sa.Integer(),
+            primary_key=True,
+            autoincrement=True,
+            comment="Auto-increment ID primary key",
+        ),
+        sa.Column("slot_code", sa.String(length=64), nullable=False),
+        sa.Column("action", sa.String(length=16), nullable=False),
+        sa.Column("from_version", sa.Integer(), nullable=True),
+        sa.Column("to_version", sa.Integer(), nullable=False),
+        sa.Column(
+            "operator_id",
+            sa.Integer(),
+            sa.ForeignKey("admin_users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column("reason", sa.String(length=500), nullable=True),
+        _created_at_column(),
+        sa.CheckConstraint(
+            "action IN ('publish', 'rollback')",
+            name="ck_operation_publish_logs_action",
+        ),
+        sa.CheckConstraint(
+            "from_version IS NULL OR from_version > 0",
+            name="ck_operation_publish_logs_from_version_positive",
+        ),
+        sa.CheckConstraint(
+            "to_version > 0",
+            name="ck_operation_publish_logs_to_version_positive",
+        ),
+    )
+    op.create_index(
+        "idx_operation_publish_logs_slot_time",
+        "operation_publish_logs",
+        ["slot_code", "created_at"],
+        unique=False,
+    )
+
+
+def _seed_default_invite_share_operation_slot() -> None:
+    op.execute(
+        """
+        INSERT INTO operation_assets (
+            asset_code,
+            media_file_id,
+            asset_type,
+            cdn_url,
+            mime_type,
+            width,
+            height,
+            status,
+            version,
+            created_by,
+            updated_by
+        )
+        VALUES (
+            'invite_share_card_default',
+            NULL,
+            1,
+            'https://cortex.qiaoqiaoai.cn/share/invite-share-card.png',
+            'image/png',
+            NULL,
+            NULL,
+            1,
+            1,
+            NULL,
+            NULL
+        )
+        ON CONFLICT (asset_code) DO NOTHING
+        """
+    )
+
+    op.execute(
+        """
+        INSERT INTO operation_slot_configs (
+            slot_code,
+            channel,
+            title,
+            path_template,
+            asset_id,
+            priority,
+            start_at,
+            end_at,
+            status,
+            version,
+            created_by,
+            updated_by
+        )
+        SELECT
+            'invite_share_card',
+            'mini_program',
+            '来敲敲AI，对话敲多新奇有趣',
+            '/pages/setup/setup?inviteCode={{code}}',
+            oa.id,
+            100,
+            NULL,
+            NULL,
+            1,
+            1,
+            NULL,
+            NULL
+        FROM operation_assets oa
+        WHERE oa.asset_code = 'invite_share_card_default'
+        ON CONFLICT ON CONSTRAINT uq_operation_slot_configs_slot_channel_version DO NOTHING
+        """
+    )
+
+
 def _seed_required_baseline_data() -> None:
     """Seed required environment-independent baseline data for invite/entitlement."""
     op.execute(
@@ -1039,6 +1413,16 @@ def _seed_required_baseline_data() -> None:
 
     op.execute(
         """
+        INSERT INTO invite_share_templates (template_text, status, priority, locale)
+        VALUES
+            ('文案 {{code}} {{link}}', 1, 100, 'zh-CN'),
+            ('敲敲好友都在用，{{code}} {{link}}', 1, 100, 'zh-CN'),
+            ('一起用敲敲，{{code}} {{link}}', 1, 100, 'zh-CN')
+        """
+    )
+
+    op.execute(
+        """
         INSERT INTO system_configs (
             config_key,
             config_value,
@@ -1091,15 +1475,6 @@ def _seed_required_baseline_data() -> None:
                 '60',
                 2,
                 'Invite code bind rate limit window in seconds',
-                'invitations',
-                NULL
-            ),
-            (
-                'invite_command_templates',
-                '["文案 {{code}}","敲敲好友都在用，{{code}}","一起用敲敲，{{code}}"]',
-                '["文案 {{code}}","敲敲好友都在用，{{code}}","一起用敲敲，{{code}}"]',
-                4,
-                'Invite command templates, each must contain {{code}} placeholder',
                 'invitations',
                 NULL
             ),
@@ -1234,7 +1609,9 @@ def upgrade() -> None:
     _create_growth_tables()
     _create_growth_reward_rule_table()
     _create_growth_reward_apply_table()
+    _create_operation_material_tables()
     _seed_required_baseline_data()
+    _seed_default_invite_share_operation_slot()
 
 
 def downgrade() -> None:

@@ -9,6 +9,7 @@ import { initTabBar } from '../../utils/tab-bar';
 import { isNonEmptyString } from '../../utils/guards';
 import { IS_PROD } from '../../utils/env';
 import { BUILD_INFO, formatBuildInfoText } from '../../utils/build-info';
+import type { InviteBindingState } from '../../utils/invite-binding-service';
 
 const logger = getLogger('Profile');
 const AUTO_RETRY_DELAYS_MS = [1200, 2600, 5200] as const;
@@ -20,6 +21,8 @@ type AuthGuardPage = WechatMiniprogram.Page.Instance<
 interface ProfilePageData extends Record<string, unknown> {
   pageLayoutData: PageLayoutData;
   profile: ProfileViewModel | null;
+  inviteBindingState: InviteBindingState;
+  showInviteBindEntry: boolean;
   showBuildInfo: boolean;
   buildInfoText: string;
 }
@@ -31,8 +34,10 @@ interface ProfilePageCustom {
   applyScreenModel(screenModel: ScreenModel): void;
   clearAutoRetryTimer(): void;
   scheduleAutoRetryLoad(): void;
-  loadProfile(): Promise<void>;
+  loadProfile(options?: { forceRefreshBinding?: boolean }): Promise<void>;
   navigateToProfileDetail(): void;
+  navigateToInviteBind(): void;
+  navigateToInviteShare(): void;
   navigateToAccountSecurity(): void;
   navigateToAbout(): void;
   onAvatarRenderSuccess(
@@ -61,6 +66,8 @@ Page<ProfilePageData, ProfilePageCustom>({
       hasFooter: true,
     }),
     profile: null,
+    inviteBindingState: 'unknown',
+    showInviteBindEntry: true,
     showBuildInfo: !IS_PROD,
     buildInfoText: formatBuildInfoText(BUILD_INFO),
   },
@@ -109,10 +116,12 @@ Page<ProfilePageData, ProfilePageCustom>({
     const bootstrap = this.profilePageService.bootstrap();
     this.setData({
       profile: bootstrap.profile,
+      inviteBindingState: bootstrap.inviteBindingState,
+      showInviteBindEntry: bootstrap.inviteBindingState !== 'bound',
       ...buildPageLayoutScreenModelPayload(bootstrap.screenModel),
     });
 
-    await this.loadProfile();
+    await this.loadProfile({ forceRefreshBinding: true });
   },
 
   async onShow() {
@@ -123,16 +132,17 @@ Page<ProfilePageData, ProfilePageCustom>({
     }
 
     const bootstrap = this.profilePageService.bootstrap();
-    if (bootstrap.profile === null) {
-      if (this.data.profile === null) {
-        void this.loadProfile();
-      }
+    if (bootstrap.profile === null && this.data.profile === null) {
+      void this.loadProfile({ forceRefreshBinding: true });
       return;
     }
     this.setData({
-      profile: bootstrap.profile,
+      profile: bootstrap.profile ?? this.data.profile,
+      inviteBindingState: bootstrap.inviteBindingState,
+      showInviteBindEntry: bootstrap.inviteBindingState !== 'bound',
       ...buildPageLayoutScreenModelPayload(bootstrap.screenModel),
     });
+    void this.loadProfile({ forceRefreshBinding: true });
   },
 
   onHide() {
@@ -144,7 +154,7 @@ Page<ProfilePageData, ProfilePageCustom>({
     this.profilePageService.dispose();
   },
 
-  async loadProfile() {
+  async loadProfile(options: { forceRefreshBinding?: boolean } = {}) {
     this.applyScreenModel({
       ...this.data.pageLayoutData.screenModel,
       screenState: 'ready',
@@ -153,7 +163,11 @@ Page<ProfilePageData, ProfilePageCustom>({
     });
 
     logger.info('Loading user profile');
-    const result = await this.profilePageService.load(this.data.profile);
+    const result = await this.profilePageService.load(
+      this.data.profile,
+      this.data.inviteBindingState,
+      options
+    );
     if (result === null) {
       return;
     }
@@ -164,6 +178,8 @@ Page<ProfilePageData, ProfilePageCustom>({
 
     this.setData({
       profile: result.profile,
+      inviteBindingState: result.inviteBindingState,
+      showInviteBindEntry: result.inviteBindingState !== 'bound',
       ...buildPageLayoutScreenModelPayload(result.screenModel),
     });
 
@@ -192,6 +208,18 @@ Page<ProfilePageData, ProfilePageCustom>({
   navigateToAccountSecurity() {
     void wx.navigateTo({
       url: '/pkg/account-security/account-security',
+    });
+  },
+
+  navigateToInviteBind() {
+    void wx.navigateTo({
+      url: '/pages/invite-bind/invite-bind',
+    });
+  },
+
+  navigateToInviteShare() {
+    void wx.navigateTo({
+      url: '/pages/invite-share/invite-share',
     });
   },
 

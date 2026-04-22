@@ -385,6 +385,10 @@ interface ContactListPageData {
   tagMeasureItems: TagMeasureItem[];
   messageMeasureItems: MessageMeasureItem[];
   unreadTotal: number;
+  availableContactSlots: number | null;
+  showContactLimitHint: boolean;
+  showContactLimitReached: boolean;
+  contactLimitHintText: string;
   showConnectionIssue: boolean;
   navbarTitle: string;
   wordmarkSrc: string;
@@ -424,7 +428,8 @@ interface ContactListPageCustom {
   applyLoadedList(
     screenModel: ScreenModel,
     contactList: ContactListItem[],
-    unreadTotal: number
+    unreadTotal: number,
+    availableContactSlots: number | null
   ): void;
   loadContactList(options?: LoadOptions): Promise<void>;
   loadContactsFromCache(): Promise<boolean>;
@@ -433,6 +438,7 @@ interface ContactListPageCustom {
   onPullDownRefresh(): void;
   goToChat(event: WechatMiniprogram.BaseEvent): void;
   goToSquareEntry(): void;
+  goToInviteShare(): void;
   onSwipeActionClick(event: SwipeActionEvent): void;
   navigateToContactInfo(convId?: string): void;
   markContactAsUnreadByIndex(index: number): void;
@@ -494,6 +500,10 @@ Page<ContactListPageData, ContactListPageCustom>({
     tagMeasureItems: [],
     messageMeasureItems: [],
     unreadTotal: 0,
+    availableContactSlots: null,
+    showContactLimitHint: false,
+    showContactLimitReached: false,
+    contactLimitHintText: '',
     showConnectionIssue: false,
     navbarTitle: APP_CONFIG.brandName,
     wordmarkSrc: getWordmarkSrcByTheme(getCurrentTheme()),
@@ -541,10 +551,14 @@ Page<ContactListPageData, ContactListPageCustom>({
     initTabBar(this);
     this.updateNavigationTitle();
     this.syncWordmarkByTheme();
-    void this.loadContactsFromCache();
-    if (this.data.pageLayoutData.screenModel.contentVariant === 'blank') {
-      void this.loadContactList();
-    }
+    void this.loadContactsFromCache().finally(() => {
+      if (
+        this.data.availableContactSlots === null ||
+        this.data.pageLayoutData.screenModel.contentVariant === 'blank'
+      ) {
+        void this.loadContactList({ forceReload: true });
+      }
+    });
   },
 
   onHide() {
@@ -900,11 +914,26 @@ Page<ContactListPageData, ContactListPageCustom>({
     }, delay);
   },
 
-  applyLoadedList(screenModel, contactList, unreadTotal) {
+  applyLoadedList(screenModel, contactList, unreadTotal, availableContactSlots) {
     const contactListForRender = decorateContactList(contactList);
+    const normalizedAvailableSlots =
+      typeof availableContactSlots === 'number' && Number.isFinite(availableContactSlots)
+        ? Math.max(0, Math.floor(availableContactSlots))
+        : null;
+    const showContactLimitHint =
+      contactListForRender.length > 0 && normalizedAvailableSlots !== null;
+    const showContactLimitReached = showContactLimitHint && normalizedAvailableSlots === 0;
+    const contactLimitHintText = showContactLimitReached
+      ? '联系人已达上限，先和他们聊聊吧'
+      : `还可以再添加 ${normalizedAvailableSlots ?? 0} 位联系人`;
+
     this.setData({
       contactList: contactListForRender,
       unreadTotal,
+      availableContactSlots: normalizedAvailableSlots,
+      showContactLimitHint,
+      showContactLimitReached,
+      contactLimitHintText,
       ...buildPageLayoutScreenModelPayload(screenModel),
     });
     this.scheduleTagLayoutRefresh();
@@ -949,6 +978,7 @@ Page<ContactListPageData, ContactListPageCustom>({
         contactList: this.data.contactList,
         unreadTotal: this.data.unreadTotal,
         currentContentVariant,
+        availableContactSlots: this.data.availableContactSlots,
       });
       if (result === null) {
         return;
@@ -969,7 +999,12 @@ Page<ContactListPageData, ContactListPageCustom>({
 
       this._autoRetryAttempt = 0;
       this.clearAutoRetryTimer();
-      this.applyLoadedList(result.screenModel, result.contactList, result.unreadTotal);
+      this.applyLoadedList(
+        result.screenModel,
+        result.contactList,
+        result.unreadTotal,
+        result.availableContactSlots
+      );
     })();
 
     this._loadPromise = loadTask.finally(() => {
@@ -985,7 +1020,12 @@ Page<ContactListPageData, ContactListPageCustom>({
       if (result === null) {
         return false;
       }
-      this.applyLoadedList(result.screenModel, result.contactList, result.unreadTotal);
+      this.applyLoadedList(
+        result.screenModel,
+        result.contactList,
+        result.unreadTotal,
+        result.availableContactSlots
+      );
       return true;
     } catch (error: unknown) {
       const err = normalizeError(error);
@@ -1047,6 +1087,10 @@ Page<ContactListPageData, ContactListPageCustom>({
 
   goToSquareEntry() {
     void wx.switchTab({ url: '/pages/square-entry/square-entry' });
+  },
+
+  goToInviteShare() {
+    void wx.navigateTo({ url: '/pages/invite-share/invite-share' });
   },
 
   onSwipeActionClick(event: SwipeActionEvent) {

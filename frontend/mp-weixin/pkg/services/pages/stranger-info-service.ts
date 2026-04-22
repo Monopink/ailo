@@ -4,6 +4,7 @@ import { isValidCategoryKey } from '../../../utils/constants/square';
 import { classifyError } from '../../../utils/error-classifier';
 import { firstNonEmptyString, isNonEmptyString } from '../../../utils/guards';
 import { getLogger } from '../../../utils/logger';
+import { fetchContactLimitFromApi } from '../../../utils/contact-sync';
 import { StrangerProfileResponseSchema } from '../../../utils/schemas';
 import { BasePageService } from './base-page-service';
 import { createReadyScreenModel, type ScreenModel } from './page-state';
@@ -176,6 +177,11 @@ const buildProfileUrl = (qiaoId: string, categoryKey: string): string => {
 export class StrangerInfoPageService extends BasePageService {
   private bootstrapPromise: Promise<StrangerInfoBootstrapResult | null> | null = null;
   private bootstrapQiaoId = '';
+
+  async getCurrentContactLimit(): Promise<number> {
+    const result = await fetchContactLimitFromApi();
+    return result.available_total;
+  }
 
   async bootstrap(
     qiaoId: string,

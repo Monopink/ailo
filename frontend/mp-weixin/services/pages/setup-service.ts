@@ -1,6 +1,14 @@
 import { getAvatarUrl } from '../../utils/avatar';
 import { GENDER_OPTIONS, type GenderValue } from '../../utils/constants/user';
+import { requestValidated } from '../../utils/api';
 import { fetchCurrentUserProfile, updateCurrentUserProfile } from '../../utils/profile';
+import {
+  GrowthAttributionTrackResponseSchema,
+  InvitationBindResponse,
+  InvitationBindResponseSchema,
+  InvitationIntakeResponse,
+  InvitationIntakeResponseSchema,
+} from '../../utils/schemas';
 import { BasePageService } from './base-page-service';
 
 export interface SetupProfileSnapshot {
@@ -69,6 +77,10 @@ const buildProfilePayload = (payload: SetupSubmitPayload): Record<string, unknow
   return submitPayload;
 };
 
+const INVITATIONS_BIND_ENDPOINT = '/invitations/bind';
+const INVITATIONS_INTAKE_ENDPOINT = '/invitations/intake';
+const GROWTH_ATTRIBUTION_ENDPOINT = '/growth/attributions/track';
+
 export class SetupPageService extends BasePageService {
   async loadProfile(): Promise<SetupProfileSnapshot | null> {
     const seq = this.startRequest();
@@ -96,6 +108,66 @@ export class SetupPageService extends BasePageService {
     return {
       qiao_id: updatedProfile.qiao_id,
     };
+  }
+
+  async bindInviteCode(
+    code: string,
+    source: 'setup' | 'link' | 'invite_bind_page' | 'invite_share_page' = 'setup'
+  ): Promise<InvitationBindResponse | null> {
+    const seq = this.startRequest();
+    const response = await requestValidated(InvitationBindResponseSchema, {
+      url: INVITATIONS_BIND_ENDPOINT,
+      method: 'POST',
+      data: { code, source },
+    });
+    if (!this.isRequestActive(seq)) {
+      return null;
+    }
+    return response;
+  }
+
+  async intakeInviteCode(options: {
+    source: 'setup' | 'link' | 'invite_bind_page' | 'invite_share_page';
+    trigger: 'clipboard' | 'link_param' | 'manual_input';
+    rawText?: string;
+    inviteCode?: string;
+  }): Promise<InvitationIntakeResponse | null> {
+    const seq = this.startRequest();
+    const response = await requestValidated(InvitationIntakeResponseSchema, {
+      url: INVITATIONS_INTAKE_ENDPOINT,
+      method: 'POST',
+      data: {
+        source: options.source,
+        trigger: options.trigger,
+        raw_text: options.rawText,
+        invite_code: options.inviteCode,
+      },
+    });
+    if (!this.isRequestActive(seq)) {
+      return null;
+    }
+    return response;
+  }
+
+  async trackGrowthAttribution(options: {
+    campaignCode: string;
+    source: string;
+    payload?: Record<string, unknown>;
+  }): Promise<boolean> {
+    const seq = this.startRequest();
+    const response = await requestValidated(GrowthAttributionTrackResponseSchema, {
+      url: GROWTH_ATTRIBUTION_ENDPOINT,
+      method: 'POST',
+      data: {
+        campaign_code: options.campaignCode,
+        source: options.source,
+        payload: options.payload,
+      },
+    });
+    if (!this.isRequestActive(seq)) {
+      return false;
+    }
+    return response.accepted;
   }
 }
 

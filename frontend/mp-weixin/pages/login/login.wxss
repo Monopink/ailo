@@ -162,7 +162,7 @@
 }
 
 .login-legal__link {
-  color: rgb(255 255 255 / 96%);
+  color: var(--color-text-primary);
   text-decoration: underline;
   text-underline-offset: 4rpx;
 }
@@ -189,9 +189,13 @@
 }
 
 .login-actions__hint {
-  font-size: var(--font-size-xs);
-  color: rgb(255 255 255 / 54%);
+  display: block;
+  width: 100%;
+  align-self: stretch;
+  font-size: 30rpx;
+  color: rgb(255 255 255 / 44%);
   line-height: var(--line-height-base);
+  text-align: center;
 }
 
 @media (prefers-color-scheme: dark) {

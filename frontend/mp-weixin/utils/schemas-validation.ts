@@ -56,6 +56,101 @@ export const UsernameCheckResponseSchema = z.object({
 });
 export type UsernameCheckResponse = z.infer<typeof UsernameCheckResponseSchema>;
 
+// ============================================================================
+// Invitations Schemas
+// ============================================================================
+
+export const InvitationResolveResponseSchema = z.object({
+  valid: z.boolean(),
+  code_type: z.literal('user').nullable(),
+  bindable: z.boolean(),
+});
+export type InvitationResolveResponse = z.infer<typeof InvitationResolveResponseSchema>;
+
+export const InvitationBindResponseSchema = z.object({
+  code_type: z.literal('user'),
+  reward_contact_limit: z.number().int().nonnegative(),
+});
+export type InvitationBindResponse = z.infer<typeof InvitationBindResponseSchema>;
+
+export const InvitationCodeResponseSchema = z.object({
+  code: z.string().min(6).max(6),
+});
+export type InvitationCodeResponse = z.infer<typeof InvitationCodeResponseSchema>;
+
+export const InvitationBindingStatusResponseSchema = z.object({
+  is_bound: z.boolean(),
+});
+export type InvitationBindingStatusResponse = z.infer<typeof InvitationBindingStatusResponseSchema>;
+
+export const InvitationStatsResponseSchema = z.object({
+  success_invite_count: z.number().int().nonnegative(),
+  max_invite_count: z.number().int().positive().nullable(),
+  reward_contact_limit_per_invite: z.number().int().nonnegative(),
+  max_reward_contact_limit_total: z.number().int().nonnegative().nullable(),
+  rewarded_contact_limit_total: z.number().int().nonnegative(),
+});
+export type InvitationStatsResponse = z.infer<typeof InvitationStatsResponseSchema>;
+
+export const InvitationShareFullResponseSchema = z.object({
+  code: z.string().min(6).max(6),
+  text: z.string().min(1),
+  link: z.string().min(1),
+  share_card: z.object({
+    title: z.string().min(1),
+    path: z.string().min(1),
+    image_url: z.string().min(1),
+    slot_code: z.string().min(1),
+    channel: z.string().min(1),
+    version: z.number().int().positive(),
+  }),
+});
+export type InvitationShareFullResponse = z.infer<typeof InvitationShareFullResponseSchema>;
+
+export const InvitationEventTrackResponseSchema = z.object({
+  accepted: z.boolean(),
+});
+export type InvitationEventTrackResponse = z.infer<typeof InvitationEventTrackResponseSchema>;
+
+export const InvitationPublicIntakeResponseSchema = z.object({
+  recognized_code: z.string().min(6).max(6).nullable(),
+  valid: z.boolean(),
+});
+export type InvitationPublicIntakeResponse = z.infer<typeof InvitationPublicIntakeResponseSchema>;
+
+export const InvitationIntakeResponseSchema = z.object({
+  recognized_code: z.string().min(6).max(6).nullable(),
+  valid: z.boolean(),
+  bindable: z.boolean(),
+});
+export type InvitationIntakeResponse = z.infer<typeof InvitationIntakeResponseSchema>;
+
+export const InvitationEventTypeSchema = z.union([
+  z.literal('resolve_valid'),
+  z.literal('bind_success'),
+  z.literal('copy_command'),
+  z.literal('share_wechat'),
+]);
+export type InvitationEventType = z.infer<typeof InvitationEventTypeSchema>;
+
+export const GrowthAttributionTrackResponseSchema = z.object({
+  accepted: z.boolean(),
+  attributed: z.boolean(),
+});
+export type GrowthAttributionTrackResponse = z.infer<typeof GrowthAttributionTrackResponseSchema>;
+
+export const RedeemCodeClaimResponseSchema = z.object({
+  claimed: z.boolean(),
+  reward_contact_limit: z.number().int().nonnegative(),
+});
+export type RedeemCodeClaimResponse = z.infer<typeof RedeemCodeClaimResponseSchema>;
+
+export const ContactLimitResponseSchema = z.object({
+  used: z.number().int().nonnegative(),
+  available_total: z.number().int().nonnegative(),
+});
+export type ContactLimitResponse = z.infer<typeof ContactLimitResponseSchema>;
+
 export const AccountInfoSchema = z.object({
   phone: z.string().optional(),
   email: z.string().optional().nullable(),

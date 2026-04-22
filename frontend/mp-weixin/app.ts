@@ -33,18 +33,6 @@ const getActivePage = (): AnyPageInstance | undefined => {
   return pages[pages.length - 1] as AnyPageInstance | undefined;
 };
 
-const redirectToSetupIfNeeded = (): boolean => {
-  if (!authService.needsProfileSetup()) {
-    return false;
-  }
-  const currentPage = getActivePage();
-  if (currentPage?.route === 'pages/setup/setup') {
-    return true;
-  }
-  void wx.redirectTo({ url: '/pages/setup/setup' });
-  return true;
-};
-
 const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
   globalData: {
     messageService: null,
@@ -65,8 +53,6 @@ const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
       checkGlobalData();
       logger.info('========================');
     }
-
-    void this.initializeAuth();
   },
 
   onShow(options: ShowOptions) {
@@ -101,47 +87,6 @@ const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
 
   onThemeChange(event: ThemeChangeResult) {
     logger.info('Theme changed', { theme: event.theme });
-  },
-
-  async initializeAuth() {
-    try {
-      logger.info('=== Initializing Authentication ===');
-
-      const isAuthenticated = await authService.initialize();
-      logger.info('Authentication initialized', { isAuthenticated });
-
-      if (isAuthenticated) {
-        await conversationStore.init();
-        await this.initMessageService();
-
-        if (redirectToSetupIfNeeded()) {
-          return;
-        }
-
-        const currentPage = getActivePage();
-        if (currentPage?.route === 'pages/welcome/welcome') {
-          logger.info('User on welcome page, redirecting to chat');
-          void wx.switchTab({ url: '/pages/index/index' });
-        }
-        return;
-      }
-
-      logger.info('User not authenticated');
-
-      const currentPage = getActivePage();
-
-      if (currentPage?.route !== 'pages/login/login') {
-        logger.info('User not on login page, redirecting');
-        void wx.reLaunch({ url: '/pages/login/login' });
-      }
-    } catch (error) {
-      const err = normalizeError(error);
-      logger.error('Initialize auth failed', { error: err.message });
-    } finally {
-      if (authService.isAuthenticated()) {
-        redirectToSetupIfNeeded();
-      }
-    }
   },
 
   async initMessageService() {

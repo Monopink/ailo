@@ -52,6 +52,7 @@ from app.schemas.verify import (
     VerifySendCodeRequest,
     VerifySendCodeResponse,
 )
+from app.services.entitlement.service import ensure_system_initial_ai_contact_limit
 from app.services.profile.avatar import get_avatar_url
 from app.services.profile.integrity import ensure_user_profile
 from app.services.security.auth_tracker import check_lockout, record_auth_failure, reset_failures
@@ -1060,6 +1061,8 @@ async def bind_wechat_phone(
                 )
 
                 db.add(user)
+                await db.flush()
+                await ensure_system_initial_ai_contact_limit(db, user_id=user.id)
                 await db.commit()
                 await db.refresh(user)
                 created_new_user = True
@@ -1525,6 +1528,8 @@ async def verify_phone(
                     needs_profile_setup=True,
                 )
                 db.add(user)
+                await db.flush()
+                await ensure_system_initial_ai_contact_limit(db, user_id=user.id)
                 await db.commit()
                 await db.refresh(user)
                 created_new_user = True

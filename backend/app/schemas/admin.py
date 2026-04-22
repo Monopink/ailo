@@ -4,6 +4,7 @@ This module contains Pydantic schemas for admin users and operation logs.
 """
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -117,6 +118,41 @@ class AdminOperationLogResponse(AdminOperationLogBase):
     ip_address: str | None = Field(None, description="IP address")
     user_agent: str | None = Field(None, description="User agent")
     created_at: datetime = Field(..., description="Operation time")
+
+
+class AdminEntitlementOperationRequest(BaseModel):
+    """Schema for admin entitlement grant/adjust operation."""
+
+    user_id: int = Field(..., gt=0, description="Target user ID")
+    entitlement_type_code: str = Field(
+        ..., min_length=1, max_length=64, description="Entitlement type code"
+    )
+    operation_type: Literal["grant", "adjust"] = Field(
+        ..., description="Operation type: grant or adjust"
+    )
+    delta: int = Field(..., description="Signed delta for granted_total")
+    reason_code: str = Field(..., min_length=1, max_length=64, description="Reason code")
+    idempotency_key: str = Field(..., min_length=1, max_length=128, description="Idempotency key")
+    remark: str = Field(..., min_length=1, max_length=500, description="Operation remark")
+
+
+class AdminEntitlementOperationResponse(BaseSchema):
+    """Schema for admin entitlement operation result."""
+
+    accepted: bool = Field(..., description="Whether request is accepted")
+    applied: bool = Field(..., description="Whether ledger write is applied")
+    user_id: int = Field(..., description="Target user ID")
+    entitlement_type_code: str = Field(..., description="Entitlement type code")
+    action_type: int = Field(..., description="Ledger action type")
+    delta_granted: int = Field(..., description="Ledger delta_granted")
+    delta_used: int = Field(..., description="Ledger delta_used")
+    source_type: str = Field(..., description="Ledger source type")
+    reason_code: str | None = Field(None, description="Reason code")
+    idempotency_key: str = Field(..., description="Idempotency key")
+    granted_total: int | None = Field(None, description="Account granted_total after operation")
+    used_total: int | None = Field(None, description="Account used_total after operation")
+    available_total: int | None = Field(None, description="Account available_total after operation")
+    version: int | None = Field(None, description="Account version after operation")
 
 
 # Admin Login Log Schemas

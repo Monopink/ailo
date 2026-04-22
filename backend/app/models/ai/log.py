@@ -4,13 +4,22 @@ This module contains SQLAlchemy models for AI service request logging.
 """
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import relationship as orm_relationship
 
 from app.models.base import ImmutableSnowflakeModel
 from app.type_defs import JSONDict
+
+if TYPE_CHECKING:
+    from app.models.ai.instance import AIInstance, AIMessageBuffer
+    from app.models.ai.personality import AIPersonality
+    from app.models.ai.style import AIStyle
+    from app.models.llm.config import LLMConfig
+    from app.models.user import User
 
 
 class AIRequestLog(ImmutableSnowflakeModel):
@@ -78,6 +87,60 @@ class AIRequestLog(ImmutableSnowflakeModel):
         BigInteger,
         nullable=True,
         comment="Associated ai_message_buffer.id that triggered the request",
+    )
+
+    instance: Mapped["AIInstance | None"] = orm_relationship(
+        "AIInstance",
+        primaryjoin="AIRequestLog.instance_id == AIInstance.id",
+        foreign_keys="[AIRequestLog.instance_id]",
+        lazy="select",
+        viewonly=True,
+        uselist=False,
+    )
+
+    user: Mapped["User | None"] = orm_relationship(
+        "User",
+        primaryjoin="AIRequestLog.user_id == User.id",
+        foreign_keys="[AIRequestLog.user_id]",
+        lazy="select",
+        viewonly=True,
+        uselist=False,
+    )
+
+    style: Mapped["AIStyle | None"] = orm_relationship(
+        "AIStyle",
+        primaryjoin="AIRequestLog.style_id == AIStyle.id",
+        foreign_keys="[AIRequestLog.style_id]",
+        lazy="select",
+        viewonly=True,
+        uselist=False,
+    )
+
+    personality: Mapped["AIPersonality | None"] = orm_relationship(
+        "AIPersonality",
+        primaryjoin="AIRequestLog.personality_id == AIPersonality.id",
+        foreign_keys="[AIRequestLog.personality_id]",
+        lazy="select",
+        viewonly=True,
+        uselist=False,
+    )
+
+    llm_config: Mapped["LLMConfig | None"] = orm_relationship(
+        "LLMConfig",
+        primaryjoin="AIRequestLog.llm_config_id == LLMConfig.id",
+        foreign_keys="[AIRequestLog.llm_config_id]",
+        lazy="select",
+        viewonly=True,
+        uselist=False,
+    )
+
+    buffer: Mapped["AIMessageBuffer | None"] = orm_relationship(
+        "AIMessageBuffer",
+        primaryjoin="AIRequestLog.buffer_id == AIMessageBuffer.id",
+        foreign_keys="[AIRequestLog.buffer_id]",
+        lazy="select",
+        viewonly=True,
+        uselist=False,
     )
 
     request: Mapped[JSONDict] = mapped_column(JSONB, nullable=False, comment="Request content")

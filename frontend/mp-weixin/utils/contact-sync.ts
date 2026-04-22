@@ -1,6 +1,8 @@
-import { get } from './api';
+import { get, requestValidated } from './api';
 import { getLogger } from './logger';
 import { isNonEmptyString } from './guards';
+import { type ContactLimitResponse } from './schemas-core';
+import { ContactLimitResponseSchema } from './schemas-validation';
 import type { StoredContacts } from './storage';
 
 const logger = getLogger('ContactSync');
@@ -16,6 +18,15 @@ interface ContactsPagination {
 export interface ContactsPageResponse {
   items?: StoredContacts;
   pagination?: ContactsPagination;
+}
+
+const CONTACT_LIMIT_ENDPOINT = '/contacts/limit';
+
+export async function fetchContactLimitFromApi(): Promise<ContactLimitResponse> {
+  return await requestValidated(ContactLimitResponseSchema, {
+    url: CONTACT_LIMIT_ENDPOINT,
+    method: 'GET',
+  });
 }
 
 export async function fetchAllContactsFromApi(
@@ -40,8 +51,7 @@ export async function fetchAllContactsFromApi(
     const pagination = response.pagination;
     const candidateCursor = pagination?.cursor;
     const nextCursor = isNonEmptyString(candidateCursor) ? candidateCursor : '';
-    const hasMorePagination =
-      pagination?.has_more === true && isNonEmptyString(nextCursor);
+    const hasMorePagination = pagination?.has_more === true && isNonEmptyString(nextCursor);
     hasMore = hasMorePagination;
     cursor = hasMorePagination ? nextCursor : undefined;
     pageCount += 1;

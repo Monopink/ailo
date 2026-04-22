@@ -25,29 +25,41 @@ module.exports = {
       extends: ['plugin:@typescript-eslint/recommended-requiring-type-checking'],
       rules: {
         // TypeScript safety rules requiring type information
-        '@typescript-eslint/no-floating-promises': ['error', {
-          ignoreVoid: true,
-          ignoreIIFE: true,
-        }],
-        '@typescript-eslint/no-misused-promises': ['error', {
-          checksConditionals: true,
-          checksVoidReturn: true,
-        }],
+        '@typescript-eslint/no-floating-promises': [
+          'error',
+          {
+            ignoreVoid: true,
+            ignoreIIFE: true,
+          },
+        ],
+        '@typescript-eslint/no-misused-promises': [
+          'error',
+          {
+            checksConditionals: true,
+            checksVoidReturn: true,
+          },
+        ],
         '@typescript-eslint/no-unnecessary-type-assertion': 'error',
         '@typescript-eslint/prefer-nullish-coalescing': 'error',
         '@typescript-eslint/prefer-optional-chain': 'error',
-        '@typescript-eslint/no-unnecessary-condition': ['error', {
-          allowConstantLoopConditions: true,
-        }],
-        '@typescript-eslint/strict-boolean-expressions': ['error', {
-          allowString: false,
-          allowNumber: false,
-          allowNullableObject: false,
-          allowNullableBoolean: true,
-          allowNullableString: false,
-          allowNullableNumber: false,
-          allowAny: false,
-        }],
+        '@typescript-eslint/no-unnecessary-condition': [
+          'error',
+          {
+            allowConstantLoopConditions: true,
+          },
+        ],
+        '@typescript-eslint/strict-boolean-expressions': [
+          'error',
+          {
+            allowString: false,
+            allowNumber: false,
+            allowNullableObject: false,
+            allowNullableBoolean: true,
+            allowNullableString: false,
+            allowNullableNumber: false,
+            allowAny: false,
+          },
+        ],
       },
     },
     {
@@ -111,14 +123,17 @@ module.exports = {
     curly: ['error', 'all'],
 
     // Code quality rules (not requiring type information)
-    'complexity': ['error', { max: 15 }],
+    complexity: ['error', { max: 15 }],
     'max-depth': ['error', { max: 4 }],
-    'max-lines-per-function': ['error', {
-      max: 100,
-      skipBlankLines: true,
-      skipComments: true,
-      IIFEs: true,
-    }],
+    'max-lines-per-function': [
+      'error',
+      {
+        max: 100,
+        skipBlankLines: true,
+        skipComments: true,
+        IIFEs: true,
+      },
+    ],
     'max-params': ['error', { max: 5 }],
     'no-await-in-loop': 'error',
     'require-atomic-updates': 'error',
@@ -143,6 +158,7 @@ module.exports = {
     'libs/',
     'test/',
     'minitest/',
+    '**/*.generated.d.ts',
     '*.config.js',
     '**/*.js', // Ignore all compiled JS files from TypeScript
     '!.eslintrc.js', // But keep ESLint config

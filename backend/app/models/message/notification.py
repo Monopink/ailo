@@ -4,14 +4,19 @@ This module contains SQLAlchemy model for notification push history.
 """
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import relationship as orm_relationship
 
 from app.enums import NotificationStatus
 from app.models.base import SnowflakeModel
 from app.type_defs import JSONDict
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 
 class NotificationPushHistory(SnowflakeModel):
@@ -51,6 +56,15 @@ class NotificationPushHistory(SnowflakeModel):
         server_default="NOW()",
         onupdate=datetime.now,
         comment="Last update time",
+    )
+
+    user: Mapped["User | None"] = orm_relationship(
+        "User",
+        primaryjoin="NotificationPushHistory.to_qiao_id == User.qiao_id",
+        foreign_keys="[NotificationPushHistory.to_qiao_id]",
+        lazy="select",
+        viewonly=True,
+        uselist=False,
     )
 
     __table_args__ = (Index("idx_notification_push_created_at", "created_at"),)

@@ -106,7 +106,6 @@ class UserTokenView(ModelView):
             help_text="Associated user account",
             required=False,
         ),
-        StringField("user_id", label="User ID", help_text="User snowflake ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external identifier"),
         StringField(
             "access_token",
@@ -227,7 +226,6 @@ class LoginRecordView(ModelView):
             help_text="Associated user account",
             required=False,
         ),
-        StringField("user_id", label="User ID", help_text="User snowflake ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external identifier"),
         DateTimeField("login_time", label="Login Time", help_text="Time of login attempt"),
         IntegerEnumField(
@@ -252,10 +250,12 @@ class LoginRecordView(ModelView):
             help_text="Login attempt result",
         ),
         TextAreaField("fail_reason", label="Failure Reason", help_text="Reason for login failure"),
-        StringField(
-            "user_token_id",
-            label="User Token ID",
-            help_text="Associated user_tokens.id (null for failed attempts)",
+        HasOne(
+            "user_token",
+            identity="user_token",
+            label="User Token",
+            help_text="Associated user token record (null for failed attempts)",
+            required=False,
         ),
         DateTimeField("created_at", label="Created At", help_text="Record creation time"),
     ]
@@ -344,7 +344,6 @@ class UserAuthView(ModelView):
             help_text="Associated user account",
             required=False,
         ),
-        StringField("user_id", label="User ID", help_text="User snowflake ID"),
         StringField("user_qiao_id", label="User Qiao ID", help_text="User external identifier"),
         IntegerEnumField(
             "auth_type",

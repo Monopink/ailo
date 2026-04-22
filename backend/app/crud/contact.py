@@ -24,27 +24,38 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
     """CRUD operations for Contact model."""
 
     async def get_by_conversation_id(
-        self, db: AsyncSession, *, conversation_id: str
+        self,
+        db: AsyncSession,
+        *,
+        conversation_id: str,
+        for_update: bool = False,
     ) -> Contact | None:
         """Get contact by conversation_id."""
-        result = await db.execute(
-            select(self.model).where(self.model.conversation_id == conversation_id)
-        )
+        stmt = select(self.model).where(self.model.conversation_id == conversation_id)
+        if for_update:
+            stmt = stmt.with_for_update()
+        result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
     async def get_user_contact(
-        self, db: AsyncSession, *, user_qiao_id: str, contact_qiao_id: str
+        self,
+        db: AsyncSession,
+        *,
+        user_qiao_id: str,
+        contact_qiao_id: str,
+        for_update: bool = False,
     ) -> Contact | None:
         """Get specific contact relationship."""
-        result = await db.execute(
-            select(self.model).where(
-                and_(
-                    self.model.user_qiao_id == user_qiao_id,
-                    self.model.contact_qiao_id == contact_qiao_id,
-                    self.model.is_deleted == 0,
-                )
+        stmt = select(self.model).where(
+            and_(
+                self.model.user_qiao_id == user_qiao_id,
+                self.model.contact_qiao_id == contact_qiao_id,
+                self.model.is_deleted == 0,
             )
         )
+        if for_update:
+            stmt = stmt.with_for_update()
+        result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
     async def get_user_contacts(
@@ -180,14 +191,18 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
             db, user_qiao_id=user_qiao_id, contact_qiao_id=contact_qiao_id
         )
         if contact:
-            contact.is_deleted = True
+            contact.soft_delete()
             db.add(contact)
-            await db.commit()
-            await db.refresh(contact)
+            await db.flush()
         return contact
 
     async def get_user_contact_including_deleted(
-        self, db: AsyncSession, *, user_qiao_id: str, contact_qiao_id: str
+        self,
+        db: AsyncSession,
+        *,
+        user_qiao_id: str,
+        contact_qiao_id: str,
+        for_update: bool = False,
     ) -> Contact | None:
         """Get contact including deleted ones.
 
@@ -197,19 +212,21 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
             db: Database session
             user_qiao_id: User's qiao_id
             contact_qiao_id: Contact's qiao_id
+            for_update: Whether to lock the row for update
 
         Returns:
             Contact record or None if not found
 
         """
-        result = await db.execute(
-            select(self.model).where(
-                and_(
-                    self.model.user_qiao_id == user_qiao_id,
-                    self.model.contact_qiao_id == contact_qiao_id,
-                )
+        stmt = select(self.model).where(
+            and_(
+                self.model.user_qiao_id == user_qiao_id,
+                self.model.contact_qiao_id == contact_qiao_id,
             )
         )
+        if for_update:
+            stmt = stmt.with_for_update()
+        result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
     async def restore_contact(
@@ -232,14 +249,12 @@ class CRUDContact(CRUDBase[Contact, ContactCreate, ContactUpdate]):
             Restored contact
 
         """
-        contact.is_deleted = 0
-        contact.deleted_at = None
+        contact.restore()
         if alias is not None:
             contact.alias = alias
 
         db.add(contact)
-        await db.commit()
-        await db.refresh(contact)
+        await db.flush()
 
         return contact
 

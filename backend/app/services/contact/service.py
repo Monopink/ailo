@@ -4,6 +4,7 @@ Contact service business logic.
 This module provides business logic for contact management operations.
 """
 
+from datetime import UTC
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -21,6 +22,11 @@ from app.schemas.contact import (
     ContactListItem,
     ContactProfileSummary,
     ContactUpdate,
+)
+from app.services.entitlement.service import (
+    ENTITLEMENT_AI_CONTACT_LIMIT,
+    ENTITLEMENT_SOURCE_CONTACT_AI_SLOT,
+    refund_entitlement,
 )
 from app.services.media.config import get_media_base_url
 from app.services.profile.avatar import get_avatar_url, get_avatar_urls_batch
@@ -526,8 +532,10 @@ async def delete_contact(db: AsyncSession, user_qiao_id: str, conversation_id: s
     Returns:
         True if deleted successfully, False if not found or access denied
     """
-    # Get contact
-    contact = await contact_crud.get_by_conversation_id(db, conversation_id=conversation_id)
+    # Get contact under row lock to prevent concurrent delete/refund races.
+    contact = await contact_crud.get_by_conversation_id(
+        db, conversation_id=conversation_id, for_update=True
+    )
 
     if not contact:
         logger.warning("contact_not_found_for_delete", conversation_id=conversation_id)
@@ -543,10 +551,52 @@ async def delete_contact(db: AsyncSession, user_qiao_id: str, conversation_id: s
         )
         return False
 
-    # Soft delete contact
-    await contact_crud.soft_delete_contact(
-        db, user_qiao_id=user_qiao_id, contact_qiao_id=contact.contact_qiao_id
-    )
+    if bool(contact.is_deleted):
+        logger.info(
+            "contact_already_deleted_idempotent",
+            user_qiao_id=user_qiao_id,
+            conversation_id=conversation_id,
+        )
+        return True
+
+    # Soft delete under row lock.
+    contact.soft_delete()
+    db.add(contact)
+    await db.flush()
+    deleted_contact = contact
+
+    if int(contact.contact_type) == int(ContactType.AI):
+        if contact.user_id is None:
+            logger.error(
+                "contact_owner_missing_for_ai_refund",
+                conversation_id=conversation_id,
+                contact_id=contact.id,
+            )
+            raise ValueError("AI contact owner missing")
+        if deleted_contact.deleted_at is None:
+            logger.error(
+                "contact_deleted_at_missing_for_ai_refund",
+                conversation_id=conversation_id,
+                contact_id=contact.id,
+            )
+            raise ValueError("Deleted timestamp missing for AI contact refund")
+        refund_token_ms = int(deleted_contact.deleted_at.astimezone(UTC).timestamp() * 1000)
+        await refund_entitlement(
+            db,
+            user_id=int(contact.user_id),
+            entitlement_type_code=ENTITLEMENT_AI_CONTACT_LIMIT,
+            value=1,
+            source_type=ENTITLEMENT_SOURCE_CONTACT_AI_SLOT,
+            source_id=int(contact.id),
+            idempotency_key=f"contact_ai_refund:{int(contact.id)}:{refund_token_ms}",
+            event_payload={
+                "conversation_id": conversation_id,
+                "contact_qiao_id": contact.contact_qiao_id,
+                "deleted_at": deleted_contact.deleted_at.isoformat(),
+            },
+        )
+
+    await db.commit()
 
     logger.info("contact_deleted", user_qiao_id=user_qiao_id, conversation_id=conversation_id)
 

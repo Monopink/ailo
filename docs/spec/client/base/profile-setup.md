@@ -14,15 +14,36 @@
 - 性别：必填（男/女/其他）
 - 个性签名：可选，长度由环境变量控制
 - 地区：可选，字段规范与展示规范见 `profile-and-settings.md`
+- 邀请码：可选；支持手动填写，setup 页面可自动预填
 
 ## 提交流程
 
 1. 用户填写资料
-2. 地区字段提交 `region_country_code`、`region_cn_city_code`、`region_province_name`、`region_city_name`
-3. 调用 [更新资料接口](../../../api/user.md#更新用户资料)
-4. 成功后进入主界面
+2. 登录页可先将链接参数或剪贴板文本提交到[匿名邀请码识别接口](../../../api/invitations.md#匿名邀请码识别)，并在返回有效邀请码后透传到 setup；
+3. setup 页面可从以下来源调用[登录态邀请码识别接口](../../../api/invitations.md#登录态邀请码识别)自动预填邀请码（用户可修改/清空）：
+   - 剪贴板文本
+   - 页面参数 `inviteCode`（例如分享链接进入）
+4. 提交时先调用 [更新资料接口](../../../api/user.md#更新用户资料)
+5. 资料更新成功后，若填写邀请码，再调用 [绑定邀请码接口](../../../api/invitations.md#绑定邀请码)
+6. 地区字段提交 `region_country_code`、`region_cn_city_code`、`region_province_name`、`region_city_name`
+7. 成功后进入主界面
+
+## 活动归因
+
+- 活动归因为隐式上报，不通过邀请码输入完成。
+- setup 链路可携带活动参数，客户端调用归因接口自动上报。
+- 归因口径采用首次归因（first-touch）。
+
+## setup 之外的绑定入口
+
+- setup 完成后，用户仍可在“填写邀请码”页面手动填写并绑定**用户邀请码**。
+- 若用户已完成 setup，则邀请码绑定成功后立即触发 inviter 奖励。
+- “邀请好友”页面展示：我的邀请码、已邀请成功人数、可邀请上限（当 `max_invite_count` 非空时）、联系人上限奖励统计、复制邀请码、复制口令、微信分享能力，不提供绑定入口。
+- “邀请好友”页面微信分享卡片（标题、路径、图片）由 `GET /api/v1/invitations/share` 返回的 `share_card` 驱动，不使用前端硬编码分享图。
+- “邀请好友”页面奖励文案中的“每次增加联系人上限”由 `GET /api/v1/invitations/stats` 的 `reward_contact_limit_per_invite` 驱动，不使用前端固定数值。
 
 ## 错误处理
 
 - 提交失败：提示错误并停留本页，不允许跳过
 - 必填项缺失：禁用完成按钮或提示缺失
+- 邀请码识别失败或绑定失败：不阻塞资料提交

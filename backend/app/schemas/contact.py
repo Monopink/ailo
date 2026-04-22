@@ -64,6 +64,13 @@ class ContactListResult(BaseSchema):
     pagination: ContactListPagination = Field(..., description="Cursor pagination metadata")
 
 
+class ContactLimitResponse(BaseSchema):
+    """Contact slot summary (used/available_total)."""
+
+    used: int = Field(..., description="Current used contacts count")
+    available_total: int = Field(..., description="Current available contact slots")
+
+
 class ContactDetailResponse(ContactListItem):
     """Detailed contact info used by detail and mutation endpoints."""
 

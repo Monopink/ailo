@@ -59,6 +59,12 @@ class WeChatPhoneNumberResponse(TypedDict):
     phone_info: dict[str, Any]
 
 
+class WeChatURLLinkResponse(TypedDict):
+    """WeChat URL Link API response structure."""
+
+    url_link: str
+
+
 class WeChatAPIError(Exception):
     """WeChat API error"""
 
@@ -252,6 +258,50 @@ class WeChatClient:
             logger.error(
                 "wechat_httpx_error",
                 api="get_phone_number",
+                error_type=type(e).__name__,
+                method=_safe_httpx_request_method(e),
+                url=_safe_httpx_request_url(e),
+                status_code=_safe_httpx_status_code(e),
+            )
+            raise WeChatAPIError(-1, f"http_error:{type(e).__name__}")
+
+    async def generate_url_link(
+        self,
+        *,
+        path: str,
+        query: str,
+        env_version: str = "release",
+    ) -> str:
+        """Generate a WeChat URL Link that opens the mini-program page."""
+        access_token = await self.get_access_token()
+        url = f"{self.BASE_URL}/wxa/generate_urllink"
+        params = {"access_token": access_token}
+        json_data = {
+            "path": path,
+            "query": query,
+            "env_version": env_version,
+            "is_expire": False,
+        }
+
+        try:
+            response = await self._client.post(url, params=params, json=json_data)
+            response.raise_for_status()
+            data = response.json()
+
+            if "errcode" in data and data["errcode"] != 0:
+                logger.error("wechat_generate_urllink_failed", response=data)
+                raise WeChatAPIError(data["errcode"], data.get("errmsg", "Unknown error"))
+
+            typed_data = cast(WeChatURLLinkResponse, data)
+            url_link = str(typed_data.get("url_link", "")).strip()
+            if url_link == "":
+                raise WeChatAPIError(-1, "empty_url_link")
+            return url_link
+
+        except httpx.HTTPError as e:
+            logger.error(
+                "wechat_httpx_error",
+                api="generate_urllink",
                 error_type=type(e).__name__,
                 method=_safe_httpx_request_method(e),
                 url=_safe_httpx_request_url(e),

@@ -10,6 +10,7 @@ These tables support provider-agnostic message delivery:
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import (
@@ -26,8 +27,13 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import relationship as orm_relationship
 
 from app.models.base import SnowflakeModel
+
+if TYPE_CHECKING:
+    from app.models.message.message import MessageHistory
+    from app.models.user import User
 
 
 class MessageDevice(SnowflakeModel):
@@ -60,6 +66,15 @@ class MessageDevice(SnowflakeModel):
 
     last_seen_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, comment="Latest online/heartbeat timestamp"
+    )
+
+    user: Mapped[User | None] = orm_relationship(
+        "User",
+        primaryjoin="MessageDevice.user_id == User.id",
+        foreign_keys="[MessageDevice.user_id]",
+        lazy="select",
+        viewonly=True,
+        uselist=False,
     )
 
     __table_args__ = (
@@ -114,6 +129,15 @@ class MessageEndpoint(SnowflakeModel):
 
     last_seen_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, comment="Latest presence refresh timestamp"
+    )
+
+    user: Mapped[User | None] = orm_relationship(
+        "User",
+        primaryjoin="MessageEndpoint.user_id == User.id",
+        foreign_keys="[MessageEndpoint.user_id]",
+        lazy="select",
+        viewonly=True,
+        uselist=False,
     )
 
     __table_args__ = (
@@ -189,6 +213,23 @@ class MessageDelivery(SnowflakeModel):
         Text, nullable=True, comment="Failure detail/stack"
     )
 
+    endpoint: Mapped[MessageEndpoint | None] = orm_relationship(
+        "MessageEndpoint",
+        primaryjoin="MessageDelivery.endpoint_id == MessageEndpoint.id",
+        foreign_keys="[MessageDelivery.endpoint_id]",
+        lazy="select",
+        viewonly=True,
+        uselist=False,
+    )
+    message_history: Mapped[MessageHistory | None] = orm_relationship(
+        "MessageHistory",
+        primaryjoin="MessageDelivery.msg_id_server == MessageHistory.msg_id_server",
+        foreign_keys="[MessageDelivery.msg_id_server]",
+        lazy="select",
+        viewonly=True,
+        uselist=False,
+    )
+
     __table_args__ = (
         CheckConstraint("provider IN (1, 2)", name="ck_message_deliveries_provider"),
         CheckConstraint("status IN (1, 2, 3)", name="ck_message_deliveries_status"),
@@ -242,6 +283,23 @@ class MessageDispatchOutbox(SnowflakeModel):
 
     last_error_detail: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="Last failure detail"
+    )
+
+    owner_user: Mapped[User | None] = orm_relationship(
+        "User",
+        primaryjoin="MessageDispatchOutbox.owner_user_id == User.id",
+        foreign_keys="[MessageDispatchOutbox.owner_user_id]",
+        lazy="select",
+        viewonly=True,
+        uselist=False,
+    )
+    message_history: Mapped[MessageHistory | None] = orm_relationship(
+        "MessageHistory",
+        primaryjoin="MessageDispatchOutbox.msg_id_server == MessageHistory.msg_id_server",
+        foreign_keys="[MessageDispatchOutbox.msg_id_server]",
+        lazy="select",
+        viewonly=True,
+        uselist=False,
     )
 
     __table_args__ = (

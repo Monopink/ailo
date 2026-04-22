@@ -3,9 +3,11 @@ import { normalizeError } from '../../utils/errors';
 import { isNonEmptyString } from '../../utils/guards';
 import { LOGIN_CONFIG } from '../../utils/config';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
+import { normalizeCampaignCodeParam, normalizeInviteCodeParam } from '../../utils/invite-code';
 import {
   createLoginPageService,
   type AuthSuccessPayload,
+  type LoginBootstrapResult,
   type LoginStatus,
   type WechatPhoneAuthPayload,
 } from '../../services/pages/login-service';
@@ -13,12 +15,17 @@ import {
 const logger = getLogger('Login');
 const USER_AGREEMENT_PAGE_KEY = 'user_agreement';
 const PRIVACY_POLICY_PAGE_KEY = 'privacy_policy';
+const SETUP_PAGE_URL = '/pages/setup/setup';
+let loginClipboardIntakeInFlight: Promise<string> | null = null;
+let loginBootstrapInFlight: Promise<LoginBootstrapResult | null> | null = null;
 
 interface LoginPageData {
   pageLayoutData: PageLayoutData;
   wechatLoading: boolean;
   loginCode: string;
   loginStatus: LoginStatus;
+  inviteCode: string;
+  campaignCode: string;
   remoteBackgroundShouldLoad: boolean;
   remoteBackgroundVisible: boolean;
   remoteBackgroundUrl: string;
@@ -31,6 +38,7 @@ interface LoginPageData {
 interface LoginPageCustom {
   loginPageService: ReturnType<typeof createLoginPageService>;
   backgroundLoadTimeoutHandle: number | null;
+  clipboardIntakeAttempted: boolean;
   prepareRemoteBackground(): void;
   clearRemoteBackgroundTimeout(): void;
   handleRemoteBackgroundLoad(): void;
@@ -42,6 +50,7 @@ interface LoginPageCustom {
   handlePrivacyDialogOpenTypeError(event: WechatMiniprogram.BaseEvent): void;
   handlePrivacyDialogClose(): void;
   handleAuthSuccess(authResult: AuthSuccessPayload): Promise<void>;
+  prefillInviteCodeFromClipboard(): Promise<void>;
   navigateToSquareDemo(): void;
   navigateToUserAgreement(): void;
   navigateToPrivacyPolicy(): void;
@@ -52,6 +61,20 @@ const showToast = (
   icon: WechatMiniprogram.ShowToastOption['icon'] = 'none'
 ): void => {
   void wx.showToast({ title, icon });
+};
+
+const buildSetupRedirectUrl = (inviteCode: string, campaignCode: string): string => {
+  const params: string[] = [];
+  if (inviteCode.trim() !== '') {
+    params.push(`inviteCode=${encodeURIComponent(inviteCode.trim().toUpperCase())}`);
+  }
+  if (campaignCode.trim() !== '') {
+    params.push(`campaignCode=${encodeURIComponent(campaignCode.trim().toUpperCase())}`);
+  }
+  if (params.length === 0) {
+    return SETUP_PAGE_URL;
+  }
+  return `${SETUP_PAGE_URL}?${params.join('&')}`;
 };
 
 Page<LoginPageData, LoginPageCustom>({
@@ -67,6 +90,8 @@ Page<LoginPageData, LoginPageCustom>({
     wechatLoading: false,
     loginCode: '',
     loginStatus: 'idle',
+    inviteCode: '',
+    campaignCode: '',
     remoteBackgroundShouldLoad: false,
     remoteBackgroundVisible: false,
     remoteBackgroundUrl: '',
@@ -87,14 +112,40 @@ Page<LoginPageData, LoginPageCustom>({
 
   loginPageService: null as unknown as ReturnType<typeof createLoginPageService>,
   backgroundLoadTimeoutHandle: null,
+  clipboardIntakeAttempted: false,
 
   async onLoad(options?: Record<string, string | undefined>) {
     logger.info('Login page loaded');
     this.loginPageService = createLoginPageService();
     this.prepareRemoteBackground();
+    const inviteCode = normalizeInviteCodeParam(options?.inviteCode);
+    const campaignCode = normalizeCampaignCodeParam(options?.campaignCode);
+    if (inviteCode !== '') {
+      try {
+        const recognized = await this.loginPageService.intakeInviteCode({
+          source: 'link',
+          trigger: 'link_param',
+          inviteCode,
+        });
+        if (recognized !== '') {
+          this.setData({ inviteCode: recognized, campaignCode });
+        } else {
+          this.setData({ campaignCode });
+        }
+      } catch (error) {
+        logger.debug('Link invite intake failed on login page', { error });
+        this.setData({ campaignCode });
+      }
+    } else {
+      this.setData({ campaignCode });
+      await this.prefillInviteCodeFromClipboard();
+    }
     this.setData({ wechatLoading: true });
     try {
-      const result = await this.loginPageService.bootstrap(options?.source);
+      loginBootstrapInFlight ??= this.loginPageService.bootstrap(options?.source).finally(() => {
+        loginBootstrapInFlight = null;
+      });
+      const result = await loginBootstrapInFlight;
       if (result === null) {
         return;
       }
@@ -264,6 +315,38 @@ Page<LoginPageData, LoginPageCustom>({
     void wx.navigateTo({ url: '/pkg/square-demo/square-demo' });
   },
 
+  async prefillInviteCodeFromClipboard() {
+    if (this.clipboardIntakeAttempted) {
+      return;
+    }
+    this.clipboardIntakeAttempted = true;
+    try {
+      loginClipboardIntakeInFlight ??= (async () => {
+        const clipboard = await wx.getClipboardData();
+        const rawText = typeof clipboard.data === 'string' ? clipboard.data : '';
+        if (rawText.trim() === '') {
+          return '';
+        }
+        return await this.loginPageService.intakeInviteCode({
+          source: 'login',
+          trigger: 'clipboard',
+          rawText,
+        });
+      })().finally(() => {
+        loginClipboardIntakeInFlight = null;
+      });
+      const recognized = await loginClipboardIntakeInFlight;
+      if (recognized === '') {
+        return;
+      }
+      this.setData({
+        inviteCode: recognized,
+      });
+    } catch (error) {
+      logger.debug('Prefill invite code from clipboard skipped on login page', { error });
+    }
+  },
+
   async handleAuthSuccess(authResult: AuthSuccessPayload) {
     await this.loginPageService.persistAuth(authResult);
 
@@ -274,7 +357,9 @@ Page<LoginPageData, LoginPageCustom>({
     this.setData({ wechatLoading: false, loginStatus: 'idle' });
 
     if (authResult.needs_profile_setup) {
-      void wx.redirectTo({ url: '/pages/setup/setup' });
+      void wx.redirectTo({
+        url: buildSetupRedirectUrl(this.data.inviteCode, this.data.campaignCode),
+      });
       return;
     }
 

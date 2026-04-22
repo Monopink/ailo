@@ -2,10 +2,12 @@ import { post } from '../../utils/api';
 import { isValidCategoryKey } from '../../utils/constants/square';
 import defaultLogger from '../../utils/logger';
 import { isNonEmptyString } from '../../utils/guards';
+import { normalizeError } from '../../utils/errors';
 
 const logger = defaultLogger;
 
 const DEFAULT_MESSAGE = '你好，我想添加你为联系人';
+const CONTACT_REQUEST_LIMIT_EXCEEDED_CODE = 21027002;
 
 interface ContactRequestPromptOptions {
   defaultMessage?: string;
@@ -82,3 +84,65 @@ export async function sendContactRequest({
   await post('/contact-requests', payload);
   logger.info('contact_request_sent', { qiao_id: qiaoId });
 }
+
+const toRecord = (value: unknown): Record<string, unknown> | null => {
+  if (value === null || typeof value !== 'object') {
+    return null;
+  }
+  return value as Record<string, unknown>;
+};
+
+const parseNumericCode = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
+};
+
+const resolveApiErrorCode = (error: unknown): number | null => {
+  const errorRecord = toRecord(error);
+  if (errorRecord === null) {
+    return null;
+  }
+
+  const directCode = parseNumericCode(errorRecord.errorCode);
+  if (directCode !== null) {
+    return directCode;
+  }
+
+  const dataRecord = toRecord(errorRecord.data);
+  if (dataRecord === null) {
+    return null;
+  }
+
+  const dataCode = parseNumericCode(dataRecord.error_code);
+  if (dataCode !== null) {
+    return dataCode;
+  }
+
+  const detailRecord = toRecord(dataRecord.detail);
+  if (detailRecord === null) {
+    return null;
+  }
+
+  return parseNumericCode(detailRecord.error_code);
+};
+
+export const isContactRequestLimitExceededError = (error: unknown): boolean => {
+  const errorCode = resolveApiErrorCode(error);
+  if (
+    errorCode === CONTACT_REQUEST_LIMIT_EXCEEDED_CODE ||
+    (errorCode !== null && errorCode % 10000 === 7002)
+  ) {
+    return true;
+  }
+
+  const message = normalizeError(error).message;
+  return isNonEmptyString(message) && message.includes('联系人数量已达上限');
+};

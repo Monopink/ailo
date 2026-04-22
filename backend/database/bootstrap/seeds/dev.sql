@@ -117,7 +117,8 @@ INSERT INTO ai_style_dimensions (style_id, dimension_id, initial_position) VALUE
 (2, 1, 500),  -- friendly_companion + friendship
 (2, 3, 300),  -- friendly_companion + trust
 (3, 4, 600),  -- professional_assistant + professionalism
-(3, 5, 500);  -- professional_assistant + helpfulness
+(3, 5, 500)   -- professional_assistant + helpfulness
+ON CONFLICT (style_id, dimension_id) DO NOTHING;
 
 -- Insert comprehensive AI dimension relationship mappings (normalized schema)
 INSERT INTO ai_dimension_relationship_mappings (dimension_id, start_position, end_position, relationship_id, priority) VALUES
@@ -284,9 +285,18 @@ INSERT INTO ai_personalities (display_name, prompt, json_schema, status) VALUES
 -- ============================================================================
 
 -- Insert template types for sample personas
-INSERT INTO ai_types (display_name, description) VALUES
-('Romantic Companion Sample', '浪漫人设的示例模板类型'),
-('Friendly Companion Sample', '友好人设的示例模板类型');
+INSERT INTO ai_types (display_name, description)
+SELECT seed.display_name, seed.description
+FROM (
+    VALUES
+        ('Romantic Companion Sample', '浪漫人设的示例模板类型'),
+        ('Friendly Companion Sample', '友好人设的示例模板类型')
+) AS seed(display_name, description)
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM ai_types existing
+    WHERE existing.display_name = seed.display_name
+);
 
 -- Insert AI templates referencing the template types
 INSERT INTO ai_templates (
@@ -302,36 +312,37 @@ INSERT INTO ai_templates (
     is_reusable,
     priority,
     status
-) VALUES
-(
-    (SELECT id FROM ai_types WHERE display_name='Romantic Companion Sample'),
-    1,  -- romantic_companion style
-    1,  -- Default Personality
-    '{"instance_name": "小乔", "personality_traits": "友善、耐心"}'::jsonb,
-    NULL,
-    NULL,
-    48,
-    'Romantic Default Config',
-    NULL,
-    1,
-    1,
-    1
-),
-(
-    (SELECT id FROM ai_types WHERE display_name='Friendly Companion Sample'),
-    2,  -- friendly_companion style
-    3,  -- friendly_buddy personality
-    '{"instance_name": "小甜", "hobbies": "音乐、电影"}'::jsonb,
-    NULL,
-    NULL,
-    42,
-    'Friendly Default Config',
-    NULL,
-    1,
-    1,
-    1
 )
-ON CONFLICT DO NOTHING;
+SELECT
+    type_ref.id,
+    seed.style_id,
+    seed.personality_id,
+    seed.prompt_variables,
+    NULL,
+    NULL,
+    seed.typing_speed_wpm,
+    seed.display_name,
+    NULL,
+    1,
+    1,
+    1
+FROM (
+    VALUES
+        ('Romantic Companion Sample', 1, 1, '{"instance_name": "小乔", "personality_traits": "友善、耐心"}'::jsonb, 48, 'Romantic Default Config'),
+        ('Friendly Companion Sample', 2, 3, '{"instance_name": "小甜", "hobbies": "音乐、电影"}'::jsonb, 42, 'Friendly Default Config')
+) AS seed(type_display_name, style_id, personality_id, prompt_variables, typing_speed_wpm, display_name)
+JOIN LATERAL (
+    SELECT id
+    FROM ai_types
+    WHERE display_name = seed.type_display_name
+    ORDER BY id
+    LIMIT 1
+) AS type_ref ON TRUE
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM ai_templates existing
+    WHERE existing.display_name = seed.display_name
+);
 
 -- Insert template seed memories (copied to instances during instantiation)
 INSERT INTO ai_template_memories (
@@ -345,7 +356,7 @@ INSERT INTO ai_template_memories (
 -- Template 1 (Romantic Companion) memories
 (
     223788765171154900,
-    (SELECT id FROM ai_templates WHERE display_name='Romantic Default Config'),
+    (SELECT id FROM ai_templates WHERE display_name='Romantic Default Config' ORDER BY id LIMIT 1),
     'recent',
     '刚刚上大学',
     5,
@@ -354,7 +365,7 @@ INSERT INTO ai_template_memories (
 -- Template 2 (Friendly Companion) memories
 (
     223788765171154901,
-    (SELECT id FROM ai_templates WHERE display_name='Friendly Default Config'),
+    (SELECT id FROM ai_templates WHERE display_name='Friendly Default Config' ORDER BY id LIMIT 1),
     'recent',
     '找到新的工作',
     5,
@@ -364,9 +375,9 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Insert AI personas bound to template types
 INSERT INTO ai_personas (id, qiao_id, username, type_id, is_reusable, status) VALUES
-(223788765171155009, 'qiao_DLdfyH5GoGBv8q6l', 'xiaoqiao', (SELECT id FROM ai_types WHERE display_name='Romantic Companion Sample'), 1, 1),
-(223788765171155010, 'qiao_sweet_girlfriend_001', 'xiaotian', (SELECT id FROM ai_types WHERE display_name='Romantic Companion Sample'), 1, 1),
-(223788765171155011, 'qiao_friendly_buddy_001', 'ajie001', (SELECT id FROM ai_types WHERE display_name='Friendly Companion Sample'), 1, 1)
+(223788765171155009, 'qiao_DLdfyH5GoGBv8q6l', 'xiaoqiao', (SELECT id FROM ai_types WHERE display_name='Romantic Companion Sample' ORDER BY id LIMIT 1), 1, 1),
+(223788765171155010, 'qiao_sweet_girlfriend_001', 'xiaotian', (SELECT id FROM ai_types WHERE display_name='Romantic Companion Sample' ORDER BY id LIMIT 1), 1, 1),
+(223788765171155011, 'qiao_friendly_buddy_001', 'ajie001', (SELECT id FROM ai_types WHERE display_name='Friendly Companion Sample' ORDER BY id LIMIT 1), 1, 1)
 ON CONFLICT (qiao_id) DO UPDATE SET
     username = EXCLUDED.username,
     type_id = EXCLUDED.type_id,
@@ -407,13 +418,13 @@ ON CONFLICT (category_key) DO NOTHING;
 INSERT INTO square_type_entries (category_key, type_id, exposure_strategy, status) VALUES
 (
     'love',
-    (SELECT id FROM ai_types WHERE display_name='Romantic Companion Sample'),
+    (SELECT id FROM ai_types WHERE display_name='Romantic Companion Sample' ORDER BY id LIMIT 1),
     1,
     1
 ),
 (
     'friend',
-    (SELECT id FROM ai_types WHERE display_name='Friendly Companion Sample'),
+    (SELECT id FROM ai_types WHERE display_name='Friendly Companion Sample' ORDER BY id LIMIT 1),
     1,
     1
 )
@@ -672,6 +683,155 @@ INSERT INTO ai_instance_dimensions (id, instance_id, dimension_id, score, positi
 (223788765171154991, 223788765171154946, 3, 500, 500),
 (223788765171154992, 223788765171154946, 4, 300, 300)
 ON CONFLICT (instance_id, dimension_id) DO NOTHING;
+
+-- ============================================================================
+-- Growth and Redeem Sample Data
+-- ============================================================================
+
+-- Campaign metadata
+INSERT INTO campaigns (code, name, description, status, starts_at, ends_at) VALUES
+('SPRING_2026', 'Spring Growth 2026', 'Spring invitation growth campaign for onboarding users', 1, NOW() - INTERVAL '30 days', NOW() + INTERVAL '180 days'),
+('INVITE_FRIEND', 'Invite Friend Program', 'Always-on referral campaign for invite onboarding', 1, NOW() - INTERVAL '365 days', NULL)
+ON CONFLICT (code) DO UPDATE SET
+    name = EXCLUDED.name,
+    description = EXCLUDED.description,
+    status = EXCLUDED.status,
+    starts_at = EXCLUDED.starts_at,
+    ends_at = EXCLUDED.ends_at,
+    updated_at = NOW();
+
+-- First-touch campaign attribution samples
+WITH attribution_seed(qiao_id, campaign_code, attribution_source, offset_hours, payload) AS (
+    VALUES
+        ('qqid_test_user_001', 'SPRING_2026', 'link', 48, '{"scene": "setup_entry", "channel": "wechat"}'::json),
+        ('qqid_test_user_002', 'INVITE_FRIEND', 'setup', 24, '{"scene": "invite_bind_page", "channel": "in_app"}'::json)
+)
+INSERT INTO campaign_attributions (
+    user_id,
+    campaign_id,
+    attribution_source,
+    attributed_at,
+    event_payload
+)
+SELECT
+    u.id,
+    c.id,
+    s.attribution_source,
+    NOW() - make_interval(hours => s.offset_hours),
+    s.payload
+FROM attribution_seed s
+JOIN users u ON u.qiao_id = s.qiao_id
+JOIN campaigns c ON c.code = s.campaign_code
+ON CONFLICT (user_id) DO NOTHING;
+
+-- Redeem batches
+INSERT INTO redeem_code_batches (
+    batch_code,
+    name,
+    description,
+    status,
+    mode,
+    starts_at,
+    ends_at,
+    budget_total,
+    budget_used,
+    max_claims_per_user
+) VALUES
+('WELCOME_2026', 'Welcome Redeem Batch 2026', 'One-time welcome redeem codes for new users', 1, 1, NOW() - INTERVAL '30 days', NOW() + INTERVAL '180 days', 200, 0, 1),
+('DAILY_SHARED', 'Daily Shared Redeem Batch', 'Shared redeem codes for campaign testing', 1, 2, NOW() - INTERVAL '15 days', NOW() + INTERVAL '180 days', 1000, 0, 3)
+ON CONFLICT (batch_code) DO UPDATE SET
+    name = EXCLUDED.name,
+    description = EXCLUDED.description,
+    status = EXCLUDED.status,
+    mode = EXCLUDED.mode,
+    starts_at = EXCLUDED.starts_at,
+    ends_at = EXCLUDED.ends_at,
+    budget_total = EXCLUDED.budget_total,
+    max_claims_per_user = EXCLUDED.max_claims_per_user,
+    updated_at = NOW();
+
+-- Redeem codes in batches
+WITH code_seed(batch_code, code, max_claims_total, initial_claimed_total, starts_offset_days, ends_offset_days) AS (
+    VALUES
+        ('WELCOME_2026', 'WELCOME-8M2X', 1, 0, 30, 180),
+        ('WELCOME_2026', 'WELCOME-9T7K', 1, 0, 30, 180),
+        ('DAILY_SHARED', 'DAILY-CHAT-2026', 50, 0, 15, 180)
+)
+INSERT INTO redeem_codes (
+    batch_id,
+    code,
+    status,
+    max_claims_total,
+    claimed_total,
+    starts_at,
+    ends_at
+)
+SELECT
+    b.id,
+    s.code,
+    1,
+    s.max_claims_total,
+    s.initial_claimed_total,
+    NOW() - make_interval(days => s.starts_offset_days),
+    NOW() + make_interval(days => s.ends_offset_days)
+FROM code_seed s
+JOIN redeem_code_batches b ON b.batch_code = s.batch_code
+ON CONFLICT (code) DO UPDATE SET
+    batch_id = EXCLUDED.batch_id,
+    status = EXCLUDED.status,
+    max_claims_total = EXCLUDED.max_claims_total,
+    starts_at = EXCLUDED.starts_at,
+    ends_at = EXCLUDED.ends_at,
+    updated_at = NOW();
+
+-- Redeem claim records
+WITH claim_seed(idempotency_key, qiao_id, code, payload) AS (
+    VALUES
+        ('seed_claim_welcome_test_user_001', 'qqid_test_user_001', 'WELCOME-8M2X', '{"source": "seed", "channel": "setup"}'::json),
+        ('seed_claim_daily_test_user_002', 'qqid_test_user_002', 'DAILY-CHAT-2026', '{"source": "seed", "channel": "campaign"}'::json)
+)
+INSERT INTO redeem_code_claims (
+    user_id,
+    redeem_code_id,
+    batch_id,
+    code_snapshot,
+    idempotency_key,
+    event_payload
+)
+SELECT
+    u.id,
+    rc.id,
+    rc.batch_id,
+    rc.code,
+    s.idempotency_key,
+    s.payload
+FROM claim_seed s
+JOIN users u ON u.qiao_id = s.qiao_id
+JOIN redeem_codes rc ON rc.code = s.code
+ON CONFLICT DO NOTHING;
+
+-- Keep aggregate counters aligned with claim facts
+UPDATE redeem_codes rc
+SET claimed_total = stats.claimed_total
+FROM (
+    SELECT redeem_code_id, COUNT(*)::int AS claimed_total
+    FROM redeem_code_claims
+    GROUP BY redeem_code_id
+) AS stats
+WHERE rc.id = stats.redeem_code_id
+  AND rc.claimed_total < stats.claimed_total
+  AND (rc.max_claims_total IS NULL OR stats.claimed_total <= rc.max_claims_total);
+
+UPDATE redeem_code_batches rb
+SET budget_used = stats.budget_used
+FROM (
+    SELECT batch_id, COUNT(*)::bigint AS budget_used
+    FROM redeem_code_claims
+    GROUP BY batch_id
+) AS stats
+WHERE rb.id = stats.batch_id
+  AND rb.budget_used < stats.budget_used
+  AND (rb.budget_total IS NULL OR stats.budget_used <= rb.budget_total);
 
 -- ============================================================================
 -- Sample Logs and Statistics

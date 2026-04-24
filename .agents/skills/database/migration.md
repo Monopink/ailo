@@ -29,7 +29,7 @@ docker compose -f dev/compose.yaml exec backend alembic revision --autogenerate 
 cd deployment
 docker compose -f dev/compose.yaml exec backend alembic upgrade head
 docker compose -f dev/compose.yaml exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB -c "\d+"
-python scripts/deploy/provision.py --env dev --fresh --with-fixtures
+python scripts/deploy/provision.py --env dev
 ```
 
 ## Rules
@@ -38,3 +38,4 @@ python scripts/deploy/provision.py --env dev --fresh --with-fixtures
 2. Do not skip migration review.
 3. Do not finish with unsynced model/migration definitions.
 4. If migration fails, fix migration or schema files before continuing.
+5. Never use `--fresh` in migration verification unless the user explicitly requests a destructive reset.

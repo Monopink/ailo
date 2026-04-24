@@ -27,3 +27,4 @@ docker compose -f dev/compose.yaml ps postgres backend
 1. Never run reset without confirmation.
 2. Never run reset on production-like targets.
 3. If any step fails, stop and report exact failing command.
+4. `--fresh` uses `down -v --remove-orphans` and can remove dev-only containers (for example `ngrok`/`dozzle`); restore them explicitly after reset when needed.

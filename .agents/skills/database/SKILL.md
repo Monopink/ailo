@@ -33,3 +33,4 @@ Run database migration, reset, and sync workflows.
 3. Reset requires explicit user confirmation.
 4. Never run reset on production-like environments.
 5. Block completion if sync or migration verification fails.
+6. `python scripts/deploy/provision.py --fresh ...` is destructive (`down -v --remove-orphans`) and may remove dev-only containers (for example `ngrok`/`dozzle`). Never run it unless the user explicitly asks for reset.

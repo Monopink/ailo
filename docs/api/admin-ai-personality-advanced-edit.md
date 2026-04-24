@@ -99,7 +99,7 @@
 
 ### 行为约束
 
-- `field_entries` 为统一字段模型，前端以 `group` 分组渲染，不再拼装多套字段数组。
+- `field_entries` 为统一字段模型，前端以 `group` 分组渲染。
 - `field_entries.group = score_root` 表示 `json_schema.properties.score` 顶层字段；可编辑 description，并支持按字段恢复默认。
 - `field_entries.group = score_dimension` 只读展示，不提供编辑入口。
 - `field_entries(group=score_dimension).description` 读取优先级：

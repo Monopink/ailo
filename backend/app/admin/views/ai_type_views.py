@@ -61,8 +61,6 @@ class AITypeView(ModelView):
         "id",
         "created_at",
         "updated_at",
-        "persona_count",
-        "template_count",
         "persona_total",
         "persona_active",
         "persona_active_reusable",
@@ -76,8 +74,6 @@ class AITypeView(ModelView):
         "id",
         "created_at",
         "updated_at",
-        "persona_count",
-        "template_count",
         "persona_total",
         "persona_active",
         "persona_active_reusable",
@@ -89,11 +85,9 @@ class AITypeView(ModelView):
     ]
     exclude_fields_from_list: Sequence[str] = [
         "persona_total",
-        "persona_active",
         "persona_active_reusable",
         "persona_active_single_use",
         "template_total",
-        "template_active",
         "template_active_reusable",
         "template_active_single_use",
     ]
@@ -106,29 +100,12 @@ class AITypeView(ModelView):
         StringField("id", label="ID", help_text="Internal AI type identifier"),
         StringField("display_name", label="Display Name", help_text="Admin display label"),
         TextAreaField("description", label="Description", help_text="Optional description"),
-        # List page: Active counts only
-        CountField(
-            AIPersona,
-            "type_id",
-            status_filter=1,
-            name="persona_count",
-            label="Personas (Active)",
-            help_text="Number of active personas",
-        ),
-        CountField(
-            AITemplate,
-            "type_id",
-            status_filter=1,
-            name="template_count",
-            label="Templates (Active)",
-            help_text="Number of active templates",
-        ),
-        # Detail page: Detailed statistics for Personas
+        # Statistics
         CountField(
             AIPersona,
             "type_id",
             name="persona_total",
-            label="Personas - Total",
+            label="Personas (Total)",
             help_text="Total personas (all statuses)",
         ),
         CountField(
@@ -136,7 +113,7 @@ class AITypeView(ModelView):
             "type_id",
             status_filter=1,
             name="persona_active",
-            label="Personas - Active",
+            label="Personas (Active)",
             help_text="Active personas (status=1)",
         ),
         CountField(
@@ -145,7 +122,7 @@ class AITypeView(ModelView):
             status_filter=1,
             is_reusable_filter=1,
             name="persona_active_reusable",
-            label="Personas - Active Reusable",
+            label="Personas (Active Reusable)",
             help_text="Active + Reusable personas",
         ),
         CountField(
@@ -154,15 +131,14 @@ class AITypeView(ModelView):
             status_filter=1,
             is_reusable_filter=0,
             name="persona_active_single_use",
-            label="Personas - Active Single-use",
+            label="Personas (Active Single-use)",
             help_text="Active + Single-use personas",
         ),
-        # Detail page: Detailed statistics for Templates
         CountField(
             AITemplate,
             "type_id",
             name="template_total",
-            label="Templates - Total",
+            label="Templates (Total)",
             help_text="Total templates (all statuses)",
         ),
         CountField(
@@ -170,7 +146,7 @@ class AITypeView(ModelView):
             "type_id",
             status_filter=1,
             name="template_active",
-            label="Templates - Active",
+            label="Templates (Active)",
             help_text="Active templates (status=1)",
         ),
         CountField(
@@ -179,7 +155,7 @@ class AITypeView(ModelView):
             status_filter=1,
             is_reusable_filter=1,
             name="template_active_reusable",
-            label="Templates - Active Reusable",
+            label="Templates (Active Reusable)",
             help_text="Active + Reusable templates",
         ),
         CountField(
@@ -188,7 +164,7 @@ class AITypeView(ModelView):
             status_filter=1,
             is_reusable_filter=0,
             name="template_active_single_use",
-            label="Templates - Active Single-use",
+            label="Templates (Active Single-use)",
             help_text="Active + Single-use templates",
         ),
         DateTimeField("created_at", label="Created At", help_text="Creation timestamp"),

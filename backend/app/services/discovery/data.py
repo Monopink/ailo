@@ -1,11 +1,13 @@
-"""
-Discovery data layer.
+"""Discovery data layer."""
 
-This module handles discovery page queries that rely on square exposure entries
-and the corresponding AI persona profiles.
-"""
+from __future__ import annotations
 
-from sqlalchemy import and_, func, select
+import base64
+import json
+import time
+from dataclasses import dataclass
+
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums import (
@@ -20,16 +22,96 @@ from app.models.ai import AIPersona
 from app.models.contact import Contact
 from app.models.content import SquareCategory, SquareTypeEntry
 from app.models.profile import Profile
+from app.type_defs import JSONValue
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+_CURSOR_SCHEMA_VERSION = 1
+
+
+@dataclass(slots=True)
+class SquareFeedRecord:
+    qiao_id: str
+    type_id: int
+    tags_payload: JSONValue | None
+    remark: str | None
+    nickname: str | None
+    gender: int | None
+    bio: str | None
+    region: str | None
+    avatar_key: str | None
+    type_rank: int
+    sort_key: str
+
+
+@dataclass(slots=True)
+class SquareFeedMetrics:
+    candidate_count: int
+    excluded_history_count: int
+    duplicate_filtered_count: int
+    query_duration_ms: int
+
+
+@dataclass(slots=True)
+class SquareFeedPage:
+    records: list[SquareFeedRecord]
+    has_more: bool
+    next_cursor: str | None
+    metrics: SquareFeedMetrics
+
+
+@dataclass(slots=True)
+class _DecodedCursor:
+    type_rank: int
+    sort_key: str
+    qiao_id: str
+
+
+def _encode_square_cursor(*, feed_version: str, record: SquareFeedRecord) -> str:
+    payload = {
+        "v": _CURSOR_SCHEMA_VERSION,
+        "f": feed_version,
+        "t": record.type_rank,
+        "s": record.sort_key,
+        "q": record.qiao_id,
+    }
+    raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _decode_square_cursor(cursor: str, *, feed_version: str) -> _DecodedCursor:
+    normalized = cursor.strip()
+    if not normalized:
+        raise ValueError("INVALID_CURSOR")
+
+    padding = "=" * (-len(normalized) % 4)
+    try:
+        decoded = base64.urlsafe_b64decode(f"{normalized}{padding}".encode("ascii"))
+        payload = json.loads(decoded.decode("utf-8"))
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError("INVALID_CURSOR") from exc
+
+    payload_map = payload if isinstance(payload, dict) else {}
+    if payload_map.get("v") != _CURSOR_SCHEMA_VERSION:
+        raise ValueError("INVALID_CURSOR")
+    if payload_map.get("f") != feed_version:
+        raise ValueError("INVALID_CURSOR")
+
+    type_rank = payload_map.get("t")
+    sort_key = payload_map.get("s")
+    qiao_id = payload_map.get("q")
+    if not isinstance(type_rank, int) or type_rank <= 0:
+        raise ValueError("INVALID_CURSOR")
+    if not isinstance(sort_key, str) or not sort_key:
+        raise ValueError("INVALID_CURSOR")
+    if not isinstance(qiao_id, str) or not qiao_id:
+        raise ValueError("INVALID_CURSOR")
+    return _DecodedCursor(type_rank=type_rank, sort_key=sort_key, qiao_id=qiao_id)
+
 
 async def get_active_square_categories(db: AsyncSession) -> list[SquareCategory]:
-    """Load active categories.
-
-    Note: categories may be empty (no active square_type_entries).
-    """
+    """Load active categories."""
 
     stmt = (
         select(SquareCategory)
@@ -44,101 +126,181 @@ async def get_active_square_categories(db: AsyncSession) -> list[SquareCategory]
     return list(result.scalars().all())
 
 
-async def get_random_persona_entries(
+async def get_square_feed_page(
     db: AsyncSession,
     *,
     user_qiao_id: str,
     category_key: str,
-    page: int = 1,
-    page_size: int = 20,
-) -> tuple[list[tuple[SquareTypeEntry, AIPersona, Profile]], int]:
-    """
-    Select random square entries with pagination.
+    feed_version: str,
+    cursor: str | None,
+    page_size: int,
+) -> SquareFeedPage:
+    """Load a deterministic random feed page for discovery square."""
 
-    Only active entries with an AI profile that the current user does not
-    already have in contacts are returned.
-    """
-    try:
-        page = max(page, 1)
-        limit = max(page_size, 1)
-        offset = (page - 1) * limit
+    started_at = time.perf_counter()
 
-        excluded_result = await db.execute(
-            select(Contact.contact_qiao_id).where(
-                Contact.user_qiao_id == user_qiao_id,
-                Contact.contact_type == ContactType.AI,
-                Contact.is_deleted == 0,
-            )
-        )
-        excluded_qiao_ids: list[str] = [
-            qiao_id for qiao_id in excluded_result.scalars().all() if isinstance(qiao_id, str)
-        ]
-
-        base_conditions = [
+    limit = max(1, page_size)
+    active_type_ids_result = await db.execute(
+        select(SquareTypeEntry.type_id)
+        .where(
             SquareTypeEntry.status == SquareEntryStatus.ACTIVE,
             SquareTypeEntry.category_key == category_key,
-        ]
-
-        total_query = (
-            select(func.count()).select_from(SquareTypeEntry).where(and_(*base_conditions))
         )
-        total_result = await db.execute(total_query)
-        total = total_result.scalar() or 0
+        .distinct()
+    )
+    active_type_ids = [int(type_id) for type_id in active_type_ids_result.scalars().all()]
+    if not active_type_ids:
+        metrics = SquareFeedMetrics(
+            candidate_count=0,
+            excluded_history_count=0,
+            duplicate_filtered_count=0,
+            query_duration_ms=int((time.perf_counter() - started_at) * 1000),
+        )
+        return SquareFeedPage(records=[], has_more=False, next_cursor=None, metrics=metrics)
 
-        data_query = (
-            select(SquareTypeEntry)
-            .where(and_(*base_conditions))
-            .order_by(func.random())
-            .offset(offset)
-            .limit(limit)
+    excluded_history_count_result = await db.execute(
+        select(func.count(func.distinct(Contact.contact_qiao_id))).where(
+            Contact.user_qiao_id == user_qiao_id,
+            Contact.contact_type == ContactType.AI,
+        )
+    )
+    excluded_history_count = int(excluded_history_count_result.scalar() or 0)
+
+    excluded_contacts_subquery = (
+        select(Contact.contact_qiao_id)
+        .where(
+            Contact.user_qiao_id == user_qiao_id,
+            Contact.contact_type == ContactType.AI,
+        )
+        .distinct()
+        .subquery()
+    )
+
+    base_filters = [
+        AIPersona.status == AIPersonaStatus.ACTIVE,
+        AIPersona.type_id.in_(active_type_ids),
+        ~AIPersona.qiao_id.in_(select(excluded_contacts_subquery.c.contact_qiao_id)),
+    ]
+    profile_join_conditions = and_(
+        Profile.owner_qiao_id == AIPersona.qiao_id,
+        Profile.owner_type == ProfileOwnerType.AI_PERSONA,
+    )
+
+    candidate_count_result = await db.execute(
+        select(func.count())
+        .select_from(AIPersona)
+        .join(Profile, profile_join_conditions)
+        .where(and_(*base_filters))
+    )
+    candidate_count = int(candidate_count_result.scalar() or 0)
+    if candidate_count <= 0:
+        metrics = SquareFeedMetrics(
+            candidate_count=0,
+            excluded_history_count=excluded_history_count,
+            duplicate_filtered_count=0,
+            query_duration_ms=int((time.perf_counter() - started_at) * 1000),
+        )
+        return SquareFeedPage(records=[], has_more=False, next_cursor=None, metrics=metrics)
+
+    decoded_cursor: _DecodedCursor | None = None
+    if cursor:
+        decoded_cursor = _decode_square_cursor(cursor, feed_version=feed_version)
+
+    seed_prefix = f"{user_qiao_id}:{category_key}:{feed_version}"
+    sort_key_expr = func.md5(func.concat(seed_prefix, ":", AIPersona.qiao_id))
+    type_rank_expr = func.row_number().over(
+        partition_by=AIPersona.type_id,
+        order_by=(sort_key_expr.asc(), AIPersona.qiao_id.asc()),
+    )
+    candidate_subquery = (
+        select(
+            AIPersona.qiao_id.label("qiao_id"),
+            AIPersona.type_id.label("type_id"),
+            AIPersona.tags.label("tags_payload"),
+            AIPersona.remark.label("remark"),
+            Profile.nickname.label("nickname"),
+            Profile.gender.label("gender"),
+            Profile.bio.label("bio"),
+            Profile.region.label("region"),
+            Profile.avatar_key.label("avatar_key"),
+            sort_key_expr.label("sort_key"),
+            type_rank_expr.label("type_rank"),
+        )
+        .join(Profile, profile_join_conditions)
+        .where(and_(*base_filters))
+        .subquery()
+    )
+
+    feed_query = select(candidate_subquery).order_by(
+        candidate_subquery.c.type_rank.asc(),
+        candidate_subquery.c.sort_key.asc(),
+        candidate_subquery.c.qiao_id.asc(),
+    )
+    if decoded_cursor is not None:
+        feed_query = feed_query.where(
+            or_(
+                candidate_subquery.c.type_rank > decoded_cursor.type_rank,
+                and_(
+                    candidate_subquery.c.type_rank == decoded_cursor.type_rank,
+                    candidate_subquery.c.sort_key > decoded_cursor.sort_key,
+                ),
+                and_(
+                    candidate_subquery.c.type_rank == decoded_cursor.type_rank,
+                    candidate_subquery.c.sort_key == decoded_cursor.sort_key,
+                    candidate_subquery.c.qiao_id > decoded_cursor.qiao_id,
+                ),
+            )
+        )
+    feed_query = feed_query.limit(limit + 1)
+
+    feed_rows_result = await db.execute(feed_query)
+    feed_rows = list(feed_rows_result.mappings().all())
+
+    has_more = len(feed_rows) > limit
+    page_rows = feed_rows[:limit]
+
+    records: list[SquareFeedRecord] = []
+    seen_qiao_ids: set[str] = set()
+    duplicate_filtered_count = 0
+    for row in page_rows:
+        qiao_id = str(row["qiao_id"])
+        if qiao_id in seen_qiao_ids:
+            duplicate_filtered_count += 1
+            continue
+        seen_qiao_ids.add(qiao_id)
+        records.append(
+            SquareFeedRecord(
+                qiao_id=qiao_id,
+                type_id=int(row["type_id"]),
+                tags_payload=row["tags_payload"],
+                remark=row["remark"],
+                nickname=row["nickname"],
+                gender=row["gender"],
+                bio=row["bio"],
+                region=row["region"],
+                avatar_key=row["avatar_key"],
+                type_rank=int(row["type_rank"]),
+                sort_key=str(row["sort_key"]),
+            )
         )
 
-        result = await db.execute(data_query)
-        square_entries = result.scalars().all()
+    next_cursor = None
+    if has_more and records:
+        next_cursor = _encode_square_cursor(feed_version=feed_version, record=records[-1])
 
-        persona_cache: dict[int, tuple[AIPersona, Profile]] = {}
-        resolved_entries: list[tuple[SquareTypeEntry, AIPersona, Profile]] = []
+    metrics = SquareFeedMetrics(
+        candidate_count=candidate_count,
+        excluded_history_count=excluded_history_count,
+        duplicate_filtered_count=duplicate_filtered_count,
+        query_duration_ms=int((time.perf_counter() - started_at) * 1000),
+    )
 
-        for entry in square_entries:
-            cached = persona_cache.get(entry.type_id)
-            if cached is None:
-                persona_profile = await _pick_persona_for_ai_type(
-                    db,
-                    type_id=entry.type_id,
-                    excluded_qiao_ids=excluded_qiao_ids,
-                )
-                if not persona_profile:
-                    logger.debug(
-                        "square_entry_skipped_no_persona",
-                        entry_id=entry.id,
-                        type_id=entry.type_id,
-                    )
-                    continue
-                persona_cache[entry.type_id] = persona_profile
-                cached = persona_profile
-
-            persona, profile = cached
-            resolved_entries.append((entry, persona, profile))
-
-        logger.debug(
-            "square_entries_selected",
-            user_qiao_id=user_qiao_id,
-            category_key=category_key,
-            requested_page=page,
-            returned=len(resolved_entries),
-            total=total,
-        )
-
-        return resolved_entries, total
-
-    except Exception as exc:
-        logger.error(
-            "fetch_square_entries_failed",
-            user_qiao_id=user_qiao_id,
-            category_key=category_key,
-            error=str(exc),
-        )
-        raise
+    return SquareFeedPage(
+        records=records,
+        has_more=has_more,
+        next_cursor=next_cursor,
+        metrics=metrics,
+    )
 
 
 async def get_persona_profile_by_qiao_id(
@@ -147,9 +309,8 @@ async def get_persona_profile_by_qiao_id(
     qiao_id: str,
     category_key: str | None = None,
 ) -> tuple[AIPersona | None, Profile | None, str | None, str | None]:
-    """
-    Load the AI persona profile and validate optional category context.
-    """
+    """Load the AI persona profile and validate optional category context."""
+
     try:
         stmt = (
             select(AIPersona, Profile)
@@ -197,44 +358,3 @@ async def get_persona_profile_by_qiao_id(
             error=str(exc),
         )
         raise
-
-
-async def _pick_persona_for_ai_type(
-    db: AsyncSession,
-    *,
-    type_id: int,
-    excluded_qiao_ids: list[str],
-) -> tuple[AIPersona, Profile] | None:
-    """
-    Pick an active persona + profile pair for the given AI type
-    that is not already in the user's contacts.
-    """
-
-    stmt = (
-        select(AIPersona, Profile)
-        .join(
-            Profile,
-            and_(
-                Profile.owner_qiao_id == AIPersona.qiao_id,
-                Profile.owner_type == ProfileOwnerType.AI_PERSONA,
-            ),
-        )
-        .where(
-            and_(
-                AIPersona.type_id == type_id,
-                AIPersona.status == AIPersonaStatus.ACTIVE,
-            )
-        )
-        .order_by(func.random())
-        .limit(1)
-    )
-
-    if excluded_qiao_ids:
-        stmt = stmt.where(AIPersona.qiao_id.notin_(excluded_qiao_ids))
-
-    result = await db.execute(stmt)
-    row = result.first()
-    if not row:
-        return None
-    persona, profile = row
-    return persona, profile

@@ -1,3 +1,4 @@
+import { STORAGE_KEYS } from './config';
 import { requestValidated } from './api';
 import { getAvatarUrl } from './avatar';
 import {
@@ -37,7 +38,15 @@ export interface SquareContactViewModel {
 
 export interface SquareCacheEntry {
   contacts: SquareContactViewModel[];
+  feedVersion: string;
+  nextCursor: string | null;
+  hasMore: boolean;
   nextRefreshAvailableAt: number | null;
+  timestamp: number;
+}
+
+interface SquareCachePointer {
+  feedVersion: string;
   timestamp: number;
 }
 
@@ -47,8 +56,18 @@ export interface SquareCategoriesCacheEntry {
   isFallback?: boolean;
 }
 
+export interface SquareLoadParams {
+  cursor?: string | null;
+  feedVersion?: string | null;
+  refresh?: boolean;
+  pageSize?: number;
+}
+
 export interface SquareLoadResult {
   contacts: SquareContactViewModel[];
+  feedVersion: string;
+  nextCursor: string | null;
+  hasMore: boolean;
   nextRefreshAvailableAt: number | null;
   cacheAgeMs: number | null;
   fromCache: boolean;
@@ -64,18 +83,25 @@ export interface SquareCategoriesLoadResult {
 class SquareDiscoveryService {
   private logger = getLogger('SquareDiscoveryService');
 
-  getCacheEntry(categoryKey: string): SquareCacheEntry | null {
+  getCacheEntry(categoryKey: string, feedVersion?: string | null): SquareCacheEntry | null {
     if (!isValidCategoryKey(categoryKey)) {
+      return null;
+    }
+    const resolvedFeedVersion = isNonEmptyString(feedVersion)
+      ? feedVersion.trim()
+      : this.getLatestFeedVersion(categoryKey);
+    if (!isNonEmptyString(resolvedFeedVersion)) {
       return null;
     }
     try {
       const stored = wx.getStorageSync<SquareCacheEntry | null>(
-        this.getContactsCacheKey(categoryKey)
+        this.getContactsCacheKey(categoryKey, resolvedFeedVersion)
       );
       if (
         stored !== null &&
         Array.isArray(stored.contacts) &&
-        typeof stored.timestamp === 'number'
+        typeof stored.timestamp === 'number' &&
+        isNonEmptyString(stored.feedVersion)
       ) {
         return stored;
       }
@@ -86,11 +112,11 @@ class SquareDiscoveryService {
     return null;
   }
 
-  async load(categoryKey: string): Promise<SquareLoadResult> {
+  async load(categoryKey: string, params: SquareLoadParams = {}): Promise<SquareLoadResult> {
     if (!isValidCategoryKey(categoryKey)) {
       throw new Error('无效的分类参数');
     }
-    const query = this.buildSquareQuery(categoryKey);
+    const query = this.buildSquareQuery(categoryKey, params);
     const response = await requestValidated(SquareApiResponseSchema, {
       url: `/discovery/square${query}`,
       method: 'GET',
@@ -99,6 +125,9 @@ class SquareDiscoveryService {
     const nextRefreshAvailableAt = this.parseRefreshTimestamp(response.refresh_available_at);
     const entry: SquareCacheEntry = {
       contacts,
+      feedVersion: response.feed_version,
+      nextCursor: isNonEmptyString(response.next_cursor) ? response.next_cursor.trim() : null,
+      hasMore: Boolean(response.has_more),
       nextRefreshAvailableAt,
       timestamp: Date.now(),
     };
@@ -106,10 +135,14 @@ class SquareDiscoveryService {
     this.logger.info('Square contacts fetched', {
       categoryKey,
       count: contacts.length,
-      total: response.pagination.total,
+      feedVersion: entry.feedVersion,
+      hasMore: entry.hasMore,
     });
     return {
       contacts,
+      feedVersion: entry.feedVersion,
+      nextCursor: entry.nextCursor,
+      hasMore: entry.hasMore,
       nextRefreshAvailableAt,
       cacheAgeMs: null,
       fromCache: false,
@@ -165,7 +198,11 @@ class SquareDiscoveryService {
       return;
     }
     try {
-      wx.removeStorageSync(this.getContactsCacheKey(categoryKey));
+      const latestFeedVersion = this.getLatestFeedVersion(categoryKey);
+      if (isNonEmptyString(latestFeedVersion)) {
+        wx.removeStorageSync(this.getContactsCacheKey(categoryKey, latestFeedVersion));
+      }
+      wx.removeStorageSync(this.getLatestPointerKey(categoryKey));
     } catch (error: unknown) {
       const err = normalizeError(error);
       this.logger.warn('Failed to clear square cache', {
@@ -175,11 +212,16 @@ class SquareDiscoveryService {
   }
 
   private setCacheEntry(categoryKey: string, entry: SquareCacheEntry): void {
-    if (!isValidCategoryKey(categoryKey)) {
+    if (!isValidCategoryKey(categoryKey) || !isNonEmptyString(entry.feedVersion)) {
       return;
     }
     try {
-      wx.setStorageSync(this.getContactsCacheKey(categoryKey), entry);
+      wx.setStorageSync(this.getContactsCacheKey(categoryKey, entry.feedVersion), entry);
+      const pointer: SquareCachePointer = {
+        feedVersion: entry.feedVersion,
+        timestamp: entry.timestamp,
+      };
+      wx.setStorageSync(this.getLatestPointerKey(categoryKey), pointer);
     } catch (error: unknown) {
       const err = normalizeError(error);
       this.logger.warn('Failed to write square cache', { errorMessage: err.message });
@@ -197,12 +239,64 @@ class SquareDiscoveryService {
     }
   }
 
-  private getContactsCacheKey(categoryKey: string): string {
-    return `square_${categoryKey}`;
+  private getLatestFeedVersion(categoryKey: string): string | null {
+    try {
+      const pointer = wx.getStorageSync<SquareCachePointer | null>(
+        this.getLatestPointerKey(categoryKey)
+      );
+      if (pointer !== null && isNonEmptyString(pointer.feedVersion)) {
+        return pointer.feedVersion.trim();
+      }
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      this.logger.warn('Failed to read square cache pointer', { errorMessage: err.message });
+    }
+    return null;
   }
 
-  private buildSquareQuery(categoryKey: string): string {
-    return `?category_key=${encodeURIComponent(categoryKey)}`;
+  private getContactsCacheKey(categoryKey: string, feedVersion: string): string {
+    return `square_${this.getCurrentUserQiaoId()}_${categoryKey}_${feedVersion}`;
+  }
+
+  private getLatestPointerKey(categoryKey: string): string {
+    return `square_latest_${this.getCurrentUserQiaoId()}_${categoryKey}`;
+  }
+
+  private getCurrentUserQiaoId(): string {
+    try {
+      const userInfo = wx.getStorageSync<Record<string, unknown> | null>(STORAGE_KEYS.USER_INFO);
+      const rawQiaoId = userInfo?.qiao_id;
+      if (typeof rawQiaoId === 'string' && rawQiaoId.trim().length > 0) {
+        return rawQiaoId.trim();
+      }
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      this.logger.warn('Failed to resolve current user qiao_id', { errorMessage: err.message });
+    }
+    return 'anonymous';
+  }
+
+  private buildSquareQuery(categoryKey: string, params: SquareLoadParams): string {
+    const queryParts = [`category_key=${encodeURIComponent(categoryKey)}`];
+
+    if (isNonEmptyString(params.cursor)) {
+      queryParts.push(`cursor=${encodeURIComponent(params.cursor.trim())}`);
+    }
+    if (isNonEmptyString(params.feedVersion)) {
+      queryParts.push(`feed_version=${encodeURIComponent(params.feedVersion.trim())}`);
+    }
+    if (params.refresh === true) {
+      queryParts.push('refresh=true');
+    }
+    if (
+      typeof params.pageSize === 'number' &&
+      Number.isFinite(params.pageSize) &&
+      params.pageSize > 0
+    ) {
+      queryParts.push(`page_size=${Math.floor(params.pageSize)}`);
+    }
+
+    return `?${queryParts.join('&')}`;
   }
 
   private normalizeContact(contact: SquareContact): SquareContactViewModel {

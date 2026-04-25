@@ -72,7 +72,9 @@ class SquareContactListResponse(BaseModel):
     """Square contact list response."""
 
     items: list[SquareContactResponse] = Field(..., description="Contact list")
-    pagination: PaginationInfo = Field(..., description="Pagination information")
+    feed_version: str = Field(..., description="Feed version identifier")
+    next_cursor: str | None = Field(None, description="Cursor for loading next page")
+    has_more: bool = Field(..., description="Whether there are more items")
     refresh_available_at: datetime | None = Field(
         None, description="Next allowed refresh time in ISO 8601"
     )

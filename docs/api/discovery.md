@@ -56,14 +56,18 @@
 
 - **路径**: `GET /api/v1/discovery/square`
 - **认证**: Bearer Token（必需）
-- **速率限制**: 按 `user_qiao_id + category_key` 维度生效
+- **速率限制**:
+  - 刷新请求（`refresh=true`）按 `user_qiao_id + category_key` 维度生效
+  - 加载更多请求（携带 `cursor`）按 `user_qiao_id + category_key` 维度生效
 
 ### 请求参数
 
 **查询参数**:
 
 - `category_key` (string, 必填) - 分类键
-- `page` (integer, 可选) - 页码，默认 `1`
+- `cursor` (string, 可选) - 加载下一页的游标
+- `feed_version` (string, 可选) - 当前 Feed 版本
+- `refresh` (boolean, 可选) - 是否刷新并生成新 Feed 版本，默认 `false`
 - `page_size` (integer, 可选) - 每页数量，默认取系统配置
 
 ### 成功响应 (200)
@@ -84,13 +88,10 @@
       "region": "上海"
     }
   ],
-  "pagination": {
-    "page": 1,
-    "page_size": 20,
-    "total": 128,
-    "has_more": true
-  },
-  "refresh_available_at": "2026-03-20T12:01:00Z"
+  "feed_version": "20260425161200543210",
+  "next_cursor": "eyJ2IjoxLCJmIjoiMjAyNjA0MjUxNjEyMDA1NDMyMTAiLCJ0IjoxLCJzIjoiOGVmYzY4ZWQ2Y2NhOTNkYzFmMmY1YjA3ZjY0YjZiMjQiLCJxIjoicWlhb194bTAwMSJ9",
+  "has_more": true,
+  "refresh_available_at": "2026-04-25T07:12:10Z"
 }
 ```
 
@@ -107,12 +108,10 @@
   - `remark` (string|null) - 预设描述（写入联系人时的默认 remark）
   - `bio` (string|null) - 个性签名
   - `region` (string|null) - 地区
-- `pagination` (object)
-  - `page` (integer)
-  - `page_size` (integer)
-  - `total` (integer)
-  - `has_more` (boolean)
-- `refresh_available_at` (string|null) - 下次可刷新时间（ISO 8601）
+- `feed_version` (string) - 当前列表版本标识
+- `next_cursor` (string|null) - 下一页游标
+- `has_more` (boolean) - 是否有下一页
+- `refresh_available_at` (string|null) - 下次可刷新时间（ISO 8601），仅刷新请求返回
 
 ### 相关文档
 
@@ -121,6 +120,7 @@ Square 列表的预设字段（`tags`、`remark`）生成规则见：`docs/spec/
 ### 错误响应
 
 - `400` - 请求参数错误
+- `400` - 游标参数错误
 - `429` - 请求过于频繁
 - `500` - 系统错误
 

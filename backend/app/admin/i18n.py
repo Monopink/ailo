@@ -123,6 +123,78 @@ _ADMIN_TEXT_MAP: dict[str, tuple[str, str]] = {
     "Top P": ("采样上限 P", "Top P"),
 }
 
+_CONFIG_GROUP_TEXT_MAP: dict[str, tuple[str, str]] = {
+    "contacts": ("联系人", "Contacts"),
+    "invitations": ("邀请", "Invitations"),
+    "profile": ("个人资料", "Profile"),
+    "media": ("媒体", "Media"),
+    "operation": ("运营", "Operation"),
+    "auth": ("认证", "Auth"),
+    "api": ("接口", "API"),
+    "messaging": ("消息", "Messaging"),
+    "im_leancloud": ("即时通讯 LeanCloud", "IM LeanCloud"),
+    "admin_auth": ("管理员认证", "Admin Auth"),
+    "auth_password": ("密码认证", "Password Auth"),
+    "username": ("用户名", "Username"),
+    "sms": ("短信", "SMS"),
+    "discovery_square": ("广场", "Discovery Square"),
+    "ai_conversation": ("AI 对话", "AI Conversation"),
+    "alerting": ("告警", "Alerting"),
+    "other": ("其他", "Other"),
+}
+
+_CONFIG_KEY_TEXT_MAP: dict[str, tuple[str, str]] = {
+    "default_nickname_prefix": ("默认昵称前缀", "Default Nickname Prefix"),
+    "default_nickname_suffix_length": ("默认昵称后缀长度", "Default Nickname Suffix Length"),
+    "operation_invite_share_command_texts": (
+        "邀请分享口令模板",
+        "Invite Share Command Text Templates",
+    ),
+    "operation_invite_share_card_titles": (
+        "邀请分享卡片标题模板",
+        "Invite Share Card Title Templates",
+    ),
+    "contact_request_expiration_days": ("联系人请求过期天数", "Contact Request Expiration Days"),
+    "contacts_initial_ai_contact_limit": ("初始 AI 联系人上限", "Initial AI Contact Limit"),
+    "avatar_allowed_formats": ("头像允许格式", "Avatar Allowed Formats"),
+}
+
+_CONFIG_DESCRIPTION_TEXT_MAP: dict[str, tuple[str, str]] = {
+    "default_nickname_prefix": (
+        "系统生成昵称时使用的前缀",
+        "Default prefix for system-generated profile nickname",
+    ),
+    "default_nickname_suffix_length": (
+        "系统生成昵称时追加的随机后缀长度",
+        "Random suffix length for system-generated profile nickname",
+    ),
+    "operation_invite_share_command_texts": (
+        "邀请分享口令文本模板列表",
+        "Invite share command text templates",
+    ),
+    "operation_invite_share_card_titles": (
+        "邀请分享卡片标题模板列表",
+        "Invite share card title templates",
+    ),
+    "avatar_allowed_formats": (
+        "头像上传允许的 MIME 类型列表",
+        "Allowed avatar MIME types",
+    ),
+_SQUARE_CATEGORY_THEME_TEXT_MAP: dict[str, tuple[str, str]] = {
+    "blue": ("蓝色", "Blue"),
+    "cyan": ("青色", "Cyan"),
+    "teal": ("青绿色", "Teal"),
+    "green": ("绿色", "Green"),
+    "lime": ("荧光黄绿", "Lime"),
+    "yellow": ("黄色", "Yellow"),
+    "orange": ("橙色", "Orange"),
+    "purple": ("紫色", "Purple"),
+    "pink": ("粉色", "Pink"),
+    "magenta": ("洋红色", "Magenta"),
+    "beige": ("米色", "Beige"),
+    "charcoal": ("炭黑色", "Charcoal"),
+}
+
 _WORD_MAP: dict[str, str] = {
     "Access": "访问",
     "Account": "账号",

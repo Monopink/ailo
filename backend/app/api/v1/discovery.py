@@ -61,12 +61,14 @@ async def get_square_categories(
 @router.get(
     "/square",
     response_model=SquareContactListResponse,
-    summary="Get square contacts with pagination",
-    description="Get AI contacts for square page with pagination support",
+    summary="Get square contacts feed",
+    description="Get AI contacts for square page with cursor pagination support",
 )
 async def get_square_contacts(
     category_key: str = Query(..., description="Category key (kebab-case)"),
-    page: int = Query(1, ge=1, description="Page number"),
+    cursor: str | None = Query(None, description="Opaque cursor for loading next page"),
+    feed_version: str | None = Query(None, description="Feed version from previous response"),
+    refresh: bool = Query(False, description="Whether to refresh and generate a new feed version"),
     page_size: int | None = Query(
         None, ge=1, le=50, description="Items per page (default from config, max 50)"
     ),
@@ -87,8 +89,10 @@ async def get_square_contacts(
             db=db,
             user_qiao_id=current_user.qiao_id,
             category_key=category_key,
-            page=page,
+            cursor=cursor,
             page_size=page_size,
+            feed_version=feed_version,
+            refresh=refresh,
         )
     except ValueError as exc:
         error_msg = str(exc)
@@ -109,6 +113,15 @@ async def get_square_contacts(
                 category_key=category_key,
             )
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无效的分类参数")
+        if error_msg == "INVALID_CURSOR":
+            logger.warning(
+                "square_invalid_cursor",
+                user_qiao_id=current_user.qiao_id,
+                category_key=category_key,
+                cursor=cursor,
+                feed_version=feed_version,
+            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无效的游标参数")
         logger.error(
             "square_validation_error",
             user_qiao_id=current_user.qiao_id,

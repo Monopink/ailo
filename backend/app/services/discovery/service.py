@@ -1,8 +1,4 @@
-"""
-Discovery service business logic.
-
-This module provides business logic for discovery page operations.
-"""
+"""Discovery service business logic."""
 
 from datetime import UTC, datetime, timedelta
 
@@ -10,7 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums import SquareCategoryTheme
 from app.schemas.discovery import (
-    PaginationInfo,
     SquareCategoryItem,
     SquareCategoryListResponse,
     SquareContactListResponse,
@@ -18,7 +13,8 @@ from app.schemas.discovery import (
     StrangerProfileResponse,
 )
 from app.services.discovery import data as discovery_data
-from app.services.profile.avatar import get_avatar_url, get_avatar_urls_batch
+from app.services.media.config import get_media_base_url
+from app.services.profile.avatar import get_avatar_url
 from app.services.security.rate_limiter import check_rate_limit
 from app.services.system_config import get_config_int
 from app.type_defs import JSONValue
@@ -30,6 +26,7 @@ logger = get_logger(__name__)
 
 _ERR_RATE_LIMIT_PREFIX = "RATE_LIMIT:"
 _ERR_INVALID_CATEGORY = "INVALID_CATEGORY_KEY"
+_DEFAULT_AVATAR_OBJECT_KEY = "avatars/default.webp"
 
 
 def _build_preset_tags(
@@ -83,21 +80,25 @@ async def get_square_contacts(
     db: AsyncSession,
     user_qiao_id: str,
     category_key: str,
-    page: int = 1,
+    cursor: str | None = None,
     page_size: int | None = None,
+    feed_version: str | None = None,
+    refresh: bool = False,
 ) -> SquareContactListResponse:
     """
-    Get square page contacts with pagination.
+    Get square page contacts with feed cursor pagination.
 
     Args:
         db: Database session
         user_qiao_id: Current user's qiao_id
         category_key: Required category key filter
-        page: Page number (1-indexed)
+        cursor: Opaque cursor for loading additional entries
         page_size: Items per page (None = use config default)
+        feed_version: Existing feed version for loading more
+        refresh: Whether this request requests a new feed version
 
     Returns:
-        SquareContactListResponse with pagination info and refresh time
+        SquareContactListResponse with feed cursor and refresh time
 
     Raises:
         ValueError: Invalid category key or rate limit exceeded
@@ -113,9 +114,10 @@ async def get_square_contacts(
         if category_key not in category_keys:
             raise ValueError(_ERR_INVALID_CATEGORY)
 
+        rate_group = "square_refresh" if refresh else "square_load_more"
         rate_key = f"{user_qiao_id}:{category_key}"
         allowed, _error_code, retry_after = await check_rate_limit(
-            identifier=rate_key, group="square", db=db
+            identifier=rate_key, group=rate_group, db=db
         )
 
         if not allowed:
@@ -127,16 +129,19 @@ async def get_square_contacts(
             )
             raise ValueError(f"{_ERR_RATE_LIMIT_PREFIX}{retry_after or 0}")
 
-        entries, total = await discovery_data.get_random_persona_entries(
+        resolved_feed_version = _resolve_feed_version(
+            feed_version=feed_version,
+            refresh=refresh,
+        )
+        feed_page = await discovery_data.get_square_feed_page(
             db=db,
             user_qiao_id=user_qiao_id,
             category_key=category_key,
-            page=page,
+            feed_version=resolved_feed_version,
+            cursor=None if refresh else cursor,
             page_size=page_size,
         )
-
-        profiles = [profile for _, _, profile in entries if profile]
-        avatar_urls = await get_avatar_urls_batch(profiles)
+        avatar_base = get_media_base_url()
         category_title = next(
             (item.title for item in categories if item.category_key == category_key),
             None,
@@ -144,35 +149,35 @@ async def get_square_contacts(
 
         items = [
             SquareContactResponse(
-                qiao_id=persona.qiao_id,
-                type_id=entry.type_id,
-                category_key=entry.category_key,
-                nickname=getattr(profile, "nickname", None),
-                gender=getattr(profile, "gender", None),
-                avatar_url=avatar_urls.get(profile.id) if profile else None,
+                qiao_id=record.qiao_id,
+                type_id=record.type_id,
+                category_key=category_key,
+                nickname=record.nickname,
+                gender=record.gender,
+                avatar_url=f"{avatar_base}/{record.avatar_key or _DEFAULT_AVATAR_OBJECT_KEY}",
                 tags=_build_preset_tags(
                     category_title=category_title,
-                    persona_tags_payload=persona.tags,
+                    persona_tags_payload=record.tags_payload,
                 ),
-                remark=_normalize_preset_remark(persona.remark),
-                bio=getattr(profile, "bio", None),
-                region=getattr(profile, "region", None),
+                remark=_normalize_preset_remark(record.remark),
+                bio=record.bio,
+                region=record.region,
             )
-            for entry, persona, profile in entries
+            for record in feed_page.records
         ]
-
-        has_more = (page * page_size) < total
-        pagination = PaginationInfo(page=page, page_size=page_size, total=total, has_more=has_more)
-
-        refresh_available_at = await _resolve_refresh_available_at(db)
+        refresh_available_at = await _resolve_refresh_available_at(db) if refresh else None
 
         logger.info(
             "square_contacts_retrieved",
             user_qiao_id=user_qiao_id,
             count=len(items),
             category_key=category_key,
-            page=page,
-            total=total,
+            feed_version=resolved_feed_version,
+            has_more=feed_page.has_more,
+            candidate_count=feed_page.metrics.candidate_count,
+            excluded_history_count=feed_page.metrics.excluded_history_count,
+            duplicate_filtered_count=feed_page.metrics.duplicate_filtered_count,
+            query_duration_ms=feed_page.metrics.query_duration_ms,
             refresh_available_at=(
                 refresh_available_at.isoformat() if refresh_available_at else None
             ),
@@ -180,7 +185,9 @@ async def get_square_contacts(
 
         return SquareContactListResponse(
             items=items,
-            pagination=pagination,
+            feed_version=resolved_feed_version,
+            next_cursor=feed_page.next_cursor,
+            has_more=feed_page.has_more,
             refresh_available_at=refresh_available_at,
         )
 
@@ -259,7 +266,14 @@ async def get_stranger_profile(
 async def _resolve_refresh_available_at(db: AsyncSession) -> datetime | None:
     """Resolve next refresh availability timestamp from rate-limit window config."""
 
-    window_seconds = await get_config_int(db, key="square_rate_limit_window_seconds")
+    window_seconds = await get_config_int(db, key="square_refresh_rate_limit_window_seconds")
     if window_seconds <= 0:
         return None
     return datetime.now(UTC) + timedelta(seconds=window_seconds)
+
+
+def _resolve_feed_version(*, feed_version: str | None, refresh: bool) -> str:
+    if refresh or not isinstance(feed_version, str) or not feed_version.strip():
+        now = datetime.now(UTC)
+        return now.strftime("%Y%m%d%H%M%S%f")
+    return feed_version.strip()

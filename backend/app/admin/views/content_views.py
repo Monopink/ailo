@@ -6,8 +6,9 @@ Provides admin tooling for app-facing content tables.
 import re
 from typing import Any, cast
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 from starlette_admin import (
     DateTimeField,
@@ -37,7 +38,7 @@ from app.enums import (
     SquareEntryStatus,
     is_valid_square_category_theme,
 )
-from app.models.ai.template import AIType
+from app.models.ai.template import AIPersona, AITemplate, AIType
 from app.models.content import AppPage, SquareCategory, SquareTypeEntry
 from app.services.pages import service as app_page_service
 from app.utils.admin_logs import create_operation_log
@@ -47,21 +48,7 @@ logger = get_logger(__name__)
 
 _CATEGORY_KEY_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _ICON_REF_PATTERN = re.compile(r"^tdesign:[a-z0-9-]+$")
-_THEME_LABEL_BY_KEY: dict[str, str] = {
-    "blue": "蓝色",
-    "cyan": "青色",
-    "teal": "青绿色",
-    "green": "绿色",
-    "lime": "荧光黄绿",
-    "yellow": "黄色",
-    "orange": "橙色",
-    "purple": "紫色",
-    "pink": "粉色",
-    "magenta": "洋红色",
-    "beige": "米色",
-    "charcoal": "炭黑色",
-}
-_THEME_CHOICES = [(item, _THEME_LABEL_BY_KEY[item]) for item in SQUARE_CATEGORY_THEME_KEYS]
+_THEME_CHOICES = [(item, admin_square_category_theme_label(item)) for item in SQUARE_CATEGORY_THEME_KEYS]
 
 
 def _extract_relation_id(value: object) -> int | None:
@@ -97,12 +84,124 @@ class _AITypeDisplayNameField(StringField):
             return ""
 
 
+class _SquareCategoryAITypeCountField(IntegerField):
+    """Computed field to show AI type count for SquareCategory."""
+
+    def __init__(self, name: str, label: str, *, active_only: bool) -> None:
+        super().__init__(name=name, label=label)
+        self.read_only = True
+        self.searchable = False
+        self.orderable = False
+        self._active_only = active_only
+
+    async def parse_obj(self, request: Request, obj: Any) -> int:
+        category_key = str(getattr(obj, "category_key", "") or "").strip()
+        if category_key == "":
+            return 0
+
+        stmt = select(func.count(func.distinct(SquareTypeEntry.type_id))).where(
+            SquareTypeEntry.category_key == category_key
+        )
+        if self._active_only:
+            stmt = stmt.where(SquareTypeEntry.status == 1)
+
+        result = await request.state.session.scalar(stmt)
+        return int(result or 0)
+
+
+class _SquareCategoryPersonaCountField(IntegerField):
+    """Computed field to show persona count for SquareCategory."""
+
+    def __init__(self, name: str, label: str, *, active_only: bool) -> None:
+        super().__init__(name=name, label=label)
+        self.read_only = True
+        self.searchable = False
+        self.orderable = False
+        self._active_only = active_only
+
+    async def parse_obj(self, request: Request, obj: Any) -> int:
+        category_key = str(getattr(obj, "category_key", "") or "").strip()
+        if category_key == "":
+            return 0
+
+        stmt = (
+            select(func.count(func.distinct(AIPersona.id)))
+            .select_from(AIPersona)
+            .join(SquareTypeEntry, SquareTypeEntry.type_id == AIPersona.type_id)
+            .where(SquareTypeEntry.category_key == category_key)
+        )
+        if self._active_only:
+            stmt = stmt.where(
+                SquareTypeEntry.status == 1,
+                AIPersona.status == 1,
+            )
+
+        result = await request.state.session.scalar(stmt)
+        return int(result or 0)
+
+
+class _SquareCategoryTemplateCountField(IntegerField):
+    """Computed field to show template count for SquareCategory."""
+
+    def __init__(self, name: str, label: str, *, active_only: bool) -> None:
+        super().__init__(name=name, label=label)
+        self.read_only = True
+        self.searchable = False
+        self.orderable = False
+        self._active_only = active_only
+
+    async def parse_obj(self, request: Request, obj: Any) -> int:
+        category_key = str(getattr(obj, "category_key", "") or "").strip()
+        if category_key == "":
+            return 0
+
+        stmt = (
+            select(func.count(func.distinct(AITemplate.id)))
+            .select_from(AITemplate)
+            .join(SquareTypeEntry, SquareTypeEntry.type_id == AITemplate.type_id)
+            .where(SquareTypeEntry.category_key == category_key)
+        )
+        if self._active_only:
+            stmt = stmt.where(
+                SquareTypeEntry.status == 1,
+                AITemplate.status == 1,
+            )
+
+        result = await request.state.session.scalar(stmt)
+        return int(result or 0)
+
+
 class SquareCategoryView(ModelView):
     """Manage square_categories records."""
 
-    exclude_fields_from_create = ["id", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "category_key", "created_at", "updated_at"]
-    exclude_fields_from_list = []
+    exclude_fields_from_create = [
+        "id",
+        "created_at",
+        "updated_at",
+        "ai_type_count",
+        "persona_count",
+        "template_count",
+        "ai_type_total",
+        "persona_total",
+        "template_total",
+    ]
+    exclude_fields_from_edit = [
+        "id",
+        "category_key",
+        "created_at",
+        "updated_at",
+        "ai_type_count",
+        "persona_count",
+        "template_count",
+        "ai_type_total",
+        "persona_total",
+        "template_total",
+    ]
+    exclude_fields_from_list = [
+        "ai_type_total",
+        "persona_total",
+        "template_total",
+    ]
 
     fields_default_sort = [("sort_order", False), ("category_key", False)]
     searchable_fields = ["category_key", "title", "theme_key", "icon_ref"]
@@ -162,6 +261,36 @@ class SquareCategoryView(ModelView):
             label="Status",
             required=True,
             help_text="Only active categories are returned to clients",
+        ),
+        _SquareCategoryAITypeCountField(
+            "ai_type_total",
+            label="AI Types (Total)",
+            active_only=False,
+        ),
+        _SquareCategoryAITypeCountField(
+            "ai_type_count",
+            label="AI Types (Active)",
+            active_only=True,
+        ),
+        _SquareCategoryPersonaCountField(
+            "persona_total",
+            label="Personas (Total)",
+            active_only=False,
+        ),
+        _SquareCategoryPersonaCountField(
+            "persona_count",
+            label="Personas (Active)",
+            active_only=True,
+        ),
+        _SquareCategoryTemplateCountField(
+            "template_total",
+            label="Templates (Total)",
+            active_only=False,
+        ),
+        _SquareCategoryTemplateCountField(
+            "template_count",
+            label="Templates (Active)",
+            active_only=True,
         ),
         DateTimeField("created_at", label="Created At", help_text="Creation timestamp"),
         DateTimeField("updated_at", label="Updated At", help_text="Last update timestamp"),
@@ -385,33 +514,57 @@ class SquareTypeEntryView(ModelView):
         try:
             return await super().create(request, data)
         except IntegrityError as exc:
-            error_msg = str(exc.orig) if hasattr(exc, "orig") else str(exc)
-            if (
-                "uq_square_type_entries_category_key_type_id" in error_msg
-                or "square_type_entries_square_category_type_id_key" in error_msg
-            ):
-                conflict = "An entry with this category and AI type already exists"
-                raise FormValidationError(
-                    {
-                        "category": conflict,
-                        "category_key": conflict,
-                        "ai_type": conflict,
-                        "type_id": conflict,
-                    }
-                ) from exc
-            if "uq_square_type_entries_active_type_id" in error_msg:
-                conflict = "An active entry for this AI type already exists"
-                raise FormValidationError(
-                    {
-                        "status": conflict,
-                        "ai_type": conflict,
-                        "type_id": conflict,
-                    }
-                ) from exc
+            await self._rollback_request_session(request)
+            self._raise_square_type_entry_integrity_error(exc)
+            raise
+
+    async def edit(self, request: Request, pk: Any, data: dict[str, Any]) -> Any:
+        """Convert database integrity errors into field-level validation errors."""
+        try:
+            return await super().edit(request, pk, data)
+        except IntegrityError as exc:
+            await self._rollback_request_session(request)
+            self._raise_square_type_entry_integrity_error(exc)
             raise
 
     def can_delete(self, request: Request) -> bool:
         return False
+
+    @staticmethod
+    async def _rollback_request_session(request: Request) -> None:
+        session = getattr(request.state, "session", None)
+        if isinstance(session, AsyncSession):
+            await session.rollback()
+            return
+        rollback = getattr(session, "rollback", None)
+        if callable(rollback):
+            rollback()
+
+    @staticmethod
+    def _raise_square_type_entry_integrity_error(exc: IntegrityError) -> None:
+        constraint_name = str(getattr(exc.orig, "constraint_name", "") or "")
+        error_msg = str(exc.orig) if hasattr(exc, "orig") else str(exc)
+        if (
+            constraint_name
+            in {
+                "uq_square_type_entries_category_key_type_id",
+                "square_type_entries_category_key_type_id_key",
+                "square_type_entries_square_category_type_id_key",
+            }
+            or "uq_square_type_entries_category_key_type_id" in error_msg
+            or "square_type_entries_category_key_type_id_key" in error_msg
+            or "square_type_entries_square_category_type_id_key" in error_msg
+        ):
+            conflict = "An entry with this category and AI type already exists"
+            raise FormValidationError(
+                {
+                    "category": conflict,
+                    "category_key": conflict,
+                    "ai_type": conflict,
+                    "type_id": conflict,
+                }
+            ) from exc
+        raise exc
 
 
 class AppPageView(ModelView):

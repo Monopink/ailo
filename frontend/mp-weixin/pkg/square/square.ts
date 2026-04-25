@@ -31,11 +31,16 @@ interface SquarePageData {
   currentCategoryKey: string;
   contacts: SquareContactViewModel[];
   loading: boolean;
+  loadingMore: boolean;
+  feedVersion: string | null;
+  nextCursor: string | null;
+  hasMore: boolean;
   nextRefreshAvailableAt: number | null;
   minorModeDiscoveryBlocked: boolean;
 }
 
 interface LoadContactsOptions {
+  mode?: 'initial' | 'refresh' | 'load_more';
   respectCooldown?: boolean;
   silentOnCooldown?: boolean;
   showGlobalLoading?: boolean;
@@ -72,11 +77,26 @@ interface SquarePageCustom {
   displayCachedContacts(): boolean;
   loadContactsWithCache(): void;
   revalidateCache(): Promise<void>;
+  canStartLoad(
+    mode: 'initial' | 'refresh' | 'load_more',
+    respectCooldown: boolean,
+    silentOnCooldown: boolean
+  ): Promise<boolean>;
+  applyLoadingState(mode: 'initial' | 'refresh' | 'load_more', showGlobalLoading: boolean): void;
+  handleLoadResult(
+    mode: 'initial' | 'refresh' | 'load_more',
+    silentOnCooldown: boolean,
+    result: Awaited<ReturnType<ReturnType<typeof createSquarePageService>['load']>>
+  ): Promise<boolean>;
+  applyFinalLoadResult(
+    result: NonNullable<Awaited<ReturnType<ReturnType<typeof createSquarePageService>['load']>>>
+  ): void;
   loadContacts(options?: LoadContactsOptions): Promise<void>;
   canRefreshNow(): boolean;
   getRefreshWaitSeconds(): number;
   selectCategory(event: WechatMiniprogram.TouchEvent): void;
   onPullDownRefresh(): void;
+  onReachBottom(): void;
   handleContactTap(event: WechatMiniprogram.BaseEvent): void;
   handleAddContact(event: WechatMiniprogram.BaseEvent): Promise<void>;
   onUnload(): void;
@@ -157,6 +177,10 @@ Page<SquarePageData, SquarePageCustom>({
     currentCategoryKey: 'friend',
     contacts: [],
     loading: false,
+    loadingMore: false,
+    feedVersion: null,
+    nextCursor: null,
+    hasMore: true,
     nextRefreshAvailableAt: null,
     minorModeDiscoveryBlocked: false,
   },
@@ -288,6 +312,9 @@ Page<SquarePageData, SquarePageCustom>({
       this.setData({
         minorModeDiscoveryBlocked: true,
         contacts: [],
+        feedVersion: null,
+        nextCursor: null,
+        hasMore: true,
         nextRefreshAvailableAt: null,
         ...buildPageLayoutScreenModelPayload(BLOCKED_SCREEN_MODEL),
       });
@@ -299,6 +326,9 @@ Page<SquarePageData, SquarePageCustom>({
         this.setData({
           minorModeDiscoveryBlocked: true,
           contacts: [],
+          feedVersion: null,
+          nextCursor: null,
+          hasMore: true,
           nextRefreshAvailableAt: null,
           ...buildPageLayoutScreenModelPayload(BLOCKED_SCREEN_MODEL),
         });
@@ -336,6 +366,7 @@ Page<SquarePageData, SquarePageCustom>({
     }
 
     void this.loadContacts({
+      mode: 'initial',
       respectCooldown: false,
       silentOnCooldown: true,
       showGlobalLoading: this.data.contacts.length === 0,
@@ -349,6 +380,9 @@ Page<SquarePageData, SquarePageCustom>({
     }
     this.setData({
       contacts: cacheResult.contacts,
+      feedVersion: cacheResult.feedVersion,
+      nextCursor: cacheResult.nextCursor,
+      hasMore: cacheResult.hasMore,
       nextRefreshAvailableAt: cacheResult.nextRefreshAvailableAt,
       ...buildPageLayoutScreenModelPayload(cacheResult.screenModel),
     });
@@ -368,6 +402,7 @@ Page<SquarePageData, SquarePageCustom>({
   async revalidateCache() {
     try {
       await this.loadContacts({
+        mode: 'initial',
         respectCooldown: false,
         silentOnCooldown: true,
         showGlobalLoading: false,
@@ -378,27 +413,32 @@ Page<SquarePageData, SquarePageCustom>({
     }
   },
 
-  async loadContacts(options: LoadContactsOptions = {}) {
-    const { respectCooldown = true, silentOnCooldown = false, showGlobalLoading = true } = options;
-    if (respectCooldown && !this.canRefreshNow()) {
+  async canStartLoad(mode, respectCooldown, silentOnCooldown) {
+    if (mode === 'refresh' && respectCooldown && !this.canRefreshNow()) {
       if (!silentOnCooldown) {
         const waitSeconds = this.getRefreshWaitSeconds();
         showToast(waitSeconds > 0 ? `请${waitSeconds}秒后再试` : '还不能刷新');
       }
-      return;
+      return false;
     }
-
-    if (this.data.loading) {
-      return;
+    if (mode === 'load_more') {
+      if (!this.data.hasMore || this.data.loadingMore || this.data.loading) {
+        return false;
+      }
+    } else if (this.data.loading) {
+      return false;
     }
-
     if (!isValidCategoryKey(this.data.currentCategoryKey)) {
       await this.switchToEntry('暂无内容');
-      return;
+      return false;
     }
+    return true;
+  },
 
+  applyLoadingState(mode, showGlobalLoading) {
     this.setData({
-      loading: true,
+      loading: mode !== 'load_more',
+      loadingMore: mode === 'load_more',
       ...(showGlobalLoading
         ? {
             ...buildPageLayoutScreenModelPayload({
@@ -410,39 +450,75 @@ Page<SquarePageData, SquarePageCustom>({
           }
         : null),
     });
+  },
 
-    const result = await this.squarePageService.load(this.data.currentCategoryKey, {
-      hasCurrentContent: this.data.contacts.length > 0,
-      currentContacts: this.data.contacts,
-    });
+  async handleLoadResult(mode, silentOnCooldown, result) {
     if (result === null) {
-      this.setData({ loading: false });
-      return;
+      this.setData({ loading: false, loadingMore: false });
+      return true;
     }
     if (result.authInvalid) {
-      this.setData({ loading: false });
+      this.setData({ loading: false, loadingMore: false });
       await showAuthExpiredModalAndRelogin();
-      return;
+      return true;
     }
     if (result.errorMessage.includes('无效的分类参数')) {
-      this.setData({ loading: false });
+      this.setData({ loading: false, loadingMore: false });
       await this.switchToEntry('暂无内容');
-      return;
+      return true;
     }
-
+    if (mode === 'load_more' && isNonEmptyString(result.errorMessage) && !silentOnCooldown) {
+      showToast(result.errorMessage);
+    }
     if (result.shouldToastBlankFailure) {
       const errorMessage = isNonEmptyString(result.errorMessage) ? result.errorMessage : '加载失败';
       this.notifyBlankLoadFailed(errorMessage);
     } else if (result.screenModel.contentVariant !== 'blank') {
       this._blankFailureToastShown = false;
     }
+    return false;
+  },
 
+  applyFinalLoadResult(result) {
     this.setData({
       loading: false,
+      loadingMore: false,
       ...(result.screenModel.contentVariant === 'blank' ? null : { contacts: result.contacts }),
+      feedVersion: result.feedVersion,
+      nextCursor: result.nextCursor,
+      hasMore: result.hasMore,
       nextRefreshAvailableAt: result.nextRefreshAvailableAt,
       ...buildPageLayoutScreenModelPayload(result.screenModel),
     });
+  },
+
+  async loadContacts(options: LoadContactsOptions = {}) {
+    const {
+      mode = 'initial',
+      respectCooldown = mode === 'refresh',
+      silentOnCooldown = false,
+      showGlobalLoading = mode !== 'load_more',
+    } = options;
+
+    const canStart = await this.canStartLoad(mode, respectCooldown, silentOnCooldown);
+    if (!canStart) {
+      return;
+    }
+    this.applyLoadingState(mode, showGlobalLoading);
+
+    const result = await this.squarePageService.load(this.data.currentCategoryKey, {
+      mode,
+      hasCurrentContent: this.data.contacts.length > 0,
+      currentContacts: this.data.contacts,
+      currentFeedVersion: this.data.feedVersion,
+      currentCursor: this.data.nextCursor,
+      hasMore: this.data.hasMore,
+    });
+    const handled = await this.handleLoadResult(mode, silentOnCooldown, result);
+    if (handled || result === null) {
+      return;
+    }
+    this.applyFinalLoadResult(result);
   },
 
   canRefreshNow() {
@@ -480,6 +556,9 @@ Page<SquarePageData, SquarePageCustom>({
     this.setData({
       currentCategoryKey: categoryKey,
       contacts: [],
+      feedVersion: null,
+      nextCursor: null,
+      hasMore: true,
       nextRefreshAvailableAt: null,
       ...buildPageLayoutScreenModelPayload({
         screenState: 'ready',
@@ -492,8 +571,20 @@ Page<SquarePageData, SquarePageCustom>({
   },
 
   onPullDownRefresh() {
-    void this.loadContacts().finally(() => {
+    void this.loadContacts({ mode: 'refresh' }).finally(() => {
       void wx.stopPullDownRefresh();
+    });
+  },
+
+  onReachBottom() {
+    if (this.data.minorModeDiscoveryBlocked) {
+      return;
+    }
+    void this.loadContacts({
+      mode: 'load_more',
+      respectCooldown: false,
+      silentOnCooldown: true,
+      showGlobalLoading: false,
     });
   },
 
@@ -583,12 +674,14 @@ Page<SquarePageData, SquarePageCustom>({
 
       squareDiscoveryService.clearCache(this.data.currentCategoryKey);
 
-      void this.loadContacts({ silentOnCooldown: true, showGlobalLoading: false }).catch(
-        (error) => {
-          const err = normalizeError(error);
-          logger.warn('Square page refresh failed after add contact', { error: err.message });
-        }
-      );
+      void this.loadContacts({
+        mode: 'refresh',
+        silentOnCooldown: true,
+        showGlobalLoading: false,
+      }).catch((error) => {
+        const err = normalizeError(error);
+        logger.warn('Square page refresh failed after add contact', { error: err.message });
+      });
 
       logger.info('Contact request sent', {
         to_qiao_id: qiaoId,

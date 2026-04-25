@@ -60,7 +60,7 @@ class SquareCategory(AutoIncrementModel):
 
 
 class SquareTypeEntry(AutoIncrementModel):
-    """Square exposure entry mapping categories to AI types."""
+    """Square exposure entry mapping categories to AI types (many-to-many)."""
 
     __tablename__ = "square_type_entries"
 

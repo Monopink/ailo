@@ -19,7 +19,6 @@ Square（发现页）用于展示可添加的 AI 联系人。
 - 字段：`category_key`、`type_id`、`exposure_strategy`、`status`
 - 约束：
   - `(category_key, type_id)` 唯一
-  - `type_id` 在 ACTIVE 状态下唯一
 
 ## 分类曝光规则
 
@@ -28,15 +27,25 @@ Square（发现页）用于展示可添加的 AI 联系人。
 
 ## 列表查询规则
 
-- Square 联系人列表按 `category_key` 维度查询与限流（接口定义见：`docs/api/discovery.md`）。
-- 列表仅返回目标分类下 ACTIVE 的上架记录。
+- Square 联系人列表按 `category_key` 维度查询。
+- 列表筛选目标分类下 ACTIVE 的上架记录并映射到 `type_id` 集。
+- 列表分页使用 `cursor`。
+- 刷新请求使用 `refresh=true` 并生成新 `feed_version`。
+- 加载更多请求使用 `feed_version + cursor` 继续读取同一列表版本。
 - 每条联系人卡片回传 `category_key` 用于来源回显。
-- 分页与 `refresh_available_at` 的字段定义见：`docs/api/discovery.md`。
+- 限流按动作拆分为“刷新”和“加载更多”两组。
+- `refresh_available_at` 仅用于刷新节奏控制。
 
 ## Persona 选择与展示字段
 
 - Square 展示对象为 `ai_personas`。
-- 通过 `square_type_entries.type_id` 选取可用 persona。
+- 通过 `square_type_entries.type_id` 选取候选 persona。
+- 候选 persona 需要满足：
+  - `ai_personas.status=active`
+  - persona 的 `type_id` 在目标分类的 ACTIVE 上架 `type_id` 集内
+  - persona 的 `qiao_id` 不在当前用户历史添加集合内（`contacts`，含已删除记录）
+- 同一分类同一 `feed_version` 内，`qiao_id` 不重复。
+- 随机策略为类型均衡随机。
 - 展示字段来自 persona/profile：
   - `qiao_id`
   - `nickname`

@@ -410,14 +410,6 @@ export const SquareCategoriesResponseSchema = z.object({
 });
 export type SquareCategoriesResponse = z.infer<typeof SquareCategoriesResponseSchema>;
 
-export const SquarePaginationSchema = z.object({
-  page: z.number().int().positive(),
-  page_size: z.number().int().positive(),
-  total: z.number().int().nonnegative(),
-  has_more: z.boolean(),
-});
-export type SquarePagination = z.infer<typeof SquarePaginationSchema>;
-
 export const SquareContactSchema = z.object({
   qiao_id: z.string(),
   type_id: z.number().int().positive(),
@@ -434,7 +426,9 @@ export type SquareContact = z.infer<typeof SquareContactSchema>;
 
 export const SquareApiResponseSchema = z.object({
   items: z.array(SquareContactSchema),
-  pagination: SquarePaginationSchema,
+  feed_version: z.string(),
+  next_cursor: z.string().optional().nullable(),
+  has_more: z.boolean(),
   refresh_available_at: z.string().optional().nullable(),
 });
 export type SquareApiResponse = z.infer<typeof SquareApiResponseSchema>;

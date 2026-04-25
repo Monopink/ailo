@@ -22,9 +22,13 @@
 - Tab 数据来自分类接口（缓存优先，后台刷新）。
 - 青少年模式开启且本地时间在 `22:00-06:00` 时，页面展示白屏提示，不展示联系人列表。
 - 列表请求必须携带 `category_key`。
-- 列表缓存按 `category_key` 维度存储。
+- 首屏请求返回 `feed_version`，后续分页请求携带 `feed_version + cursor`。
+- 页面下拉刷新触发 `refresh=true`，服务端返回新 `feed_version`。
+- 页面触底触发 `onReachBottom` 并使用 `cursor` 持续加载。
+- 列表缓存按 `user + category_key + feed_version` 维度存储。
 - 无效或下线 `category_key` 时提示 `暂无内容`，并返回入口页。
 - 刷新节奏由响应 `refresh_available_at` 控制。
+- 刷新限流与加载更多限流独立生效。
 
 ## 陌生人页（`pages/stranger-info/stranger-info`）
 

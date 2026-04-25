@@ -62,6 +62,11 @@ from app.utils.text_limits import CONTACT_REMARK_RULE, validate_text_limit
 
 logger = get_logger(__name__)
 
+_RECOVERABLE_PENDING_FAILURE_CODES: set[str] = {
+    ContactRequestFailureCode.NO_TEMPLATE_AVAILABLE.value,
+    ContactRequestFailureCode.MANUAL_PROVISION_REQUIRED.value,
+}
+
 
 def _mark_pending_failure(
     contact_request: "ContactRequest", *, persona: AIPersona | None, reason: str
@@ -481,6 +486,13 @@ async def _process_ai_contact_request(
         ai_qiao_id = decision.persona.qiao_id
         contact_id = contact.id
 
+        content = CHAT_INFO_TEMPLATES[ChatInfoType.CONTACT_ADDED]
+        await send_chat_info(
+            db=db,
+            to_qiao_id=user_qiao_id,
+            conversation_id=conversation_id,
+            content=content,
+        )
         await db.commit()
 
         logger.info(
@@ -490,28 +502,16 @@ async def _process_ai_contact_request(
             ai_qiao_id=ai_qiao_id,
             contact_id=contact_id,
         )
-
-        # Send chat info (non-critical operation)
-        try:
-            content = CHAT_INFO_TEMPLATES[ChatInfoType.CONTACT_ADDED]
-            await send_chat_info(
-                db=db,
-                to_qiao_id=user_qiao_id,
-                conversation_id=conversation_id,
-                content=content,
-            )
-        except Exception as e:
-            logger.error("send_chat_info_failed", request_id=_req_id, error=str(e))
-            return {"message": "请求已发送"}
-        else:
-            return {"message": "请求已发送"}
+        return {"message": "请求已发送"}
 
     except Exception as e:
         await db.rollback()
 
         try:
-            contact_request.status = ContactRequestStatus.FAILED
-            await db.commit()
+            failed_request = await contact_request_crud.get_for_update(db, request_id=_req_id)
+            if failed_request is not None:
+                failed_request.status = ContactRequestStatus.FAILED
+                await db.commit()
         except Exception as commit_error:
             logger.error(
                 "failed_to_mark_failed",
@@ -802,10 +802,10 @@ async def _check_and_update_pending_request(
     request: ContactRequestCreate,
 ) -> JSONDict | None:
     """
-    Check if pending/processing request exists and update it (idempotency).
+    Check if non-finished request exists (idempotency).
 
     Returns:
-        Success message if pending request updated, None if should create new
+        Success message if request is already in-flight, None if should create new
     """
     existing_request = await contact_request_crud.get_pending_request(
         db, from_qiao_id=user_qiao_id, to_qiao_id=request.to_qiao_id
@@ -814,41 +814,14 @@ async def _check_and_update_pending_request(
     if not existing_request:
         return None
 
-    # Update existing pending/processing request
-    try:
-        existing_request.message = request.message
-        existing_request.category_key = request.category_key
-        existing_request.alias = request.alias
-        existing_request.tags = _build_request_tags_payload(request.tags)
-        existing_request.source = request.source
-        # Extend expiry window
-        expiry_days = await _get_contact_expiration_days(db)
-        existing_request.expires_at = datetime.now(UTC) + timedelta(days=expiry_days)
-        existing_request.status = ContactRequestStatus.PENDING
-        existing_request.retry_count = (existing_request.retry_count or 0) + 1
-        existing_request.last_retry_at = datetime.now(UTC)
-        existing_request.failure_code = None
-        existing_request.failure_detail = None
-        db.add(existing_request)
-        await db.commit()
-
-        logger.info(
-            "pending_request_updated",
-            user_qiao_id=user_qiao_id,
-            to_qiao_id=request.to_qiao_id,
-            request_id=existing_request.id,
-            status=existing_request.status,
-            expires_at=existing_request.expires_at,
-        )
-    except Exception as e:
-        logger.error(
-            "pending_request_update_failed",
-            user_qiao_id=user_qiao_id,
-            to_qiao_id=request.to_qiao_id,
-            request_id=existing_request.id,
-            error=str(e),
-        )
-
+    logger.info(
+        "contact_request_duplicate_ignored",
+        user_qiao_id=user_qiao_id,
+        to_qiao_id=request.to_qiao_id,
+        request_id=existing_request.id,
+        status=int(existing_request.status),
+        failure_code=existing_request.failure_code,
+    )
     return {"message": "请求已发送"}
 
 
@@ -1046,11 +1019,17 @@ async def retry_pending_contact_request(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="只有挂起中的请求可重试",
         )
+    if (
+        not isinstance(contact_request.failure_code, str)
+        or contact_request.failure_code not in _RECOVERABLE_PENDING_FAILURE_CODES
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="当前请求不属于可恢复挂起类型",
+        )
 
     contact_request.retry_count = (contact_request.retry_count or 0) + 1
     contact_request.last_retry_at = datetime.now(UTC)
-    contact_request.failure_code = None
-    contact_request.failure_detail = None
     db.add(contact_request)
     await db.commit()
 
@@ -1079,12 +1058,18 @@ async def retry_pending_contact_request(
             alias=effective_alias,
             tags=effective_tags,
         )
+        refreshed_request = await contact_request_crud.get(db, record_id=request_id)
         logger.info(
             "contact_request_retry",
             request_id=request_id,
             from_qiao_id=contact_request.from_qiao_id,
             to_qiao_id=contact_request.to_qiao_id,
             retry_count=contact_request.retry_count,
+            resulting_status=(
+                int(refreshed_request.status)
+                if refreshed_request is not None
+                else int(contact_request.status)
+            ),
             operator=operator or "system",
         )
     except HTTPException:

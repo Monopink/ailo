@@ -246,8 +246,8 @@ stateDiagram-v2
 **重试逻辑**：
 
 - 管理员补充模板后，可在后台触发重试
-- 用户重复提交相同请求时，触发同一条记录的重试
-- 重试会清空 failure_code/failure_detail，重新执行处理流程
+- 用户重复提交命中未完成请求（`PENDING` 或 `PROCESSING`）时，系统直接返回成功，不变更原请求状态
+- 请求已过期或进入终态时，重复提交会创建新请求并重新进入处理流程
 
 ## 联系人恢复逻辑
 
@@ -294,10 +294,10 @@ stateDiagram-v2
 - 路径：`POST /api/v1/admin/contact-requests/{request_id}/retry`
 - 鉴权：复用 Starlette Admin 的 Session（依赖 `verify_admin_session`），仅登录的后台管理账号可调用
 - 行为：
-  1. `FOR UPDATE` 锁定目标请求，校验 `status=PENDING`
-  2. `retry_count += 1`，`last_retry_at = NOW()`，清空 `failure_*`
-  3. 调用 `_process_ai_contact_request`，成功则状态变为 `ACCEPTED` 并创建联系人；失败则重新写入新的 `failure_code/detail`
-- 日志：在挂起、清空、重试等动作上分别记录 `contact_request_pending`、`contact_request_retry` 等结构化日志字段（`request_id`、`ai_type_id`、`admin_user`、`retry_count` 等）
+  1. `FOR UPDATE` 锁定目标请求，校验 `status=PENDING` 且 `failure_code` 属于可恢复挂起类型
+  2. `retry_count += 1`，`last_retry_at = NOW()`
+  3. 调用 `_process_ai_contact_request`，成功则状态变为 `ACCEPTED` 并创建联系人；未恢复则保持 `PENDING` 并写入新的 `failure_code/detail`；系统错误落 `FAILED`
+- 日志：在挂起、重试等动作上分别记录 `contact_request_pending`、`contact_request_retry` 等结构化日志字段（`request_id`、`ai_type_id`、`admin_user`、`retry_count` 等）
 
 ### 管理后台挂起处理面板
 

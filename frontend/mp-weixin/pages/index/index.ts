@@ -552,12 +552,7 @@ Page<ContactListPageData, ContactListPageCustom>({
     this.updateNavigationTitle();
     this.syncWordmarkByTheme();
     void this.loadContactsFromCache().finally(() => {
-      if (
-        this.data.availableContactSlots === null ||
-        this.data.pageLayoutData.screenModel.contentVariant === 'blank'
-      ) {
-        void this.loadContactList({ forceReload: true });
-      }
+      void this.refreshContactListFromAPI();
     });
   },
 

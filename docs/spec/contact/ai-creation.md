@@ -204,11 +204,10 @@ Worker 处理 contact_request 时，首先验证 AI 是否可用：
 **触发方式**：
 
 1. 管理员在后台手动触发
-2. 用户重复提交相同请求（幂等）
 
 **重试步骤**：
 
-1. 清空 failure_code 和 failure_detail
+1. 校验请求为可恢复挂起类型
 2. 更新 last_retry_at = NOW()
 3. 递增 retry_count
 4. 重新执行模板选择流程
@@ -223,8 +222,8 @@ Worker 处理 contact_request 时，首先验证 AI 是否可用：
 **行为**：
 
 - 用户重复提交相同 (from_qiao_id, to_qiao_id) 的请求
-- 系统不会新建 contact_requests
-- 而是触发同一条记录的重试
+- 命中未完成请求（`PENDING` 或 `PROCESSING`）时，系统不会新建 contact_requests，也不会修改原请求状态
+- 命中过期请求或终态请求时，系统会创建新请求记录
 
 **响应**：
 

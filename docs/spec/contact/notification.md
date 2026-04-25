@@ -78,6 +78,13 @@
 - 内容：使用 CHAT_INFO_TEMPLATES 中的 CONTACT_ADDED 模板
 - conversation_id：用户 A 与用户 B 的对话 ID
 
+**AI 联系人请求接受成功**：
+
+- 触发：AI 联系人请求由 Worker 处理为 ACCEPTED
+- 接收方：发起请求的用户
+- 内容：使用 CHAT_INFO_TEMPLATES 中的 CONTACT_ADDED 模板
+- 一致性：联系人写入与 CHAT_INFO 写入同事务提交
+
 **实现位置**：
 
 - `backend/app/services/contact/request_service.py` - accept_request 方法
@@ -275,9 +282,8 @@
 
 **CHAT_INFO 发送失败**：
 
-- 非关键操作，记录 warning 日志
-- 不影响业务流程（请求状态仍然更新）
-- 用户可能看不到提示，但不影响功能
+- AI 联系人请求链路：提交回滚并落 `FAILED`
+- 其他链路：记录 warning 日志，不阻断主业务流程
 
 **NOTIFICATION 发送失败**：
 

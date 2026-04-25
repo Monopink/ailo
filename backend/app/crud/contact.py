@@ -3,6 +3,7 @@
 This module contains CRUD operations for contact relationships and requests.
 """
 
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import and_, func, or_, select
@@ -315,6 +316,7 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, ContactR
     ) -> ContactRequest | None:
         """Get pending or processing contact request between two users.
 
+        Only non-expired requests are considered active.
         Returns the most recent one if multiple exist.
         """
         result = await db.execute(
@@ -326,6 +328,7 @@ class CRUDContactRequest(CRUDBase[ContactRequest, ContactRequestCreate, ContactR
                     self.model.status.in_(
                         [ContactRequestStatus.PENDING, ContactRequestStatus.PROCESSING]
                     ),
+                    self.model.expires_at > datetime.now(UTC),
                 )
             )
             .order_by(self.model.created_at.desc())

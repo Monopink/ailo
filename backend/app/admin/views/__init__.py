@@ -69,7 +69,6 @@ from .growth_views import (
     invite_code_view,
     invite_event_view,
     invite_recognition_log_view,
-    invite_share_template_view,
     redeem_code_batch_view,
     redeem_code_claim_view,
     redeem_code_view,
@@ -90,12 +89,6 @@ from .message_media_views import (
     message_endpoint_view,
     message_history_view,
     notification_push_history_view,
-)
-from .operation_views import (
-    OPERATION_MODEL_VIEWS,
-    operation_asset_view,
-    operation_publish_log_view,
-    operation_slot_config_view,
 )
 from .profile_avatar_advanced_edit_view import profile_avatar_advanced_edit_view
 from .security_views import (
@@ -161,7 +154,6 @@ ALL_MODEL_VIEWS = [
     *SECURITY_MODEL_VIEWS,
     *TOKEN_MODEL_VIEWS,
     *GROWTH_MODEL_VIEWS,
-    *OPERATION_MODEL_VIEWS,
     *ENTITLEMENT_MODEL_VIEWS,
     *SYSTEM_MODEL_VIEWS,
     *STATS_MODEL_VIEWS,
@@ -185,7 +177,6 @@ __all__ = [
     "SECURITY_MODEL_VIEWS",
     "TOKEN_MODEL_VIEWS",
     "GROWTH_MODEL_VIEWS",
-    "OPERATION_MODEL_VIEWS",
     "ENTITLEMENT_MODEL_VIEWS",
     "SYSTEM_MODEL_VIEWS",
     "STATS_MODEL_VIEWS",
@@ -244,10 +235,6 @@ __all__ = [
     "invite_code_view",
     "invite_event_view",
     "invite_recognition_log_view",
-    "invite_share_template_view",
-    "operation_asset_view",
-    "operation_slot_config_view",
-    "operation_publish_log_view",
     "redeem_code_batch_view",
     "redeem_code_view",
     "redeem_code_claim_view",

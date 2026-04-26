@@ -10,13 +10,6 @@ class InviteCodeStatus(IntEnum):
     INACTIVE = 2
 
 
-class InviteShareTemplateStatus(IntEnum):
-    """Invite share template status (invite_share_templates.status)."""
-
-    ACTIVE = 1
-    INACTIVE = 2
-
-
 class InviteEventType(IntEnum):
     """Invite event type (invite_events.event_type)."""
 
@@ -31,16 +24,3 @@ class InviteResolveCodeType(StrEnum):
     """Cross-boundary code type strings for API payloads."""
 
     USER = "user"
-
-
-class OperationAssetType(IntEnum):
-    """Operation asset type (operation_assets.asset_type)."""
-
-    IMAGE = 1
-
-
-class OperationStatus(IntEnum):
-    """Shared active/inactive status for operation asset and slot tables."""
-
-    ACTIVE = 1
-    INACTIVE = 2

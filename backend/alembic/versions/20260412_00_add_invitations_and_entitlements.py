@@ -1477,24 +1477,6 @@ def _seed_required_baseline_data() -> None:
                 'Invite code bind rate limit window in seconds',
                 'invitations',
                 NULL
-            ),
-            (
-                'growth_new_user_reward_window_days',
-                '7',
-                '7',
-                2,
-                'Growth reward new-user time window in days',
-                'invitations',
-                NULL
-            ),
-            (
-                'growth_new_user_reward_cap_total',
-                '5',
-                '5',
-                2,
-                'Growth reward cumulative cap for new users in window',
-                'invitations',
-                NULL
             )
         ON CONFLICT (config_key) DO NOTHING
         """

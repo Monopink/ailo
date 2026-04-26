@@ -1,0 +1,125 @@
+.config-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, 1.2fr) minmax(320px, 2fr);
+  gap: 0.75rem 1rem;
+  align-items: start;
+}
+
+.config-name,
+.config-current,
+.config-modify {
+  min-width: 0;
+}
+
+.config-current-value,
+.config-default-value {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.config-current-value {
+  display: block;
+  margin-bottom: 0.25rem;
+  line-height: 1.4;
+}
+
+.config-modify .input-group {
+  width: 100%;
+}
+
+.config-modify .form-control,
+.config-modify .form-select {
+  min-width: 0;
+}
+
+.array-current-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.array-current-row {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+}
+
+.array-current-row .config-current-value {
+  margin-bottom: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.2;
+}
+
+.array-editor-rows {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.array-editor-row .input-group {
+  width: 100%;
+  height: 38px;
+}
+
+.array-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+}
+
+.settings-nav-fab {
+  position: fixed;
+  inset: auto 1.5rem 1.5rem auto;
+  z-index: 1050;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  max-width: calc(100vw - 2rem);
+  white-space: nowrap;
+}
+
+.settings-nav-panel {
+  position: fixed;
+  inset: auto 1.5rem 5rem auto;
+  width: min(295px, calc(100vw - 2rem));
+  max-height: min(60vh, 460px);
+  overflow: hidden;
+  z-index: 1050;
+}
+
+.settings-nav-list {
+  max-height: min(52vh, 390px);
+  overflow-y: auto;
+}
+
+.settings-nav-link {
+  cursor: pointer;
+}
+
+.invitation-policy-textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  line-height: 1.4;
+}
+
+@media (max-width: 991.98px) {
+  .config-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .settings-nav-fab {
+    inset: auto 1rem 1rem auto;
+  }
+
+  .settings-nav-panel {
+    inset: auto 1rem 4.5rem auto;
+    width: calc(100vw - 1.25rem);
+  }
+}

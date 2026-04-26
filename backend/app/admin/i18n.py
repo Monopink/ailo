@@ -11,6 +11,24 @@ _PLURAL_IES_SUFFIX_LEN = 3
 _MIN_PLURAL_IES_WORD_LEN = 3
 _MIN_PLURAL_S_WORD_LEN = 1
 
+_LEANCLOUD_CALLBACK_HINT = (
+    "Configure this URL in LeanCloud console: Developer Center > IM > Settings > "
+    "Service Account Callback"
+)
+_WEBHOOK_REGEN_NOTICE = (
+    "Regenerating the token will invalidate the current webhook URL. "
+    "You must update the URL in LeanCloud console immediately."
+)
+_SYSTEM_CONVERSATION_REGEN_WARNING = (
+    "WARNING: This will create a new system conversation and invalidate the old one!\n\n"
+    "You should update any references to the old conversation ID.\n\nContinue?"
+)
+_WEBHOOK_REGEN_WARNING = (
+    "WARNING: This will invalidate the current webhook URL!\n\n"
+    "You MUST update the webhook URL in LeanCloud console immediately after "
+    "regeneration.\n\nContinue?"
+)
+
 _ADMIN_TEXT_MAP: dict[str, tuple[str, str]] = {
     "Users": ("用户", "Users"),
     "Messages": ("消息", "Messages"),
@@ -26,6 +44,128 @@ _ADMIN_TEXT_MAP: dict[str, tuple[str, str]] = {
     "Statistics": ("统计", "Statistics"),
     "System": ("系统", "System"),
     "System Settings": ("系统设置", "System Settings"),
+    "Operation Settings": ("运营设置", "Operation Settings"),
+    "System Management": ("系统管理", "System Management"),
+    "LeanCloud System": ("LeanCloud 系统", "LeanCloud System"),
+    "System Conversation ID": ("系统会话 ID", "System Conversation ID"),
+    "App ID": ("App ID", "App ID"),
+    "Master Key": ("Master Key", "Master Key"),
+    "Base URL": ("基础 URL", "Base URL"),
+    "Configuration Status": ("配置状态", "Configuration Status"),
+    "Regenerate Conversation": ("重新生成会话", "Regenerate Conversation"),
+    "Webhook Management": ("Webhook 管理", "Webhook Management"),
+    "Webhook URL": ("Webhook URL", "Webhook URL"),
+    "Token Status": ("Token 状态", "Token Status"),
+    "Token generated": ("Token 已生成", "Token generated"),
+    "Token not generated": ("Token 未生成", "Token not generated"),
+    "characters": ("字符", "characters"),
+    _LEANCLOUD_CALLBACK_HINT: (
+        "请在 LeanCloud 控制台配置此 URL：开发者中心 > 即时通讯 > 设置 > 服务号消息回调",
+        _LEANCLOUD_CALLBACK_HINT,
+    ),
+    _WEBHOOK_REGEN_NOTICE: (
+        "重新生成 Token 会使当前 webhook URL 失效。你必须立即在 LeanCloud 控制台更新 URL。",
+        _WEBHOOK_REGEN_NOTICE,
+    ),
+    "Regenerate Token": ("重新生成 Token", "Regenerate Token"),
+    "Warning:": ("警告：", "Warning:"),
+    "The following configuration keys are not displayed in the UI:": (
+        "以下配置键未在页面中显示：",
+        "The following configuration keys are not displayed in the UI:",
+    ),
+    "Default item:": ("默认项：", "Default item:"),
+    "(not set)": ("（未设置）", "(not set)"),
+    "Default:": ("默认值：", "Default:"),
+    "-- No Change --": ("-- 不修改 --", "-- No Change --"),
+    "Leave empty for no change": ("留空表示不修改", "Leave empty for no change"),
+    'Leave empty for no change. Example: ["value1","value2"]': (
+        '留空表示不修改。例如：["value1","value2"]',
+        'Leave empty for no change. Example: ["value1","value2"]',
+    ),
+    "Use current value": ("使用当前值", "Use current value"),
+    "Reset to default": ("填充默认值", "Reset to default"),
+    "Toggle delete state": ("切换删除状态", "Toggle delete state"),
+    "Copy": ("复制", "Copy"),
+    "Save Settings": ("保存设置", "Save Settings"),
+    "No changes to save. All modification fields are empty.": (
+        "没有可保存的修改，所有修改输入框均为空。",
+        "No changes to save. All modification fields are empty.",
+    ),
+    "You are about to modify the following configuration(s):": (
+        "你即将修改以下配置：",
+        "You are about to modify the following configuration(s):",
+    ),
+    "Are you sure you want to save these changes?": (
+        "确认保存这些修改吗？",
+        "Are you sure you want to save these changes?",
+    ),
+    "Current value is not available in selectable options.": (
+        "当前值不在可选项中。",
+        "Current value is not available in selectable options.",
+    ),
+    "-- Select --": ("-- 请选择 --", "-- Select --"),
+    "Enter JSON item": ("输入 JSON 项", "Enter JSON item"),
+    "Enter value": ("输入值", "Enter value"),
+    "Add row": ("新增一行", "Add row"),
+    "(new item)": ("（新增项）", "(new item)"),
+    "Reload CDN config will clear caches on all workers.\n\nApply the latest domain now?": (
+        "重新加载 CDN 配置会清空所有 worker 缓存。\n\n是否立即应用最新域名？",
+        "Reload CDN config will clear caches on all workers.\n\nApply the latest domain now?",
+    ),
+    "Conversation ID copied!": ("会话 ID 已复制！", "Conversation ID copied!"),
+    "Failed to copy": ("复制失败", "Failed to copy"),
+    _SYSTEM_CONVERSATION_REGEN_WARNING: (
+        "警告：这会创建新的系统会话并使旧会话失效！\n\n"
+        "你应更新所有旧会话 ID 的引用。\n\n是否继续？",
+        _SYSTEM_CONVERSATION_REGEN_WARNING,
+    ),
+    "System conversation regenerated successfully!": (
+        "系统会话重新生成成功！",
+        "System conversation regenerated successfully!",
+    ),
+    "New ID": ("新 ID", "New ID"),
+    "Failed:": ("失败：", "Failed:"),
+    "Failed to regenerate conversation": ("重新生成会话失败", "Failed to regenerate conversation"),
+    "Webhook URL copied to clipboard!": (
+        "Webhook URL 已复制到剪贴板！",
+        "Webhook URL copied to clipboard!",
+    ),
+    "Failed to copy URL": ("复制 URL 失败", "Failed to copy URL"),
+    _WEBHOOK_REGEN_WARNING: (
+        "警告：这会使当前 webhook URL 失效！\n\n"
+        "重新生成后你必须立即在 LeanCloud 控制台更新 webhook URL。\n\n是否继续？",
+        _WEBHOOK_REGEN_WARNING,
+    ),
+    "Token regenerated successfully!": ("Token 重新生成成功！", "Token regenerated successfully!"),
+    "New webhook URL has been loaded.": (
+        "新的 webhook URL 已加载。",
+        "New webhook URL has been loaded.",
+    ),
+    "Unknown error": ("未知错误", "Unknown error"),
+    "Failed to regenerate token": ("重新生成 Token 失败", "Failed to regenerate token"),
+    "Permission denied": ("无权限", "Permission denied"),
+    "Admin user not found in session": (
+        "会话中未找到管理员用户",
+        "Admin user not found in session",
+    ),
+    "Successfully updated {count} configuration(s)": (
+        "成功更新 {count} 个配置项",
+        "Successfully updated {count} configuration(s)",
+    ),
+    "No changes to save (all modification fields were empty)": (
+        "没有可保存的修改（所有修改输入框均为空）",
+        "No changes to save (all modification fields were empty)",
+    ),
+    "Failed to update settings: {error}": (
+        "保存设置失败：{error}",
+        "Failed to update settings: {error}",
+    ),
+    "Failed to load settings: {error}": (
+        "加载设置失败：{error}",
+        "Failed to load settings: {error}",
+    ),
+    "Operation Configuration": ("运营配置", "Operation Configuration"),
+    "System Configuration": ("系统配置", "System Configuration"),
     "Dashboard": ("仪表盘", "Dashboard"),
     "Admin": ("管理端", "Admin"),
     "Theme Switch": ("主题切换", "Theme Switch"),
@@ -146,11 +286,11 @@ _CONFIG_GROUP_TEXT_MAP: dict[str, tuple[str, str]] = {
 _CONFIG_KEY_TEXT_MAP: dict[str, tuple[str, str]] = {
     "default_nickname_prefix": ("默认昵称前缀", "Default Nickname Prefix"),
     "default_nickname_suffix_length": ("默认昵称后缀长度", "Default Nickname Suffix Length"),
-    "operation_invite_share_command_texts": (
+    "invite_share_command_texts": (
         "邀请分享口令模板",
         "Invite Share Command Text Templates",
     ),
-    "operation_invite_share_card_titles": (
+    "invite_share_card_titles": (
         "邀请分享卡片标题模板",
         "Invite Share Card Title Templates",
     ),
@@ -168,11 +308,11 @@ _CONFIG_DESCRIPTION_TEXT_MAP: dict[str, tuple[str, str]] = {
         "系统生成昵称时追加的随机后缀长度",
         "Random suffix length for system-generated profile nickname",
     ),
-    "operation_invite_share_command_texts": (
+    "invite_share_command_texts": (
         "邀请分享口令文本模板列表",
         "Invite share command text templates",
     ),
-    "operation_invite_share_card_titles": (
+    "invite_share_card_titles": (
         "邀请分享卡片标题模板列表",
         "Invite share card title templates",
     ),
@@ -572,6 +712,75 @@ def _translate_word(word: str) -> str:
             return translated
 
     return word
+
+
+def _resolve_locale_text(zh_en: tuple[str, str]) -> str:
+    zh, en = zh_en
+    locale = get_locale() or ""
+    if locale.startswith("en"):
+        return en
+    return zh or en
+
+
+def _snake_to_title(text: str) -> str:
+    special_words = {
+        "ip": "IP",
+        "id": "ID",
+        "ai": "AI",
+        "api": "API",
+        "url": "URL",
+        "json": "JSON",
+        "ips": "IPs",
+        "ids": "IDs",
+        "html": "HTML",
+        "css": "CSS",
+        "sql": "SQL",
+        "http": "HTTP",
+        "https": "HTTPS",
+        "ssl": "SSL",
+        "jwt": "JWT",
+        "oauth": "OAuth",
+        "sms": "SMS",
+        "ttl": "TTL",
+        "ws": "WS",
+        "ms": "MS",
+        "llm": "LLM",
+        "cdn": "CDN",
+    }
+    words = [part for part in text.strip().split("_") if part]
+    if not words:
+        return text
+    normalized_words: list[str] = []
+    for word in words:
+        mapped = special_words.get(word.lower())
+        normalized_words.append(mapped if mapped else word.capitalize())
+    return " ".join(normalized_words)
+
+
+def admin_config_group_title(group_key: str) -> str:
+    """Return localized config group title for admin settings pages."""
+    mapping = _CONFIG_GROUP_TEXT_MAP.get(group_key)
+    if mapping is not None:
+        return _resolve_locale_text(mapping)
+    return admin_text(_snake_to_title(group_key))
+
+
+def admin_config_display_name(config_key: str) -> str:
+    """Return localized display name for one config key."""
+    mapping = _CONFIG_KEY_TEXT_MAP.get(config_key)
+    if mapping is not None:
+        return _resolve_locale_text(mapping)
+    return admin_text(_snake_to_title(config_key))
+
+
+def admin_config_description(config_key: str, fallback_description: str | None) -> str:
+    """Return localized config description with fallback text support."""
+    mapping = _CONFIG_DESCRIPTION_TEXT_MAP.get(config_key)
+    if mapping is not None:
+        return _resolve_locale_text(mapping)
+    if not fallback_description:
+        return ""
+    return admin_text(fallback_description)
 
 
 def translate_labels(value: object) -> object:

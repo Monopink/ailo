@@ -2,17 +2,26 @@
 Creates ModelView instances for user management and admin system models.
 """
 
+import json
 from typing import Any
 
 from sqlalchemy import select
 from starlette.requests import Request
-from starlette_admin import DateTimeField, JSONField, StringField
+from starlette_admin import DateTimeField, EnumField, JSONField, StringField
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 
 from app.admin.views.base import IntegerEnumField
 from app.core.security import get_password_hash
-from app.enums import AdminLoginResult, AdminRole, AdminStatus, AlertSeverityLevel, ConfigType
+from app.enums import (
+    AdminLoginResult,
+    AdminRole,
+    AdminStatus,
+    AlertSeverityLevel,
+    ConfigShape,
+    ConfigValueType,
+    SystemConfigScope,
+)
 from app.models.admin import AdminLoginLog, AdminOperationLog, AdminUser
 from app.models.system.alerting import AlertEvent, AlertEventEntity
 from app.models.system.config import SystemConfig
@@ -49,28 +58,50 @@ class SystemConfigView(ModelView):
 
     exclude_fields_from_create = ["id", "created_at", "updated_at", "updated_by"]
     exclude_fields_from_edit = ["id", "created_at", "updated_at", "updated_by"]
+    exclude_fields_from_list: list[str] = []
+    exclude_fields_from_detail: list[str] = []
 
     def can_delete(self, request: Request) -> bool:
         return False
 
     fields_default_sort = [("config_key", False)]
     searchable_fields = ["config_key", "description"]
-    sortable_fields = ["id", "config_key", "config_type", "created_at", "updated_at"]
+    sortable_fields = [
+        "id",
+        "config_key",
+        "value_type",
+        "config_shape",
+        "config_scope",
+        "created_at",
+        "updated_at",
+    ]
 
     fields = [
         StringField("id", label="ID", help_text="Configuration ID"),
         StringField("config_key", label="Config Key", help_text="Unique configuration key"),
-        StringField("config_value", label="Config Value", help_text="Configuration value"),
-        StringField(
+        JSONField("config_value", label="Config Value", help_text="Configuration value (JSONB)"),
+        JSONField(
             "default_value",
             label="Default Value",
             help_text="Default configuration value",
         ),
         IntegerEnumField(
-            "config_type",
-            enum=ConfigType,
-            label="Config Type",
-            help_text="Data type of the configuration",
+            "value_type",
+            enum=ConfigValueType,
+            label="Value Type",
+            help_text="Data type of each value item",
+        ),
+        IntegerEnumField(
+            "config_shape",
+            enum=ConfigShape,
+            label="Config Shape",
+            help_text="Payload shape: single or array",
+        ),
+        EnumField(
+            "config_scope",
+            choices=[(item.value, item.value) for item in SystemConfigScope],
+            label="Config Scope",
+            help_text=f"Configuration scope ({', '.join([item.value for item in SystemConfigScope])})",
         ),
         StringField(
             "description",
@@ -87,6 +118,120 @@ class SystemConfigView(ModelView):
         DateTimeField("created_at", label="Created At", help_text="Configuration creation time"),
         DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
+
+    @staticmethod
+    def _parse_json_if_needed(value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
+        raw = value.strip()
+        if raw == "":
+            return value
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return value
+
+    @staticmethod
+    def _normalize_single_value(  # noqa: PLR0911
+        value_type: ConfigValueType,
+        value: Any,
+        field_name: str,
+        *,
+        allow_empty_string: bool = False,
+    ) -> Any:
+        if allow_empty_string and isinstance(value, str) and value.strip() == "":
+            return ""
+
+        if value_type == ConfigValueType.NUMBER:
+            if isinstance(value, bool):
+                raise TypeError(f"{field_name} must be integer.")
+            if isinstance(value, int):
+                return value
+            if isinstance(value, float):
+                if not value.is_integer():
+                    raise ValueError(f"{field_name} must be integer.")
+                return int(value)
+            if isinstance(value, str):
+                raw_value = value.strip()
+                if raw_value == "":
+                    raise ValueError(f"{field_name} must be integer.")
+                try:
+                    return int(raw_value)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(f"{field_name} must be integer.") from exc
+            raise TypeError(f"{field_name} must be integer.")
+
+        if value_type == ConfigValueType.BOOLEAN:
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                lowered = value.strip().lower()
+                if lowered in {"true", "1", "yes", "on"}:
+                    return True
+                if lowered in {"false", "0", "no", "off"}:
+                    return False
+            raise ValueError(f"{field_name} must be boolean.")
+
+        if value_type in {ConfigValueType.STRING, ConfigValueType.ENUM}:
+            if not isinstance(value, str):
+                raise TypeError(f"{field_name} must be string.")
+            text = value.strip()
+            if text == "":
+                if allow_empty_string:
+                    return ""
+                raise ValueError(f"{field_name} must be non-empty string.")
+            return text
+
+        return value
+
+    @classmethod
+    def _normalize_value_by_shape(
+        cls, *, value_type: ConfigValueType, config_shape: ConfigShape, value: Any, field_name: str
+    ) -> Any:
+        if config_shape == ConfigShape.SINGLE:
+            return cls._normalize_single_value(value_type, value, field_name)
+
+        if not isinstance(value, list):
+            raise TypeError(f"{field_name} must be array when config_shape is ARRAY.")
+        normalized_items: list[Any] = []
+        for item in value:
+            normalized_items.append(cls._normalize_single_value(value_type, item, field_name))
+        if len(normalized_items) == 0:
+            raise ValueError(f"{field_name} array cannot be empty.")
+        return normalized_items
+
+    async def validate(self, request: Request, data: dict[str, Any]) -> None:
+        """Validate system config payload before create/edit."""
+        value_type_raw = data.get("value_type")
+        config_shape_raw = data.get("config_shape")
+        if value_type_raw is not None and config_shape_raw is not None:
+            value_type = ConfigValueType(int(value_type_raw))
+            config_shape = ConfigShape(int(config_shape_raw))
+
+            config_value = self._parse_json_if_needed(data.get("config_value"))
+            default_value = self._parse_json_if_needed(data.get("default_value"))
+
+            try:
+                data["config_value"] = self._normalize_value_by_shape(
+                    value_type=value_type,
+                    config_shape=config_shape,
+                    value=config_value,
+                    field_name="config_value",
+                )
+            except (TypeError, ValueError) as exc:
+                raise FormValidationError({"config_value": str(exc)}) from exc
+
+            try:
+                data["default_value"] = self._normalize_single_value(
+                    value_type,
+                    default_value,
+                    "default_value",
+                    allow_empty_string=True,
+                )
+            except (TypeError, ValueError) as exc:
+                raise FormValidationError({"default_value": str(exc)}) from exc
+
+        await super().validate(request, data)
 
 
 class AdminUserView(BaseRoleAwareModelView):

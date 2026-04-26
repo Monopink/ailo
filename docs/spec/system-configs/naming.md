@@ -41,7 +41,17 @@
 - 服务端读取配置缺失应视为错误或明确“未启用”，不得悄悄回退到不可预期的行为。
 - 兜底与降级的统一边界见 `docs/spec/error-handling.md`。
 
-## 5) 配置分组（group_name）
+## 5) 配置域（config_scope）
+
+`system_configs.config_scope` 用于区分配置治理边界：
+
+- `system`：系统运行配置
+- `security`：安全与风控配置
+- `operation`：运营可调配置
+
+运行时读取配置仍以 `config_key` 为唯一标识，`config_scope` 用于后台页面分域与权限隔离。
+
+## 6) 配置分组（group_name）
 
 `system_configs.group_name` 用于管理端设置页的展示分组；运行时读取配置仍以 `config_key` 为唯一标识。
 
@@ -56,3 +66,25 @@
 - `group_name` 使用 `lower_snake_case`。
 - `group_name` 长度不超过 50 字符（与数据库字段长度一致）。
 - `group_name` 不包含客户端前缀；多客户端差异通过 `config_key` 的 `{client}_` 前缀表达。
+
+## 7) 值类型（value_type）
+
+`system_configs.value_type` 定义单项值的数据类型：
+
+- `1`：`STRING`
+- `2`：`NUMBER`
+- `3`：`BOOLEAN`
+- `4`：`JSON`
+- `5`：`ENUM`
+
+## 8) 值形态（config_shape）
+
+`system_configs.config_shape` 定义配置整体形态：
+
+- `1`：`SINGLE`（`config_value` 为单值）
+- `2`：`ARRAY`（`config_value` 为数组）
+
+当 `config_shape=2` 时：
+
+- `config_value` 为非空数组
+- `default_value` 为标量参考值（可为空字符串）

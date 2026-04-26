@@ -16,7 +16,6 @@ from app.crud.growth_reward import growth_reward_rule as growth_reward_rule_crud
 from app.crud.invite import invite_binding as invite_binding_crud
 from app.crud.invite import invite_code as invite_code_crud
 from app.crud.invite import invite_event as invite_event_crud
-from app.crud.invite import invite_share_template as invite_share_template_crud
 from app.enums.growth import GrowthRewardScopeType, GrowthRewardTargetRole, GrowthRewardTriggerEvent
 from app.enums.invite import InviteEventType, InviteResolveCodeType
 from app.models.user import User
@@ -29,10 +28,11 @@ from app.schemas.invitation import (
     InvitationEventTrackResponse,
     InvitationIntakeRequest,
     InvitationIntakeResponse,
+    InvitationPolicyResponse,
     InvitationResolveRequest,
     InvitationResolveResponse,
-    InvitationShareCard,
-    InvitationShareFullResponse,
+    InvitationShareCardResponse,
+    InvitationShareCommandResponse,
     InvitationStatsResponse,
 )
 from app.services.entitlement.service import ENTITLEMENT_AI_CONTACT_LIMIT
@@ -44,6 +44,7 @@ from app.services.invitation.intake import (
 from app.services.invitation.intake_orchestrator import orchestrate_invitation_intake
 from app.services.invitation.share_card import resolve_invite_share_card
 from app.services.security.rate_limiter import check_rate_limit
+from app.services.system_config import get_config_str_list
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -55,10 +56,26 @@ USER_INVITE_CODE_CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 INVITE_SHARE_CODE_PLACEHOLDER = "{{code}}"
 INVITE_SHARE_LINK_PLACEHOLDER = "{{link}}"
 INVITE_CAP_REACHED_ERROR = "邀请人数已达上限"
+INVITE_SHARE_COMMAND_TEXTS_CONFIG_KEY = "invite_share_command_texts"
+INVITE_SHARE_CARD_TITLES_CONFIG_KEY = "invite_share_card_titles"
 
 
 def _generate_user_invite_code() -> str:
     return "".join(secrets.choice(USER_INVITE_CODE_CHARSET) for _ in range(USER_INVITE_CODE_LENGTH))
+
+
+def _pick_random_text(candidates: list[str]) -> str:
+    """Pick one candidate string for share rendering."""
+    if len(candidates) == 0:
+        raise ValueError("empty_share_text_candidates")
+    return secrets.choice(candidates)
+
+
+def _render_invite_share_template(template: str, *, code: str, link: str) -> str:
+    """Render invite placeholders in one template string."""
+    return template.replace(INVITE_SHARE_CODE_PLACEHOLDER, code).replace(
+        INVITE_SHARE_LINK_PLACEHOLDER, link
+    )
 
 
 def _event_type_to_code(raw: str) -> InviteEventType:
@@ -261,6 +278,41 @@ async def get_my_invite_code(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误")
 
 
+@router.get("/policy", response_model=InvitationPolicyResponse)
+async def get_invitation_policy(
+    _current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> InvitationPolicyResponse:
+    """Get unified invitation policy for client pages."""
+    try:
+        policy_rules = await get_invitation_policy_rules(db, for_update=False)
+        invitee_rule = policy_rules.invitee_rule
+        inviter_rule = policy_rules.inviter_rule
+        inviter_max_rewards_per_actor = (
+            int(inviter_rule.max_rewards_per_actor)
+            if inviter_rule.max_rewards_per_actor is not None
+            else None
+        )
+        return InvitationPolicyResponse(
+            invitee_reward_contact_delta=int(invitee_rule.delta_granted),
+            inviter_reward_contact_delta=int(inviter_rule.delta_granted),
+            inviter_max_rewards_per_actor=inviter_max_rewards_per_actor,
+        )
+    except ValueError:
+        logger.error("invite_policy_rule_invalid")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        await db.rollback()
+        logger.error(
+            "invite_policy_get_failed",
+            error=str(exc),
+            exc_info=True,
+        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误")
+
+
 @router.get("/stats", response_model=InvitationStatsResponse)
 async def get_invitation_stats(
     current_user: User = Depends(get_current_user),
@@ -280,11 +332,9 @@ async def get_invitation_stats(
         )
         rewarded_contact_limit_total = success_invite_count * policy.reward_contact_limit_per_invite
         return InvitationStatsResponse(
-            success_invite_count=success_invite_count,
-            max_invite_count=policy.max_invite_count,
-            reward_contact_limit_per_invite=policy.reward_contact_limit_per_invite,
-            max_reward_contact_limit_total=max_reward_contact_limit_total,
-            rewarded_contact_limit_total=rewarded_contact_limit_total,
+            inviter_success_bind_count=success_invite_count,
+            inviter_reward_contact_limit_actual_total=apply_total,
+            inviter_reward_contact_limit_preview_total=preview_total,
         )
     except HTTPException:
         raise
@@ -299,49 +349,30 @@ async def get_invitation_stats(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误")
 
 
-@router.get("/share", response_model=InvitationShareFullResponse)
-async def get_invitation_share(
+@router.get("/share-command", response_model=InvitationShareCommandResponse)
+async def get_invitation_share_command(
     request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> InvitationShareFullResponse:
-    """Get invite share payload."""
+) -> InvitationShareCommandResponse:
+    """Get invite command payload for copy/share text."""
     try:
         code = await _get_or_create_user_invite_code(db, user_id=current_user.id)
-
-        template_obj = await invite_share_template_crud.get_one_active_random(db, locale="zh-CN")
-        if template_obj is None:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="系统错误",
-            )
-
-        template = template_obj.template_text.strip()
-
         link = f"{str(request.base_url).rstrip('/')}/i/{code}"
-        text = template.replace(INVITE_SHARE_CODE_PLACEHOLDER, code).replace(
-            INVITE_SHARE_LINK_PLACEHOLDER, link
+
+        share_command_templates = await get_config_str_list(
+            db,
+            key=INVITE_SHARE_COMMAND_TEXTS_CONFIG_KEY,
+            required=True,
         )
 
-        share_card = await resolve_invite_share_card(db, code=code)
-        if share_card is None:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="系统错误",
-            )
+        selected_template = _pick_random_text(share_command_templates)
+        text = _render_invite_share_template(selected_template, code=code, link=link)
 
-        return InvitationShareFullResponse(
+        return InvitationShareCommandResponse(
             code=code,
             text=text,
             link=link,
-            share_card=InvitationShareCard(
-                title=share_card.title,
-                path=share_card.path,
-                image_url=share_card.image_url,
-                slot_code=share_card.slot_code,
-                channel=share_card.channel,
-                version=share_card.version,
-            ),
         )
     except HTTPException:
         raise
@@ -351,7 +382,48 @@ async def get_invitation_share(
     except Exception as exc:
         await db.rollback()
         logger.error(
-            "invite_share_get_failed",
+            "invite_share_command_get_failed",
+            user_id=current_user.id,
+            error=str(exc),
+            exc_info=True,
+        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误")
+
+
+@router.get("/share-card", response_model=InvitationShareCardResponse)
+async def get_invitation_share_card(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> InvitationShareCardResponse:
+    """Get mini-program share card payload."""
+    try:
+        code = await _get_or_create_user_invite_code(db, user_id=current_user.id)
+
+        share_card_title_templates = await get_config_str_list(
+            db,
+            key=INVITE_SHARE_CARD_TITLES_CONFIG_KEY,
+            required=True,
+        )
+
+        share_card_title = _pick_random_text(share_card_title_templates)
+
+        share_card = resolve_invite_share_card(code=code)
+
+        return InvitationShareCardResponse(
+            code=code,
+            title=share_card_title,
+            path=share_card.path,
+            image_url=share_card.image_url,
+        )
+    except HTTPException:
+        raise
+    except ValueError:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误")
+    except Exception as exc:
+        await db.rollback()
+        logger.error(
+            "invite_share_card_get_failed",
             user_id=current_user.id,
             error=str(exc),
             exc_info=True,

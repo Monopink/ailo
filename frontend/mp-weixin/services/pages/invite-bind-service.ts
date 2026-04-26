@@ -4,11 +4,14 @@ import {
   InvitationBindResponseSchema,
   InvitationIntakeResponse,
   InvitationIntakeResponseSchema,
+  InvitationPolicyResponse,
+  InvitationPolicyResponseSchema,
 } from '../../utils/schemas';
 import { BasePageService } from './base-page-service';
 
 const INVITATIONS_BIND_ENDPOINT = '/invitations/bind';
 const INVITATIONS_INTAKE_ENDPOINT = '/invitations/intake';
+const INVITATIONS_POLICY_ENDPOINT = '/invitations/policy';
 
 export class InviteBindService extends BasePageService {
   async intakeInviteCode(code: string): Promise<InvitationIntakeResponse | null> {
@@ -34,6 +37,18 @@ export class InviteBindService extends BasePageService {
       url: INVITATIONS_BIND_ENDPOINT,
       method: 'POST',
       data: { code, source: 'invite_bind_page' },
+    });
+    if (!this.isRequestActive(seq)) {
+      return null;
+    }
+    return response;
+  }
+
+  async getInvitePolicy(): Promise<InvitationPolicyResponse | null> {
+    const seq = this.startRequest();
+    const response = await requestValidated(InvitationPolicyResponseSchema, {
+      url: INVITATIONS_POLICY_ENDPOINT,
+      method: 'GET',
     });
     if (!this.isRequestActive(seq)) {
       return null;

@@ -27,13 +27,12 @@ class InvitationBindingStatusResponse(BaseSchema):
 class InvitationStatsResponse(BaseSchema):
     """Response payload for invitation stats of current user."""
 
-    success_invite_count: int = Field(..., ge=0, description="Successful invitee count")
-    max_invite_count: int | None = Field(
-        default=None,
-        ge=1,
-        description="Maximum invitee count allowed for inviter, null means unlimited",
+    inviter_success_bind_count: int = Field(
+        ...,
+        ge=0,
+        description="Successful invite binding count for inviter",
     )
-    reward_contact_limit_per_invite: int = Field(
+    inviter_reward_contact_limit_actual_total: int = Field(
         ...,
         ge=0,
         description="Contact limit reward delta for inviter on each successful invite",
@@ -47,6 +46,22 @@ class InvitationStatsResponse(BaseSchema):
         ...,
         ge=0,
         description="Current total rewarded contact limit for inviter",
+    )
+
+
+class InvitationPolicyResponse(BaseSchema):
+    """Response payload for unified invitation reward policy."""
+
+    invitee_reward_contact_delta: int = Field(
+        ..., ge=0, description="Reward contact limit delta for invitee on bind success"
+    )
+    inviter_reward_contact_delta: int = Field(
+        ..., ge=0, description="Reward contact limit delta for inviter on bind success"
+    )
+    inviter_max_rewards_per_actor: int | None = Field(
+        default=None,
+        ge=1,
+        description="Configured max rewards per inviter actor, null means unlimited",
     )
 
 
@@ -87,24 +102,21 @@ class InvitationBindResponse(BaseSchema):
     )
 
 
-class InvitationShareCard(BaseSchema):
-    """Share card payload configured by operation slot."""
-
-    title: str = Field(..., description="Share card title")
-    path: str = Field(..., description="Mini program path for share card")
-    image_url: str = Field(..., description="Public share card image URL")
-    slot_code: str = Field(..., description="Operation slot code")
-    channel: str = Field(..., description="Share channel key")
-    version: int = Field(..., ge=1, description="Slot config version")
-
-
-class InvitationShareFullResponse(BaseSchema):
-    """Invite share payload."""
+class InvitationShareCommandResponse(BaseSchema):
+    """Invite share command payload."""
 
     code: str = Field(..., description="Current user invite code")
     text: str = Field(..., description="Rendered share text with invite code and link")
     link: str = Field(..., description="Invite link URL")
-    share_card: InvitationShareCard = Field(..., description="Structured share card payload")
+
+
+class InvitationShareCardResponse(BaseSchema):
+    """Invite share card payload."""
+
+    code: str = Field(..., description="Current user invite code")
+    title: str = Field(..., description="Share card title")
+    path: str = Field(..., description="Mini program path for share card")
+    image_url: str = Field(..., description="Public share card image URL")
 
 
 class InvitationIntakeRequest(BaseModel):

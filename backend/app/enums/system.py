@@ -3,14 +3,29 @@
 from enum import IntEnum, StrEnum
 
 
-class ConfigType(IntEnum):
-    """Configuration value type (system_configs.config_type)."""
+class ConfigValueType(IntEnum):
+    """Configuration value type (system_configs.value_type)."""
 
     STRING = 1
     NUMBER = 2
     BOOLEAN = 3
     JSON = 4
     ENUM = 5  # Select from allowed_values
+
+
+class ConfigShape(IntEnum):
+    """Configuration payload shape (system_configs.config_shape)."""
+
+    SINGLE = 1
+    ARRAY = 2
+
+
+class SystemConfigScope(StrEnum):
+    """Configuration scope (system_configs.config_scope)."""
+
+    SYSTEM = "system"
+    SECURITY = "security"
+    OPERATION = "operation"
 
 
 class AppPageCategory(IntEnum):

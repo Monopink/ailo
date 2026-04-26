@@ -4,18 +4,15 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums.invite import InviteCodeStatus, InviteEventType, InviteShareTemplateStatus
+from app.enums.invite import InviteCodeStatus, InviteEventType
 from app.models.invite import (
     InviteBinding,
     InviteCode,
     InviteEvent,
     InviteRecognitionLog,
-    InviteShareTemplate,
-    OperationAsset,
-    OperationSlotConfig,
 )
 
 
@@ -258,78 +255,7 @@ class CRUDInviteRecognitionLog:
         return obj
 
 
-class CRUDInviteShareTemplate:
-    """CRUD helpers for invite_share_templates."""
-
-    async def get_one_active_random(
-        self,
-        db: AsyncSession,
-        *,
-        locale: str = "zh-CN",
-    ) -> InviteShareTemplate | None:
-        """Return one active template, preferring exact locale then fallback locale."""
-        normalized_locale = locale.strip() if locale.strip() != "" else "zh-CN"
-
-        exact_stmt = (
-            select(InviteShareTemplate)
-            .where(
-                InviteShareTemplate.status == int(InviteShareTemplateStatus.ACTIVE),
-                InviteShareTemplate.locale == normalized_locale,
-            )
-            .order_by(InviteShareTemplate.priority.asc(), func.random())
-            .limit(1)
-        )
-        exact_result = await db.execute(exact_stmt)
-        exact_template = exact_result.scalar_one_or_none()
-        if exact_template is not None:
-            return exact_template
-
-        fallback_stmt = (
-            select(InviteShareTemplate)
-            .where(InviteShareTemplate.status == int(InviteShareTemplateStatus.ACTIVE))
-            .order_by(InviteShareTemplate.priority.asc(), func.random())
-            .limit(1)
-        )
-        fallback_result = await db.execute(fallback_stmt)
-        return fallback_result.scalar_one_or_none()
-
-
-class CRUDOperationSlotConfig:
-    """CRUD helpers for operation slot configs and related assets."""
-
-    async def get_one_active_slot_with_asset(
-        self,
-        db: AsyncSession,
-        *,
-        slot_code: str,
-        channel: str,
-        now: datetime,
-    ) -> tuple[OperationSlotConfig, OperationAsset] | None:
-        """Resolve one active slot config and its active asset."""
-        stmt = (
-            select(OperationSlotConfig, OperationAsset)
-            .join(OperationAsset, OperationSlotConfig.asset_id == OperationAsset.id)
-            .where(
-                OperationSlotConfig.slot_code == slot_code,
-                OperationSlotConfig.channel == channel,
-                OperationSlotConfig.status == 1,
-                OperationAsset.status == 1,
-                or_(OperationSlotConfig.start_at.is_(None), OperationSlotConfig.start_at <= now),
-                or_(OperationSlotConfig.end_at.is_(None), OperationSlotConfig.end_at > now),
-            )
-            .order_by(OperationSlotConfig.priority.asc(), OperationSlotConfig.id.desc())
-            .limit(1)
-        )
-        result = await db.execute(stmt)
-        row = result.first()
-        if row is None:
-            return None
-        return row[0], row[1]
-
-
 invite_code = CRUDInviteCode()
 invite_binding = CRUDInviteBinding()
 invite_event = CRUDInviteEvent()
 invite_recognition_log = CRUDInviteRecognitionLog()
-invite_share_template = CRUDInviteShareTemplate()
-operation_slot_config = CRUDOperationSlotConfig()

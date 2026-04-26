@@ -4,8 +4,10 @@
 
 - [获取我的邀请码](#获取我的邀请码) - `GET /api/v1/invitations/code`
 - [获取邀请码绑定状态](#获取邀请码绑定状态) - `GET /api/v1/invitations/binding-status`
+- [获取邀请规则](#获取邀请规则) - `GET /api/v1/invitations/policy`
 - [获取邀请统计](#获取邀请统计) - `GET /api/v1/invitations/stats`
-- [获取邀请分享文案](#获取邀请分享文案) - `GET /api/v1/invitations/share`
+- [获取邀请口令文案](#获取邀请口令文案) - `GET /api/v1/invitations/share-command`
+- [获取邀请分享卡片](#获取邀请分享卡片) - `GET /api/v1/invitations/share-card`
 - [邀请短链跳转](#邀请短链跳转) - `GET /i/{token}`
 - [匿名邀请码识别](#匿名邀请码识别) - `POST /api/v1/public/invitations/intake`
 - [登录态邀请码识别](#登录态邀请码识别) - `POST /api/v1/invitations/intake`
@@ -59,6 +61,31 @@
 
 ---
 
+## 获取邀请规则
+
+### 基本信息
+
+- **路径**: `GET /api/v1/invitations/policy`
+- **认证**: Bearer Token（必需）
+
+### 成功响应 (200)
+
+```json
+{
+  "invitee_reward_contact_delta": 1,
+  "inviter_reward_contact_delta": 1,
+  "inviter_max_rewards_per_actor": 3
+}
+```
+
+**字段说明**:
+
+- `invitee_reward_contact_delta` (integer) - 被邀请人绑定成功后的联系人上限奖励增量
+- `inviter_reward_contact_delta` (integer) - 邀请人绑定成功后的联系人上限奖励增量
+- `inviter_max_rewards_per_actor` (integer | null) - 邀请人奖励次数上限（`null` 表示不限制）
+
+---
+
 ## 获取邀请统计
 
 ### 基本信息
@@ -70,29 +97,25 @@
 
 ```json
 {
-  "success_invite_count": 12,
-  "max_invite_count": 3,
-  "reward_contact_limit_per_invite": 1,
-  "max_reward_contact_limit_total": 3,
-  "rewarded_contact_limit_total": 2
+  "inviter_success_bind_count": 12,
+  "inviter_reward_contact_limit_actual_total": 2,
+  "inviter_reward_contact_limit_preview_total": 3
 }
 ```
 
 **字段说明**:
 
-- `success_invite_count` (integer) - 当前用户已邀请成功人数（即成功绑定到该用户邀请码的人数）
-- `max_invite_count` (integer | null) - 当前用户最多可邀请人数（`null` 表示不限制）
-- `reward_contact_limit_per_invite` (integer) - 每次邀请成功可获得的联系人上限增量
-- `max_reward_contact_limit_total` (integer | null) - 可获得联系人上限总增量（`max_invite_count * reward_contact_limit_per_invite`，`null` 表示不限制）
-- `rewarded_contact_limit_total` (integer) - 当前用户已获得的联系人上限总增量
+- `inviter_success_bind_count` (integer) - 当前用户已邀请成功人数（即成功绑定到该用户邀请码的人数）
+- `inviter_reward_contact_limit_actual_total` (integer) - inviter 已实际发放总增量（基于 `growth_reward_applies` 与 `user_entitlement_ledger` 对齐后的真值）
+- `inviter_reward_contact_limit_preview_total` (integer) - 按“当前规则参数 × 邀请成功人数（受规则上限约束）”计算的预估总增量
 
 ---
 
-## 获取邀请分享文案
+## 获取邀请口令文案
 
 ### 基本信息
 
-- **路径**: `GET /api/v1/invitations/share`
+- **路径**: `GET /api/v1/invitations/share-command`
 - **认证**: Bearer Token（必需）
 
 ### 成功响应 (200)
@@ -101,30 +124,42 @@
 {
   "code": "K8P2Q7",
   "text": "敲敲好友都在用，K8P2Q7 https://example.com/i/K8P2Q7",
-  "link": "https://example.com/i/K8P2Q7",
-  "share_card": {
-    "title": "来敲敲AI，对话敲多新奇有趣",
-    "path": "/pages/setup/setup?inviteCode=K8P2Q7",
-    "image_url": "https://cortex.qiaoqiaoai.cn/share/invite-share-card.png",
-    "slot_code": "invite_share_card",
-    "channel": "mini_program",
-    "version": 1
-  }
+  "link": "https://example.com/i/K8P2Q7"
 }
 ```
 
 **字段说明**:
 
 - `code` (string) - 当前用户的邀请码
-- `text` (string) - 后端模板渲染后的邀请文案（模板可包含 `{{code}}`、`{{link}}` 或纯文本）
+- `text` (string) - 后端模板渲染后的邀请口令文案（模板支持 `{{code}}`、`{{link}}` 占位符）
 - `link` (string) - 邀请短链（`/i/{token}`）
-- `share_card` (object) - 邀请分享卡片配置
-- `share_card.title` (string) - 分享标题
-- `share_card.path` (string) - 小程序分享路径
-- `share_card.image_url` (string) - 分享图片公网 URL（HTTPS）
-- `share_card.slot_code` (string) - 运营槽位标识（当前为 `invite_share_card`）
-- `share_card.channel` (string) - 渠道标识（当前为 `mini_program`）
-- `share_card.version` (integer) - 槽位配置版本号（>=1）
+
+---
+
+## 获取邀请分享卡片
+
+### 基本信息
+
+- **路径**: `GET /api/v1/invitations/share-card`
+- **认证**: Bearer Token（必需）
+
+### 成功响应 (200)
+
+```json
+{
+  "code": "K8P2Q7",
+  "title": "来敲敲AI，对话敲多新奇有趣",
+  "path": "/pages/boot/boot?inviteCode=K8P2Q7",
+  "image_url": "https://cortex.qiaoqiaoai.cn/share/invite-share-card.webp"
+}
+```
+
+**字段说明**:
+
+- `code` (string) - 当前用户的邀请码
+- `title` (string) - 分享卡片标题（从运营配置文案数组中随机选择）
+- `path` (string) - 小程序分享路径（固定为 `/pages/boot/boot?inviteCode={code}`）
+- `image_url` (string) - 分享图片公网 URL（`media_public_base_url + /share/invite-share-card.webp`）
 
 ---
 

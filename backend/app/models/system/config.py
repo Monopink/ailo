@@ -3,12 +3,12 @@
 This module contains SQLAlchemy models for system configuration management.
 """
 
-from sqlalchemy import Integer, String, Text
+from sqlalchemy import CheckConstraint, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import AutoIncrementModel
-from app.type_defs import JSONArray
+from app.type_defs import JSONArray, JSONValue
 
 
 class SystemConfig(AutoIncrementModel):
@@ -23,16 +23,29 @@ class SystemConfig(AutoIncrementModel):
         String(100), nullable=False, unique=True, comment="Configuration key"
     )
 
-    config_value: Mapped[str] = mapped_column(Text, nullable=False, comment="Configuration value")
-
-    default_value: Mapped[str] = mapped_column(
-        Text, nullable=False, comment="Default configuration value"
+    config_value: Mapped[JSONValue] = mapped_column(
+        JSONB,
+        nullable=False,
+        comment="Configuration value stored in JSONB",
     )
 
-    config_type: Mapped[int] = mapped_column(
+    default_value: Mapped[JSONValue] = mapped_column(
+        JSONB,
+        nullable=False,
+        comment="Default configuration value stored in JSONB",
+    )
+
+    value_type: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         comment="Value type: 1=string, 2=number, 3=boolean, 4=json, 5=enum",
+    )
+
+    config_shape: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        comment="Config shape: 1=single value, 2=array value",
     )
 
     description: Mapped[str | None] = mapped_column(
@@ -49,4 +62,21 @@ class SystemConfig(AutoIncrementModel):
 
     allowed_values: Mapped[JSONArray | None] = mapped_column(
         JSONB, nullable=True, comment="Allowed values for enum type (JSON array)"
+    )
+
+    config_scope: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="system",
+        comment="Configuration scope: system/security/operation",
+    )
+
+    __table_args__ = (
+        CheckConstraint("value_type IN (1, 2, 3, 4, 5)", name="ck_system_configs_value_type"),
+        CheckConstraint("config_shape IN (1, 2)", name="ck_system_configs_shape"),
+        CheckConstraint(
+            "config_scope IN ('system', 'security', 'operation')",
+            name="ck_system_configs_scope",
+        ),
+        Index("idx_system_configs_scope", "config_scope"),
     )

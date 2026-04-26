@@ -1,0 +1,103 @@
+{% extends "layout.html" %}
+
+{% block title %}<title>{{ admin_text(page_title) }}</title>{% endblock %}
+
+{% block head_css %}
+<link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/system-settings.css') }}">
+{% endblock %}
+
+{% block header %}
+<div class="d-flex justify-content-between align-items-center">
+  <div>
+    <h1>{{ admin_text(page_title) }}</h1>
+  </div>
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item">
+      <a href="{{ url_for(__name__ ~ ':index') }}">{{ admin_text("Admin") }}</a>
+    </li>
+    <li class="breadcrumb-item active">{{ admin_text(page_title) }}</li>
+  </ol>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="page-body">
+  <div class="container-xl">
+    <div class="row">
+      <div class="col-12">
+        {% include "custom_views/system_settings/partials/alerts.html" %}
+      </div>
+    </div>
+
+    <div class="row mb-4">
+      <div class="col-12 col-lg-6">
+        <div class="card" id="invitation-policy-card">
+          <div class="card-header">
+            <h3 class="card-title mb-0">邀请奖励策略</h3>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label class="form-label" for="ip-invitee-delta">被邀请人奖励增量</label>
+              <input type="number" min="0" class="form-control" id="ip-invitee-delta">
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="ip-inviter-delta">邀请人奖励增量</label>
+              <input type="number" min="0" class="form-control" id="ip-inviter-delta">
+            </div>
+            <div>
+              <label class="form-label" for="ip-inviter-cap">邀请人奖励次数上限</label>
+              <input type="number" min="1" class="form-control" id="ip-inviter-cap" placeholder="留空表示不封顶">
+              <small class="text-muted">单个邀请人最多可获奖励次数。</small>
+            </div>
+          </div>
+          <div class="card-footer">
+            <div class="btn-list justify-content-end">
+              <button type="button" class="btn btn-outline-secondary" id="reload-invitation-policy-btn">
+                <i class="fa fa-refresh me-1"></i>重新加载
+              </button>
+              <button type="button" class="btn btn-primary" id="save-invitation-policy-btn">
+                <i class="fa fa-save me-1"></i>保存策略
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="my-4">
+    {% include "custom_views/system_settings/partials/config_groups_form.html" %}
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+window.qiaoSystemSettingsPageConfig = {
+  pageMode: "operation",
+  api: {
+    invitationPolicy: "/admin-api/system/invitation-policy",
+  },
+  i18n: {
+    noChanges: {{ admin_text("No changes to save. All modification fields are empty.") | tojson | safe }},
+    changeConfirmTitle: {{ admin_text("You are about to modify the following configuration(s):") | tojson | safe }},
+    changeConfirmQuestion: {{ admin_text("Are you sure you want to save these changes?") | tojson | safe }},
+    currentValueNotSelectable: {{ admin_text("Current value is not available in selectable options.") | tojson | safe }},
+    leaveEmptyNoChange: {{ admin_text("Leave empty for no change") | tojson | safe }},
+    leaveEmptyNoChangeExample: {{ admin_text("Leave empty for no change. Example: [\"value1\",\"value2\"]") | tojson | safe }},
+    enterJsonItem: {{ admin_text("Enter JSON item") | tojson | safe }},
+    enterValue: {{ admin_text("Enter value") | tojson | safe }},
+    noChangeOption: {{ admin_text("-- No Change --") | tojson | safe }},
+    selectOption: {{ admin_text("-- Select --") | tojson | safe }},
+    loadPolicyFailed: "加载邀请奖励策略失败",
+    savePolicyFailed: "保存邀请奖励策略失败",
+    savePolicySuccess: "邀请奖励策略已保存",
+    invalidInviteeDelta: "被邀请人奖励增量必须是大于等于 0 的整数。",
+    invalidInviterDelta: "邀请人奖励增量必须是大于等于 0 的整数。",
+    invalidInviterCap: "邀请人奖励次数上限需留空或填写大于等于 1 的整数。",
+    savePolicyConfirm: "确认保存邀请奖励策略变更吗？",
+    reloadPolicyConfirm: "确认从服务器重新加载并丢弃当前未保存修改吗？",
+  }
+};
+</script>
+<script type="module" src="{{ url_for(__name__ ~ ':statics', path='js/system-settings/pages/operation-settings.js') }}"></script>
+{% endblock %}

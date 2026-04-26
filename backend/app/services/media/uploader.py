@@ -23,7 +23,7 @@ from app.services.security.rate_limiter import check_rate_limit
 from app.services.storage.base import StorageError
 from app.services.storage.factory import get_storage_backend
 from app.services.storage.utils import generate_file_id, generate_object_key
-from app.services.system_config import get_config_int, get_config_str
+from app.services.system_config import get_config_int, get_config_str_list
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -265,8 +265,8 @@ async def upload_via_proxy_for_actor(
 
 
 async def _get_allowed_mimes(db: AsyncSession, config_key: str) -> list[str]:
-    allowed = await get_config_str(db, config_key)
-    return [item.strip().lower() for item in allowed.split(",") if item.strip()]
+    allowed_items = await get_config_str_list(db, config_key)
+    return [item.strip().lower() for item in allowed_items if item.strip()]
 
 
 async def _get_max_size_bytes(db: AsyncSession, config_key: str) -> int:

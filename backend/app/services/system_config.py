@@ -1,5 +1,4 @@
-"""
-System configuration management service.
+"""System configuration management service.
 
 This module provides centralized management for system configuration
 stored in the database, with caching and type conversion support.
@@ -8,13 +7,14 @@ IMPORTANT: This service is READ-ONLY. For write operations, use crud.system.conf
 After updating configs through CRUD, call SystemConfigService.reload_cache() to sync.
 """
 
-import json
-from typing import TypedDict, cast
+from __future__ import annotations
+
+from typing import TypedDict
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.enums import ConfigType
+from app.enums import ConfigShape, ConfigValueType
 from app.exceptions import ConfigurationError, MissingConfigurationError
 from app.models.system import SystemConfig
 from app.type_defs import ConfigGroup, JSONValue
@@ -22,8 +22,6 @@ from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-
-# Configuration cache
 ConfigValue = JSONValue | None
 NumericConfigValue = str | int | float
 
@@ -38,7 +36,7 @@ _config_state: _ConfigCacheState = {"cache": {}, "loaded": False}
 
 def _ensure_numeric_config_value(value: ConfigValue, key: str) -> NumericConfigValue:
     """Ensure a configuration value can be treated as a numeric string/int."""
-    if isinstance(value, str | int | float):
+    if isinstance(value, str | int | float) and not isinstance(value, bool):
         return value
     raise ConfigurationError(
         message=f"Configuration '{key}' expects a numeric value.",
@@ -69,31 +67,54 @@ def _ensure_bool_config_value(value: ConfigValue, key: str) -> bool:
     )
 
 
+def _ensure_string_list_config_value(value: ConfigValue, key: str) -> list[str]:
+    """Ensure a configuration value can be treated as a non-empty list of strings."""
+    if not isinstance(value, list):
+        raise ConfigurationError(
+            message=f"Configuration '{key}' expects a string array.",
+            config_key=key,
+            details={"received_type": type(value).__name__ if value is not None else "None"},
+        )
+
+    normalized_items: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str):
+            raise ConfigurationError(
+                message=f"Configuration '{key}' contains non-string array item.",
+                config_key=key,
+                details={"index": index, "received_type": type(item).__name__},
+            )
+        trimmed_item = item.strip()
+        if trimmed_item == "":
+            raise ConfigurationError(
+                message=f"Configuration '{key}' contains empty string array item.",
+                config_key=key,
+                details={"index": index},
+            )
+        normalized_items.append(trimmed_item)
+
+    if len(normalized_items) == 0:
+        raise ConfigurationError(
+            message=f"Configuration '{key}' must contain at least one string item.",
+            config_key=key,
+            details={"received_length": 0},
+        )
+
+    return normalized_items
+
+
 class SystemConfigService:
     """System configuration service with caching support."""
 
     @staticmethod
     async def get_config(db: AsyncSession, key: str, *, required: bool = True) -> ConfigValue:
-        """
-        Get configuration value by key.
-
-        Args:
-            db: Database session
-            key: Configuration key
-            required: Whether to raise if configuration is missing
-
-        Returns:
-            Configuration value with proper type conversion
-        """
-        # Load cache if not loaded
+        """Get configuration value by key."""
         if not _config_state["loaded"]:
             await SystemConfigService._load_cache(db)
 
-        # Return from cache
         if key in _config_state["cache"]:
             return _config_state["cache"][key]
 
-        # Cache miss: fetch single key from database and backfill cache.
         db_value = await SystemConfigService._get_config_value_from_db(db, key)
         if db_value is not None:
             _config_state["cache"][key] = db_value
@@ -101,8 +122,6 @@ class SystemConfigService:
             return db_value
 
         logger.warning("system_config_cache_miss_db_miss", key=key)
-
-        # Missing configuration
         if required:
             logger.error("system_config_missing", key=key)
             raise MissingConfigurationError(config_key=key)
@@ -143,7 +162,6 @@ class SystemConfigService:
         value = await SystemConfigService.get_config(db, key, required=required)
         if value is None:
             raise MissingConfigurationError(config_key=key)
-
         return _ensure_string_config_value(value, key)
 
     @staticmethod
@@ -157,86 +175,75 @@ class SystemConfigService:
         value = await SystemConfigService.get_config(db, key, required=required)
         if value is None:
             raise MissingConfigurationError(config_key=key)
-
         return _ensure_bool_config_value(value, key)
 
     @staticmethod
+    async def get_config_str_list(
+        db: AsyncSession,
+        key: str,
+        *,
+        required: bool = True,
+    ) -> list[str]:
+        """Get a configuration value as a non-empty list of strings."""
+        value = await SystemConfigService.get_config(db, key, required=required)
+        if value is None:
+            if required:
+                raise MissingConfigurationError(config_key=key)
+            return []
+        return _ensure_string_list_config_value(value, key)
+
+    @staticmethod
     async def get_all_configs(db: AsyncSession) -> dict[str, ConfigValue]:
-        """
-        Get all configuration values.
-
-        Args:
-            db: Database session
-
-        Returns:
-            Dictionary of all configuration values
-        """
+        """Get all configuration values."""
         if not _config_state["loaded"]:
             await SystemConfigService._load_cache(db)
-
         return _config_state["cache"].copy()
 
     @staticmethod
     async def get_configs_by_group(db: AsyncSession) -> dict[str, ConfigGroup]:
-        """
-        Get configurations grouped by group_name (fully dynamic from database).
+        """Get configurations grouped by group_name."""
+        return await SystemConfigService.get_configs_by_group_with_scope(db)
 
-        Returns:
-            Grouped configuration dictionary with full config objects
-        """
-        # Get all config objects from database, ordered by group and key
-        result = await db.execute(
-            select(SystemConfig).order_by(SystemConfig.group_name, SystemConfig.config_key)
-        )
+    @staticmethod
+    async def get_configs_by_group_with_scope(
+        db: AsyncSession,
+        *,
+        scopes: set[str] | None = None,
+    ) -> dict[str, ConfigGroup]:
+        """Get configurations grouped by group_name with optional scope filter."""
+        stmt = select(SystemConfig)
+        if scopes:
+            stmt = stmt.where(SystemConfig.config_scope.in_(scopes))
+        result = await db.execute(stmt.order_by(SystemConfig.group_name, SystemConfig.config_key))
         all_configs = result.scalars().all()
 
-        # Dynamically build groups from database
         groups: dict[str, ConfigGroup] = {}
         for config in all_configs:
             group_name = config.group_name or "other"
-
-            # Create group if not exists
             if group_name not in groups:
                 groups[group_name] = ConfigGroup(
-                    title=group_name,  # Will be formatted by frontend
+                    title=group_name,
                     description="",
                     configs={},
                 )
-
-            # Add config to group
             groups[group_name]["configs"][config.config_key] = config
-
         return groups
 
     @staticmethod
     async def check_missing_configs(db: AsyncSession, displayed_keys: set[str]) -> list[str]:
-        """
-        Check if all configs in database are displayed in UI.
-
-        Args:
-            db: Database session
-            displayed_keys: Set of config keys currently displayed
-
-        Returns:
-            List of missing config keys
-        """
+        """Check if all configs in database are displayed in UI."""
         try:
             result = await db.execute(select(SystemConfig.config_key))
             all_keys = {row[0] for row in result.fetchall()}
             missing_keys = all_keys - displayed_keys
             return sorted(missing_keys)
-        except Exception as e:
-            logger.error("check_missing_configs_error", error=str(e), exc_info=True)
+        except Exception as exc:
+            logger.error("check_missing_configs_error", error=str(exc), exc_info=True)
             return []
 
     @staticmethod
     async def reload_cache(db: AsyncSession) -> None:
-        """
-        Reload configuration cache from database.
-
-        This should be called after updating configurations through CRUD layer
-        to ensure cache consistency.
-        """
+        """Reload configuration cache from database."""
         _config_state["loaded"] = False
         await SystemConfigService._load_cache(db)
 
@@ -251,15 +258,17 @@ class SystemConfigService:
             cache.clear()
             for config in configs:
                 value = SystemConfigService._convert_from_db_format(
-                    config.config_value, config.config_type, config_key=config.config_key
+                    config.config_value,
+                    config.value_type,
+                    config_shape=config.config_shape,
+                    config_key=config.config_key,
                 )
                 cache[config.config_key] = value
 
             _config_state["loaded"] = True
             logger.info("system_configs_cache_loaded", count=len(cache))
-
-        except Exception as e:
-            logger.error("system_configs_cache_load_error", error=str(e), exc_info=True)
+        except Exception as exc:
+            logger.error("system_configs_cache_load_error", error=str(exc), exc_info=True)
             _config_state["loaded"] = False
             raise
 
@@ -275,73 +284,119 @@ class SystemConfigService:
 
         return SystemConfigService._convert_from_db_format(
             config.config_value,
-            config.config_type,
+            config.value_type,
+            config_shape=config.config_shape,
             config_key=config.config_key,
         )
 
     @staticmethod
-    def _convert_to_db_format(value: ConfigValue) -> tuple[str, int]:
-        """
-        Convert Python value to database format.
-
-        Returns:
-            Tuple of (string_value, config_type)
-            config_type: 1=string, 2=integer, 3=boolean, 4=json
-        """
-        if isinstance(value, bool):
-            return str(value).lower(), 3
-        if isinstance(value, int):
-            return str(value), 2
-        if isinstance(value, list | dict):
-            return json.dumps(value), 4
-        return str(value), 1
-
-    @staticmethod
-    def _convert_from_db_format(
-        value: str | None,
-        config_type: int,
+    def _convert_single_value(  # noqa: PLR0911
+        value: JSONValue,
+        value_type: int,
         *,
         config_key: str,
-    ) -> ConfigValue:
-        """
-        Convert database value to Python type.
+    ) -> JSONValue:
+        """Convert one JSONB scalar value to runtime type."""
+        if value_type in (ConfigValueType.STRING, ConfigValueType.ENUM):
+            if isinstance(value, str):
+                return value
+            raise ConfigurationError(
+                message="Configuration expects a string value.",
+                config_key=config_key,
+                details={"value": value, "value_type": int(value_type)},
+            )
 
-        Args:
-            value: String value from database
-            config_type: 1=string, 2=integer, 3=boolean, 4=json
-
-        Returns:
-            Converted Python value
-        """
-        if value is None:
-            return None
-
-        if config_type == ConfigType.STRING:
-            return value
-        if config_type == ConfigType.NUMBER:
-            try:
-                return int(value)
-            except (ValueError, TypeError) as exc:
+        if value_type == ConfigValueType.NUMBER:
+            if isinstance(value, bool):
                 raise ConfigurationError(
                     message="Configuration expects an integer value.",
                     config_key=config_key,
-                    details={"value": value, "config_type": int(config_type)},
-                ) from exc
-        if config_type == ConfigType.BOOLEAN:
-            return value.lower() in ("true", "1", "yes", "on")
-        if config_type == ConfigType.JSON:
-            try:
-                return cast(JSONValue, json.loads(value))
-            except (ValueError, json.JSONDecodeError) as exc:
-                raise ConfigurationError(
-                    message="Configuration expects a valid JSON value.",
-                    config_key=config_key,
-                    details={"value": value, "config_type": int(config_type)},
-                ) from exc
+                    details={"value": value, "value_type": int(value_type)},
+                )
+            if isinstance(value, int):
+                return value
+            if isinstance(value, float) and value.is_integer():
+                return int(value)
+            if isinstance(value, str):
+                raw_value = value.strip()
+                if raw_value == "":
+                    raise ConfigurationError(
+                        message="Configuration expects an integer value.",
+                        config_key=config_key,
+                        details={"value": value, "value_type": int(value_type)},
+                    )
+                try:
+                    return int(raw_value)
+                except (ValueError, TypeError) as exc:
+                    raise ConfigurationError(
+                        message="Configuration expects an integer value.",
+                        config_key=config_key,
+                        details={"value": value, "value_type": int(value_type)},
+                    ) from exc
+            raise ConfigurationError(
+                message="Configuration expects an integer value.",
+                config_key=config_key,
+                details={"value": value, "value_type": int(value_type)},
+            )
+
+        if value_type == ConfigValueType.BOOLEAN:
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                lowered = value.lower()
+                if lowered in ("true", "1", "yes", "on"):
+                    return True
+                if lowered in ("false", "0", "no", "off"):
+                    return False
+            raise ConfigurationError(
+                message="Configuration expects a boolean value.",
+                config_key=config_key,
+                details={"value": value, "value_type": int(value_type)},
+            )
+
+        if value_type == ConfigValueType.JSON:
+            return value
+
         return value
 
+    @staticmethod
+    def _convert_from_db_format(
+        value: JSONValue | None,
+        value_type: int,
+        *,
+        config_shape: int,
+        config_key: str,
+    ) -> ConfigValue:
+        """Convert database JSONB value to runtime type."""
+        if value is None:
+            return None
 
-# Convenience functions
+        if config_shape == ConfigShape.ARRAY:
+            if not isinstance(value, list):
+                raise ConfigurationError(
+                    message="Configuration expects an array value.",
+                    config_key=config_key,
+                    details={"value": value, "config_shape": int(config_shape)},
+                )
+
+            converted_items: list[JSONValue] = []
+            for item in value:
+                converted_items.append(
+                    SystemConfigService._convert_single_value(
+                        item,
+                        value_type,
+                        config_key=config_key,
+                    )
+                )
+            return converted_items
+
+        return SystemConfigService._convert_single_value(
+            value,
+            value_type,
+            config_key=config_key,
+        )
+
+
 async def get_config(db: AsyncSession, key: str, *, required: bool = True) -> ConfigValue:
     """Get configuration value."""
     return await SystemConfigService.get_config(db, key, required=required)
@@ -354,11 +409,7 @@ async def get_config_int(
     required: bool = True,
 ) -> int:
     """Get configuration value as an integer."""
-    return await SystemConfigService.get_config_int(
-        db,
-        key,
-        required=required,
-    )
+    return await SystemConfigService.get_config_int(db, key, required=required)
 
 
 async def get_config_str(
@@ -368,11 +419,7 @@ async def get_config_str(
     required: bool = True,
 ) -> str:
     """Get configuration value as a string."""
-    return await SystemConfigService.get_config_str(
-        db,
-        key,
-        required=required,
-    )
+    return await SystemConfigService.get_config_str(db, key, required=required)
 
 
 async def get_config_bool(
@@ -382,11 +429,17 @@ async def get_config_bool(
     required: bool = True,
 ) -> bool:
     """Get configuration value as a boolean."""
-    return await SystemConfigService.get_config_bool(
-        db,
-        key,
-        required=required,
-    )
+    return await SystemConfigService.get_config_bool(db, key, required=required)
+
+
+async def get_config_str_list(
+    db: AsyncSession,
+    key: str,
+    *,
+    required: bool = True,
+) -> list[str]:
+    """Get configuration value as a non-empty list of strings."""
+    return await SystemConfigService.get_config_str_list(db, key, required=required)
 
 
 async def get_all_configs(db: AsyncSession) -> dict[str, ConfigValue]:
@@ -397,3 +450,12 @@ async def get_all_configs(db: AsyncSession) -> dict[str, ConfigValue]:
 async def get_configs_by_group(db: AsyncSession) -> dict[str, ConfigGroup]:
     """Get configurations grouped by category."""
     return await SystemConfigService.get_configs_by_group(db)
+
+
+async def get_configs_by_group_with_scope(
+    db: AsyncSession,
+    *,
+    scopes: set[str] | None = None,
+) -> dict[str, ConfigGroup]:
+    """Get configurations grouped by category with optional scope filter."""
+    return await SystemConfigService.get_configs_by_group_with_scope(db, scopes=scopes)

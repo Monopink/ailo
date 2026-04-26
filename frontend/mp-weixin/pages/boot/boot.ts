@@ -39,6 +39,33 @@ const toError = (error: unknown): Error => {
 
 type RouteOptions = Record<string, string | undefined>;
 
+const normalizeQueryValue = (value: string | undefined): string | null => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+};
+
+const buildRouteUrl = (basePath: string, options: RouteOptions): string => {
+  const params: string[] = [];
+
+  const inviteCode = normalizeQueryValue(options.inviteCode);
+  if (inviteCode !== null) {
+    params.push(`inviteCode=${encodeURIComponent(inviteCode)}`);
+  }
+
+  const campaignCode = normalizeQueryValue(options.campaignCode);
+  if (campaignCode !== null) {
+    params.push(`campaignCode=${encodeURIComponent(campaignCode)}`);
+  }
+
+  if (params.length === 0) {
+    return basePath;
+  }
+  return `${basePath}?${params.join('&')}`;
+};
+
 Page<BootPageData, BootPageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
@@ -74,8 +101,9 @@ Page<BootPageData, BootPageCustom>({
       });
 
       if (!isAuthenticated) {
+        const loginUrl = buildRouteUrl('/pages/login/login', options);
         this._routeOnce(() => {
-          void wx.redirectTo({ url: '/pages/login/login' });
+          void wx.redirectTo({ url: loginUrl });
         });
         return;
       }
@@ -89,8 +117,9 @@ Page<BootPageData, BootPageCustom>({
       }
 
       if (authService.needsProfileSetup()) {
+        const setupUrl = buildRouteUrl('/pages/setup/setup', options);
         this._routeOnce(() => {
-          void wx.redirectTo({ url: '/pages/setup/setup' });
+          void wx.redirectTo({ url: setupUrl });
         });
         return;
       }

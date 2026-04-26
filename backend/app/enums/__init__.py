@@ -61,9 +61,6 @@ from .invite import (
     InviteCodeStatus,
     InviteEventType,
     InviteResolveCodeType,
-    InviteShareTemplateStatus,
-    OperationAssetType,
-    OperationStatus,
 )
 from .llm import LLMConfigStatus, LLMErrorCode, LLMTestStatus, ThinkingMode, ToolChoice
 from .media import FileStatus, FileType, UploaderType
@@ -99,7 +96,9 @@ from .system import (
     AppPageCategory,
     AppPageSourceType,
     AppPageStatus,
-    ConfigType,
+    ConfigShape,
+    ConfigValueType,
+    SystemConfigScope,
 )
 from .templates import CHAT_INFO_TEMPLATES
 from .user import (
@@ -187,12 +186,9 @@ __all__ = [
     "SquareEntryStatus",
     "EntitlementSourceType",
     # Invitation
-    "InviteShareTemplateStatus",
     "InviteCodeStatus",
     "InviteEventType",
     "InviteResolveCodeType",
-    "OperationAssetType",
-    "OperationStatus",
     "CampaignStatus",
     "GrowthRewardScopeType",
     "GrowthRewardTargetRole",
@@ -208,7 +204,9 @@ __all__ = [
     "ManualReviewStatus",
     "RiskLevel",
     # System Configuration
-    "ConfigType",
+    "ConfigValueType",
+    "ConfigShape",
+    "SystemConfigScope",
     "AppPageCategory",
     "AppPageSourceType",
     "AppPageStatus",

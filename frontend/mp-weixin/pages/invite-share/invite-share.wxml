@@ -16,9 +16,7 @@
     <view class="invite-share__content">
       <view class="invite-share__activity">
         <text class="invite-share__activity-title">邀请好友，一起扩列</text>
-        <text class="invite-share__activity-subtitle"
-          >每邀请1位用户，双方各增加 {{rewardContactLimitPerInvite}} 个联系人上限。</text
-        >
+        <text class="invite-share__activity-subtitle">{{activityRewardHintText}}</text>
       </view>
 
       <view class="invite-share__hero-art">
@@ -30,7 +28,7 @@
         <view class="invite-share__hero-envelope">
           <view class="invite-share__hero-shadow" />
           <view class="invite-share__hero-ticket">
-            <text class="invite-share__hero-ticket-text">+{{rewardContactLimitPerInvite}}</text>
+            <text class="invite-share__hero-ticket-text">+{{inviterRewardContactDelta}}</text>
           </view>
           <view class="invite-share__hero-envelope-letter">
             <view class="invite-share__hero-envelope-letter-head" />
@@ -92,9 +90,7 @@
           <view class="invite-share__step-card">
             <text class="invite-share__step-index">03</text>
             <text class="invite-share__step-title">奖励到账</text>
-            <text class="invite-share__step-text"
-              >绑定成功后，双方立即各增加 {{rewardContactLimitPerInvite}} 个联系人上限。</text
-            >
+            <text class="invite-share__step-text">{{stepRewardHintText}}</text>
           </view>
         </view>
       </view>
@@ -128,9 +124,7 @@
         <view class="invite-share__rule-list">
           <view class="invite-share__rule-item">
             <view class="invite-share__rule-dot" />
-            <text class="invite-share__rule-text"
-              >每次成功绑定后，邀请双方各增加 {{rewardContactLimitPerInvite}} 个联系人上限。</text
-            >
+            <text class="invite-share__rule-text">{{ruleRewardHintText}}</text>
           </view>
           <view wx:if="{{maxInviteCount != null}}" class="invite-share__rule-item">
             <view class="invite-share__rule-dot" />

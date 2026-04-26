@@ -1,0 +1,33 @@
+{% if success %}
+<div class="alert alert-success alert-dismissible" role="alert">
+  <i class="fa fa-check-circle me-2"></i>{{ success }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+{% if error %}
+<div class="alert alert-danger alert-dismissible" role="alert">
+  <i class="fa fa-exclamation-triangle me-2"></i>{{ error }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+{% if warning %}
+<div class="alert alert-warning alert-dismissible" role="alert">
+  <i class="fa fa-exclamation-circle me-2"></i>{{ warning }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+{% if missing_configs %}
+<div class="alert alert-warning alert-dismissible" role="alert">
+  <i class="fa fa-exclamation-triangle me-2"></i>
+  <strong>{{ admin_text("Warning:") }}</strong> {{ admin_text("The following configuration keys are not displayed in the UI:") }}
+  <ul class="mb-0 mt-2">
+    {% for key in missing_configs %}
+    <li><code>{{ key }}</code></li>
+    {% endfor %}
+  </ul>
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}

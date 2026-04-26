@@ -23,6 +23,7 @@
 3. setup 页面可从以下来源调用[登录态邀请码识别接口](../../../api/invitations.md#登录态邀请码识别)自动预填邀请码（用户可修改/清空）：
    - 剪贴板文本
    - 页面参数 `inviteCode`（例如分享链接进入）
+   - 分享链接统一先进入 boot 页面；boot 仅在“需要 setup”分流时透传 `inviteCode` 到 setup，已完成 setup 时忽略该参数
 4. 提交时先调用 [更新资料接口](../../../api/user.md#更新用户资料)
 5. 资料更新成功后，若填写邀请码，再调用 [绑定邀请码接口](../../../api/invitations.md#绑定邀请码)
 6. 地区字段提交 `region_country_code`、`region_cn_city_code`、`region_province_name`、`region_city_name`
@@ -37,10 +38,9 @@
 ## setup 之外的绑定入口
 
 - setup 完成后，用户仍可在“填写邀请码”页面手动填写并绑定**用户邀请码**。
-- 若用户已完成 setup，则邀请码绑定成功后立即触发 inviter 奖励。
-- “邀请好友”页面展示：我的邀请码、已邀请成功人数、可邀请上限（当 `max_invite_count` 非空时）、联系人上限奖励统计、复制邀请码、复制口令、微信分享能力，不提供绑定入口。
-- “邀请好友”页面微信分享卡片（标题、路径、图片）由 `GET /api/v1/invitations/share` 返回的 `share_card` 驱动，不使用前端硬编码分享图。
-- “邀请好友”页面奖励文案中的“每次增加联系人上限”由 `GET /api/v1/invitations/stats` 的 `reward_contact_limit_per_invite` 驱动，不使用前端固定数值。
+- “邀请好友”页面展示：我的邀请码、已邀请成功人数、可邀请上限（当 `inviter_max_rewards_per_actor` 非空时）、联系人上限奖励统计、复制邀请码、复制口令、微信分享能力，不提供绑定入口。
+- “邀请好友”页面微信分享卡片（标题、路径、图片）由 `GET /api/v1/invitations/share-card` 驱动，不使用前端硬编码分享图。
+- “邀请好友”页面奖励文案由 `GET /api/v1/invitations/policy` 的奖励规则字段驱动，不使用前端固定数值。
 
 ## 错误处理
 

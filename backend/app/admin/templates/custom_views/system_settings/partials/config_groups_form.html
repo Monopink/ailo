@@ -1,0 +1,227 @@
+<div class="row">
+  <div class="col-12">
+    <h2 class="mb-3">{{ admin_text(config_section_title) }}</h2>
+  </div>
+</div>
+
+<button
+  type="button"
+  class="btn btn-primary settings-nav-fab"
+  id="settings-nav-toggle"
+  aria-expanded="true"
+  aria-controls="settings-nav-panel"
+  title="Quick navigation"
+>
+  <i class="fa fa-list me-1"></i>Quick Nav
+</button>
+
+<div class="card shadow settings-nav-panel" id="settings-nav-panel">
+  <div class="card-header py-2">
+    <h3 class="card-title mb-0">Jump to group</h3>
+  </div>
+  <div class="list-group list-group-flush settings-nav-list">
+    {% for group_key, group in config_groups.items() %}
+    {% if group.configs %}
+    <a
+      href="#config-group-{{ group_key }}"
+      class="list-group-item list-group-item-action settings-nav-link group-nav-label"
+      data-target-group="{{ group_key }}"
+    >
+      {{ group.title }}
+    </a>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+<form method="post" id="config-settings-form" data-system-config-form="true">
+  {% for group_key, group in config_groups.items() %}
+  {% if group.configs %}
+  <div class="card mb-3 config-group-card" id="config-group-{{ group_key }}" data-group-key="{{ group_key }}">
+    <div class="card-header">
+      <h3 class="card-title group-title">{{ group.title }}</h3>
+    </div>
+    <div class="card-body">
+      <p class="text-muted mb-3">{{ group.description }}</p>
+
+      <div class="config-list">
+        {% for config_key, config in group.configs.items() %}
+        <div class="config-row mb-3 pb-3 border-bottom">
+          <div class="config-name">
+            <label class="form-label fw-bold mb-1" for="config_modify_{{ config_key }}">
+              {{ config.display_name }}
+            </label>
+            <small class="text-muted d-block">
+              {% if config.display_description %}
+              {{ config.display_description }}
+              {% else %}
+              &nbsp;
+              {% endif %}
+            </small>
+          </div>
+
+          {% if config.config_shape == 2 %}
+          <div class="config-current">
+            <span class="d-none" data-current-{{ config_key }}>{{ config.config_value | tojson }}</span>
+            <div
+              class="array-current-list"
+              id="array_current_{{ config_key }}"
+              data-array-current-list
+            ></div>
+            <small class="text-muted d-block mt-1">
+              {{ admin_text("Default item:") }}
+              <span class="text-secondary config-default-value">
+                {% if config.default_value is sameas true or config.default_value == 'true' %}
+                true
+                {% elif config.default_value is sameas false or config.default_value == 'false' %}
+                false
+                {% elif config.default_value is mapping or (config.default_value is iterable and config.default_value is not string) %}
+                {{ config.default_value | tojson }}
+                {% elif config.default_value is not none and config.default_value != '' %}
+                {{ config.default_value }}
+                {% else %}
+                <em>{{ admin_text("(not set)") }}</em>
+                {% endif %}
+              </span>
+            </small>
+          </div>
+
+          <div class="config-modify">
+            <div
+              data-array-editor="true"
+              data-hidden-input-id="config_modify_{{ config_key }}"
+              data-array-current-list-id="array_current_{{ config_key }}"
+              data-array-value-type="{{ config.value_type }}"
+              data-array-allowed-values-id="array_allowed_values_{{ config_key }}"
+              data-array-default-item-id="array_default_item_{{ config_key }}"
+              data-array-current-value-id="array_current_value_{{ config_key }}"
+            >
+              <input
+                type="hidden"
+                name="config_modify_{{ config_key }}"
+                id="config_modify_{{ config_key }}"
+                value=""
+              >
+              <div class="array-editor-rows" data-array-editor-rows></div>
+              <div class="array-editor-actions">
+                <button type="button" class="btn btn-outline-primary" data-array-add-row title="{{ admin_text('Add row') }}">
+                  <i class="fa fa-plus"></i>
+                </button>
+              </div>
+            </div>
+            <script type="application/json" id="array_allowed_values_{{ config_key }}">{{ config.allowed_values | tojson | safe }}</script>
+            <script type="application/json" id="array_default_item_{{ config_key }}">{{ config.default_value | tojson | safe }}</script>
+            <script type="application/json" id="array_current_value_{{ config_key }}">{{ config.config_value | tojson | safe }}</script>
+          </div>
+          {% else %}
+          <div class="config-current">
+            <strong class="config-current-value {% if config.config_value == config.default_value %}text-success{% else %}text-primary{% endif %}" data-current-{{ config_key }}>
+              {% if config.config_value is sameas true or config.config_value == 'true' %}
+              true
+              {% elif config.config_value is sameas false or config.config_value == 'false' %}
+              false
+              {% elif config.config_value is mapping or (config.config_value is iterable and config.config_value is not string) %}
+              {{ config.config_value | tojson }}
+              {% elif config.config_value is not none and config.config_value != '' %}
+              {{ config.config_value }}
+              {% else %}
+              <span class="text-muted fst-italic">{{ admin_text("(not set)") }}</span>
+              {% endif %}
+            </strong>
+
+            <small class="text-muted d-block">
+              {{ admin_text("Default:") }}
+              <span class="text-secondary config-default-value">
+                {% if config.default_value is sameas true or config.default_value == 'true' %}
+                true
+                {% elif config.default_value is sameas false or config.default_value == 'false' %}
+                false
+                {% elif config.default_value is mapping or (config.default_value is iterable and config.default_value is not string) %}
+                {{ config.default_value | tojson }}
+                {% elif config.default_value %}
+                {{ config.default_value }}
+                {% else %}
+                <em>{{ admin_text("(not set)") }}</em>
+                {% endif %}
+              </span>
+            </small>
+          </div>
+
+          <div class="config-modify">
+            <input type="hidden" name="config_clear_{{ config_key }}" id="config_clear_{{ config_key }}" value="">
+            <div class="input-group">
+              {% if config.value_type == 3 %}
+              <select class="form-select" name="config_modify_{{ config_key }}" id="config_modify_{{ config_key }}">
+                <option value="">{{ admin_text("-- No Change --") }}</option>
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+
+              {% elif config.value_type == 5 %}
+              <select class="form-select" name="config_modify_{{ config_key }}" id="config_modify_{{ config_key }}">
+                <option value="">{{ admin_text("-- No Change --") }}</option>
+                {% for value in config.allowed_values %}
+                <option value="{{ value }}">{{ value }}</option>
+                {% endfor %}
+              </select>
+
+              {% elif config.value_type == 2 %}
+              <input type="number" class="form-control" name="config_modify_{{ config_key }}" id="config_modify_{{ config_key }}" placeholder="{{ admin_text('Leave empty for no change') }}" min="0">
+
+              {% elif config.value_type == 4 %}
+              <textarea class="form-control" name="config_modify_{{ config_key }}" id="config_modify_{{ config_key }}" rows="3" placeholder='{{ admin_text("Leave empty for no change. Example: [\"value1\",\"value2\"]") }}'></textarea>
+
+              {% else %}
+              <input type="text" class="form-control" name="config_modify_{{ config_key }}" id="config_modify_{{ config_key }}" placeholder="{{ admin_text('Leave empty for no change') }}">
+              {% endif %}
+
+              <button
+                class="btn btn-outline-secondary"
+                type="button"
+                title="{{ admin_text('Use current value') }}"
+                data-copy-current-target="config_modify_{{ config_key }}"
+                data-copy-current-value="{{ config.config_value | tojson | forceescape }}"
+                data-copy-current-btn="true"
+              >
+                <i class="fa fa-copy"></i>
+              </button>
+
+              <button
+                class="btn btn-outline-secondary"
+                type="button"
+                title="{{ admin_text('Reset to default') }}"
+                data-reset-target="config_modify_{{ config_key }}"
+                data-reset-value="{{ config.default_value | tojson | forceescape }}"
+                data-reset-default-btn="true"
+              >
+                <i class="fa fa-undo"></i>
+              </button>
+              <button
+                class="btn btn-outline-danger"
+                type="button"
+                title="{{ admin_text('Toggle delete state') }}"
+                data-clear-target="config_modify_{{ config_key }}"
+                data-clear-flag-target="config_clear_{{ config_key }}"
+                data-clear-current-key="{{ config_key }}"
+                aria-pressed="false"
+                data-clear-input-btn="true"
+              >
+                <i class="fa fa-trash"></i>
+              </button>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+
+  <div class="mt-3 d-flex justify-content-end">
+    <button type="submit" class="btn btn-primary" id="save-settings-btn">
+      <i class="fa fa-save me-2"></i>{{ admin_text("Save Settings") }}
+    </button>
+  </div>
+</form>

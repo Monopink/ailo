@@ -1,38 +1,88 @@
 import { requestValidated } from '../../utils/api';
 import {
+  InvitationCodeResponse,
+  InvitationCodeResponseSchema,
+  InvitationPolicyResponse,
+  InvitationPolicyResponseSchema,
   InvitationStatsResponse,
   InvitationStatsResponseSchema,
   InvitationEventTrackResponseSchema,
   InvitationEventType,
-  InvitationShareFullResponse,
-  InvitationShareFullResponseSchema,
+  InvitationShareCommandResponse,
+  InvitationShareCommandResponseSchema,
+  InvitationShareCardResponse,
+  InvitationShareCardResponseSchema,
 } from '../../utils/schemas';
 import { BasePageService } from './base-page-service';
 
-const INVITATIONS_SHARE_ENDPOINT = '/invitations/share';
+const INVITATIONS_CODE_ENDPOINT = '/invitations/code';
+const INVITATIONS_SHARE_COMMAND_ENDPOINT = '/invitations/share-command';
+const INVITATIONS_SHARE_CARD_ENDPOINT = '/invitations/share-card';
+const INVITATIONS_POLICY_ENDPOINT = '/invitations/policy';
 const INVITATIONS_STATS_ENDPOINT = '/invitations/stats';
 const INVITATIONS_EVENTS_ENDPOINT = '/invitations/events';
 
 export class InviteShareService extends BasePageService {
-  async getInviteShareText(): Promise<InvitationShareFullResponse | null> {
-    const seq = this.startRequest();
-    const response = await requestValidated(InvitationShareFullResponseSchema, {
-      url: INVITATIONS_SHARE_ENDPOINT,
+  async getInviteCode(): Promise<InvitationCodeResponse | null> {
+    const requestKey = 'invite_share.code';
+    const seq = this.startRequest(requestKey);
+    const response = await requestValidated(InvitationCodeResponseSchema, {
+      url: INVITATIONS_CODE_ENDPOINT,
       method: 'GET',
     });
-    if (!this.isRequestActive(seq)) {
+    if (!this.isRequestActive(seq, requestKey)) {
+      return null;
+    }
+    return response;
+  }
+
+  async getInviteShareCommand(): Promise<InvitationShareCommandResponse | null> {
+    const requestKey = 'invite_share.share_command';
+    const seq = this.startRequest(requestKey);
+    const response = await requestValidated(InvitationShareCommandResponseSchema, {
+      url: INVITATIONS_SHARE_COMMAND_ENDPOINT,
+      method: 'GET',
+    });
+    if (!this.isRequestActive(seq, requestKey)) {
+      return null;
+    }
+    return response;
+  }
+
+  async getInviteShareCard(): Promise<InvitationShareCardResponse | null> {
+    const requestKey = 'invite_share.share_card';
+    const seq = this.startRequest(requestKey);
+    const response = await requestValidated(InvitationShareCardResponseSchema, {
+      url: INVITATIONS_SHARE_CARD_ENDPOINT,
+      method: 'GET',
+    });
+    if (!this.isRequestActive(seq, requestKey)) {
       return null;
     }
     return response;
   }
 
   async getInviteStats(): Promise<InvitationStatsResponse | null> {
-    const seq = this.startRequest();
+    const requestKey = 'invite_share.stats';
+    const seq = this.startRequest(requestKey);
     const response = await requestValidated(InvitationStatsResponseSchema, {
       url: INVITATIONS_STATS_ENDPOINT,
       method: 'GET',
     });
-    if (!this.isRequestActive(seq)) {
+    if (!this.isRequestActive(seq, requestKey)) {
+      return null;
+    }
+    return response;
+  }
+
+  async getInvitePolicy(): Promise<InvitationPolicyResponse | null> {
+    const requestKey = 'invite_share.policy';
+    const seq = this.startRequest(requestKey);
+    const response = await requestValidated(InvitationPolicyResponseSchema, {
+      url: INVITATIONS_POLICY_ENDPOINT,
+      method: 'GET',
+    });
+    if (!this.isRequestActive(seq, requestKey)) {
       return null;
     }
     return response;
@@ -42,7 +92,8 @@ export class InviteShareService extends BasePageService {
     eventType: InvitationEventType,
     options?: { code?: string; payload?: Record<string, unknown> }
   ): Promise<boolean> {
-    const seq = this.startRequest();
+    const requestKey = 'invite_share.track';
+    const seq = this.startRequest(requestKey);
     const response = await requestValidated(InvitationEventTrackResponseSchema, {
       url: INVITATIONS_EVENTS_ENDPOINT,
       method: 'POST',
@@ -53,7 +104,7 @@ export class InviteShareService extends BasePageService {
         payload: options?.payload,
       },
     });
-    if (!this.isRequestActive(seq)) {
+    if (!this.isRequestActive(seq, requestKey)) {
       return false;
     }
     return response.accepted;

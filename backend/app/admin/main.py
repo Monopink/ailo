@@ -8,6 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, cast
 
+from jinja2.utils import htmlsafe_json_dumps
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
 from starlette_admin import CustomView, DropDown, TimezoneConfig
@@ -62,7 +63,6 @@ from .views import (
     invite_code_view,
     invite_event_view,
     invite_recognition_log_view,
-    invite_share_template_view,
     llm_config_test_view,
     llm_config_view,
     llm_provider_view,
@@ -75,9 +75,6 @@ from .views import (
     message_endpoint_view,
     message_history_view,
     notification_push_history_view,
-    operation_asset_view,
-    operation_publish_log_view,
-    operation_slot_config_view,
     pending_contact_request_view,
     profile_avatar_advanced_edit_view,
     profile_view,
@@ -121,6 +118,13 @@ from .views.system_settings_view import SystemSettingsView
 logger = logging.getLogger(__name__)
 
 
+def _admin_json_dumps(value: Any, **kwargs: Any) -> str:
+    """Dump JSON with admin-safe defaults."""
+    kwargs.setdefault("default", str)
+    kwargs.setdefault("ensure_ascii", False)
+    return json.dumps(value, **kwargs)
+
+
 # Jinja2 filter helper for JSON rendering
 def _pretty_json(data: Any) -> str:
     """Render JSON for admin templates without raising."""
@@ -132,8 +136,8 @@ def _pretty_json(data: Any) -> str:
 
 
 def _configure_template_env(admin_instance: Admin, settings: Settings) -> None:
-    admin_instance.templates.env.filters["tojson"] = lambda data: json.dumps(
-        data, default=str, ensure_ascii=False
+    admin_instance.templates.env.filters["tojson"] = lambda data: htmlsafe_json_dumps(
+        data, dumps=_admin_json_dumps
     )
     admin_instance.templates.env.filters["admin_translate_labels"] = translate_labels
     admin_instance.templates.env.globals["settings"] = settings
@@ -149,6 +153,14 @@ def _configure_template_env(admin_instance: Admin, settings: Settings) -> None:
 
 
 def _register_dropdowns(admin_instance: Admin) -> None:
+    operation_settings_view = SystemSettingsView(
+        label="Operation Settings",
+        icon="fa fa-sliders",
+        path="/operation-settings",
+        methods=["GET", "POST"],
+        scopes={"operation"},
+    )
+
     user_group = DropDown(
         "Users",
         icon="fa fa-users",
@@ -243,12 +255,10 @@ def _register_dropdowns(admin_instance: Admin) -> None:
         "App Content",
         icon="fa fa-mobile",
         views=[
+            operation_settings_view,
             square_category_view,
             square_type_entry_view,
             app_page_view,
-            operation_asset_view,
-            operation_slot_config_view,
-            operation_publish_log_view,
         ],
         always_open=False,
     )
@@ -264,7 +274,6 @@ def _register_dropdowns(admin_instance: Admin) -> None:
             invite_binding_view,
             invite_event_view,
             invite_recognition_log_view,
-            invite_share_template_view,
             redeem_code_batch_view,
             redeem_code_view,
             redeem_code_claim_view,
@@ -316,6 +325,7 @@ def _register_dropdowns(admin_instance: Admin) -> None:
                 icon="fa fa-cogs",
                 path="/system-settings",
                 methods=["GET", "POST"],
+                scopes={"system", "security"},
             ),
             backup_job_view,
             media_file_view,

@@ -54,10 +54,6 @@ from .invite import (
     InviteCode,
     InviteEvent,
     InviteRecognitionLog,
-    InviteShareTemplate,
-    OperationAsset,
-    OperationPublishLog,
-    OperationSlotConfig,
 )
 from .llm import LLMConfig, LLMProvider, LLMTestLog
 from .message import (
@@ -143,10 +139,6 @@ __all__ = [
     "InviteBinding",
     "InviteEvent",
     "InviteRecognitionLog",
-    "InviteShareTemplate",
-    "OperationAsset",
-    "OperationSlotConfig",
-    "OperationPublishLog",
     "Campaign",
     "CampaignAttribution",
     "RedeemCodeBatch",

@@ -19,12 +19,13 @@ interface InviteSharePageData extends Record<string, unknown> {
   shareTitle: string;
   sharePath: string;
   shareImageUrl: string;
-  shareSlotCode: string;
-  shareSlotVersion: number;
   successInviteCount: number;
   maxInviteCount: number | null;
-  rewardContactLimitPerInvite: number;
-  maxRewardContactLimitTotal: number | null;
+  inviterRewardContactDelta: number;
+  inviteeRewardContactDelta: number;
+  activityRewardHintText: string;
+  stepRewardHintText: string;
+  ruleRewardHintText: string;
   rewardedContactLimitTotal: number;
   loading: boolean;
 }
@@ -50,6 +51,26 @@ const buildScreenModelPayload = (
   },
 });
 
+const buildRewardHintText = (
+  inviteeRewardContactDelta: number,
+  inviterRewardContactDelta: number
+): string => {
+  if (inviteeRewardContactDelta === inviterRewardContactDelta) {
+    return `每邀请1位用户，双方各增加 ${inviteeRewardContactDelta} 个联系人上限。`;
+  }
+  return `每邀请1位用户，你增加 ${inviterRewardContactDelta} 个联系人上限，对方增加 ${inviteeRewardContactDelta} 个联系人上限。`;
+};
+
+const buildRuleHintText = (
+  inviteeRewardContactDelta: number,
+  inviterRewardContactDelta: number
+): string => {
+  if (inviteeRewardContactDelta === inviterRewardContactDelta) {
+    return `每次成功绑定后，邀请双方各增加 ${inviteeRewardContactDelta} 个联系人上限。`;
+  }
+  return `每次成功绑定后，你增加 ${inviterRewardContactDelta} 个联系人上限，对方增加 ${inviteeRewardContactDelta} 个联系人上限。`;
+};
+
 Page<InviteSharePageData, InviteSharePageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
@@ -65,12 +86,13 @@ Page<InviteSharePageData, InviteSharePageCustom>({
     shareTitle: '',
     sharePath: '',
     shareImageUrl: '',
-    shareSlotCode: '',
-    shareSlotVersion: 0,
     successInviteCount: 0,
     maxInviteCount: null,
-    rewardContactLimitPerInvite: 0,
-    maxRewardContactLimitTotal: null,
+    inviterRewardContactDelta: 0,
+    inviteeRewardContactDelta: 0,
+    activityRewardHintText: '每邀请1位用户，可增加联系人上限。',
+    stepRewardHintText: '绑定成功后，可增加联系人上限。',
+    ruleRewardHintText: '每次成功绑定后，可增加联系人上限。',
     rewardedContactLimitTotal: 0,
     loading: false,
   },
@@ -94,40 +116,39 @@ Page<InviteSharePageData, InviteSharePageCustom>({
   async loadData() {
     this.setData({ loading: true, ...buildScreenModelPayload('ready', 'data', 'refreshing') });
     try {
-      const shareResponse = await this.invitationService.getInviteShareText();
-      if (shareResponse === null) {
+      const [codeResponse, shareCardResponse, policyResponse, statsResponse] = await Promise.all([
+        this.invitationService.getInviteCode(),
+        this.invitationService.getInviteShareCard(),
+        this.invitationService.getInvitePolicy(),
+        this.invitationService.getInviteStats(),
+      ]);
+      if (
+        codeResponse === null ||
+        shareCardResponse === null ||
+        policyResponse === null ||
+        statsResponse === null
+      ) {
         return;
       }
-      let successInviteCount = 0;
-      let maxInviteCount: number | null = null;
-      let rewardContactLimitPerInvite = 0;
-      let maxRewardContactLimitTotal: number | null = null;
-      let rewardedContactLimitTotal = 0;
-      try {
-        const statsResponse = await this.invitationService.getInviteStats();
-        if (statsResponse !== null) {
-          successInviteCount = statsResponse.success_invite_count;
-          maxInviteCount = statsResponse.max_invite_count;
-          rewardContactLimitPerInvite = statsResponse.reward_contact_limit_per_invite;
-          maxRewardContactLimitTotal = statsResponse.max_reward_contact_limit_total;
-          rewardedContactLimitTotal = statsResponse.rewarded_contact_limit_total;
-        }
-      } catch (error) {
-        logger.warn('Load invite stats failed, fallback to zero', { error });
-      }
+      const inviteeRewardContactDelta = policyResponse.invitee_reward_contact_delta;
+      const inviterRewardContactDelta = policyResponse.inviter_reward_contact_delta;
       this.setData({
-        myCode: shareResponse.code,
-        shareText: shareResponse.text,
-        shareTitle: shareResponse.share_card.title,
-        sharePath: shareResponse.share_card.path,
-        shareImageUrl: shareResponse.share_card.image_url,
-        shareSlotCode: shareResponse.share_card.slot_code,
-        shareSlotVersion: shareResponse.share_card.version,
-        successInviteCount,
-        maxInviteCount,
-        rewardContactLimitPerInvite,
-        maxRewardContactLimitTotal,
-        rewardedContactLimitTotal,
+        myCode: codeResponse.code,
+        shareText: '',
+        shareTitle: shareCardResponse.title,
+        sharePath: shareCardResponse.path,
+        shareImageUrl: shareCardResponse.image_url,
+        successInviteCount: statsResponse.inviter_success_bind_count,
+        maxInviteCount: policyResponse.inviter_max_rewards_per_actor,
+        inviterRewardContactDelta,
+        inviteeRewardContactDelta,
+        activityRewardHintText: buildRewardHintText(
+          inviteeRewardContactDelta,
+          inviterRewardContactDelta
+        ),
+        stepRewardHintText: buildRuleHintText(inviteeRewardContactDelta, inviterRewardContactDelta),
+        ruleRewardHintText: buildRuleHintText(inviteeRewardContactDelta, inviterRewardContactDelta),
+        rewardedContactLimitTotal: statsResponse.inviter_reward_contact_limit_actual_total,
         ...buildScreenModelPayload('ready', 'data', 'idle'),
       });
     } catch (error) {
@@ -169,30 +190,25 @@ Page<InviteSharePageData, InviteSharePageCustom>({
 
   async handleCopyCommand() {
     try {
-      const shareResponse = await this.invitationService.getInviteShareText();
-      if (shareResponse === null) {
+      const shareCommandResponse = await this.invitationService.getInviteShareCommand();
+      if (shareCommandResponse === null) {
         return;
       }
-      const shareText = shareResponse.text;
+      const shareText = shareCommandResponse.text;
       if (shareText.trim() === '') {
         void wx.showToast({ title: '口令为空，请稍后重试', icon: 'none' });
         return;
       }
 
       this.setData({
-        myCode: shareResponse.code,
+        myCode: shareCommandResponse.code,
         shareText,
-        shareTitle: shareResponse.share_card.title,
-        sharePath: shareResponse.share_card.path,
-        shareImageUrl: shareResponse.share_card.image_url,
-        shareSlotCode: shareResponse.share_card.slot_code,
-        shareSlotVersion: shareResponse.share_card.version,
       });
 
       await wx.setClipboardData({ data: shareText });
       void this.invitationService
         .trackInviteEvent('copy_command', {
-          code: shareResponse.code,
+          code: shareCommandResponse.code,
           payload: { target: 'command', length: shareText.length },
         })
         .catch((error: unknown) => {
@@ -212,18 +228,9 @@ Page<InviteSharePageData, InviteSharePageCustom>({
   },
 
   onShareAppMessage() {
-    const sharePayload: Record<string, unknown> = {};
-    if (this.data.shareSlotCode.trim() !== '') {
-      sharePayload.slot_code = this.data.shareSlotCode;
-    }
-    if (this.data.shareSlotVersion > 0) {
-      sharePayload.slot_version = this.data.shareSlotVersion;
-    }
-
     void this.invitationService
       .trackInviteEvent('share_wechat', {
         code: this.data.myCode,
-        payload: Object.keys(sharePayload).length > 0 ? sharePayload : undefined,
       })
       .catch((error: unknown) => {
         logger.debug('Track share_wechat invite event failed', { error });

@@ -18,10 +18,12 @@ interface InviteBindPageData extends Record<string, unknown> {
   pageLayoutData: PageLayoutData;
   bindCodeInput: string;
   submitting: boolean;
+  rewardHintText: string;
 }
 
 interface InviteBindPageCustom {
   invitationService: ReturnType<typeof createInviteBindService>;
+  loadInviteRewardHint(): Promise<void>;
   onInviteCodeInput(event: InputEvent): void;
   handleBindCode(): Promise<void>;
   onUnload(): void;
@@ -39,6 +41,16 @@ const buildScreenModelPayload = (
   },
 });
 
+const buildRewardHintText = (
+  inviteeRewardContactDelta: number,
+  inviterRewardContactDelta: number
+): string => {
+  if (inviteeRewardContactDelta === inviterRewardContactDelta) {
+    return `你和邀请方将会增加${inviteeRewardContactDelta}个联系人上限`;
+  }
+  return `你将增加${inviteeRewardContactDelta}个联系人上限，邀请方将增加${inviterRewardContactDelta}个联系人上限`;
+};
+
 Page<InviteBindPageData, InviteBindPageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
@@ -51,6 +63,7 @@ Page<InviteBindPageData, InviteBindPageCustom>({
     }),
     bindCodeInput: '',
     submitting: false,
+    rewardHintText: '你和邀请方将会增加联系人上限',
   },
 
   invitationService: null as unknown as ReturnType<typeof createInviteBindService>,
@@ -62,6 +75,7 @@ Page<InviteBindPageData, InviteBindPageCustom>({
       return;
     }
     this.setData(buildScreenModelPayload('ready', 'data', 'idle'));
+    void this.loadInviteRewardHint();
   },
 
   onUnload() {
@@ -70,6 +84,24 @@ Page<InviteBindPageData, InviteBindPageCustom>({
 
   onInviteCodeInput(event) {
     this.setData({ bindCodeInput: event.detail.value });
+  },
+
+  async loadInviteRewardHint() {
+    try {
+      const policy = await this.invitationService.getInvitePolicy();
+      if (policy === null) {
+        return;
+      }
+      this.setData({
+        rewardHintText: buildRewardHintText(
+          policy.invitee_reward_contact_delta,
+          policy.inviter_reward_contact_delta
+        ),
+      });
+    } catch (error) {
+      logger.warn('Load invite bind reward hint failed, fallback to generic hint', { error });
+      this.setData({ rewardHintText: '你和邀请方将会增加联系人上限' });
+    }
   },
 
   async handleBindCode() {

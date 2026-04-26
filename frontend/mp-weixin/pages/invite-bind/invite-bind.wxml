@@ -26,7 +26,7 @@
         </view>
         <view class="invite-bind__desc-item">
           <view class="invite-bind__desc-dot" />
-          <text class="invite-bind__desc-text">你和邀请方将会增加1个联系人上限</text>
+          <text class="invite-bind__desc-text">{{rewardHintText}}</text>
         </view>
         <view class="invite-bind__desc-item">
           <view class="invite-bind__desc-dot" />

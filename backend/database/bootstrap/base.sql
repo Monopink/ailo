@@ -20,7 +20,53 @@ END $$;
 -- See: docs/spec/system-configs/naming.md
 --
 -- Insert default system configuration
-INSERT INTO system_configs (config_key, config_value, default_value, config_type, description, group_name, allowed_values) VALUES
+INSERT INTO system_configs (
+    config_key,
+    config_value,
+    default_value,
+    value_type,
+    config_shape,
+    config_scope,
+    description,
+    group_name,
+    allowed_values
+)
+SELECT
+    seed.config_key,
+    CASE
+        WHEN seed.config_value_text ~ '^\s*\[' THEN seed.config_value_text::jsonb
+        WHEN seed.value_type = 2 THEN to_jsonb((btrim(seed.config_value_text))::bigint)
+        WHEN seed.value_type = 3 THEN
+            CASE
+                WHEN lower(btrim(seed.config_value_text)) IN ('true', '1', 'yes', 'on') THEN 'true'::jsonb
+                WHEN lower(btrim(seed.config_value_text)) IN ('false', '0', 'no', 'off') THEN 'false'::jsonb
+                ELSE NULL
+            END
+        WHEN seed.value_type = 4 THEN seed.config_value_text::jsonb
+        ELSE to_jsonb(seed.config_value_text)
+    END AS config_value,
+    CASE
+        WHEN seed.value_type = 2 THEN to_jsonb((btrim(seed.default_value_text))::bigint)
+        WHEN seed.value_type = 3 THEN
+            CASE
+                WHEN lower(btrim(seed.default_value_text)) IN ('true', '1', 'yes', 'on') THEN 'true'::jsonb
+                WHEN lower(btrim(seed.default_value_text)) IN ('false', '0', 'no', 'off') THEN 'false'::jsonb
+                ELSE NULL
+            END
+        WHEN seed.value_type = 4 THEN seed.default_value_text::jsonb
+        ELSE to_jsonb(seed.default_value_text)
+    END AS default_value,
+    seed.value_type,
+    CASE
+        WHEN seed.config_value_text ~ '^\s*\[' THEN 2
+        ELSE 1
+    END AS config_shape,
+    'system' AS config_scope,
+    seed.description,
+    seed.group_name,
+    seed.allowed_values
+FROM (
+VALUES
 -- Contacts configurations
 ('contact_request_expiration_days', '3', '3', 2, 'Contact request expiration time in days (default: 3 days)', 'contacts', NULL),
 
@@ -39,7 +85,7 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 -- Username configurations
 ('default_nickname_prefix', '无名敲客_', '无名敲客_', 1, 'Default prefix for system-generated profile nickname', 'profile', NULL),
 ('default_nickname_suffix_length', '6', '6', 2, 'Random uppercase suffix length for system-generated profile nickname (>=1)', 'profile', NULL),
-('username_reserved_words', '["admin","root","system","support","operator","moderator","service","official","help","security"]', '["admin","root","system","support","operator","moderator","service","official","help","security"]', 4, 'Reserved usernames (lowercase), JSON array', 'username', NULL),
+('username_reserved_words', '["admin","root","system","support","operator","moderator","service","official","help","security"]', 'admin', 1, 'Reserved usernames (lowercase), JSON array', 'username', NULL),
 
 -- LeanCloud IM configurations
 ('leancloud_im_server_url', 'https://zcuk19lc.lc-cn-n1-shared.com', '', 1, 'LeanCloud IM server URL', 'im_leancloud', NULL),
@@ -127,7 +173,7 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 
 -- Media upload configuration
 ('avatar_max_size_mb', '2', '2', 2, 'Maximum avatar file size in MB', 'media', NULL),
-('avatar_allowed_formats', 'image/jpeg,image/png,image/webp', 'image/jpeg,image/png,image/webp', 1, 'Allowed avatar MIME types (comma-separated)', 'media', NULL),
+('avatar_allowed_formats', '["image/jpeg","image/png","image/webp"]', 'image/jpeg', 1, 'Allowed avatar MIME types', 'media', NULL),
 
 -- Media upload quota configuration (✅ MVP P0)
 ('avatar_upload_daily_quota', '5', '5', 2, 'Maximum avatar uploads per user per day', 'media', NULL),
@@ -135,8 +181,45 @@ INSERT INTO system_configs (config_key, config_value, default_value, config_type
 
 -- Media upload rate limit configuration
 ('media_upload_rate_limit_requests', '10', '10', 2, 'Media upload requests per window', 'media', NULL),
-('media_upload_rate_limit_window_seconds', '60', '60', 2, 'Media upload window in seconds', 'media', NULL)
+('media_upload_rate_limit_window_seconds', '60', '60', 2, 'Media upload window in seconds', 'media', NULL),
+
+-- Operation configurations
+('review_mode_mp_weixin_enabled', 'false', 'false', 3, 'Enable review mode for WeChat mini program', 'operation', NULL),
+('review_mode_mp_weixin_ends_at', '', '', 6, 'Review mode end time for WeChat mini program (UTC ISO8601)', 'operation', NULL),
+('review_mode_mp_weixin_auto_disable_enabled', 'false', 'false', 3, 'Automatically disable review mode when end time is reached', 'operation', NULL),
+('invite_share_command_texts', '["来敲敲AI {{code}} {{link}}"]', '来敲敲AI {{code}} {{link}}', 1, 'Invite share command text templates', 'operation', NULL),
+('invite_share_card_titles', '["来敲敲AI，对话敲多新奇有趣"]', '来敲敲AI，对话敲多新奇有趣', 1, 'Invite share card title templates', 'operation', NULL)
+) AS seed(config_key, config_value_text, default_value_text, value_type, description, group_name, allowed_values)
 ON CONFLICT (config_key) DO NOTHING;
+
+-- Align config scope defaults for security-sensitive keys.
+UPDATE system_configs
+SET config_scope = 'security'
+WHERE config_key IN (
+    'leancloud_im_webhook_token',
+    'admin_auth_whitelist',
+    'sms_whitelist'
+);
+
+-- Align config scope defaults for operation keys.
+UPDATE system_configs
+SET config_scope = 'operation'
+WHERE config_key IN (
+    'invite_share_command_texts',
+    'invite_share_card_titles',
+    'default_nickname_prefix',
+    'default_nickname_suffix_length'
+)
+   OR group_name = 'contacts';
+
+-- Drop deprecated operation invite-share keys.
+DELETE FROM system_configs
+WHERE config_key IN (
+    'operation_invite_share_command_text',
+    'operation_invite_share_card_title',
+    'operation_invite_share_text',
+    'operation_invite_share_card_image_url'
+);
 
 
 -- ============================================================================

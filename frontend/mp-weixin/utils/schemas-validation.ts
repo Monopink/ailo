@@ -83,29 +83,34 @@ export const InvitationBindingStatusResponseSchema = z.object({
 });
 export type InvitationBindingStatusResponse = z.infer<typeof InvitationBindingStatusResponseSchema>;
 
+export const InvitationPolicyResponseSchema = z.object({
+  invitee_reward_contact_delta: z.number().int().nonnegative(),
+  inviter_reward_contact_delta: z.number().int().nonnegative(),
+  inviter_max_rewards_per_actor: z.number().int().positive().nullable(),
+});
+export type InvitationPolicyResponse = z.infer<typeof InvitationPolicyResponseSchema>;
+
 export const InvitationStatsResponseSchema = z.object({
-  success_invite_count: z.number().int().nonnegative(),
-  max_invite_count: z.number().int().positive().nullable(),
-  reward_contact_limit_per_invite: z.number().int().nonnegative(),
-  max_reward_contact_limit_total: z.number().int().nonnegative().nullable(),
-  rewarded_contact_limit_total: z.number().int().nonnegative(),
+  inviter_success_bind_count: z.number().int().nonnegative(),
+  inviter_reward_contact_limit_actual_total: z.number().int().nonnegative(),
+  inviter_reward_contact_limit_preview_total: z.number().int().nonnegative(),
 });
 export type InvitationStatsResponse = z.infer<typeof InvitationStatsResponseSchema>;
 
-export const InvitationShareFullResponseSchema = z.object({
+export const InvitationShareCommandResponseSchema = z.object({
   code: z.string().min(6).max(6),
   text: z.string().min(1),
   link: z.string().min(1),
-  share_card: z.object({
-    title: z.string().min(1),
-    path: z.string().min(1),
-    image_url: z.string().min(1),
-    slot_code: z.string().min(1),
-    channel: z.string().min(1),
-    version: z.number().int().positive(),
-  }),
 });
-export type InvitationShareFullResponse = z.infer<typeof InvitationShareFullResponseSchema>;
+export type InvitationShareCommandResponse = z.infer<typeof InvitationShareCommandResponseSchema>;
+
+export const InvitationShareCardResponseSchema = z.object({
+  code: z.string().min(6).max(6),
+  title: z.string().min(1),
+  path: z.string().min(1),
+  image_url: z.string().min(1),
+});
+export type InvitationShareCardResponse = z.infer<typeof InvitationShareCardResponseSchema>;
 
 export const InvitationEventTrackResponseSchema = z.object({
   accepted: z.boolean(),

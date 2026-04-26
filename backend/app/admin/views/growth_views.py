@@ -23,7 +23,6 @@ from app.enums.growth import (
 from app.enums.invite import (
     InviteCodeStatus,
     InviteEventType,
-    InviteShareTemplateStatus,
 )
 from app.enums.redeem import RedeemCodeBatchStatus, RedeemCodeMode, RedeemCodeStatus
 from app.models.campaign import Campaign, CampaignAttribution
@@ -33,7 +32,6 @@ from app.models.invite import (
     InviteCode,
     InviteEvent,
     InviteRecognitionLog,
-    InviteShareTemplate,
 )
 from app.models.redeem import RedeemCode, RedeemCodeBatch, RedeemCodeClaim
 
@@ -294,63 +292,6 @@ class InviteRecognitionLogView(BaseRoleAwareModelView):
     ]
 
 
-class InviteShareTemplateView(BaseRoleAwareModelView):
-    """Admin view for invite_share_templates."""
-
-    searchable_fields = ["template_text", "locale"]
-    sortable_fields = ["id", "status", "priority", "locale", "created_at", "updated_at"]
-    fields_default_sort = [("priority", False), ("id", False)]
-    fields = [
-        IntegerField("id", label="ID"),
-        StringField("template_text", label="Template Text", required=True),
-        IntegerEnumField(
-            "status",
-            enum=InviteShareTemplateStatus,
-            label="Status",
-            required=True,
-        ),
-        IntegerField("priority", label="Priority", required=True),
-        StringField("locale", label="Locale", required=True),
-        DateTimeField("created_at", label="Created At"),
-        DateTimeField("updated_at", label="Updated At"),
-    ]
-    exclude_fields_from_create = ["id", "created_at", "updated_at"]
-    exclude_fields_from_edit = ["id", "created_at", "updated_at"]
-
-    async def validate(self, request: Request, data: dict[str, Any]) -> None:
-        template_text = str(data.get("template_text", "")).strip()
-        if template_text == "":
-            raise FormValidationError({"template_text": "Template text is required"})
-        data["template_text"] = template_text
-
-        try:
-            status_value = int(data.get("status"))
-        except Exception as exc:
-            raise FormValidationError({"status": "Status must be an integer"}) from exc
-        if status_value not in (
-            int(InviteShareTemplateStatus.ACTIVE),
-            int(InviteShareTemplateStatus.INACTIVE),
-        ):
-            raise FormValidationError({"status": "Invalid status"})
-        data["status"] = status_value
-
-        try:
-            priority_value = int(data.get("priority"))
-        except Exception as exc:
-            raise FormValidationError({"priority": "Priority must be an integer"}) from exc
-        data["priority"] = priority_value
-
-        locale = str(data.get("locale", "")).strip()
-        if LOCALE_PATTERN.fullmatch(locale) is None:
-            raise FormValidationError({"locale": "Locale must be like zh-CN or en"})
-        data["locale"] = locale
-
-        await super().validate(request, data)
-
-    def can_delete(self, request: Request) -> bool:
-        return False
-
-
 def _parse_datetime_field(name: str, value: Any) -> datetime | None:
     if value in (None, ""):
         return None
@@ -448,6 +389,12 @@ class CampaignAttributionView(BaseRoleAwareModelView):
 
 class GrowthRewardRuleView(BaseRoleAwareModelView):
     """Admin view for growth_reward_rules."""
+
+    def can_create(self, request: Request) -> bool:
+        return False
+
+    def can_edit(self, request: Request) -> bool:
+        return False
 
     exclude_fields_from_create = [
         "id",
@@ -878,12 +825,6 @@ invite_recognition_log_view = InviteRecognitionLogView(
     icon="fa fa-clipboard-list",
     identity="invite_recognition_logs",
 )
-invite_share_template_view = InviteShareTemplateView(
-    InviteShareTemplate,
-    name="Invite Share Templates",
-    icon="fa fa-comment-dots",
-    identity="invite_share_templates",
-)
 campaign_view = CampaignView(
     Campaign, name="Campaigns", icon="fa fa-bullhorn", identity="campaigns"
 )
@@ -930,5 +871,4 @@ GROWTH_MODEL_VIEWS = [
     invite_binding_view,
     invite_event_view,
     invite_recognition_log_view,
-    invite_share_template_view,
 ]

@@ -38,18 +38,32 @@ async def test_get_config_cache_miss_reads_db_and_backfills_cache(
                     config_key,
                     config_value,
                     default_value,
-                    config_type,
+                    value_type,
+                    config_shape,
+                    config_scope,
                     description,
                     group_name,
                     allowed_values
                 )
             VALUES
-                (:config_key, 'true', 'true', 3, 'test cache miss db hit', 'test', NULL)
+                (
+                    :config_key,
+                    'true'::jsonb,
+                    'true'::jsonb,
+                    3,
+                    1,
+                    'system',
+                    'test cache miss db hit',
+                    'test',
+                    NULL
+                )
             ON CONFLICT (config_key)
             DO UPDATE SET
                 config_value = EXCLUDED.config_value,
                 default_value = EXCLUDED.default_value,
-                config_type = EXCLUDED.config_type,
+                value_type = EXCLUDED.value_type,
+                config_shape = EXCLUDED.config_shape,
+                config_scope = EXCLUDED.config_scope,
                 description = EXCLUDED.description,
                 group_name = EXCLUDED.group_name,
                 allowed_values = EXCLUDED.allowed_values

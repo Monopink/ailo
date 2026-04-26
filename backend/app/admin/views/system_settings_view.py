@@ -7,15 +7,25 @@ from starlette.responses import Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import CustomView
 
+from app.admin.i18n import (
+    admin_config_description,
+    admin_config_display_name,
+    admin_config_group_title,
+    admin_text,
+)
 from app.crud.system import system_configs
-from app.enums import AdminRole
+from app.enums import AdminRole, ConfigShape
 from app.services.media.config import refresh_media_base_url
 from app.services.message.providers.leancloud.config import get_leancloud_config_status
 from app.services.message.providers.leancloud.url_builder import (
     build_leancloud_webhook_url,
 )
 from app.services.storage.factory import reload_storage_backend
-from app.services.system_config import SystemConfigService, get_config, get_configs_by_group
+from app.services.system_config import (
+    SystemConfigService,
+    get_config,
+    get_configs_by_group_with_scope,
+)
 from app.utils.admin_logs import create_operation_log
 from app.utils.logging import get_logger
 
@@ -24,6 +34,46 @@ logger = get_logger(__name__)
 
 class SystemSettingsView(CustomView):
     """System settings management interface."""
+
+    def __init__(
+        self,
+        *args: object,
+        scopes: set[str] | None = None,
+        **kwargs: object,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self._scopes = scopes if scopes is not None else {"system", "security"}
+
+    def _is_operation_view(self) -> bool:
+        return self._scopes == {"operation"}
+
+    def _build_page_title(self) -> str:
+        return "Operation Settings" if self._is_operation_view() else "System Settings"
+
+    def _build_config_section_title(self) -> str:
+        return "Operation Configuration" if self._is_operation_view() else "System Configuration"
+
+    def _template_name(self) -> str:
+        if self._is_operation_view():
+            return "custom_views/system_settings/operation_page.html"
+        return "custom_views/system_settings/system_page.html"
+
+    @staticmethod
+    def _localize_config_groups(config_groups: dict[str, object]) -> None:
+        for group_key, group in config_groups.items():
+            if not isinstance(group, dict):
+                continue
+            group["title"] = admin_config_group_title(str(group_key))
+
+            configs = group.get("configs")
+            if not isinstance(configs, dict):
+                continue
+
+            for config_key, config in configs.items():
+                config.display_name = admin_config_display_name(str(config_key))
+                config.display_description = admin_config_description(
+                    str(config_key), getattr(config, "description", None)
+                )
 
     def is_active(self, request: Request) -> bool:
         """Check if current page is system settings by comparing full path including base_url."""
@@ -43,31 +93,39 @@ class SystemSettingsView(CustomView):
             # Get database session
             db = request.state.session
 
-            config_groups = await get_configs_by_group(db)
-
-            # Check for missing configs
-            displayed_keys: set[str] = set()
+            config_groups = await get_configs_by_group_with_scope(db, scopes=self._scopes)
+            self._localize_config_groups(config_groups)
+            editable_config_keys: set[str] = set()
+            editable_configs: dict[str, object] = {}
             for group in config_groups.values():
-                displayed_keys.update(group["configs"].keys())
+                for config_key, config in group["configs"].items():
+                    editable_config_keys.add(config_key)
+                    editable_configs[config_key] = config
 
-            missing_configs = await SystemConfigService.check_missing_configs(db, displayed_keys)
-
-            # Get webhook and LeanCloud IM data for System Management section
-            webhook_token = await get_config(db, key="leancloud_im_webhook_token", required=False)
-            api_base_url = await get_config(db, key="api_base_url", required=False)
-            conversation_id = await get_config(
-                db, key="leancloud_im_service_conversation_id", required=False
-            )
-
-            leancloud_status = await get_leancloud_config_status(db)
-
-            # Construct webhook URL
+            show_system_management = "operation" not in self._scopes
             webhook_url = None
-            if webhook_token and api_base_url:
-                webhook_url = build_leancloud_webhook_url(
-                    api_base_url=str(api_base_url),
-                    webhook_token=str(webhook_token),
+            webhook_token = None
+            conversation_id = None
+            leancloud_status = {
+                "configured": False,
+                "has_app_id": False,
+                "has_master_key": False,
+                "has_base_url": False,
+            }
+            if show_system_management:
+                webhook_token = await get_config(
+                    db, key="leancloud_im_webhook_token", required=False
                 )
+                api_base_url = await get_config(db, key="api_base_url", required=False)
+                conversation_id = await get_config(
+                    db, key="leancloud_im_service_conversation_id", required=False
+                )
+                leancloud_status = await get_leancloud_config_status(db)
+                if webhook_token and api_base_url:
+                    webhook_url = build_leancloud_webhook_url(
+                        api_base_url=str(api_base_url),
+                        webhook_token=str(webhook_token),
+                    )
 
             context = {
                 "request": request,
@@ -75,7 +133,10 @@ class SystemSettingsView(CustomView):
                 "error": None,
                 "warning": None,
                 "config_groups": config_groups,
-                "missing_configs": missing_configs,
+                "missing_configs": [],
+                "page_title": self._build_page_title(),
+                "show_system_management": show_system_management,
+                "config_section_title": self._build_config_section_title(),
                 "webhook_url": webhook_url,
                 "webhook_token": webhook_token,
                 "token_length": len(webhook_token) if webhook_token else 0,
@@ -99,16 +160,12 @@ class SystemSettingsView(CustomView):
                         admin_role_val = None
 
                     if admin_role_val not in (AdminRole.ADMIN, AdminRole.SUPER_ADMIN):
-                        context["error"] = "Permission denied"
-                        return templates.TemplateResponse(
-                            "custom_views/system_settings.html", context
-                        )
+                        context["error"] = admin_text("Permission denied")
+                        return templates.TemplateResponse(self._template_name(), context)
 
                     if not admin_user_id:
-                        context["error"] = "Admin user not found in session"
-                        return templates.TemplateResponse(
-                            "custom_views/system_settings.html", context
-                        )
+                        context["error"] = admin_text("Admin user not found in session")
+                        return templates.TemplateResponse(self._template_name(), context)
 
                     # Track changes for logging
                     changes = []
@@ -119,41 +176,65 @@ class SystemSettingsView(CustomView):
                     for key, value in form_data.items():
                         if key.startswith("config_modify_"):
                             config_key = key[14:]  # Remove "config_modify_" prefix
+                            if config_key not in editable_config_keys:
+                                continue
+                            config = editable_configs[config_key]
 
-                            # Only update if modification value is not empty
                             value_str = str(value).strip()
-                            if value_str:
-                                # Get old value for logging
-                                old_value = await get_config(db, config_key)
+                            clear_flag = str(
+                                form_data.get(f"config_clear_{config_key}", "")
+                            ).strip()
+                            should_clear = clear_flag == "1"
+                            if not value_str and not should_clear:
+                                continue
 
-                                # Update config through CRUD layer (validates enum)
-                                try:
-                                    config = await system_configs.update_config_value(
-                                        db,
-                                        config_key=config_key,
-                                        config_value=value_str,
-                                        updated_by=admin_user_id,
-                                        validate_enum=True,
-                                        commit=False,
-                                    )
+                            # Get old value for logging
+                            old_value = await get_config(db, config_key)
 
-                                    if config:
-                                        changes.append(
-                                            {
-                                                "config_key": config_key,
-                                                "old_value": old_value,
-                                                "new_value": value_str,
-                                            }
-                                        )
-                                        if config_key == "media_public_base_url":
-                                            media_config_updated = True
-                                except ValueError as ve:
-                                    # Enum validation failed
-                                    await db.rollback()
-                                    context["error"] = str(ve)
-                                    return templates.TemplateResponse(
-                                        "custom_views/system_settings.html", context
+                            # Update config through CRUD layer (validates enum)
+                            try:
+                                target_value = value_str
+                                validate_enum = True
+                                allow_empty = False
+                                new_value_log = value_str
+
+                                if not value_str and should_clear:
+                                    config_shape = ConfigShape(int(config.config_shape))
+                                    target_value = "[]" if config_shape == ConfigShape.ARRAY else ""
+                                    validate_enum = False
+                                    allow_empty = True
+                                    new_value_log = "<cleared>"
+                                elif (
+                                    ConfigShape(int(config.config_shape)) == ConfigShape.ARRAY
+                                    and value_str == "[]"
+                                ):
+                                    allow_empty = True
+
+                                updated_config = await system_configs.update_config_value(
+                                    db,
+                                    config_key=config_key,
+                                    config_value=target_value,
+                                    updated_by=admin_user_id,
+                                    validate_enum=validate_enum,
+                                    allow_empty=allow_empty,
+                                    commit=False,
+                                )
+
+                                if updated_config:
+                                    changes.append(
+                                        {
+                                            "config_key": config_key,
+                                            "old_value": old_value,
+                                            "new_value": new_value_log,
+                                        }
                                     )
+                                    if config_key == "media_public_base_url":
+                                        media_config_updated = True
+                            except (TypeError, ValueError) as ve:
+                                # Enum validation failed
+                                await db.rollback()
+                                context["error"] = str(ve)
+                                return templates.TemplateResponse(self._template_name(), context)
 
                     if changes:
                         await db.commit()
@@ -179,56 +260,65 @@ class SystemSettingsView(CustomView):
                                 request=request,
                             )
 
-                        context["success"] = f"Successfully updated {len(changes)} configuration(s)"
+                        context["success"] = admin_text(
+                            "Successfully updated {count} configuration(s)"
+                        ).format(count=len(changes))
                         logger.info(
                             "system_settings_updated",
                             count=len(changes),
                             admin_user_id=admin_user_id,
                         )
                     else:
-                        context["warning"] = (
+                        context["warning"] = admin_text(
                             "No changes to save (all modification fields were empty)"
                         )
 
                 except Exception as e:
                     await db.rollback()
                     logger.error("system_settings_error", error=str(e), exc_info=True)
-                    context["error"] = f"Failed to update settings: {e!s}"
+                    context["error"] = admin_text("Failed to update settings: {error}").format(
+                        error=f"{e!s}"
+                    )
 
                 # Reload configurations to show updated values
-                config_groups = await get_configs_by_group(db)
+                config_groups = await get_configs_by_group_with_scope(db, scopes=self._scopes)
+                self._localize_config_groups(config_groups)
                 context["config_groups"] = config_groups
-                webhook_token = await get_config(
-                    db, key="leancloud_im_webhook_token", required=False
-                )
-                api_base_url = await get_config(db, key="api_base_url", required=False)
-                conversation_id = await get_config(
-                    db, key="leancloud_im_service_conversation_id", required=False
-                )
-                leancloud_status = await get_leancloud_config_status(db)
-                webhook_url = None
-                if webhook_token and api_base_url:
-                    webhook_url = build_leancloud_webhook_url(
-                        api_base_url=str(api_base_url),
-                        webhook_token=str(webhook_token),
+                if context["show_system_management"]:
+                    webhook_token = await get_config(
+                        db, key="leancloud_im_webhook_token", required=False
                     )
-                context["webhook_url"] = webhook_url
-                context["webhook_token"] = webhook_token
-                context["token_length"] = len(webhook_token) if webhook_token else 0
-                context["conversation_id"] = conversation_id
-                context["leancloud_config"] = leancloud_status
+                    api_base_url = await get_config(db, key="api_base_url", required=False)
+                    conversation_id = await get_config(
+                        db, key="leancloud_im_service_conversation_id", required=False
+                    )
+                    leancloud_status = await get_leancloud_config_status(db)
+                    webhook_url = None
+                    if webhook_token and api_base_url:
+                        webhook_url = build_leancloud_webhook_url(
+                            api_base_url=str(api_base_url),
+                            webhook_token=str(webhook_token),
+                        )
+                    context["webhook_url"] = webhook_url
+                    context["webhook_token"] = webhook_token
+                    context["token_length"] = len(webhook_token) if webhook_token else 0
+                    context["conversation_id"] = conversation_id
+                    context["leancloud_config"] = leancloud_status
 
-            return templates.TemplateResponse("custom_views/system_settings.html", context)
+            return templates.TemplateResponse(self._template_name(), context)
 
         except Exception as e:
             logger.error("system_settings_render_error", error=str(e), exc_info=True)
             context = {
                 "request": request,
-                "error": f"Failed to load settings: {e!s}",
+                "error": admin_text("Failed to load settings: {error}").format(error=f"{e!s}"),
                 "success": None,
                 "warning": None,
                 "config_groups": {},
                 "missing_configs": [],
+                "page_title": self._build_page_title(),
+                "show_system_management": "operation" not in self._scopes,
+                "config_section_title": self._build_config_section_title(),
                 "webhook_url": None,
                 "webhook_token": None,
                 "token_length": 0,
@@ -240,4 +330,4 @@ class SystemSettingsView(CustomView):
                     "has_base_url": False,
                 },
             }
-            return templates.TemplateResponse("custom_views/system_settings.html", context)
+            return templates.TemplateResponse(self._template_name(), context)

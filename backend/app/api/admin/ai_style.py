@@ -25,6 +25,9 @@ logger = get_logger(__name__)
 
 style_router = APIRouter()
 
+DIMENSION_NAME_MAX_LENGTH = 50
+DIMENSION_DISPLAY_NAME_MAX_LENGTH = 100
+
 
 def _resolve_dimension_key(dimension_data: dict[str, Any]) -> int | None:
     """Resolve a stable per-request dimension key from persisted or temporary IDs."""
@@ -56,6 +59,37 @@ def _parse_dimension_id(raw_value: object) -> int | None:
         return None
 
     return parsed if parsed > 0 else None
+
+
+def _validate_dimension_name(raw_value: object) -> str:
+    """Validate and normalize a new dimension name."""
+    if not isinstance(raw_value, str):
+        raise HTTPException(status_code=400, detail="name is required for new dimensions")
+    value = raw_value.strip()
+    if not value:
+        raise HTTPException(status_code=400, detail="name is required for new dimensions")
+    if len(value) > DIMENSION_NAME_MAX_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"dimension name must be at most {DIMENSION_NAME_MAX_LENGTH} characters",
+        )
+    return value
+
+
+def _validate_dimension_display_name(raw_value: object) -> str:
+    """Validate and normalize display_name when explicitly provided."""
+    if not isinstance(raw_value, str):
+        raise HTTPException(status_code=400, detail="dimension display_name must be a string")
+    value = raw_value.strip()
+    if len(value) > DIMENSION_DISPLAY_NAME_MAX_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "dimension display_name must be at most "
+                f"{DIMENSION_DISPLAY_NAME_MAX_LENGTH} characters"
+            ),
+        )
+    return value
 
 
 async def _style_has_references(db: AsyncSession, style_id: int) -> bool:
@@ -305,24 +339,28 @@ async def save_style_complete(
                 detail=f"initial_position must be between 0 and {POSITION_MAX_VALUE}",
             )
 
-        dimension_id = dim_data.get("dimension_id")
+        dimension_id = _parse_dimension_id(dim_data.get("dimension_id"))
 
         # New dimension creation path (copy/new)
-        if not dimension_id:
-            if "name" not in dim_data or not dim_data["name"]:
-                raise HTTPException(status_code=400, detail="name is required for new dimensions")
+        if dimension_id is None:
+            dimension_name = _validate_dimension_name(dim_data.get("name"))
+            normalized_display_name: str | None = None
+            if dim_data.get("display_name") is not None:
+                normalized_display_name = _validate_dimension_display_name(
+                    dim_data.get("display_name")
+                )
 
             # Reuse existing dimension with same name to avoid uniqueness violations
             existing_dim_result = await db.execute(
-                select(AIDimension).where(AIDimension.name == dim_data["name"])
+                select(AIDimension).where(AIDimension.name == dimension_name)
             )
             existing_dim = existing_dim_result.scalar_one_or_none()
 
             if existing_dim:
                 raise HTTPException(status_code=400, detail="dimension name already exists")
             new_dimension = AIDimension(
-                name=dim_data["name"],
-                display_name=dim_data.get("display_name"),
+                name=dimension_name,
+                display_name=normalized_display_name,
                 description=dim_data.get("description"),
             )
             db.add(new_dimension)
@@ -352,7 +390,9 @@ async def save_style_complete(
         if dim_data.get("display_name") is not None or dim_data.get("description") is not None:
             update_fields = {}
             if dim_data.get("display_name") is not None:
-                update_fields["display_name"] = dim_data.get("display_name")
+                update_fields["display_name"] = _validate_dimension_display_name(
+                    dim_data.get("display_name")
+                )
             if dim_data.get("description") is not None:
                 update_fields["description"] = dim_data.get("description")
             if update_fields:

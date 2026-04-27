@@ -104,12 +104,12 @@
       <div class="modal-body">
         <div class="mb-3">
           <label class="form-label">Dimension Name <span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="add-dim-name" placeholder="friendship">
+          <input type="text" class="form-control" id="add-dim-name" placeholder="friendship" maxlength="50">
           <small class="text-muted">仅小写字母和下划线</small>
         </div>
         <div class="mb-3">
           <label class="form-label">Display Name <span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="add-dim-display" placeholder="友情">
+          <input type="text" class="form-control" id="add-dim-display" placeholder="友情" maxlength="100">
         </div>
         <div class="mb-3">
           <label class="form-label">Initial Position (0-1000) <span class="text-danger">*</span></label>
@@ -160,12 +160,12 @@
         <input type="hidden" id="copy-source-id">
         <div class="mb-3">
           <label class="form-label">新 Dimension Name <span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="copy-dim-name" placeholder="如: friendship_copy">
+          <input type="text" class="form-control" id="copy-dim-name" placeholder="如: friendship_copy" maxlength="50">
           <small class="text-muted">仅小写字母和下划线</small>
         </div>
         <div class="mb-3">
           <label class="form-label">Display Name <span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="copy-dim-display">
+          <input type="text" class="form-control" id="copy-dim-display" maxlength="100">
         </div>
         <div class="mb-3">
           <label class="form-label">Initial Position (0-1000) <span class="text-danger">*</span></label>
@@ -191,7 +191,7 @@
         <input type="hidden" id="edit-dim-id">
         <div class="mb-3">
           <label class="form-label">Display Name <span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="edit-dim-display">
+          <input type="text" class="form-control" id="edit-dim-display" maxlength="100">
         </div>
         <div class="mb-3">
           <label class="form-label">Initial Position (0-1000) <span class="text-danger">*</span></label>
@@ -362,6 +362,8 @@
   const dimensions = {{ dimensions | tojson | safe }};
   const mappings = {{ mappings | tojson | safe }};
   const relationships = {{ relationships | tojson | safe }};
+  const DIMENSION_NAME_MAX_LENGTH = 50;
+  const DIMENSION_DISPLAY_NAME_MAX_LENGTH = 100;
 
   // Track deleted IDs
   let deletedMappingIds = [];
@@ -534,6 +536,7 @@
     input1.className = 'form-control form-control';
     input1.name = 'display_name';
     input1.value = dimension.display_name || '';
+    input1.maxLength = DIMENSION_DISPLAY_NAME_MAX_LENGTH;
     group1.appendChild(label1);
     group1.appendChild(input1);
     col1.appendChild(group1);
@@ -616,9 +619,22 @@
     const section = form.closest('.dimension-section');
     const dimensionName = section.getAttribute('data-dimension-name');
 
-    const displayName = form.querySelector('[name="display_name"]').value;
+    const displayName = (form.querySelector('[name="display_name"]').value || '').trim();
     const initialPosition = parseInt(form.querySelector('[name="initial_position"]').value);
     const description = (form.querySelector('[name="description"]').value || '').trim();
+
+    if (!displayName) {
+      alert('Display Name不能为空');
+      return;
+    }
+    if (displayName.length > DIMENSION_DISPLAY_NAME_MAX_LENGTH) {
+      alert('Display Name长度不能超过100个字符');
+      return;
+    }
+    if (isNaN(initialPosition) || initialPosition < 0 || initialPosition > 1000) {
+      alert('Initial Position必须是0-1000之间的数字');
+      return;
+    }
 
     // Update dimension data
     const dimension = dimensions.find(d => d.id === dimensionId);
@@ -1225,12 +1241,20 @@
       alert('Dimension Name只能包含小写字母和下划线');
       return;
     }
+    if (name.length > DIMENSION_NAME_MAX_LENGTH) {
+      alert('Dimension Name长度不能超过50个字符');
+      return;
+    }
     if (dimensions.find(d => d.name === name)) {
       alert('Dimension Name已存在');
       return;
     }
     if (!displayName) {
       alert('Display Name不能为空');
+      return;
+    }
+    if (displayName.length > DIMENSION_DISPLAY_NAME_MAX_LENGTH) {
+      alert('Display Name长度不能超过100个字符');
       return;
     }
     if (isNaN(initialPos) || initialPos < 0 || initialPos > 1000) {
@@ -1348,12 +1372,20 @@
       alert('Dimension Name只能包含小写字母和下划线');
       return;
     }
+    if (name.length > DIMENSION_NAME_MAX_LENGTH) {
+      alert('Dimension Name长度不能超过50个字符');
+      return;
+    }
     if (dimensions.find(d => d.name === name)) {
       alert('Dimension Name已存在');
       return;
     }
     if (!displayName) {
       alert('Display Name不能为空');
+      return;
+    }
+    if (displayName.length > DIMENSION_DISPLAY_NAME_MAX_LENGTH) {
+      alert('Display Name长度不能超过100个字符');
       return;
     }
     if (isNaN(initialPos) || initialPos < 0 || initialPos > 1000) {
@@ -1402,6 +1434,10 @@
     const description = (document.getElementById('edit-dim-description').value || '').trim();
     if (!displayName) {
       alert('Display Name不能为空');
+      return;
+    }
+    if (displayName.length > DIMENSION_DISPLAY_NAME_MAX_LENGTH) {
+      alert('Display Name长度不能超过100个字符');
       return;
     }
     if (isNaN(initialPos) || initialPos < 0 || initialPos > 1000) {

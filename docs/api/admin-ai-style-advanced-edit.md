@@ -101,8 +101,8 @@
 - `dimensions`：数组，表示本次页面保留的维度集合。
 - `dimensions[].dimension_id`：已存在维度的 ID；与 `temp_id` 二选一。
 - `dimensions[].temp_id`：当前请求内的新建维度临时 ID，必须为负数整数；供 `mappings[].dimension_id` 引用。
-- `dimensions[].name`：新建维度必填；必须是全局唯一维度名。
-- `dimensions[].display_name`：新建维度时写入显示名；已有关联维度可省略，不省略时会更新元数据。
+- `dimensions[].name`：新建维度必填；必须是全局唯一维度名，长度不超过 `50` 字符。
+- `dimensions[].display_name`：新建维度时写入显示名；已有关联维度可省略，不省略时会更新元数据，长度不超过 `100` 字符。
 - `dimensions[].description`：可选；不为 `null` 时更新对应维度描述。
 - `dimensions[].initial_position`：必填整数，范围 `0-1000`。
 - `removed_association_dimension_ids`：数组，表示要从当前 style 解除关联的维度 ID。
@@ -134,6 +134,8 @@
 - `400 initial_position must be between 0 and 1000`
 - `400 name is required for new dimensions`
 - `400 dimension name already exists`
+- `400 dimension name must be at most 50 characters`
+- `400 dimension display_name must be at most 100 characters`
 - `400 start_position is required for mapping`
 - `400 end_position is required for mapping`
 - `400 relationship_id is required for mapping`

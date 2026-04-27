@@ -50,6 +50,16 @@
   - 删除 `_cap_delta_for_new_user_reward_window` 与相关常量、查询与聚合逻辑。
   - `apply_growth_rewards` 仅按规则自身参数执行发放（`delta_granted`、`max_rewards_per_actor`）。
 
+### 1.1 邀请触发合并（移除 setup 分叉触发）
+
+- 新增 Alembic 迁移（2026-04-27）：
+  - 将 `growth_reward_rules.trigger_event=2` 合并为 `trigger_event=1`
+  - 将 `growth_reward_applies.trigger_event=2` 合并为 `trigger_event=1`
+  - 重建触发事件约束，仅保留 `trigger_event IN (1, 3, 4)`
+- 业务触发链路：
+  - 邀请人和被邀请人奖励统一在 `邀请码绑定成功` 时触发
+  - 移除 `users/profile` 完成 setup 时的邀请人补发路径
+
 ### 2. 配置数据清理
 
 - 新增 Alembic 迁移（2026-04-27）：
@@ -67,7 +77,7 @@
   - `PUT /admin-api/system/invitation-policy`
 - 卡片字段定义：
   - `invitee_reward_contact_delta`（邀请码绑定成功给被邀请人）
-  - `inviter_reward_contact_delta`（被邀请人完成首轮 setup 后给邀请人）
+  - `inviter_reward_contact_delta`（邀请码绑定成功给邀请人）
   - `inviter_max_rewards_per_actor`（邀请人奖励次数上限）
 - 邀请分享文案配置项：
   - `operation_invite_share_command_texts`
@@ -75,7 +85,7 @@
   - 仅在通用配置列表编辑，不纳入卡片编辑字段。
 - 规则定位方式（固定槽位）：
   - `(trigger_event=1, target_role=2, scope_type=1, scope_id=0, entitlement_type=ai_contact_limit)`
-  - `(trigger_event=2, target_role=3, scope_type=1, scope_id=0, entitlement_type=ai_contact_limit)`
+  - `(trigger_event=1, target_role=3, scope_type=1, scope_id=0, entitlement_type=ai_contact_limit)`
 - 更新方式：
   - 单事务、行级锁、参数校验、操作日志写入。
 

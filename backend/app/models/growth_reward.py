@@ -35,7 +35,7 @@ class GrowthRewardRule(AutoIncrementModel):
         Integer,
         nullable=False,
         comment=(
-            "Trigger event: 1=invite_bind_success, 2=invitee_setup_completed, "
+            "Trigger event: 1=invite_bind_success, "
             "3=campaign_attribution_first_touch, 4=redeem_code_claim_success"
         ),
     )
@@ -95,9 +95,7 @@ class GrowthRewardRule(AutoIncrementModel):
     )
 
     __table_args__ = (
-        CheckConstraint(
-            "trigger_event IN (1, 2, 3, 4)", name="ck_growth_reward_rules_trigger_event"
-        ),
+        CheckConstraint("trigger_event IN (1, 3, 4)", name="ck_growth_reward_rules_trigger_event"),
         CheckConstraint("target_role IN (1, 2, 3)", name="ck_growth_reward_rules_target_role"),
         CheckConstraint("scope_type IN (1, 2, 3)", name="ck_growth_reward_rules_scope_type"),
         CheckConstraint(
@@ -115,7 +113,7 @@ class GrowthRewardRule(AutoIncrementModel):
             name="ck_growth_reward_rules_time_range",
         ),
         CheckConstraint(
-            "(trigger_event <> 1 AND trigger_event <> 2) OR (scope_type = 1)",
+            "(trigger_event <> 1) OR (scope_type = 1)",
             name="ck_growth_reward_rules_invite_scope",
         ),
         CheckConstraint(
@@ -205,7 +203,7 @@ class GrowthRewardApply(ImmutableAutoIncrementModel):
 
     __table_args__ = (
         CheckConstraint(
-            "trigger_event IN (1, 2, 3, 4)",
+            "trigger_event IN (1, 3, 4)",
             name="ck_growth_reward_applies_trigger_event",
         ),
         CheckConstraint(

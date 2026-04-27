@@ -28,7 +28,6 @@ from app.schemas.user_profile import (
     UserProfileResponse,
     UserProfileUpdateRequest,
 )
-from app.services.growth.reward_service import apply_inviter_rewards_for_invitee_setup
 from app.services.profile.avatar import get_avatar_url
 from app.services.profile.region import build_cn_region_snapshot
 from app.services.security.rate_limiter import (
@@ -729,8 +728,6 @@ async def update_user_profile(
         if current_user.needs_profile_setup:
             current_user.needs_profile_setup = False
             db.add(current_user)
-            await db.flush()
-            await apply_inviter_rewards_for_invitee_setup(db, invitee_user_id=int(current_user.id))
             logger.info("needs_profile_setup_cleared", qiao_id=current_user.qiao_id)
 
         await db.commit()

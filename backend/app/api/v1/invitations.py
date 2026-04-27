@@ -184,7 +184,7 @@ async def _get_inviter_reward_policy(db: AsyncSession) -> _InviterRewardPolicy:
 
     rules = await growth_reward_rule_crud.list_active_rules(
         db,
-        trigger_event=int(GrowthRewardTriggerEvent.INVITEE_SETUP_COMPLETED),
+        trigger_event=int(GrowthRewardTriggerEvent.INVITE_BIND_SUCCESS),
         target_role=int(GrowthRewardTargetRole.INVITER),
         campaign_id=None,
         redeem_batch_id=None,
@@ -509,7 +509,7 @@ async def bind_invite_code(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> InvitationBindResponse:
-    """Bind user invite code and apply invitee reward."""
+    """Bind user invite code and apply invite rewards."""
     actor_user_id = int(current_user.id)
     await _check_invite_bind_rate_limit_or_raise(user_id=actor_user_id, db=db)
     code = normalize_invite_code_or_raise(payload.code)
@@ -574,19 +574,18 @@ async def bind_invite_code(
             target_role=int(GrowthRewardTargetRole.INVITEE),
             actor_user_id=actor_user_id,
             source_id=int(binding.id),
-            idempotency_scope="invite_bind",
+            idempotency_scope="invite_bind_invitee",
             event_payload={"binding_id": int(binding.id), "invite_code_id": int(code_record.id)},
         )
-        if not bool(current_user.needs_profile_setup):
-            await apply_growth_rewards(
-                db,
-                trigger_event=int(GrowthRewardTriggerEvent.INVITEE_SETUP_COMPLETED),
-                target_role=int(GrowthRewardTargetRole.INVITER),
-                actor_user_id=inviter_user_id,
-                source_id=int(binding.id),
-                idempotency_scope=f"invitee_setup:{actor_user_id}",
-                event_payload={"invitee_user_id": actor_user_id, "binding_id": int(binding.id)},
-            )
+        await apply_growth_rewards(
+            db,
+            trigger_event=int(GrowthRewardTriggerEvent.INVITE_BIND_SUCCESS),
+            target_role=int(GrowthRewardTargetRole.INVITER),
+            actor_user_id=inviter_user_id,
+            source_id=int(binding.id),
+            idempotency_scope="invite_bind_inviter",
+            event_payload={"invitee_user_id": actor_user_id, "binding_id": int(binding.id)},
+        )
 
         await invite_event_crud.create_event(
             db,

@@ -23,7 +23,6 @@ class GrowthRewardTriggerEvent(IntEnum):
     """Trigger event enum in growth reward rules."""
 
     INVITE_BIND_SUCCESS = 1
-    INVITEE_SETUP_COMPLETED = 2
     CAMPAIGN_ATTRIBUTION_FIRST_TOUCH = 3
     REDEEM_CODE_CLAIM_SUCCESS = 4
 

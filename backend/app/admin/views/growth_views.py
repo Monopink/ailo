@@ -463,7 +463,6 @@ class GrowthRewardRuleView(BaseRoleAwareModelView):
             ) from exc
         if trigger_event_value not in (
             int(GrowthRewardTriggerEvent.INVITE_BIND_SUCCESS),
-            int(GrowthRewardTriggerEvent.INVITEE_SETUP_COMPLETED),
             int(GrowthRewardTriggerEvent.CAMPAIGN_ATTRIBUTION_FIRST_TOUCH),
             int(GrowthRewardTriggerEvent.REDEEM_CODE_CLAIM_SUCCESS),
         ):
@@ -509,9 +508,8 @@ class GrowthRewardRuleView(BaseRoleAwareModelView):
                 )
             data["scope_id"] = redeem_batch_id
 
-        if trigger_event_value in (
-            int(GrowthRewardTriggerEvent.INVITE_BIND_SUCCESS),
-            int(GrowthRewardTriggerEvent.INVITEE_SETUP_COMPLETED),
+        if trigger_event_value == int(
+            GrowthRewardTriggerEvent.INVITE_BIND_SUCCESS
         ) and scope_type_value != int(GrowthRewardScopeType.GLOBAL):
             raise FormValidationError(
                 {"scope_type": "Invite trigger events only support global scope"}

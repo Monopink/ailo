@@ -85,7 +85,13 @@ async def _get_invitation_reward_rule(
     result = await db.execute(stmt)
     rule = result.scalar_one_or_none()
     if rule is None:
-        raise HTTPException(status_code=500, detail="Invitation reward rule not configured")
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Invitation reward rule not configured "
+                f"(trigger_event={int(trigger_event)}, target_role={int(target_role)})"
+            ),
+        )
     return rule
 
 
@@ -124,7 +130,7 @@ async def get_invitation_policy(
         )
         inviter_rule = await _get_invitation_reward_rule(
             db,
-            trigger_event=GrowthRewardTriggerEvent.INVITEE_SETUP_COMPLETED,
+            trigger_event=GrowthRewardTriggerEvent.INVITE_BIND_SUCCESS,
             target_role=GrowthRewardTargetRole.INVITER,
             entitlement_type_id=entitlement_type_id,
             for_update=False,
@@ -166,7 +172,7 @@ async def update_invitation_policy(
         )
         inviter_rule = await _get_invitation_reward_rule(
             db,
-            trigger_event=GrowthRewardTriggerEvent.INVITEE_SETUP_COMPLETED,
+            trigger_event=GrowthRewardTriggerEvent.INVITE_BIND_SUCCESS,
             target_role=GrowthRewardTargetRole.INVITER,
             entitlement_type_id=entitlement_type_id,
             for_update=True,

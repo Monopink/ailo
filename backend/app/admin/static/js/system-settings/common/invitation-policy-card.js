@@ -43,6 +43,8 @@ export function initInvitationPolicyCard(config = {}) {
   }
   const i18n = config.i18n || {};
   const api = config.api || {};
+  const permissions = config.permissions || {};
+  const canWriteInvitationPolicy = permissions.canWriteInvitationPolicy === true;
   const endpoint = api.invitationPolicy;
   if (!endpoint) {
     return;
@@ -55,6 +57,21 @@ export function initInvitationPolicyCard(config = {}) {
   };
   const saveButton = document.getElementById('save-invitation-policy-btn');
   const reloadButton = document.getElementById('reload-invitation-policy-btn');
+  const editableInputs = [fields.inviteeDelta, fields.inviterDelta, fields.inviterCap];
+
+  const applyReadOnlyState = () => {
+    for (const input of editableInputs) {
+      if (input) {
+        input.disabled = !canWriteInvitationPolicy;
+      }
+    }
+    if (saveButton) {
+      saveButton.disabled = !canWriteInvitationPolicy;
+      if (!canWriteInvitationPolicy) {
+        saveButton.title = t(i18n, 'viewerReadOnly', 'Viewer can read but cannot save invitation policy.');
+      }
+    }
+  };
 
   const applyPayload = (payload) => {
     fields.inviteeDelta.value = String(payload.invitee_reward_contact_delta ?? 0);
@@ -66,6 +83,9 @@ export function initInvitationPolicyCard(config = {}) {
   };
 
   const collectPayload = () => {
+    if (!canWriteInvitationPolicy) {
+      throw new Error(t(i18n, 'viewerReadOnly', 'Viewer can read but cannot save invitation policy.'));
+    }
     const inviteeDeltaRaw = Number.parseInt(String(fields.inviteeDelta.value || '0'), 10);
     const inviterDeltaRaw = Number.parseInt(String(fields.inviterDelta.value || '0'), 10);
     if (Number.isNaN(inviteeDeltaRaw) || inviteeDeltaRaw < 0) {
@@ -161,16 +181,20 @@ export function initInvitationPolicyCard(config = {}) {
   }
 
   if (saveButton) {
-    saveButton.addEventListener('click', async () => {
-      try {
-        await savePolicy();
-      } catch (error) {
-        window.alert(
-          error instanceof Error ? error.message : t(i18n, 'savePolicyFailed', 'Failed to save invitation policy')
-        );
-      }
-    });
+    if (canWriteInvitationPolicy) {
+      saveButton.addEventListener('click', async () => {
+        try {
+          await savePolicy();
+        } catch (error) {
+          window.alert(
+            error instanceof Error ? error.message : t(i18n, 'savePolicyFailed', 'Failed to save invitation policy')
+          );
+        }
+      });
+    }
   }
+
+  applyReadOnlyState();
 
   loadPolicy().catch((error) => {
     window.alert(

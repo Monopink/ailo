@@ -5,7 +5,7 @@ This module contains SQLAlchemy models for admin users and operation logs.
 
 from datetime import datetime
 
-from sqlalchemy import Integer, String, Text, text
+from sqlalchemy import JSON, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import INET, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -153,6 +153,11 @@ class AdminOperationLog(ImmutableAutoIncrementModel):
 
     operation_desc: Mapped[str] = mapped_column(
         Text, nullable=False, comment="Operation description"
+    )
+    operation_meta: Mapped[dict[str, object] | None] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="Structured operation metadata",
     )
 
     ip_address: Mapped[str | None] = mapped_column(INET, nullable=True, comment="IP address")

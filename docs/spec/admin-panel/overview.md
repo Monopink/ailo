@@ -35,6 +35,8 @@
 ### 4) 自定义页面
 
 - Chat Console（消息系统联调主工具）
+- Entitlement Operations（通用权益发放/调整台，归属 `App Content` 菜单）
+  - 操作流程固定为：搜索并选择用户 -> 配置权益操作 -> 数量确认（当前可用/结果可用）-> 提交并查看语义化结果
 - 分数算法测试（关系算法输入输出验证）
 - AI Advanced Edit（personality/style 高级配置编辑）
 - Profile Avatar Advanced Edit（profile 头像上传、裁切与覆盖）

@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums.growth import GrowthRewardRuleStatus, GrowthRewardScopeType
+from app.models.entitlement import UserEntitlementLedger
 from app.models.growth_reward import GrowthRewardApply, GrowthRewardRule
 
 
@@ -114,6 +115,53 @@ class CRUDGrowthRewardRule:
         db.add(obj)
         await db.flush()
         return obj
+
+    async def get_actor_applied_reward_truth(
+        self,
+        db: AsyncSession,
+        *,
+        rule_id: int,
+        actor_user_id: int,
+        source_type: str,
+    ) -> tuple[int, int, int, int]:
+        """Return reward apply count/sum and ledger consistency metrics."""
+        base_conditions = (
+            GrowthRewardApply.rule_id == rule_id,
+            GrowthRewardApply.actor_user_id == actor_user_id,
+            GrowthRewardApply.source_type == source_type,
+        )
+        summary_stmt = (
+            select(
+                func.count(GrowthRewardApply.id),
+                func.coalesce(func.sum(GrowthRewardApply.delta_granted), 0),
+                func.coalesce(func.sum(UserEntitlementLedger.delta_granted), 0),
+            )
+            .join(
+                UserEntitlementLedger,
+                UserEntitlementLedger.id == GrowthRewardApply.ledger_id,
+            )
+            .where(*base_conditions)
+        )
+        summary_result = await db.execute(summary_stmt)
+        summary_row = summary_result.one()
+        apply_count = int(summary_row[0] or 0)
+        apply_total = int(summary_row[1] or 0)
+        ledger_total = int(summary_row[2] or 0)
+
+        mismatch_stmt = (
+            select(func.count(GrowthRewardApply.id))
+            .join(UserEntitlementLedger, UserEntitlementLedger.id == GrowthRewardApply.ledger_id)
+            .where(
+                *base_conditions,
+                (
+                    (GrowthRewardApply.delta_granted != UserEntitlementLedger.delta_granted)
+                    | (UserEntitlementLedger.source_type != source_type)
+                ),
+            )
+        )
+        mismatch_result = await db.execute(mismatch_stmt)
+        mismatch_count = int(mismatch_result.scalar_one() or 0)
+        return apply_count, apply_total, ledger_total, mismatch_count
 
 
 growth_reward_rule = CRUDGrowthRewardRule()

@@ -35,17 +35,12 @@ class InvitationStatsResponse(BaseSchema):
     inviter_reward_contact_limit_actual_total: int = Field(
         ...,
         ge=0,
-        description="Contact limit reward delta for inviter on each successful invite",
+        description="Actual rewarded contact limit total from reward applies and ledger truth",
     )
-    max_reward_contact_limit_total: int | None = Field(
-        default=None,
-        ge=0,
-        description="Maximum total contact limit reward for inviter, null means unlimited",
-    )
-    rewarded_contact_limit_total: int = Field(
+    inviter_reward_contact_limit_preview_total: int = Field(
         ...,
         ge=0,
-        description="Current total rewarded contact limit for inviter",
+        description="Preview rewarded contact limit total from current rule and successful binds",
     )
 
 

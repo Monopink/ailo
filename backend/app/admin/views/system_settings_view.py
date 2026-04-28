@@ -59,6 +59,19 @@ class SystemSettingsView(CustomView):
         return "custom_views/system_settings/system_page.html"
 
     @staticmethod
+    def _can_write_invitation_policy(request: Request) -> bool:
+        """Return whether current session has write permission for invitation policy card."""
+        admin_user = request.session.get("admin_user") if hasattr(request, "session") else None
+        if not isinstance(admin_user, dict):
+            return False
+        role_raw = admin_user.get("role")
+        try:
+            role_value = int(role_raw)
+        except (TypeError, ValueError):
+            return False
+        return role_value in (int(AdminRole.SUPER_ADMIN), int(AdminRole.ADMIN))
+
+    @staticmethod
     def _localize_config_groups(config_groups: dict[str, object]) -> None:
         for group_key, group in config_groups.items():
             if not isinstance(group, dict):
@@ -137,6 +150,7 @@ class SystemSettingsView(CustomView):
                 "page_title": self._build_page_title(),
                 "show_system_management": show_system_management,
                 "config_section_title": self._build_config_section_title(),
+                "can_write_invitation_policy": self._can_write_invitation_policy(request),
                 "webhook_url": webhook_url,
                 "webhook_token": webhook_token,
                 "token_length": len(webhook_token) if webhook_token else 0,
@@ -319,6 +333,7 @@ class SystemSettingsView(CustomView):
                 "page_title": self._build_page_title(),
                 "show_system_management": "operation" not in self._scopes,
                 "config_section_title": self._build_config_section_title(),
+                "can_write_invitation_policy": self._can_write_invitation_policy(request),
                 "webhook_url": None,
                 "webhook_token": None,
                 "token_length": 0,

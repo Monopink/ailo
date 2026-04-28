@@ -93,6 +93,28 @@ async def _ensure_reason_code_active_or_raise(db: AsyncSession, *, code: str) ->
         raise ValueError("Entitlement reason code not configured")
 
 
+async def _ensure_reason_code_for_admin_operation_or_raise(
+    db: AsyncSession, *, code: str, operation_type: Literal["grant", "adjust"]
+) -> None:
+    reason_code = await entitlement_reason_code_crud.get_by_code(db, code=code)
+    if reason_code is None or int(reason_code.status) != 1:
+        logger.error("entitlement_reason_code_not_found", code=code)
+        raise ValueError("Entitlement reason code not configured")
+
+    applies_to = str(getattr(reason_code, "applies_to", "both") or "both").strip().lower()
+    if applies_to not in {"grant", "adjust", "both"}:
+        logger.error("entitlement_reason_code_applies_to_invalid", code=code, applies_to=applies_to)
+        raise ValueError("Entitlement reason code configuration invalid")
+    if applies_to not in {"both", operation_type}:
+        logger.error(
+            "entitlement_reason_code_operation_mismatch",
+            code=code,
+            applies_to=applies_to,
+            operation_type=operation_type,
+        )
+        raise ValueError("Entitlement reason code does not support this operation type")
+
+
 def _build_account_state(account: UserEntitlementAccount | None) -> EntitlementAccountState | None:
     if account is None:
         return None
@@ -377,8 +399,12 @@ async def admin_operate_entitlement(
     delta: int,
     reason_code: str,
     idempotency_key: str,
-    remark: str,
+    remark: str | None,
 ) -> EntitlementWriteResult:
+    await _ensure_reason_code_for_admin_operation_or_raise(
+        db, code=reason_code, operation_type=operation_type
+    )
+
     if operation_type == "grant":
         if delta <= 0:
             raise ValueError("Admin grant delta must be > 0")
@@ -390,11 +416,12 @@ async def admin_operate_entitlement(
         action_type = ENTITLEMENT_ACTION_ADJUST
         source_type = ENTITLEMENT_SOURCE_ADMIN_MANUAL_ADJUST
 
-    payload = {
+    payload: dict[str, object] = {
         "operation_type": operation_type,
-        "remark": remark,
         "admin_user_id": admin_user_id,
     }
+    if isinstance(remark, str) and remark.strip() != "":
+        payload["remark"] = remark.strip()
     return await _apply_entitlement_delta(
         db,
         user_id=user_id,

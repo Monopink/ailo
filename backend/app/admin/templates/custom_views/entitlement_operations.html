@@ -1,6 +1,11 @@
 {% extends "layout.html" %}
 {% block title %}<title>{{ admin_text("Entitlement Operations") }}</title>{% endblock %}
 
+{% block head_css %}
+<link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/entitlement-operations.css') }}">
+<link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/select2.min.css') }}">
+{% endblock %}
+
 {% block header %}
 <div class="d-flex justify-content-between align-items-center">
   <div>
@@ -16,74 +21,150 @@
 
 {% block content %}
 <div class="row">
-  <div class="col-lg-6">
+  <div class="col-xl-5">
     <div class="card">
       <div class="card-header">
-        <div class="card-title">{{ admin_text("Create Operation") }}</div>
+        <div class="card-title">{{ admin_text("Operation Builder") }}</div>
       </div>
       <div class="card-body">
         {% if can_operate %}
-        <form id="entitlement-form">
+        <form id="entitlement-form" novalidate>
           <div class="mb-3">
-            <label class="form-label" for="user-id">{{ admin_text("User ID") }}</label>
-            <input class="form-control" id="user-id" type="number" min="1" required>
+            <label class="form-label" for="user-id">{{ admin_text("Find User") }}</label>
+            <select class="form-select" id="user-id" required data-placeholder="{{ admin_text('Please search and select one user') }}">
+              <option value="">{{ admin_text("Please search and select one user") }}</option>
+              {% if preset_user_option %}
+              <option value="{{ preset_user_option.user_id }}" selected>{{ preset_user_option.display_label }}</option>
+              {% endif %}
+            </select>
+            <div class="ops-user-assets d-none mt-2" id="user-assets-panel">
+              <div class="d-flex flex-column gap-2" id="user-assets-list"></div>
+            </div>
           </div>
+
           <div class="mb-3">
             <label class="form-label" for="entitlement-type">{{ admin_text("Entitlement Type") }}</label>
             <select class="form-select" id="entitlement-type" required>
               {% for item in entitlement_types %}
-              <option value="{{ item.code }}">{{ item.code }} ({{ item.unit }})</option>
+              <option value="{{ item.code }}" {% if preset_entitlement_type_code == item.code %}selected{% endif %}>
+                {{ item.display_name }} ({{ item.code }})
+              </option>
               {% endfor %}
             </select>
           </div>
+
           <div class="mb-3">
-            <label class="form-label" for="operation-type">{{ admin_text("Operation Type") }}</label>
-            <select class="form-select" id="operation-type" required>
-              <option value="grant">grant（增量必须大于 0）</option>
-              <option value="adjust">adjust（增量可正可负，且不能为 0）</option>
-            </select>
+            <label class="form-label d-block">{{ admin_text("Operation Type") }}</label>
+            <div class="btn-group w-100 ops-op-toggle" role="group" aria-label="{{ admin_text('Operation Type') }}">
+              <input
+                class="btn-check"
+                type="radio"
+                name="operation-type"
+                id="operation-type-grant"
+                value="grant"
+                autocomplete="off"
+                checked
+              >
+              <label class="btn btn-outline-primary" for="operation-type-grant">
+                {{ admin_text("Grant (positive only)") }}
+              </label>
+              <input
+                class="btn-check"
+                type="radio"
+                name="operation-type"
+                id="operation-type-adjust"
+                value="adjust"
+                autocomplete="off"
+              >
+              <label class="btn btn-outline-primary" for="operation-type-adjust">
+                {{ admin_text("Adjust (positive add / negative deduct)") }}
+              </label>
+            </div>
           </div>
+
           <div class="mb-3">
-            <label class="form-label" for="delta">{{ admin_text("Delta") }}</label>
-            <input class="form-control" id="delta" type="number" required>
-            <small class="form-hint" id="delta-hint">grant 时增量必须大于 0。</small>
+            <div class="ops-confirm-grid">
+              <div class="ops-confirm-item">
+                <div class="text-muted ops-confirm-label">{{ admin_text("Original") }}</div>
+                <div class="ops-confirm-value" id="current-available-total">-</div>
+              </div>
+              <div class="ops-confirm-item" id="delta-panel">
+                <div class="text-muted ops-confirm-label">{{ admin_text("Adjustment") }}</div>
+                <input class="form-control ops-confirm-input" id="delta" type="number" required>
+              </div>
+              <div class="ops-confirm-item" id="after-panel">
+                <div class="text-muted ops-confirm-label">{{ admin_text("After Operation") }}</div>
+                <div class="ops-confirm-value" id="preview-available-total">-</div>
+              </div>
+            </div>
+            <div class="form-hint mt-2 d-none" id="delta-validation-hint"></div>
           </div>
+
           <div class="mb-3">
             <label class="form-label" for="reason-code">{{ admin_text("Reason Code") }}</label>
             <select class="form-select" id="reason-code" required>
+              <option value="">{{ admin_text("Please select a reason code") }}</option>
               {% for item in reason_codes %}
-              <option value="{{ item.code }}">{{ item.display_name }} ({{ item.code }})</option>
+              <option value="{{ item.code }}" data-applies-to="{{ item.applies_to }}">
+                {{ item.display_name }} ({{ item.code }})
+              </option>
               {% endfor %}
             </select>
+            <div class="form-hint mt-2 d-none" id="reason-code-validation-hint"></div>
           </div>
+
           <div class="mb-3">
-            <label class="form-label" for="idempotency-key">{{ admin_text("Idempotency Key") }}</label>
-            <input class="form-control" id="idempotency-key" type="text" maxlength="128" required>
+            <label class="form-label" for="remark">{{ admin_text("Description (Optional)") }}</label>
+            <textarea
+              class="form-control"
+              id="remark"
+              rows="3"
+              maxlength="500"
+              placeholder="{{ admin_text('Leave empty if no extra context is needed.') }}"
+            ></textarea>
           </div>
-          <div class="mb-3">
-            <label class="form-label" for="remark">{{ admin_text("Remark") }}</label>
-            <textarea class="form-control" id="remark" rows="3" maxlength="500" required></textarea>
+
+          <input id="idempotency-key" type="hidden">
+          <button class="btn btn-primary w-100" id="submit-btn" type="submit">
+            {{ admin_text("Execute Operation") }}
+          </button>
+          <div class="d-none mt-3" id="result-inline">
+            <div class="alert mb-0" id="operation-feedback-alert">
+              <div class="d-flex align-items-start gap-2">
+                <div class="ops-result-icon" id="operation-feedback-icon" aria-hidden="true"></div>
+                <div>
+                  <div class="fw-semibold" id="operation-feedback-title"></div>
+                  <div class="small mt-1" id="operation-feedback-body"></div>
+                </div>
+              </div>
+            </div>
           </div>
-          <button class="btn btn-primary" id="submit-btn" type="submit">{{ admin_text("Submit Operation") }}</button>
         </form>
         {% else %}
         <div class="alert alert-warning mb-0">{{ admin_text("Viewer role is read-only and cannot submit operations.") }}</div>
         {% endif %}
       </div>
     </div>
-
-    <div class="card mt-3 d-none" id="result-card">
-      <div class="card-header"><div class="card-title">{{ admin_text("Result") }}</div></div>
-      <div class="card-body">
-        <pre class="mb-0" id="result-content"></pre>
-      </div>
-    </div>
   </div>
 
-  <div class="col-lg-6">
+  <div class="col-xl-7">
     <div class="card">
       <div class="card-header">
-        <div class="card-title">{{ admin_text("Latest Admin Operations (30)") }}</div>
+        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 w-100">
+          <div class="card-title mb-0">{{ admin_text("Latest Ledger Records (50)") }}</div>
+          <form method="get" class="d-flex flex-column flex-lg-row gap-2 align-items-lg-center">
+            <select class="form-select" id="filter-entitlement-type" name="entitlement_type_code">
+              <option value="">{{ admin_text("All Entitlement Types") }}</option>
+              {% for item in entitlement_types %}
+              <option value="{{ item.code }}" {% if selected_entitlement_type_code == item.code %}selected{% endif %}>
+                {{ item.display_name }} ({{ item.code }})
+              </option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-primary" type="submit">{{ admin_text("Apply Filter") }}</button>
+            <a class="btn btn-outline-secondary" href="{{ request.url.path }}">{{ admin_text("Clear Filter") }}</a>
+          </form>
+        </div>
       </div>
       <div class="table-responsive">
         <table class="table table-vcenter">
@@ -91,6 +172,8 @@
             <tr>
               <th>ID</th>
               <th>{{ admin_text("User") }}</th>
+              <th>{{ admin_text("Entitlement Type") }}</th>
+              <th>{{ admin_text("Operation") }}</th>
               <th>{{ admin_text("Delta") }}</th>
               <th>{{ admin_text("Source") }}</th>
               <th>{{ admin_text("Reason") }}</th>
@@ -103,15 +186,23 @@
             <tr>
               <td>{{ item.id }}</td>
               <td>{{ item.user_id }}</td>
+              <td>{{ item.entitlement_type_display_name }} ({{ item.entitlement_type_code }})</td>
+              <td>{{ admin_text(item.action_label) }}</td>
               <td>{{ item.delta_granted }}</td>
               <td>{{ item.source_type }}</td>
-              <td>{{ item.reason_code or '-' }}</td>
+              <td>
+                {% if item.reason_code %}
+                {{ item.reason_display_name or item.reason_code }} ({{ item.reason_code }})
+                {% else %}
+                -
+                {% endif %}
+              </td>
               <td>{{ item.operator_admin_user_id or '-' }}</td>
               <td>{{ item.created_at or '-' }}</td>
             </tr>
             {% else %}
             <tr>
-              <td class="text-muted text-center" colspan="7">{{ admin_text("No operation records.") }}</td>
+              <td class="text-muted text-center" colspan="9">{{ admin_text("No operation records.") }}</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -120,71 +211,99 @@
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="operation-confirm-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ admin_text("Confirm Operation") }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ admin_text('Cancel') }}"></button>
+      </div>
+      <div class="modal-body">
+        <div class="small text-muted mb-2">{{ admin_text("Please confirm operation details before execution.") }}</div>
+        <div class="ops-confirm-dialog-grid">
+          <div>{{ admin_text("User") }}</div>
+          <div id="confirm-user">-</div>
+          <div>{{ admin_text("Entitlement Type") }}</div>
+          <div id="confirm-type">-</div>
+          <div>{{ admin_text("Operation Type") }}</div>
+          <div id="confirm-operation">-</div>
+          <div>{{ admin_text("Reason Code") }}</div>
+          <div id="confirm-reason">-</div>
+          <div>{{ admin_text("Original") }}</div>
+          <div id="confirm-original">-</div>
+          <div>{{ admin_text("Adjustment") }}</div>
+          <div id="confirm-delta">-</div>
+          <div>{{ admin_text("After Operation") }}</div>
+          <div id="confirm-after">-</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+          {{ admin_text("Cancel") }}
+        </button>
+        <button type="button" class="btn btn-primary" id="confirm-execute-btn">
+          {{ admin_text("Confirm and Execute") }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block script %}
 <script>
-  const operationsApiPath = {{ operations_api_path | tojson }};
-  const form = document.getElementById('entitlement-form');
-  const submitBtn = document.getElementById('submit-btn');
-  const resultCard = document.getElementById('result-card');
-  const resultContent = document.getElementById('result-content');
-  const operationTypeEl = document.getElementById('operation-type');
-  const deltaHint = document.getElementById('delta-hint');
-  const idempotencyKeyEl = document.getElementById('idempotency-key');
-
-  function resetIdempotencyKey() {
-    idempotencyKeyEl.value = `admin_manual:${Date.now()}`;
-  }
-
-  function updateDeltaHint() {
-    deltaHint.textContent = operationTypeEl.value === 'grant'
-      ? 'grant 时增量必须大于 0。'
-      : 'adjust 时增量可正可负，但不能为 0。';
-  }
-
-  if (form && submitBtn && operationTypeEl && deltaHint && idempotencyKeyEl) {
-    operationTypeEl.addEventListener('change', updateDeltaHint);
-    resetIdempotencyKey();
-    updateDeltaHint();
-
-    form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    submitBtn.disabled = true;
-
-    const payload = {
-      user_id: Number(document.getElementById('user-id').value),
-      entitlement_type_code: document.getElementById('entitlement-type').value,
-      operation_type: operationTypeEl.value,
-      delta: Number(document.getElementById('delta').value),
-      reason_code: document.getElementById('reason-code').value,
-      idempotency_key: idempotencyKeyEl.value,
-      remark: document.getElementById('remark').value,
-    };
-
-    try {
-      const response = await fetch(operationsApiPath, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.detail || '操作失败');
-      }
-
-      resultCard.classList.remove('d-none');
-      resultContent.textContent = JSON.stringify(data, null, 2);
-      resetIdempotencyKey();
-      setTimeout(() => window.location.reload(), 1200);
-    } catch (error) {
-      resultCard.classList.remove('d-none');
-      resultContent.textContent = String(error.message || error);
-    } finally {
-      submitBtn.disabled = false;
-    }
-    });
-  }
+window.qiaoEntitlementOperationsPageConfig = {
+  api: {
+    operations: {{ operations_api_path | tojson | safe }},
+    userSearch: {{ user_search_api_path | tojson | safe }},
+    userAssets: {{ user_assets_api_path | tojson | safe }},
+    accountSnapshot: {{ account_snapshot_api_path | tojson | safe }},
+  },
+  i18n: {
+    searchingUsers: {{ admin_text("Searching users...") | tojson | safe }},
+    noSearchResult: {{ admin_text("No matching users found.") | tojson | safe }},
+    searchFailed: {{ admin_text("User search failed.") | tojson | safe }},
+    selectUserPrompt: {{ admin_text("Please search and select one user") | tojson | safe }},
+    selectReasonCodePrompt: {{ admin_text("Please select a reason code") | tojson | safe }},
+    invalidResult: {{ admin_text("Invalid operation result") | tojson | safe }},
+    invalidResultInline: {{ admin_text("Please enter a valid adjustment amount according to the selected operation type.") | tojson | safe }},
+    snapshotLoadFailed: {{ admin_text("Failed to load entitlement snapshot.") | tojson | safe }},
+    userAssetsLoadFailed: {{ admin_text("Failed to load user entitlement assets.") | tojson | safe }},
+    noUserAssets: {{ admin_text("No entitlement assets found for this user.") | tojson | safe }},
+    assetAvailableLabel: {{ admin_text("Available") | tojson | safe }},
+    assetGrantedLabel: {{ admin_text("Granted") | tojson | safe }},
+    assetUsedLabel: {{ admin_text("Used") | tojson | safe }},
+    invalidDeltaPreview: {{ admin_text("Please enter a valid adjustment amount.") | tojson | safe }},
+    selectReasonCode: {{ admin_text("Please select a reason code.") | tojson | safe }},
+    noReasonCodeForOperation: {{ admin_text("No reason code is configured for the selected operation type.") | tojson | safe }},
+    submitFailed: {{ admin_text("Operation failed") | tojson | safe }},
+    selectUserFirst: {{ admin_text("Please select a user first.") | tojson | safe }},
+    operationSucceeded: {{ admin_text("Operation succeeded") | tojson | safe }},
+    operationDuplicated: {{ admin_text("Request accepted (idempotent hit, no duplicate write)") | tojson | safe }},
+    confirmOperationTitle: {{ admin_text("Confirm Operation") | tojson | safe }},
+    confirmOperationBody: {{ admin_text("Please confirm operation details before execution.") | tojson | safe }},
+    confirmAndExecute: {{ admin_text("Confirm and Execute") | tojson | safe }},
+    resultSummary: {{ admin_text("User {user}, entitlement {type}, operation {operation}, adjustment {delta}.") | tojson | safe }},
+    resultAvailable: {{ admin_text("Available after operation: {available}") | tojson | safe }},
+    operationTypeGrant: {{ admin_text("Grant") | tojson | safe }},
+    operationTypeAdjust: {{ admin_text("Adjust") | tojson | safe }},
+  },
+  entitlementTypeLabels: {
+    {% for item in entitlement_types %}
+    {{ item.code | tojson | safe }}: {{ item.display_name | tojson | safe }},
+    {% endfor %}
+  },
+  reasonCodeMeta: {
+    {% for item in reason_codes %}
+    {{ item.code | tojson | safe }}: {
+      display_name: {{ item.display_name | tojson | safe }},
+      applies_to: {{ item.applies_to | tojson | safe }},
+    },
+    {% endfor %}
+  },
+};
 </script>
+<script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/vendor/select2.min.js') }}"></script>
+<script type="module" src="{{ url_for(__name__ ~ ':statics', path='js/entitlement-operations/page.js') }}"></script>
 {% endblock %}

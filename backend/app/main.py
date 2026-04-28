@@ -29,6 +29,7 @@ from app.services.alerting.cleanup import (
     stop_alerting_cleanup_worker,
 )
 from app.services.contact.request_worker import start_contact_request_worker
+from app.services.invitation.share_card import INVITE_SHARE_PAGE_PATH, INVITE_SHARE_QUERY_PARAM
 from app.services.media.cleanup import start_media_cleanup_worker, stop_media_cleanup_worker
 from app.services.media.config import refresh_media_base_url
 from app.services.message.dispatch.worker import (
@@ -128,9 +129,9 @@ async def redirect_invite_link(token: str) -> Response:
 
     wechat_client = WeChatClient()
     try:
-        query = urlencode({"inviteCode": normalized_code})
+        query = urlencode({INVITE_SHARE_QUERY_PARAM: normalized_code})
         url_link = await wechat_client.generate_url_link(
-            path="/pages/setup/setup",
+            path=INVITE_SHARE_PAGE_PATH,
             query=query,
             env_version="release",
         )

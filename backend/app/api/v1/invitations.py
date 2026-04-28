@@ -11,12 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
-from app.crud.entitlement import entitlement_type as entitlement_type_crud
 from app.crud.growth_reward import growth_reward_rule as growth_reward_rule_crud
 from app.crud.invite import invite_binding as invite_binding_crud
 from app.crud.invite import invite_code as invite_code_crud
 from app.crud.invite import invite_event as invite_event_crud
-from app.enums.growth import GrowthRewardScopeType, GrowthRewardTargetRole, GrowthRewardTriggerEvent
+from app.enums.growth import GrowthRewardTargetRole, GrowthRewardTriggerEvent
 from app.enums.invite import InviteEventType, InviteResolveCodeType
 from app.models.user import User
 from app.schemas.invitation import (
@@ -35,7 +34,8 @@ from app.schemas.invitation import (
     InvitationShareCommandResponse,
     InvitationStatsResponse,
 )
-from app.services.entitlement.service import ENTITLEMENT_AI_CONTACT_LIMIT
+from app.services.entitlement.service import ENTITLEMENT_SOURCE_INVITE_BIND_INVITER
+from app.services.growth.invitation_policy import get_invitation_policy_rules
 from app.services.growth.reward_service import apply_growth_rewards
 from app.services.invitation.intake import (
     normalize_event_source_or_raise,
@@ -167,67 +167,47 @@ class _InviterRewardPolicy:
     def __init__(
         self,
         *,
-        reward_contact_limit_per_invite: int,
-        max_invite_count: int | None,
+        reward_contact_delta: int,
+        max_rewards_per_actor: int | None,
+        rule_id: int,
     ) -> None:
-        self.reward_contact_limit_per_invite = reward_contact_limit_per_invite
-        self.max_invite_count = max_invite_count
+        self.reward_contact_delta = reward_contact_delta
+        self.max_rewards_per_actor = max_rewards_per_actor
+        self.rule_id = rule_id
 
 
 async def _get_inviter_reward_policy(db: AsyncSession) -> _InviterRewardPolicy:
-    entitlement_type = await entitlement_type_crud.get_by_code(
-        db, code=ENTITLEMENT_AI_CONTACT_LIMIT
-    )
-    if entitlement_type is None or int(entitlement_type.status) != 1:
-        logger.error("invite_stats_entitlement_type_missing", code=ENTITLEMENT_AI_CONTACT_LIMIT)
+    try:
+        policy_rules = await get_invitation_policy_rules(db, for_update=False)
+    except ValueError:
+        logger.error("invite_stats_rule_invalid")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误")
-
-    rules = await growth_reward_rule_crud.list_active_rules(
-        db,
-        trigger_event=int(GrowthRewardTriggerEvent.INVITE_BIND_SUCCESS),
-        target_role=int(GrowthRewardTargetRole.INVITER),
-        campaign_id=None,
-        redeem_batch_id=None,
-    )
-
-    selected_rule = next(
-        (
-            rule
-            for rule in rules
-            if int(rule.scope_type) == int(GrowthRewardScopeType.GLOBAL)
-            and int(rule.scope_id) == 0
-            and int(rule.entitlement_type_id) == int(entitlement_type.id)
-        ),
-        None,
-    )
-    if selected_rule is None:
-        logger.error("invite_stats_rule_missing")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误")
-
-    reward_contact_limit_per_invite = int(selected_rule.delta_granted)
-    if reward_contact_limit_per_invite < 0:
+    selected_rule = policy_rules.inviter_rule
+    reward_contact_delta = int(selected_rule.delta_granted)
+    if reward_contact_delta < 0:
         logger.error(
             "invite_stats_rule_delta_invalid",
             rule_id=int(selected_rule.id),
-            delta=reward_contact_limit_per_invite,
+            delta=reward_contact_delta,
         )
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误")
-    max_invite_count = (
+    max_rewards_per_actor = (
         int(selected_rule.max_rewards_per_actor)
         if selected_rule.max_rewards_per_actor is not None
         else None
     )
-    if max_invite_count is not None and max_invite_count < 1:
+    if max_rewards_per_actor is not None and max_rewards_per_actor < 1:
         logger.error(
             "invite_stats_rule_cap_invalid",
             rule_id=int(selected_rule.id),
-            max_rewards_per_actor=max_invite_count,
+            max_rewards_per_actor=max_rewards_per_actor,
         )
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误")
 
     return _InviterRewardPolicy(
-        reward_contact_limit_per_invite=reward_contact_limit_per_invite,
-        max_invite_count=max_invite_count,
+        reward_contact_delta=reward_contact_delta,
+        max_rewards_per_actor=max_rewards_per_actor,
+        rule_id=int(selected_rule.id),
     )
 
 
@@ -325,12 +305,35 @@ async def get_invitation_stats(
             db,
             inviter_user_id=int(current_user.id),
         )
-        max_reward_contact_limit_total = (
-            policy.max_invite_count * policy.reward_contact_limit_per_invite
-            if policy.max_invite_count is not None
-            else None
+        (
+            _apply_count,
+            apply_total,
+            ledger_total,
+            mismatch_count,
+        ) = await growth_reward_rule_crud.get_actor_applied_reward_truth(
+            db,
+            rule_id=policy.rule_id,
+            actor_user_id=int(current_user.id),
+            source_type=ENTITLEMENT_SOURCE_INVITE_BIND_INVITER,
         )
-        rewarded_contact_limit_total = success_invite_count * policy.reward_contact_limit_per_invite
+        if mismatch_count > 0 or apply_total != ledger_total:
+            logger.error(
+                "invite_stats_reward_truth_mismatch",
+                actor_user_id=int(current_user.id),
+                rule_id=policy.rule_id,
+                apply_total=apply_total,
+                ledger_total=ledger_total,
+                mismatch_count=mismatch_count,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误"
+            )
+        preview_bind_count = (
+            min(success_invite_count, policy.max_rewards_per_actor)
+            if policy.max_rewards_per_actor is not None
+            else success_invite_count
+        )
+        preview_total = preview_bind_count * policy.reward_contact_delta
         return InvitationStatsResponse(
             inviter_success_bind_count=success_invite_count,
             inviter_reward_contact_limit_actual_total=apply_total,
@@ -538,14 +541,14 @@ async def bind_invite_code(
         inviter_user_id = int(code_record.owner_user_id)
 
         policy = await _get_inviter_reward_policy(db)
-        if policy.max_invite_count is not None:
+        if policy.max_rewards_per_actor is not None:
             inviter_success_invite_count = (
                 await invite_binding_crud.count_success_by_inviter_user_id(
                     db,
                     inviter_user_id=inviter_user_id,
                 )
             )
-            if inviter_success_invite_count >= policy.max_invite_count:
+            if inviter_success_invite_count >= policy.max_rewards_per_actor:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=INVITE_CAP_REACHED_ERROR,

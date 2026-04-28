@@ -34,6 +34,16 @@
 - 分组导航：右下角 `Quick Nav` 浮动按钮
 - 配置历史：通过 `admin_operation_logs` 追踪
 
+## 运营设置页（Operation Settings）
+
+- 邀请奖励策略卡片：
+  - 展示字段：`被邀请人奖励增量`、`邀请人奖励增量`、`邀请人奖励次数上限`
+  - 读取接口：`GET /admin-api/system/invitation-policy`
+  - 保存接口：`PUT /admin-api/system/invitation-policy`
+- 角色行为：
+  - `super_admin/admin`：可读取、可保存
+  - `viewer`：可读取、可刷新、不可保存
+
 ## 配置值类型（`value_type`）
 
 1. `STRING=1`：文本值

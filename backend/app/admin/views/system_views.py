@@ -383,6 +383,7 @@ class AdminOperationLogView(ModelView):
         "resource_id",
         "resource_name",
         "operation_desc",
+        JSONField("operation_meta", label="Operation Meta", required=False),
         "ip_address",
         "user_agent",
         DateTimeField("created_at", label="Created At", help_text="Operation time"),

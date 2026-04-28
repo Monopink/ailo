@@ -12,21 +12,13 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 
 from app.api.deps import get_db, verify_admin_session
 from app.crud.system import system_configs
 from app.enums import AdminOperationType, AdminRole
-from app.enums.growth import (
-    GrowthRewardRuleStatus,
-    GrowthRewardScopeType,
-    GrowthRewardTargetRole,
-    GrowthRewardTriggerEvent,
-)
-from app.models.growth_reward import GrowthRewardRule
-from app.services.entitlement.service import ENTITLEMENT_AI_CONTACT_LIMIT
+from app.services.growth.invitation_policy import get_invitation_policy_rules
 from app.services.message.providers.leancloud import service as leancloud_service
 from app.services.message.providers.leancloud.config import get_leancloud_runtime_config
 from app.services.system_config import SystemConfigService
@@ -46,7 +38,7 @@ class InvitationPolicyUpdateRequest(BaseModel):
     inviter_max_rewards_per_actor: int | None = Field(default=None, ge=1)
 
 
-def _require_admin_write_role(admin_user: dict[str, Any]) -> int:
+def _extract_admin_role(admin_user: dict[str, Any]) -> int:
     role_raw = admin_user.get("role")
     if isinstance(role_raw, bool) or not isinstance(role_raw, int | str):
         raise HTTPException(status_code=403, detail="Permission denied")
@@ -54,62 +46,20 @@ def _require_admin_write_role(admin_user: dict[str, Any]) -> int:
         role = int(role_raw)
     except (TypeError, ValueError) as exc:
         raise HTTPException(status_code=403, detail="Permission denied") from exc
-    if role not in (int(AdminRole.SUPER_ADMIN), int(AdminRole.ADMIN)):
+    if role not in (int(AdminRole.SUPER_ADMIN), int(AdminRole.ADMIN), int(AdminRole.VIEWER)):
         raise HTTPException(status_code=403, detail="Permission denied")
     return role
 
 
-async def _get_invitation_reward_rule(
-    db: AsyncSession,
-    *,
-    trigger_event: GrowthRewardTriggerEvent,
-    target_role: GrowthRewardTargetRole,
-    entitlement_type_id: int,
-    for_update: bool,
-) -> GrowthRewardRule:
-    stmt = (
-        select(GrowthRewardRule)
-        .where(
-            GrowthRewardRule.trigger_event == int(trigger_event),
-            GrowthRewardRule.target_role == int(target_role),
-            GrowthRewardRule.scope_type == int(GrowthRewardScopeType.GLOBAL),
-            GrowthRewardRule.scope_id == 0,
-            GrowthRewardRule.entitlement_type_id == entitlement_type_id,
-            GrowthRewardRule.status == int(GrowthRewardRuleStatus.ACTIVE),
-        )
-        .order_by(GrowthRewardRule.priority.asc(), GrowthRewardRule.id.asc())
-        .limit(1)
-    )
-    if for_update:
-        stmt = stmt.with_for_update()
-    result = await db.execute(stmt)
-    rule = result.scalar_one_or_none()
-    if rule is None:
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                "Invitation reward rule not configured "
-                f"(trigger_event={int(trigger_event)}, target_role={int(target_role)})"
-            ),
-        )
-    return rule
+def _require_admin_read_role(admin_user: dict[str, Any]) -> int:
+    return _extract_admin_role(admin_user)
 
 
-async def _get_ai_contact_limit_entitlement_id(db: AsyncSession) -> int:
-    result = await db.execute(
-        text(
-            """
-            SELECT id FROM entitlement_types
-            WHERE code = :code AND status = 1
-            LIMIT 1
-            """
-        ),
-        {"code": ENTITLEMENT_AI_CONTACT_LIMIT},
-    )
-    entitlement_id = result.scalar_one_or_none()
-    if entitlement_id is None:
-        raise HTTPException(status_code=500, detail="Entitlement type not configured")
-    return int(entitlement_id)
+def _require_admin_write_role(admin_user: dict[str, Any]) -> int:
+    role = _extract_admin_role(admin_user)
+    if role not in (int(AdminRole.SUPER_ADMIN), int(AdminRole.ADMIN)):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    return role
 
 
 @system_router.get("/invitation-policy")
@@ -118,23 +68,11 @@ async def get_invitation_policy(
     _admin_user: dict[str, Any] = Depends(verify_admin_session),
 ) -> dict[str, Any]:
     """Get invitation policy card data for operation settings."""
-    _require_admin_write_role(_admin_user)
+    _require_admin_read_role(_admin_user)
     try:
-        entitlement_type_id = await _get_ai_contact_limit_entitlement_id(db)
-        invitee_rule = await _get_invitation_reward_rule(
-            db,
-            trigger_event=GrowthRewardTriggerEvent.INVITE_BIND_SUCCESS,
-            target_role=GrowthRewardTargetRole.INVITEE,
-            entitlement_type_id=entitlement_type_id,
-            for_update=False,
-        )
-        inviter_rule = await _get_invitation_reward_rule(
-            db,
-            trigger_event=GrowthRewardTriggerEvent.INVITE_BIND_SUCCESS,
-            target_role=GrowthRewardTargetRole.INVITER,
-            entitlement_type_id=entitlement_type_id,
-            for_update=False,
-        )
+        rules = await get_invitation_policy_rules(db, for_update=False)
+        invitee_rule = rules.invitee_rule
+        inviter_rule = rules.inviter_rule
         return {
             "invitee_reward_contact_delta": int(invitee_rule.delta_granted),
             "inviter_reward_contact_delta": int(inviter_rule.delta_granted),
@@ -144,6 +82,9 @@ async def get_invitation_policy(
                 else None
             ),
         }
+    except ValueError:
+        logger.error("admin_get_invitation_policy_rule_invalid")
+        raise HTTPException(status_code=500, detail="系统错误") from None
     except HTTPException:
         raise
     except Exception as exc:
@@ -162,21 +103,9 @@ async def update_invitation_policy(
     _require_admin_write_role(admin_user)
     admin_user_id = int(admin_user["id"])
     try:
-        entitlement_type_id = await _get_ai_contact_limit_entitlement_id(db)
-        invitee_rule = await _get_invitation_reward_rule(
-            db,
-            trigger_event=GrowthRewardTriggerEvent.INVITE_BIND_SUCCESS,
-            target_role=GrowthRewardTargetRole.INVITEE,
-            entitlement_type_id=entitlement_type_id,
-            for_update=True,
-        )
-        inviter_rule = await _get_invitation_reward_rule(
-            db,
-            trigger_event=GrowthRewardTriggerEvent.INVITE_BIND_SUCCESS,
-            target_role=GrowthRewardTargetRole.INVITER,
-            entitlement_type_id=entitlement_type_id,
-            for_update=True,
-        )
+        rules = await get_invitation_policy_rules(db, for_update=True)
+        invitee_rule = rules.invitee_rule
+        inviter_rule = rules.inviter_rule
 
         invitee_rule.delta_granted = int(payload.invitee_reward_contact_delta)
         inviter_rule.delta_granted = int(payload.inviter_reward_contact_delta)
@@ -202,6 +131,10 @@ async def update_invitation_policy(
         )
 
         return {"success": True}
+    except ValueError:
+        await db.rollback()
+        logger.error("admin_update_invitation_policy_rule_invalid")
+        raise HTTPException(status_code=500, detail="系统错误") from None
     except HTTPException:
         await db.rollback()
         raise

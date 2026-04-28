@@ -59,6 +59,12 @@ class EntitlementReasonCode(AutoIncrementModel):
     description: Mapped[str | None] = mapped_column(
         String(255), nullable=True, comment="Optional reason description"
     )
+    applies_to: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="both",
+        comment="Allowed operation type: grant/adjust/both",
+    )
     is_system: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, comment="Built-in reason code flag"
     )
@@ -71,8 +77,13 @@ class EntitlementReasonCode(AutoIncrementModel):
             "code ~ '^[a-z][a-z0-9_]{1,63}$'",
             name="ck_entitlement_reason_codes_code_format",
         ),
+        CheckConstraint(
+            "applies_to IN ('grant', 'adjust', 'both')",
+            name="ck_entitlement_reason_codes_applies_to",
+        ),
         CheckConstraint("status IN (1, 2)", name="ck_entitlement_reason_codes_status"),
         Index("idx_entitlement_reason_codes_status", "status"),
+        Index("idx_entitlement_reason_codes_applies_to", "applies_to"),
     )
 
 

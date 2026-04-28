@@ -173,6 +173,7 @@
 ### 成功行为
 
 - 校验 `token` 对应有效邀请码后，后端生成微信 URL Link 并返回 302 重定向。
+- URL Link 小程序路径固定为 `/pages/boot/boot`，并携带 `inviteCode={token}` 查询参数。
 
 ### 失败响应
 

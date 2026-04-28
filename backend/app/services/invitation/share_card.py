@@ -7,7 +7,11 @@ from dataclasses import dataclass
 from app.services.media.config import get_media_base_url
 
 INVITE_SHARE_PATH_CODE_PLACEHOLDER = "{{code}}"
-INVITE_SHARE_PATH_TEMPLATE = "/pages/boot/boot?inviteCode={{code}}"
+INVITE_SHARE_QUERY_PARAM = "inviteCode"
+INVITE_SHARE_PAGE_PATH = "/pages/boot/boot"
+INVITE_SHARE_PATH_TEMPLATE = (
+    f"{INVITE_SHARE_PAGE_PATH}?{INVITE_SHARE_QUERY_PARAM}={INVITE_SHARE_PATH_CODE_PLACEHOLDER}"
+)
 INVITE_SHARE_CARD_IMAGE_OBJECT_KEY = "share/invite-share-card.webp"
 
 

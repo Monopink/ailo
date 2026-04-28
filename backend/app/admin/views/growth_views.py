@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import datetime
 from typing import Any, cast
 
@@ -26,6 +26,7 @@ from app.enums.invite import (
 )
 from app.enums.redeem import RedeemCodeBatchStatus, RedeemCodeMode, RedeemCodeStatus
 from app.models.campaign import Campaign, CampaignAttribution
+from app.models.entitlement import EntitlementType, UserEntitlementLedger
 from app.models.growth_reward import GrowthRewardApply, GrowthRewardRule
 from app.models.invite import (
     InviteBinding,
@@ -34,6 +35,7 @@ from app.models.invite import (
     InviteRecognitionLog,
 )
 from app.models.redeem import RedeemCode, RedeemCodeBatch, RedeemCodeClaim
+from app.models.user import User
 
 INVITE_CODE_LENGTH = 6
 REDEEM_CODE_MIN_LENGTH = 4
@@ -50,6 +52,171 @@ def _extract_relation_id(value: object) -> int | None:
         return int(cast(Any, relation_id))
     except (TypeError, ValueError):
         return None
+
+
+def _enum_label(enum_cls: type, raw_value: object) -> str:
+    try:
+        normalized = int(cast(Any, raw_value))
+        return str(enum_cls(normalized).name).lower()
+    except Exception:
+        return str(raw_value)
+
+
+async def _get_user_qiao_id_map(request: Request) -> dict[int, str]:
+    cached = getattr(request.state, "growth_user_qiao_id_map", None)
+    if isinstance(cached, dict):
+        return cached
+    result = await request.state.session.execute(select(User.id, User.qiao_id))
+    mapping: dict[int, str] = {}
+    for user_id, qiao_id in result.all():
+        key = int(user_id)
+        mapping[key] = str(qiao_id or "").strip()
+    request.state.growth_user_qiao_id_map = mapping
+    return mapping
+
+
+async def _get_invite_code_map(request: Request) -> dict[int, str]:
+    cached = getattr(request.state, "growth_invite_code_map", None)
+    if isinstance(cached, dict):
+        return cached
+    result = await request.state.session.execute(select(InviteCode.id, InviteCode.code))
+    mapping = {int(code_id): str(code) for code_id, code in result.all()}
+    request.state.growth_invite_code_map = mapping
+    return mapping
+
+
+async def _get_campaign_name_map(request: Request) -> dict[int, str]:
+    cached = getattr(request.state, "growth_campaign_name_map", None)
+    if isinstance(cached, dict):
+        return cached
+    result = await request.state.session.execute(select(Campaign.id, Campaign.name, Campaign.code))
+    mapping: dict[int, str] = {}
+    for campaign_id, name, code in result.all():
+        mapping[int(campaign_id)] = str(name or code or "").strip()
+    request.state.growth_campaign_name_map = mapping
+    return mapping
+
+
+async def _get_entitlement_type_code_map(request: Request) -> dict[int, str]:
+    cached = getattr(request.state, "growth_entitlement_type_code_map", None)
+    if isinstance(cached, dict):
+        return cached
+    result = await request.state.session.execute(select(EntitlementType.id, EntitlementType.code))
+    mapping = {int(type_id): str(code) for type_id, code in result.all()}
+    request.state.growth_entitlement_type_code_map = mapping
+    return mapping
+
+
+async def _get_redeem_batch_name_map(request: Request) -> dict[int, str]:
+    cached = getattr(request.state, "growth_redeem_batch_name_map", None)
+    if isinstance(cached, dict):
+        return cached
+    result = await request.state.session.execute(
+        select(RedeemCodeBatch.id, RedeemCodeBatch.name, RedeemCodeBatch.batch_code)
+    )
+    mapping: dict[int, str] = {}
+    for batch_id, name, batch_code in result.all():
+        mapping[int(batch_id)] = str(name or batch_code or "").strip()
+    request.state.growth_redeem_batch_name_map = mapping
+    return mapping
+
+
+async def _get_redeem_code_map(request: Request) -> dict[int, str]:
+    cached = getattr(request.state, "growth_redeem_code_map", None)
+    if isinstance(cached, dict):
+        return cached
+    result = await request.state.session.execute(select(RedeemCode.id, RedeemCode.code))
+    mapping = {int(code_id): str(code) for code_id, code in result.all()}
+    request.state.growth_redeem_code_map = mapping
+    return mapping
+
+
+async def _get_growth_rule_name_map(request: Request) -> dict[int, str]:
+    cached = getattr(request.state, "growth_rule_name_map", None)
+    if isinstance(cached, dict):
+        return cached
+    result = await request.state.session.execute(
+        select(
+            GrowthRewardRule.id,
+            GrowthRewardRule.trigger_event,
+            GrowthRewardRule.target_role,
+            GrowthRewardRule.scope_type,
+            GrowthRewardRule.delta_granted,
+        )
+    )
+    mapping: dict[int, str] = {}
+    for rule_id, trigger_event, target_role, scope_type, delta_granted in result.all():
+        mapping[int(rule_id)] = (
+            f"{_enum_label(GrowthRewardTriggerEvent, trigger_event)}/"
+            f"{_enum_label(GrowthRewardTargetRole, target_role)}/"
+            f"{_enum_label(GrowthRewardScopeType, scope_type)}/"
+            f"{int(delta_granted)}"
+        )
+    request.state.growth_rule_name_map = mapping
+    return mapping
+
+
+async def _get_ledger_source_map(request: Request) -> dict[int, str]:
+    cached = getattr(request.state, "growth_ledger_source_map", None)
+    if isinstance(cached, dict):
+        return cached
+    result = await request.state.session.execute(
+        select(UserEntitlementLedger.id, UserEntitlementLedger.source_type)
+    )
+    mapping = {int(ledger_id): str(source_type) for ledger_id, source_type in result.all()}
+    request.state.growth_ledger_source_map = mapping
+    return mapping
+
+
+class _ReadableByIntForeignKeyField(StringField):
+    """Display readable text by int foreign key lookup."""
+
+    def __init__(
+        self,
+        name: str,
+        label: str,
+        fk_attr: str,
+        map_loader: Callable[[Request], Awaitable[dict[int, str]]],
+    ) -> None:
+        super().__init__(name=name, label=label)
+        self.read_only = True
+        self.searchable = False
+        self.orderable = False
+        self._fk_attr = fk_attr
+        self._map_loader = map_loader
+
+    async def parse_obj(self, request: Request, obj: object) -> str | None:
+        raw_fk = getattr(obj, self._fk_attr, None)
+        if not isinstance(raw_fk, int):
+            return None
+        mapping = await self._map_loader(request)
+        value = mapping.get(raw_fk, "")
+        if value == "":
+            return None
+        return value
+
+
+class _ScopedReadableByIntForeignKeyField(_ReadableByIntForeignKeyField):
+    """Display readable text by int foreign key with scope_type guard."""
+
+    def __init__(
+        self,
+        name: str,
+        label: str,
+        fk_attr: str,
+        map_loader: Callable[[Request], Awaitable[dict[int, str]]],
+        scope_type_attr: str,
+        scope_type_value: int,
+    ) -> None:
+        super().__init__(name=name, label=label, fk_attr=fk_attr, map_loader=map_loader)
+        self._scope_type_attr = scope_type_attr
+        self._scope_type_value = scope_type_value
+
+    async def parse_obj(self, request: Request, obj: object) -> str | None:
+        scope_type = getattr(obj, self._scope_type_attr, None)
+        if scope_type != self._scope_type_value:
+            return None
+        return await super().parse_obj(request, obj)
 
 
 class _InviteEventCountField(StringField):
@@ -103,6 +270,12 @@ class InviteCodeView(BaseRoleAwareModelView):
         IntegerField("id", label="ID"),
         StringField("code", label="Invite Code", required=True),
         HasOne("owner_user", identity="user", label="Owner User", required=True),
+        _ReadableByIntForeignKeyField(
+            "owner_user_qiao_id",
+            label="Owner User Qiao ID",
+            fk_attr="owner_user_id",
+            map_loader=_get_user_qiao_id_map,
+        ),
         IntegerEnumField("status", enum=InviteCodeStatus, label="Status", required=True),
         _InviteEventCountField("open_count", "Open Count", InviteEventType.OPEN),
         _InviteEventCountField(
@@ -220,9 +393,27 @@ class InviteBindingView(BaseRoleAwareModelView):
     fields = [
         IntegerField("id", label="ID"),
         HasOne("invitee_user", identity="user", label="Invitee User", required=True),
+        _ReadableByIntForeignKeyField(
+            "invitee_user_qiao_id",
+            label="Invitee User Qiao ID",
+            fk_attr="invitee_user_id",
+            map_loader=_get_user_qiao_id_map,
+        ),
         HasOne("invite_code", identity="invite_codes", label="Invite Code", required=True),
+        _ReadableByIntForeignKeyField(
+            "invite_code_value",
+            label="Invite Code Value",
+            fk_attr="invite_code_id",
+            map_loader=_get_invite_code_map,
+        ),
         StringField("code_snapshot", label="Code Snapshot"),
         HasOne("inviter_user", identity="user", label="Inviter User", required=True),
+        _ReadableByIntForeignKeyField(
+            "inviter_user_qiao_id",
+            label="Inviter User Qiao ID",
+            fk_attr="inviter_user_id_snapshot",
+            map_loader=_get_user_qiao_id_map,
+        ),
         DateTimeField("created_at", label="Created At"),
         DateTimeField("updated_at", label="Updated At"),
     ]
@@ -254,7 +445,19 @@ class InviteEventView(BaseRoleAwareModelView):
         IntegerField("id", label="ID"),
         IntegerEnumField("event_type", enum=InviteEventType, label="Event Type"),
         HasOne("actor_user", identity="user", label="Actor User", required=False),
+        _ReadableByIntForeignKeyField(
+            "actor_user_qiao_id",
+            label="Actor User Qiao ID",
+            fk_attr="actor_user_id",
+            map_loader=_get_user_qiao_id_map,
+        ),
         HasOne("invite_code", identity="invite_codes", label="Invite Code", required=False),
+        _ReadableByIntForeignKeyField(
+            "invite_code_value",
+            label="Invite Code Value",
+            fk_attr="invite_code_id",
+            map_loader=_get_invite_code_map,
+        ),
         StringField("event_source", label="Event Source"),
         StringField("code_snapshot", label="Code Snapshot", required=False),
         JSONField("event_payload", label="Event Payload", required=False),
@@ -280,7 +483,19 @@ class InviteRecognitionLogView(BaseRoleAwareModelView):
     fields = [
         IntegerField("id", label="ID"),
         HasOne("actor_user", identity="user", label="Actor User", required=False),
+        _ReadableByIntForeignKeyField(
+            "actor_user_qiao_id",
+            label="Actor User Qiao ID",
+            fk_attr="actor_user_id",
+            map_loader=_get_user_qiao_id_map,
+        ),
         HasOne("invite_code", identity="invite_codes", label="Invite Code", required=False),
+        _ReadableByIntForeignKeyField(
+            "invite_code_value",
+            label="Invite Code Value",
+            fk_attr="invite_code_id",
+            map_loader=_get_invite_code_map,
+        ),
         StringField("source", label="Source"),
         StringField("trigger", label="Trigger"),
         StringField("first_candidate", label="First Candidate", required=False),
@@ -378,7 +593,19 @@ class CampaignAttributionView(BaseRoleAwareModelView):
     fields = [
         IntegerField("id", label="ID"),
         HasOne("user", identity="user", label="User", required=True),
+        _ReadableByIntForeignKeyField(
+            "user_qiao_id",
+            label="User Qiao ID",
+            fk_attr="user_id",
+            map_loader=_get_user_qiao_id_map,
+        ),
         HasOne("campaign", identity="campaigns", label="Campaign", required=True),
+        _ReadableByIntForeignKeyField(
+            "campaign_name",
+            label="Campaign Name",
+            fk_attr="campaign_id",
+            map_loader=_get_campaign_name_map,
+        ),
         StringField("attribution_source", label="Source"),
         DateTimeField("attributed_at", label="Attributed At"),
         JSONField("event_payload", label="Event Payload", required=False),
@@ -432,17 +659,39 @@ class GrowthRewardRuleView(BaseRoleAwareModelView):
             "scope_type", enum=GrowthRewardScopeType, label="Scope Type", required=True
         ),
         HasOne("campaign", identity="campaigns", label="Campaign Scope", required=False),
+        _ScopedReadableByIntForeignKeyField(
+            "campaign_scope_name",
+            label="Campaign Scope Name",
+            fk_attr="scope_id",
+            map_loader=_get_campaign_name_map,
+            scope_type_attr="scope_type",
+            scope_type_value=int(GrowthRewardScopeType.CAMPAIGN),
+        ),
         HasOne(
             "redeem_batch",
             identity="redeem_code_batches",
             label="Redeem Batch Scope",
             required=False,
         ),
+        _ScopedReadableByIntForeignKeyField(
+            "redeem_batch_scope_name",
+            label="Redeem Batch Scope Name",
+            fk_attr="scope_id",
+            map_loader=_get_redeem_batch_name_map,
+            scope_type_attr="scope_type",
+            scope_type_value=int(GrowthRewardScopeType.REDEEM_BATCH),
+        ),
         HasOne(
             "entitlement_type",
             identity="entitlement_types",
             label="Entitlement Type",
             required=True,
+        ),
+        _ReadableByIntForeignKeyField(
+            "entitlement_type_code",
+            label="Entitlement Type Code",
+            fk_attr="entitlement_type_id",
+            map_loader=_get_entitlement_type_code_map,
         ),
         IntegerField("delta_granted", label="Delta Granted", required=True),
         IntegerField("max_rewards_per_actor", label="Max Rewards Per Actor", required=False),
@@ -622,14 +871,32 @@ class GrowthRewardApplyView(BaseRoleAwareModelView):
     fields = [
         IntegerField("id", label="ID"),
         HasOne("rule", identity="growth_reward_rules", label="Rule", required=True),
+        _ReadableByIntForeignKeyField(
+            "rule_name",
+            label="Rule Name",
+            fk_attr="rule_id",
+            map_loader=_get_growth_rule_name_map,
+        ),
         IntegerEnumField("trigger_event", enum=GrowthRewardTriggerEvent, label="Trigger Event"),
         IntegerEnumField("target_role", enum=GrowthRewardTargetRole, label="Target Role"),
         HasOne("actor_user", identity="user", label="Actor User", required=True),
+        _ReadableByIntForeignKeyField(
+            "actor_user_qiao_id",
+            label="Actor User Qiao ID",
+            fk_attr="actor_user_id",
+            map_loader=_get_user_qiao_id_map,
+        ),
         HasOne(
             "beneficiary_user",
             identity="user",
             label="Beneficiary User",
             required=True,
+        ),
+        _ReadableByIntForeignKeyField(
+            "beneficiary_user_qiao_id",
+            label="Beneficiary User Qiao ID",
+            fk_attr="beneficiary_user_id",
+            map_loader=_get_user_qiao_id_map,
         ),
         StringField("source_type", label="Source Type"),
         IntegerField("source_id", label="Source ID"),
@@ -641,8 +908,20 @@ class GrowthRewardApplyView(BaseRoleAwareModelView):
             label="Entitlement Type",
             required=True,
         ),
+        _ReadableByIntForeignKeyField(
+            "entitlement_type_code",
+            label="Entitlement Type Code",
+            fk_attr="entitlement_type_id",
+            map_loader=_get_entitlement_type_code_map,
+        ),
         IntegerField("delta_granted", label="Delta Granted"),
         HasOne("ledger", identity="user_entitlement_ledger", label="Ledger", required=True),
+        _ReadableByIntForeignKeyField(
+            "ledger_source_type",
+            label="Ledger Source Type",
+            fk_attr="ledger_id",
+            map_loader=_get_ledger_source_map,
+        ),
         StringField("idempotency_key", label="Idempotency Key"),
         JSONField("event_payload", label="Event Payload", required=False),
         DateTimeField("created_at", label="Created At"),
@@ -707,6 +986,12 @@ class RedeemCodeView(BaseRoleAwareModelView):
     fields = [
         IntegerField("id", label="ID"),
         HasOne("batch", identity="redeem_code_batches", label="Batch", required=True),
+        _ReadableByIntForeignKeyField(
+            "batch_name",
+            label="Batch Name",
+            fk_attr="batch_id",
+            map_loader=_get_redeem_batch_name_map,
+        ),
         StringField("code", label="Redeem Code", required=True),
         IntegerEnumField("status", enum=RedeemCodeStatus, label="Status", required=True),
         IntegerField("max_claims_total", label="Max Claims Total", required=False),
@@ -799,8 +1084,26 @@ class RedeemCodeClaimView(BaseRoleAwareModelView):
     fields = [
         IntegerField("id", label="ID"),
         HasOne("user", identity="user", label="User", required=True),
+        _ReadableByIntForeignKeyField(
+            "user_qiao_id",
+            label="User Qiao ID",
+            fk_attr="user_id",
+            map_loader=_get_user_qiao_id_map,
+        ),
         HasOne("redeem_code", identity="redeem_codes", label="Redeem Code", required=True),
+        _ReadableByIntForeignKeyField(
+            "redeem_code_value",
+            label="Redeem Code Value",
+            fk_attr="redeem_code_id",
+            map_loader=_get_redeem_code_map,
+        ),
         HasOne("batch", identity="redeem_code_batches", label="Batch", required=True),
+        _ReadableByIntForeignKeyField(
+            "batch_name",
+            label="Batch Name",
+            fk_attr="batch_id",
+            map_loader=_get_redeem_batch_name_map,
+        ),
         StringField("code_snapshot", label="Code Snapshot"),
         StringField("idempotency_key", label="Idempotency Key"),
         JSONField("event_payload", label="Event Payload", required=False),

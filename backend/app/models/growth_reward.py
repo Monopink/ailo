@@ -15,6 +15,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     and_,
+    text,
 )
 from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
 
@@ -141,6 +142,19 @@ class GrowthRewardRule(AutoIncrementModel):
             "scope_id",
             "status",
             "priority",
+        ),
+        Index(
+            "uq_growth_reward_rules_active_invite_slot",
+            "trigger_event",
+            "target_role",
+            "scope_type",
+            "scope_id",
+            "entitlement_type_id",
+            unique=True,
+            postgresql_where=text(
+                "status = 1 AND trigger_event = 1 AND target_role IN (2, 3) "
+                "AND scope_type = 1 AND scope_id = 0"
+            ),
         ),
         Index("idx_growth_reward_rules_entitlement_type", "entitlement_type_id"),
     )

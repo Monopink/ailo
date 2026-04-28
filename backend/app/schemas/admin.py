@@ -4,7 +4,7 @@ This module contains Pydantic schemas for admin users and operation logs.
 """
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -96,6 +96,10 @@ class AdminOperationLogBase(BaseSchema):
     resource_id: str | None = Field(None, max_length=100, description="Resource ID")
     resource_name: str | None = Field(None, max_length=200, description="Resource name")
     operation_desc: str = Field(..., max_length=500, description="Operation description")
+    operation_meta: dict[str, Any] | None = Field(
+        None,
+        description="Structured operation metadata",
+    )
 
 
 class AdminOperationLogCreate(BaseModel):
@@ -107,6 +111,10 @@ class AdminOperationLogCreate(BaseModel):
     resource_id: str | None = Field(None, max_length=100, description="Resource ID")
     resource_name: str | None = Field(None, max_length=200, description="Resource name")
     operation_desc: str = Field(..., max_length=500, description="Operation description")
+    operation_meta: dict[str, Any] | None = Field(
+        None,
+        description="Structured operation metadata",
+    )
     ip_address: str | None = Field(None, max_length=45, description="IP address")
     user_agent: str | None = Field(None, max_length=500, description="User agent")
 
@@ -123,7 +131,7 @@ class AdminOperationLogResponse(AdminOperationLogBase):
 class AdminEntitlementOperationRequest(BaseModel):
     """Schema for admin entitlement grant/adjust operation."""
 
-    user_id: int = Field(..., gt=0, description="Target user ID")
+    user_id: str = Field(..., min_length=1, max_length=32, description="Target user ID string")
     entitlement_type_code: str = Field(
         ..., min_length=1, max_length=64, description="Entitlement type code"
     )
@@ -133,7 +141,7 @@ class AdminEntitlementOperationRequest(BaseModel):
     delta: int = Field(..., description="Signed delta for granted_total")
     reason_code: str = Field(..., min_length=1, max_length=64, description="Reason code")
     idempotency_key: str = Field(..., min_length=1, max_length=128, description="Idempotency key")
-    remark: str = Field(..., min_length=1, max_length=500, description="Operation remark")
+    remark: str | None = Field(None, max_length=500, description="Operation remark")
 
 
 class AdminEntitlementOperationResponse(BaseSchema):

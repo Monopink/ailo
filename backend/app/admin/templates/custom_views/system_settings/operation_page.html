@@ -36,6 +36,11 @@
             <h3 class="card-title mb-0">邀请奖励策略</h3>
           </div>
           <div class="card-body">
+            {% if not can_write_invitation_policy %}
+            <div class="alert alert-warning">
+              {{ admin_text("Viewer role is read-only and cannot submit operations.") }}
+            </div>
+            {% endif %}
             <div class="mb-3">
               <label class="form-label" for="ip-invitee-delta">被邀请人奖励增量</label>
               <input type="number" min="0" class="form-control" id="ip-invitee-delta">
@@ -77,6 +82,9 @@ window.qiaoSystemSettingsPageConfig = {
   api: {
     invitationPolicy: "/admin-api/system/invitation-policy",
   },
+  permissions: {
+    canWriteInvitationPolicy: {{ can_write_invitation_policy | tojson | safe }},
+  },
   i18n: {
     noChanges: {{ admin_text("No changes to save. All modification fields are empty.") | tojson | safe }},
     changeConfirmTitle: {{ admin_text("You are about to modify the following configuration(s):") | tojson | safe }},
@@ -96,6 +104,7 @@ window.qiaoSystemSettingsPageConfig = {
     invalidInviterCap: "邀请人奖励次数上限需留空或填写大于等于 1 的整数。",
     savePolicyConfirm: "确认保存邀请奖励策略变更吗？",
     reloadPolicyConfirm: "确认从服务器重新加载并丢弃当前未保存修改吗？",
+    viewerReadOnly: "Viewer 角色仅可查看和刷新邀请策略，不可保存。",
   }
 };
 </script>

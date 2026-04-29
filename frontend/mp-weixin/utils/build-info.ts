@@ -4,16 +4,18 @@ import { isNonEmptyString } from './guards';
 export interface BuildInfo {
   id: string;
   builtAt: string;
+  appVersion: string;
 }
 
 const normalizeBuildInfo = (input: unknown): BuildInfo => {
   if (input === null || typeof input !== 'object') {
-    return { id: '', builtAt: '' };
+    return { id: '', builtAt: '', appVersion: '' };
   }
   const record = input as Record<string, unknown>;
   const id = typeof record.id === 'string' ? record.id.trim() : '';
   const builtAt = typeof record.builtAt === 'string' ? record.builtAt.trim() : '';
-  return { id, builtAt };
+  const appVersion = typeof record.appVersion === 'string' ? record.appVersion.trim() : '';
+  return { id, builtAt, appVersion };
 };
 
 export const BUILD_INFO: BuildInfo = normalizeBuildInfo(RAW_BUILD_INFO);

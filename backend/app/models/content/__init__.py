@@ -5,7 +5,7 @@ from __future__ import annotations
 from html import escape
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, ForeignKey, Integer, String, Text, text
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, ForeignKey, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from starlette.requests import Request
 
@@ -48,11 +48,34 @@ class SquareCategory(AutoIncrementModel):
     status: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1, server_default=text("1"), comment="1=active, 2=inactive"
     )
+    minor_visible: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("FALSE"),
+        comment="Whether category is visible in minor mode",
+    )
+    review_visibility_scope: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default=text("1"),
+        comment=(
+            "Review visibility scope: 0=all users, 1=regular users, "
+            "2=all reviewers, 3=mp_weixin reviewers"
+        ),
+    )
     square_entries: Mapped[list[SquareTypeEntry]] = relationship(
         "SquareTypeEntry",
         primaryjoin="SquareCategory.category_key == SquareTypeEntry.category_key",
         foreign_keys="SquareTypeEntry.category_key",
         viewonly=True,
+    )
+    __table_args__ = (
+        CheckConstraint(
+            "review_visibility_scope IN (0, 1, 2, 3)",
+            name="ck_square_categories_review_visibility_scope",
+        ),
     )
 
     def __admin_select2_repr__(self, request: Request) -> str:

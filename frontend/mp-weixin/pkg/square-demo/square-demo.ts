@@ -3,6 +3,7 @@ import { getLogger } from '../../utils/logger';
 import { isValidCategoryKey, type SquareCategoryCard } from '../../utils/constants/square';
 import { isNonEmptyString } from '../../utils/guards';
 import { getTabMenuByTheme, type ResolvedTabBarItem } from '../../custom-tab-bar/data';
+import { promptLoginAndRedirect } from '../../utils/login-redirect';
 
 const logger = getLogger('SquareDemo');
 
@@ -256,6 +257,7 @@ interface SquareDemoPageCustom {
   applyFilteredContacts(categoryKey: string): void;
   handleDemoTabTap(event: WechatMiniprogram.TouchEvent): void;
   syncDemoTabTheme(): void;
+  navigateToLogin(source: string): Promise<void>;
 }
 
 const buildPageLayoutScreenModelPayload = (
@@ -329,6 +331,10 @@ Page<SquareDemoPageData, SquareDemoPageCustom>({
     avatarPlaceholderUrl: AVATAR_PLACEHOLDER_URL,
     demoTabItems: resolveDemoTabItems(),
     demoTabActiveIndex: DEMO_TAB_DISCOVERY_INDEX,
+  },
+
+  async navigateToLogin(source) {
+    await promptLoginAndRedirect({ source });
   },
 
   applyCategories(categories, preferredKey = null) {
@@ -424,15 +430,13 @@ Page<SquareDemoPageData, SquareDemoPageCustom>({
 
   handleCategoryMoreTap() {
     logger.info('Demo category more tapped');
-    void wx.navigateTo({ url: '/pages/login/login?source=demo' });
+    void this.navigateToLogin('demo');
   },
 
   handleViewMoreTap() {
     const categoryKey = this.data.currentCategoryKey;
     logger.info('Demo view more tapped', { categoryKey });
-    void wx.navigateTo({
-      url: `/pages/login/login?source=demo_more&category_key=${encodeURIComponent(categoryKey)}`,
-    });
+    void this.navigateToLogin('demo_more');
   },
 
   handleContactTap(event) {
@@ -441,7 +445,7 @@ Page<SquareDemoPageData, SquareDemoPageCustom>({
       return;
     }
     logger.info('Demo contact tapped', { qiaoId });
-    void wx.navigateTo({ url: '/pages/login/login?source=demo' });
+    void this.navigateToLogin('demo');
   },
 
   handleDemoTabTap(event) {
@@ -452,6 +456,6 @@ Page<SquareDemoPageData, SquareDemoPageCustom>({
 
     const target = index === 0 ? 'chat' : 'profile';
     logger.info('Demo tab tapped', { target });
-    void wx.navigateTo({ url: `/pages/login/login?source=demo_tab&target=${target}` });
+    void this.navigateToLogin('demo_tab');
   },
 });

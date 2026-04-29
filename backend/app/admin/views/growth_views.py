@@ -32,7 +32,7 @@ from app.models.invite import (
     InviteBinding,
     InviteCode,
     InviteEvent,
-    InviteRecognitionLog,
+    InviteIntakeLog,
 )
 from app.models.redeem import RedeemCode, RedeemCodeBatch, RedeemCodeClaim
 from app.models.user import User
@@ -465,8 +465,8 @@ class InviteEventView(BaseRoleAwareModelView):
     ]
 
 
-class InviteRecognitionLogView(BaseRoleAwareModelView):
-    """Read-only admin view for invite_recognition_logs."""
+class InviteIntakeLogView(BaseRoleAwareModelView):
+    """Read-only admin view for invite_intake_logs."""
 
     def can_create(self, request: Request) -> bool:
         return False
@@ -477,8 +477,28 @@ class InviteRecognitionLogView(BaseRoleAwareModelView):
     def can_delete(self, request: Request) -> bool:
         return False
 
-    searchable_fields = ["source", "trigger", "first_candidate", "recognized_code", "raw_text"]
-    sortable_fields = ["id", "source", "trigger", "valid", "created_at"]
+    searchable_fields = [
+        "source",
+        "trigger",
+        "first_candidate",
+        "recognized_code",
+        "raw_text",
+        "client_user_agent",
+        "client_device_id",
+        "runtime_observation_id",
+    ]
+    sortable_fields = [
+        "id",
+        "actor_user_id",
+        "invite_code_id",
+        "source",
+        "trigger",
+        "valid",
+        "bindable",
+        "reviewer_flag_snapshot",
+        "runtime_observation_id",
+        "created_at",
+    ]
     fields_default_sort = [("created_at", True)]
     fields = [
         IntegerField("id", label="ID"),
@@ -496,12 +516,22 @@ class InviteRecognitionLogView(BaseRoleAwareModelView):
             fk_attr="invite_code_id",
             map_loader=_get_invite_code_map,
         ),
+        HasOne(
+            "runtime_observation",
+            identity="client_runtime_observations",
+            label="Runtime Observation",
+            required=False,
+        ),
+        IntegerField("runtime_observation_id", label="Runtime Observation ID", required=False),
         StringField("source", label="Source"),
         StringField("trigger", label="Trigger"),
+        IntegerField("reviewer_flag_snapshot", label="Reviewer Flag Snapshot"),
         StringField("first_candidate", label="First Candidate", required=False),
         StringField("recognized_code", label="Recognized Code", required=False),
         StringField("valid", label="Valid"),
         StringField("bindable", label="Bindable", required=False),
+        StringField("client_device_id", label="Client Device ID"),
+        StringField("client_user_agent", label="Client User Agent"),
         StringField("raw_text", label="Raw Text"),
         DateTimeField("created_at", label="Created At"),
     ]
@@ -1120,11 +1150,11 @@ invite_binding_view = InviteBindingView(
 invite_event_view = InviteEventView(
     InviteEvent, name="Invite Events", icon="fa fa-history", identity="invite_events"
 )
-invite_recognition_log_view = InviteRecognitionLogView(
-    InviteRecognitionLog,
-    name="Invite Recognition Logs",
+invite_intake_log_view = InviteIntakeLogView(
+    InviteIntakeLog,
+    name="Invite Intake Logs",
     icon="fa fa-clipboard-list",
-    identity="invite_recognition_logs",
+    identity="invite_intake_logs",
 )
 campaign_view = CampaignView(
     Campaign, name="Campaigns", icon="fa fa-bullhorn", identity="campaigns"
@@ -1171,5 +1201,5 @@ GROWTH_MODEL_VIEWS = [
     invite_code_view,
     invite_binding_view,
     invite_event_view,
-    invite_recognition_log_view,
+    invite_intake_log_view,
 ]

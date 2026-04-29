@@ -12,7 +12,7 @@ from app.models.invite import (
     InviteBinding,
     InviteCode,
     InviteEvent,
-    InviteRecognitionLog,
+    InviteIntakeLog,
 )
 
 
@@ -194,8 +194,8 @@ class CRUDInviteEvent:
         return obj
 
 
-class CRUDInviteRecognitionLog:
-    """CRUD helpers for invite_recognition_logs."""
+class CRUDInviteIntakeLog:
+    """CRUD helpers for invite_intake_logs."""
 
     async def exists_recent_duplicate(
         self,
@@ -205,22 +205,40 @@ class CRUDInviteRecognitionLog:
         source: str,
         trigger: str,
         raw_text: str,
+        first_candidate: str | None,
+        runtime_observation_id: int | None = None,
+        client_user_agent: str = "",
+        client_device_id: str = "",
         within_seconds: int = 2,
     ) -> bool:
-        """Check whether an equivalent recognition log exists in a short recent window."""
-        normalized_window_seconds = min(max(within_seconds, 1), 3)
+        """Check whether an equivalent intake log exists in a short recent window."""
+        normalized_window_seconds = max(within_seconds, 1)
         threshold = datetime.now(UTC) - timedelta(seconds=normalized_window_seconds)
 
-        stmt = select(InviteRecognitionLog.id).where(
-            InviteRecognitionLog.source == source,
-            InviteRecognitionLog.trigger == trigger,
-            InviteRecognitionLog.raw_text == raw_text,
-            InviteRecognitionLog.created_at >= threshold,
+        stmt = select(InviteIntakeLog.id).where(
+            InviteIntakeLog.source == source,
+            InviteIntakeLog.trigger == trigger,
+            InviteIntakeLog.raw_text == raw_text,
+            InviteIntakeLog.created_at >= threshold,
         )
-        if actor_user_id is None:
-            stmt = stmt.where(InviteRecognitionLog.actor_user_id.is_(None))
+        if first_candidate is None:
+            stmt = stmt.where(InviteIntakeLog.first_candidate.is_(None))
         else:
-            stmt = stmt.where(InviteRecognitionLog.actor_user_id == actor_user_id)
+            stmt = stmt.where(InviteIntakeLog.first_candidate == first_candidate)
+        if actor_user_id is None:
+            stmt = stmt.where(InviteIntakeLog.actor_user_id.is_(None))
+            normalized_device_id = client_device_id.strip()
+            if normalized_device_id != "":
+                stmt = stmt.where(InviteIntakeLog.client_device_id == normalized_device_id)
+            elif runtime_observation_id is not None:
+                stmt = stmt.where(InviteIntakeLog.runtime_observation_id == runtime_observation_id)
+            else:
+                normalized_ua = client_user_agent.strip()
+                if normalized_ua == "":
+                    return False
+                stmt = stmt.where(InviteIntakeLog.client_user_agent == normalized_ua)
+        else:
+            stmt = stmt.where(InviteIntakeLog.actor_user_id == actor_user_id)
         result = await db.execute(stmt.limit(1))
         return result.first() is not None
 
@@ -237,9 +255,13 @@ class CRUDInviteRecognitionLog:
         invite_code_id: int | None,
         valid: bool,
         bindable: bool | None,
-    ) -> InviteRecognitionLog:
-        """Create one invite recognition log row."""
-        obj = InviteRecognitionLog(
+        reviewer_flag_snapshot: int = 0,
+        runtime_observation_id: int | None = None,
+        client_user_agent: str = "",
+        client_device_id: str = "",
+    ) -> InviteIntakeLog:
+        """Create one invite intake log row."""
+        obj = InviteIntakeLog(
             actor_user_id=actor_user_id,
             source=source,
             trigger=trigger,
@@ -249,6 +271,10 @@ class CRUDInviteRecognitionLog:
             invite_code_id=invite_code_id,
             valid=valid,
             bindable=bindable,
+            reviewer_flag_snapshot=1 if reviewer_flag_snapshot == 1 else 0,
+            runtime_observation_id=runtime_observation_id,
+            client_user_agent=client_user_agent,
+            client_device_id=client_device_id,
         )
         db.add(obj)
         await db.flush()
@@ -258,4 +284,4 @@ class CRUDInviteRecognitionLog:
 invite_code = CRUDInviteCode()
 invite_binding = CRUDInviteBinding()
 invite_event = CRUDInviteEvent()
-invite_recognition_log = CRUDInviteRecognitionLog()
+invite_intake_log = CRUDInviteIntakeLog()

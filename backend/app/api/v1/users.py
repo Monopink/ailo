@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.api.v1.account_segment_mapper import resolve_account_segment
 from app.core.database import get_db
 from app.core.security import get_password_hash, verify_password
 from app.crud.message import media_file as media_file_crud
@@ -466,6 +467,7 @@ async def get_user_profile(
         # Build response
         response = UserProfileResponse(
             qiao_id=current_user.qiao_id,
+            account_segment=resolve_account_segment(current_user),
             username=current_user.username,
             nickname=user_profile.nickname if user_profile else None,
             gender=user_profile.gender if user_profile else None,
@@ -735,6 +737,7 @@ async def update_user_profile(
         # Build response
         response = UserProfileResponse(
             qiao_id=current_user.qiao_id,
+            account_segment=resolve_account_segment(current_user),
             username=current_user.username,
             nickname=updated_profile.nickname,
             gender=updated_profile.gender,

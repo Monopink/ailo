@@ -1,0 +1,49 @@
+<page-layout
+  style="--color-bg-page: var(--color-bg-secondary); --color-bg-header-solid: var(--color-bg-white);"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{false}}">
+  <view slot="header" class="preview-header">
+    <t-navbar left-arrow="{{true}}" bind:left-click="handleBack">
+      <view slot="title" class="navbar-title">联系人</view>
+    </t-navbar>
+  </view>
+
+  <view slot="content" class="preview-page">
+    <view class="preview-card" wx:if="{{selectedContact !== null}}">
+      <view class="preview-row">
+        <app-avatar src="{{selectedContact.avatarUrl}}" size="medium" shape="circle" class="preview-row__avatar" />
+        <view class="preview-row__content">
+          <view class="preview-row__title">{{selectedContact.nickname}}</view>
+          <view class="preview-row__meta">{{selectedContact.bio}}</view>
+        </view>
+      </view>
+      <view class="preview-card__desc">联系人资料</view>
+      <view
+        class="preview-row__action {{selectedContact.added ? 'preview-row__action--added' : ''}}"
+        data-id="{{selectedContact.qiaoId}}"
+        bindtap="handleAddTap">
+        {{selectedContact.added ? '已发送' : '添加联系人'}}
+      </view>
+    </view>
+
+    <view class="preview-list">
+      <view wx:for="{{contacts}}" wx:key="qiaoId" class="preview-row">
+        <app-avatar src="{{item.avatarUrl}}" size="medium" shape="circle" class="preview-row__avatar" />
+        <view class="preview-row__content">
+          <view class="preview-row__title">{{item.nickname}}</view>
+          <view class="preview-row__meta">{{item.bio}}</view>
+        </view>
+        <view
+          class="preview-row__action {{item.added ? 'preview-row__action--added' : ''}}"
+          data-id="{{item.qiaoId}}"
+          bindtap="handleAddTap">
+          {{item.added ? '已发送' : '添加'}}
+        </view>
+      </view>
+      <view wx:if="{{contacts.length === 0}}" class="preview-empty">暂无联系人</view>
+    </view>
+  </view>
+</page-layout>

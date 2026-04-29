@@ -2,6 +2,8 @@ import { getAvatarUrl } from '../../utils/avatar';
 import { GENDER_OPTIONS, type GenderValue } from '../../utils/constants/user';
 import { requestValidated } from '../../utils/api';
 import { fetchCurrentUserProfile, updateCurrentUserProfile } from '../../utils/profile';
+import { getInvitationRuntimeContext, reportRuntimeObservation } from '../../utils/runtime-segment';
+import { getDeviceId } from '../../utils/storage';
 import {
   GrowthAttributionTrackResponseSchema,
   InvitationBindResponse,
@@ -133,6 +135,18 @@ export class SetupPageService extends BasePageService {
     inviteCode?: string;
   }): Promise<InvitationIntakeResponse | null> {
     const seq = this.startRequest();
+    const deviceId = await getDeviceId();
+    const runtimeContext = getInvitationRuntimeContext();
+    const runtimeObservationId = await reportRuntimeObservation({
+      eventName: 'invite_intake_attempt',
+      pagePath: '/pages/setup/setup',
+      entrySource: options.source,
+      eventPayload: {
+        trigger: options.trigger,
+        invite_code: options.inviteCode ?? '',
+        clipboard_raw_text: options.trigger === 'clipboard' ? (options.rawText ?? '') : '',
+      },
+    });
     const response = await requestValidated(InvitationIntakeResponseSchema, {
       url: INVITATIONS_INTAKE_ENDPOINT,
       method: 'POST',
@@ -141,6 +155,9 @@ export class SetupPageService extends BasePageService {
         trigger: options.trigger,
         raw_text: options.rawText,
         invite_code: options.inviteCode,
+        device_id: deviceId,
+        ...runtimeContext,
+        runtime_observation_id: runtimeObservationId ?? runtimeContext.runtime_observation_id,
       },
     });
     if (!this.isRequestActive(seq)) {

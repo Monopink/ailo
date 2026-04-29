@@ -78,10 +78,6 @@ _ADMIN_TEXT_MAP: dict[str, tuple[str, str]] = {
     "Default:": ("默认值：", "Default:"),
     "-- No Change --": ("-- 不修改 --", "-- No Change --"),
     "Leave empty for no change": ("留空表示不修改", "Leave empty for no change"),
-    'Leave empty for no change. Example: ["value1","value2"]': (
-        '留空表示不修改。例如：["value1","value2"]',
-        'Leave empty for no change. Example: ["value1","value2"]',
-    ),
     "Use current value": ("使用当前值", "Use current value"),
     "Reset to default": ("填充默认值", "Reset to default"),
     "Toggle delete state": ("切换删除状态", "Toggle delete state"),
@@ -200,6 +196,7 @@ _ADMIN_TEXT_MAP: dict[str, tuple[str, str]] = {
     "Invite Codes": ("邀请码", "Invite Codes"),
     "Invite Bindings": ("邀请码绑定", "Invite Bindings"),
     "Invite Events": ("邀请码事件", "Invite Events"),
+    "Invite Intake Logs": ("邀请码识别日志", "Invite Intake Logs"),
     "Campaigns": ("活动", "Campaigns"),
     "Reward Rules": ("奖励规则", "Reward Rules"),
     "Reward Applies": ("奖励发放记录", "Reward Applies"),
@@ -338,6 +335,66 @@ _ADMIN_TEXT_MAP: dict[str, tuple[str, str]] = {
     "Reference ID": ("引用ID", "Reference ID"),
     "Phone Number": ("手机号", "Phone Number"),
     "Top P": ("采样上限 P", "Top P"),
+    "Review Scope": ("审核范围", "Review Scope"),
+    "Review scope classification (default: Non-review)": (
+        "审核范围分类（默认：非审核账号）",
+        "Review scope classification (default: Non-review)",
+    ),
+    "Minor Mode Enabled": ("青少年模式启用", "Minor Mode Enabled"),
+    "Whether minor mode is enabled for this account": (
+        "该账号是否启用青少年模式",
+        "Whether minor mode is enabled for this account",
+    ),
+    "Minor Mode Enabled At": ("青少年模式启用时间", "Minor Mode Enabled At"),
+    "Timestamp when minor mode was enabled": (
+        "青少年模式启用时间戳",
+        "Timestamp when minor mode was enabled",
+    ),
+    "Minor Mode Disabled At": ("青少年模式关闭时间", "Minor Mode Disabled At"),
+    "Timestamp when minor mode was disabled": (
+        "青少年模式关闭时间戳",
+        "Timestamp when minor mode was disabled",
+    ),
+    "Minor Mode PIN Updated At": ("青少年模式 PIN 更新时间", "Minor Mode PIN Updated At"),
+    "Timestamp when minor mode PIN was last updated": (
+        "青少年模式 PIN 最近更新时间戳",
+        "Timestamp when minor mode PIN was last updated",
+    ),
+    "Minor Mode PIN": ("青少年模式 PIN", "Minor Mode PIN"),
+    (
+        "Warning: Leave blank to keep current minor mode PIN unchanged. "
+        "Enter new 4-digit PIN to change."
+    ): (
+        "警告：留空表示保持当前青少年模式 PIN 不变。输入新的 4 位数字 PIN 进行修改。",
+        (
+            "Warning: Leave blank to keep current minor mode PIN unchanged. "
+            "Enter new 4-digit PIN to change."
+        ),
+    ),
+    "Minor mode PIN must be exactly 4 digits": (
+        "青少年模式 PIN 必须是 4 位数字",
+        "Minor mode PIN must be exactly 4 digits",
+    ),
+    "Minor mode PIN is required when enabling minor mode": (
+        "启用青少年模式时必须设置 4 位数字 PIN",
+        "Minor mode PIN is required when enabling minor mode",
+    ),
+    "Minor Visible": ("青少年可见", "Minor Visible"),
+    "Whether this category is visible to minor users": (
+        "该分类是否对青少年用户可见",
+        "Whether this category is visible to minor users",
+    ),
+    "Review Visibility Scope": ("审核可见范围", "Review Visibility Scope"),
+    "Visibility scope for regular/reviewer users": (
+        "普通用户/审核员用户的可见范围",
+        "Visibility scope for regular/reviewer users",
+    ),
+    "Non Review": ("非审核账号", "Non Review"),
+    "Mp Weixin Review": ("微信审核员", "Mp Weixin Review"),
+    "All Users": ("全体用户可见", "All Users"),
+    "Regular Users": ("仅普通用户可见", "Regular Users"),
+    "All Reviewers": ("所有审核员可见", "All Reviewers"),
+    "Mp Weixin Reviewers": ("仅微信审核员可见", "Mp Weixin Reviewers"),
 }
 
 _CONFIG_GROUP_TEXT_MAP: dict[str, tuple[str, str]] = {
@@ -397,6 +454,8 @@ _CONFIG_DESCRIPTION_TEXT_MAP: dict[str, tuple[str, str]] = {
         "头像上传允许的 MIME 类型列表",
         "Allowed avatar MIME types",
     ),
+}
+
 _SQUARE_CATEGORY_THEME_TEXT_MAP: dict[str, tuple[str, str]] = {
     "blue": ("蓝色", "Blue"),
     "cyan": ("青色", "Cyan"),
@@ -859,6 +918,14 @@ def admin_config_description(config_key: str, fallback_description: str | None) 
     if not fallback_description:
         return ""
     return admin_text(fallback_description)
+
+
+def admin_square_category_theme_label(theme_key: str) -> str:
+    """Return localized square category theme label."""
+    mapping = _SQUARE_CATEGORY_THEME_TEXT_MAP.get(theme_key)
+    if mapping is None:
+        return theme_key
+    return _resolve_locale_text(mapping)
 
 
 def translate_labels(value: object) -> object:

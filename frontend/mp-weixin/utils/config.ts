@@ -100,6 +100,11 @@ export const STORAGE_KEYS = {
   // Device identifier (installation-level)
   DEVICE_ID: 'device_id',
 
+  // Runtime segment state for startup and preview guard checks
+  RUNTIME_SEGMENT_STATE: 'runtime_segment_state',
+  // Offline queue for runtime_session_tick replay
+  RUNTIME_SESSION_TICK_QUEUE: 'runtime_session_tick_queue',
+
   // Local settings
   SETTINGS: 'local_settings',
 } as const;
@@ -112,7 +117,6 @@ export interface AppConfig {
   maxBioLength: number;
   defaultAvatarUrl?: string;
   clientId: string;
-  appVersion: string;
 }
 
 export const APP_CONFIG: AppConfig = {
@@ -130,7 +134,6 @@ export const APP_CONFIG: AppConfig = {
 
   // Client identification for backend headers
   clientId: 'mini-program',
-  appVersion: '1.0.0',
 };
 
 export interface AvatarSize {

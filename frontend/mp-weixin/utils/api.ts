@@ -36,6 +36,7 @@ export interface RequestOptions<
   header?: Record<string, string>;
   auth?: boolean;
   retryAuth?: boolean;
+  timeoutMs?: number;
   /** Internal use only to avoid retry loops */
   _retry?: boolean;
 }
@@ -347,6 +348,7 @@ export async function request<
     header = {},
     auth = true,
     retryAuth = true,
+    timeoutMs,
     _retry = false,
   } = options;
   const headers: Record<string, string> = { ...header };
@@ -372,7 +374,7 @@ export async function request<
       method: normalizeMethod(method),
       data: data ?? undefined,
       header: headers,
-      timeout: API_CONFIG.timeout,
+      timeout: timeoutMs ?? API_CONFIG.timeout,
     });
 
     logger.debug('API response', { method, url, statusCode: response.statusCode });

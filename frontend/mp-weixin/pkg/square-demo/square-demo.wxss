@@ -233,9 +233,7 @@
 }
 
 .demo-tab-icon {
-  font-size: var(--tabbar-icon-size);
-  color: var(--color-text-tertiary);
-  line-height: 1;
+  display: block;
 }
 
 .demo-tab-text {
@@ -249,10 +247,6 @@
 .demo-tab-item.active .demo-tab-text {
   color: rgb(95 95 102);
   font-weight: 500;
-}
-
-.demo-tab-item.active .demo-tab-icon {
-  color: rgb(95 95 102);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -271,10 +265,6 @@
   }
 
   .demo-tab-item.active .demo-tab-text {
-    color: rgb(198 198 204);
-  }
-
-  .demo-tab-item.active .demo-tab-icon {
     color: rgb(198 198 204);
   }
 }

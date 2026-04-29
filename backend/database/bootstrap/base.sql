@@ -42,6 +42,11 @@ SELECT
                 WHEN lower(btrim(seed.config_value_text)) IN ('false', '0', 'no', 'off') THEN 'false'::jsonb
                 ELSE NULL
             END
+        WHEN seed.value_type = 6 THEN
+            CASE
+                WHEN btrim(seed.config_value_text) = '' THEN 'null'::jsonb
+                ELSE to_jsonb(seed.config_value_text)
+            END
         WHEN seed.value_type = 4 THEN seed.config_value_text::jsonb
         ELSE to_jsonb(seed.config_value_text)
     END AS config_value,
@@ -52,6 +57,11 @@ SELECT
                 WHEN lower(btrim(seed.default_value_text)) IN ('true', '1', 'yes', 'on') THEN 'true'::jsonb
                 WHEN lower(btrim(seed.default_value_text)) IN ('false', '0', 'no', 'off') THEN 'false'::jsonb
                 ELSE NULL
+            END
+        WHEN seed.value_type = 6 THEN
+            CASE
+                WHEN btrim(seed.default_value_text) = '' THEN 'null'::jsonb
+                ELSE to_jsonb(seed.default_value_text)
             END
         WHEN seed.value_type = 4 THEN seed.default_value_text::jsonb
         ELSE to_jsonb(seed.default_value_text)
@@ -184,9 +194,6 @@ VALUES
 ('media_upload_rate_limit_window_seconds', '60', '60', 2, 'Media upload window in seconds', 'media', NULL),
 
 -- Operation configurations
-('review_mode_mp_weixin_enabled', 'false', 'false', 3, 'Enable review mode for WeChat mini program', 'operation', NULL),
-('review_mode_mp_weixin_ends_at', '', '', 6, 'Review mode end time for WeChat mini program (UTC ISO8601)', 'operation', NULL),
-('review_mode_mp_weixin_auto_disable_enabled', 'false', 'false', 3, 'Automatically disable review mode when end time is reached', 'operation', NULL),
 ('invite_share_command_texts', '["来敲敲AI {{code}} {{link}}"]', '来敲敲AI {{code}} {{link}}', 1, 'Invite share command text templates', 'operation', NULL),
 ('invite_share_card_titles', '["来敲敲AI，对话敲多新奇有趣"]', '来敲敲AI，对话敲多新奇有趣', 1, 'Invite share card title templates', 'operation', NULL)
 ) AS seed(config_key, config_value_text, default_value_text, value_type, description, group_name, allowed_values)

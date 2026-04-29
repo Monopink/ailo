@@ -77,10 +77,11 @@
       class="demo-tab-item {{demoTabActiveIndex === index ? 'active' : ''}}"
       bindtap="handleDemoTabTap"
       data-index="{{index}}">
-      <t-icon
+      <image
         class="demo-tab-icon"
-        name="{{demoTabActiveIndex === index ? item.activeIcon : item.icon}}"
-        size="{{item.iconSize}}" />
+        src="{{demoTabActiveIndex === index ? item.activeIcon : item.icon}}"
+        mode="aspectFit"
+        style="width: {{item.iconSize}}; height: {{item.iconSize}};" />
       <text class="demo-tab-text">{{item.text}}</text>
     </view>
   </view>

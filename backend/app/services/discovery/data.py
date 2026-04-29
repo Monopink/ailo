@@ -110,16 +110,30 @@ def _decode_square_cursor(cursor: str, *, feed_version: str) -> _DecodedCursor:
     return _DecodedCursor(type_rank=type_rank, sort_key=sort_key, qiao_id=qiao_id)
 
 
-async def get_active_square_categories(db: AsyncSession) -> list[SquareCategory]:
+async def get_active_square_categories(
+    db: AsyncSession,
+    *,
+    visible_review_scopes: tuple[int, ...] | None = None,
+    require_minor_visible: bool = False,
+) -> list[SquareCategory]:
     """Load active categories."""
+
+    conditions = [
+        SquareCategory.status == SquareCategoryStatus.ACTIVE,
+        SquareCategory.theme_key.in_(SQUARE_CATEGORY_THEME_KEYS),
+    ]
+    if visible_review_scopes:
+        conditions.append(SquareCategory.review_visibility_scope.in_(visible_review_scopes))
+    if require_minor_visible:
+        conditions.append(SquareCategory.minor_visible.is_(True))
 
     stmt = (
         select(SquareCategory)
-        .where(
-            SquareCategory.status == SquareCategoryStatus.ACTIVE,
-            SquareCategory.theme_key.in_(SQUARE_CATEGORY_THEME_KEYS),
+        .where(*conditions)
+        .order_by(
+            SquareCategory.sort_order.asc(),
+            SquareCategory.category_key.asc(),
         )
-        .order_by(SquareCategory.sort_order.asc(), SquareCategory.category_key.asc())
     )
 
     result = await db.execute(stmt)
@@ -308,6 +322,8 @@ async def get_persona_profile_by_qiao_id(
     *,
     qiao_id: str,
     category_key: str | None = None,
+    visible_review_scopes: tuple[int, ...] | None = None,
+    require_minor_visible: bool = False,
 ) -> tuple[AIPersona | None, Profile | None, str | None, str | None]:
     """Load the AI persona profile and validate optional category context."""
 
@@ -345,6 +361,12 @@ async def get_persona_profile_by_qiao_id(
             )
             .limit(1)
         )
+        if visible_review_scopes:
+            category_stmt = category_stmt.where(
+                SquareCategory.review_visibility_scope.in_(visible_review_scopes)
+            )
+        if require_minor_visible:
+            category_stmt = category_stmt.where(SquareCategory.minor_visible.is_(True))
         category_result = await db.execute(category_stmt)
         category_row = category_result.first()
         if category_row is None:

@@ -125,7 +125,7 @@
         去添加 ❯
       </t-button>
       <t-button
-        wx:else
+        wx:elif="{{showContactLimitReached && canUseInvite}}"
         class="index-contact-limit__action"
         theme="primary"
         variant="text"

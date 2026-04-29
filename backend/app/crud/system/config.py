@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import cast
 
 from sqlalchemy import select
@@ -41,6 +42,34 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
         except (TypeError, ValueError) as exc:
             raise ValueError(f"Invalid value for {config_key}. Must be JSON serializable.") from exc
         return config_value
+
+    @staticmethod
+    def _normalize_time_string(
+        *,
+        config_key: str,
+        value: JSONValue | str,
+        allow_empty: bool = False,
+    ) -> str | None:
+        if not isinstance(value, str):
+            raise TypeError(f"Invalid value '{value}' for {config_key}. Must be ISO8601 datetime.")
+        raw_value = value.strip()
+        if raw_value == "":
+            if allow_empty:
+                return None
+            raise ValueError(f"Invalid value '{value}' for {config_key}. Must be ISO8601 datetime.")
+
+        try:
+            parsed = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid value '{value}' for {config_key}. Must be ISO8601 datetime."
+            ) from exc
+
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        else:
+            parsed = parsed.astimezone(UTC)
+        return parsed.isoformat().replace("+00:00", "Z")
 
     @staticmethod
     def _normalize_single_value(  # noqa: PLR0911, PLR0912
@@ -133,6 +162,13 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
                         f"Allowed values: {', '.join(allowed_str)}"
                     )
             return raw_value
+
+        if value_type == ConfigValueType.TIME:
+            return CRUDSystemConfig._normalize_time_string(
+                config_key=config_key,
+                value=value,
+                allow_empty=allow_empty,
+            )
 
         raw_value = value.strip() if isinstance(value, str) else str(value).strip()
         if raw_value == "":
@@ -236,6 +272,15 @@ class CRUDSystemConfig(CRUDBase[SystemConfig, SystemConfigCreate, SystemConfigUp
             if isinstance(value, str):
                 return value
             raise ValueError(f"Invalid string configuration for '{config_key}': {value}")
+
+        if value_type == ConfigValueType.TIME:
+            if isinstance(value, str) and value.strip() == "":
+                return None
+            return CRUDSystemConfig._normalize_time_string(
+                config_key=config_key,
+                value=value,
+                allow_empty=True,
+            )
 
         return value
 

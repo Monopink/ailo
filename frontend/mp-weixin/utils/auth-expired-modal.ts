@@ -1,15 +1,6 @@
-let authModalPromise: Promise<void> | null = null;
+import { promptLoginAndRedirect } from './login-redirect';
 
-const showAuthModal = async (): Promise<void> =>
-  await new Promise((resolve) => {
-    void wx.showModal({
-      title: '提示',
-      content: '登录状态已失效，请重新登录',
-      showCancel: false,
-      confirmText: '去登录',
-      complete: () => resolve(),
-    });
-  });
+let authModalPromise: Promise<void> | null = null;
 
 export const showAuthExpiredModalAndRelogin = async (): Promise<void> => {
   if (authModalPromise !== null) {
@@ -18,8 +9,7 @@ export const showAuthExpiredModalAndRelogin = async (): Promise<void> => {
 
   authModalPromise = (async () => {
     try {
-      await showAuthModal();
-      void wx.reLaunch({ url: '/pages/login/login' });
+      await promptLoginAndRedirect({ source: 'session_expired' });
     } finally {
       authModalPromise = null;
     }

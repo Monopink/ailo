@@ -39,3 +39,11 @@ export const USER_STATUS = {
 } as const;
 
 export type UserStatus = (typeof USER_STATUS)[keyof typeof USER_STATUS];
+
+/** Account segment enum - MUST match backend persisted values */
+export const ACCOUNT_SEGMENT = {
+  MEMBER_FULL: 0,
+  MEMBER_LIMITED: 1,
+} as const;
+
+export type AccountSegment = (typeof ACCOUNT_SEGMENT)[keyof typeof ACCOUNT_SEGMENT];

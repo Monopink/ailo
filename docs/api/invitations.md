@@ -17,6 +17,13 @@
 - [上报活动归因](#上报活动归因) - `POST /api/v1/growth/attributions/track`
 - [兑换兑换码](#兑换兑换码) - `POST /api/v1/redeem-codes/claim`
 
+## 访问能力约束
+
+- 所有登录态邀请接口都会进行账号能力校验。
+- 当当前账号 `review_scope` 不允许邀请能力时，接口返回：
+  - `403 Forbidden`
+  - `detail`: `当前账号暂不可用该功能`
+
 ---
 
 ## 获取我的邀请码
@@ -196,7 +203,11 @@
   "source": "login",
   "trigger": "clipboard",
   "raw_text": "敲敲好友都在用，k8p2q7",
-  "invite_code": null
+  "invite_code": null,
+  "device_id": "mp_dv_1234567890",
+  "segment_type": 1,
+  "runtime_observation_id": 1987654321000,
+  "client_user_agent": "Mozilla/5.0 ..."
 }
 ```
 
@@ -206,6 +217,10 @@
 - `trigger` (string, 必填) - 触发来源标记（如：`clipboard`、`link_param`、`manual_input`）
 - `raw_text` (string, 可选) - 原始文本（如剪贴板）
 - `invite_code` (string, 可选) - 直传邀请码（如链接参数）
+- `device_id` (string, 可选) - 客户端设备 ID 快照（建议上传）
+- `segment_type` (integer, 可选) - 客户端分段快照（`0=standard`、`1=limited`）
+- `runtime_observation_id` (integer, 可选) - 关联运行态观测事件 ID
+- `client_user_agent` (string, 可选) - 客户端 UA 快照（最大 2048 字符）
 
 ### 成功响应 (200)
 
@@ -225,8 +240,10 @@
 
 - 服务端仅提取并验证“第一个独立 6 位字母数字串”。
 - 仅当邀请码有效时记入 `open` 事件。
-- 仅当 `trigger=clipboard` 时写入 `invite_recognition_logs`（用于剪贴板解析统计）。
-- 识别日志对 `(actor_user_id, source, trigger, raw_text)` 在 2 秒窗口内做去重，避免重复噪声。
+- 任意 `trigger` 都会写入 `invite_intake_logs`。
+- 识别日志与 `open` 事件对“同一主体 + 同一来源 + 同一触发 + 同一输入内容”在 10 分钟窗口内做去重，避免短时间重复上传。
+- 匿名 intake 去重优先使用 `device_id`；当 `device_id` 缺失时回退 `runtime_observation_id`，再回退 `client_user_agent`。
+- `invite_intake_logs` 扩展关联字段：`reviewer_flag_snapshot`、`runtime_observation_id`、`client_user_agent`、`client_device_id`。
 - intake 主流程（识别、有效性判断）与日志/事件写入解耦：若日志或事件写入异常，不影响 intake 返回。
 
 ---
@@ -245,9 +262,24 @@
   "source": "setup",
   "trigger": "clipboard",
   "raw_text": "敲敲好友都在用，k8p2q7",
-  "invite_code": null
+  "invite_code": null,
+  "device_id": "mp_dv_1234567890",
+  "segment_type": 1,
+  "runtime_observation_id": 1987654321000,
+  "client_user_agent": "Mozilla/5.0 ..."
 }
 ```
+
+**字段说明**:
+
+- `source` (string, 必填) - 来源标记：`login`、`setup`、`link`、`invite_bind_page`、`invite_share_page`
+- `trigger` (string, 必填) - 触发来源标记（如：`clipboard`、`link_param`、`manual_input`）
+- `raw_text` (string, 可选) - 原始文本（如剪贴板）
+- `invite_code` (string, 可选) - 直传邀请码（如链接参数）
+- `device_id` (string, 可选) - 客户端设备 ID 快照（建议上传）
+- `segment_type` (integer, 可选) - 客户端分段快照（`0=standard`、`1=limited`）
+- `runtime_observation_id` (integer, 可选) - 关联运行态观测事件 ID
+- `client_user_agent` (string, 可选) - 客户端 UA 快照（最大 2048 字符）
 
 ### 成功响应 (200)
 
@@ -267,9 +299,11 @@
 
 ### 业务规则
 
-- 仅当 `trigger=clipboard` 时写入识别日志。
 - 仅当邀请码有效时记入 `open` 事件。
-- 识别日志对 `(actor_user_id, source, trigger, raw_text)` 在 2 秒窗口内做去重，避免重复噪声。
+- 任意 `trigger` 都会写入识别日志。
+- 识别日志与 `open` 事件对“同一主体 + 同一来源 + 同一触发 + 同一输入内容”在 10 分钟窗口内做去重，避免短时间重复上传。
+- 匿名 intake 去重优先使用 `device_id`；当 `device_id` 缺失时回退 `runtime_observation_id`，再回退 `client_user_agent`。
+- `invite_intake_logs` 扩展关联字段：`reviewer_flag_snapshot`、`runtime_observation_id`、`client_user_agent`、`client_device_id`。
 - 后台“解析成功”主口径统一使用 `open` 事件计数。
 - intake 主流程（识别、有效性判断、bindable 判断）与日志/事件写入解耦：若日志或事件写入异常，不影响 intake 返回。
 

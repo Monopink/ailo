@@ -7,11 +7,17 @@ Square（发现页）用于展示可添加的 AI 联系人。
 ### 分类表
 
 - 表：`square_categories`
-- 字段：`category_key`、`title`、`description`、`theme_key`、`icon_ref`、`sort_order`、`status`
+- 字段：`category_key`、`title`、`description`、`theme_key`、`icon_ref`、`sort_order`、`status`、`minor_visible`、`review_visibility_scope`
 - 约束：
   - `category_key` 唯一且不可修改
   - `theme_key` 取值集合由 `backend/app/enums/` 的 `SquareCategoryTheme` 定义
   - `icon_ref` 格式为 `tdesign:<icon-name>`
+  - `minor_visible`：是否青少年可见（默认 `false`）
+  - `review_visibility_scope` 枚举：
+    - `0=ALL_USERS`
+    - `1=REGULAR_USERS`
+    - `2=ALL_REVIEWERS`
+    - `3=MP_WEIXIN_REVIEWERS`
 
 ### 上架表
 
@@ -24,10 +30,15 @@ Square（发现页）用于展示可添加的 AI 联系人。
 
 - 分类接口仅返回 `square_categories.status=active` 的记录。
 - 分类排序为 `sort_order ASC`，其次 `category_key ASC`。
+- 分类接口按 `review_visibility_scope` 过滤：
+  - `review_scope=NON_REVIEW`：`ALL_USERS + REGULAR_USERS`
+  - `review_scope=MP_WEIXIN_REVIEW`：`ALL_USERS + ALL_REVIEWERS + MP_WEIXIN_REVIEWERS`
+- 当用户开启青少年模式时，额外叠加 `minor_visible=true` 过滤（与 `review_visibility_scope` 取交集）。
 
 ## 列表查询规则
 
 - Square 联系人列表按 `category_key` 维度查询。
+- `category_key` 必须属于当前用户可见分类集合。
 - 列表筛选目标分类下 ACTIVE 的上架记录并映射到 `type_id` 集。
 - 列表分页使用 `cursor`。
 - 刷新请求使用 `refresh=true` 并生成新 `feed_version`。
@@ -68,5 +79,5 @@ Square（发现页）用于展示可添加的 AI 联系人。
 
 - 陌生人详情接口支持可选 `category_key`（接口定义见：`docs/api/discovery.md`）。
 - 返回 `category_key` 与 `category_title`。
-- 未传入、无效或下线分类时，`category_key` 与 `category_title` 返回 `null`。
+- 未传入、无效、下线或当前用户不可见分类时，`category_key` 与 `category_title` 返回 `null`。
 - 同时返回 `tags` 与 `remark`，规则见：`docs/spec/contact/ai-creation.md` - tags 写入规则

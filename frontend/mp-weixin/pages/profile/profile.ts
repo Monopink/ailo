@@ -10,6 +10,8 @@ import { isNonEmptyString } from '../../utils/guards';
 import { IS_PROD } from '../../utils/env';
 import { BUILD_INFO, formatBuildInfoText } from '../../utils/build-info';
 import type { InviteBindingState } from '../../utils/invite-binding-service';
+import authService from '../../utils/auth-service';
+import { canUseInviteCapability } from '../../utils/access-capability';
 
 const logger = getLogger('Profile');
 const AUTO_RETRY_DELAYS_MS = [1200, 2600, 5200] as const;
@@ -23,6 +25,7 @@ interface ProfilePageData extends Record<string, unknown> {
   profile: ProfileViewModel | null;
   inviteBindingState: InviteBindingState;
   showInviteBindEntry: boolean;
+  canUseInvite: boolean;
   showBuildInfo: boolean;
   buildInfoText: string;
 }
@@ -35,6 +38,7 @@ interface ProfilePageCustom {
   clearAutoRetryTimer(): void;
   scheduleAutoRetryLoad(): void;
   loadProfile(options?: { forceRefreshBinding?: boolean }): Promise<void>;
+  ensureInviteAvailable(): boolean;
   navigateToProfileDetail(): void;
   navigateToInviteBind(): void;
   navigateToInviteShare(): void;
@@ -68,6 +72,7 @@ Page<ProfilePageData, ProfilePageCustom>({
     profile: null,
     inviteBindingState: 'unknown',
     showInviteBindEntry: true,
+    canUseInvite: true,
     showBuildInfo: !IS_PROD,
     buildInfoText: formatBuildInfoText(BUILD_INFO),
   },
@@ -114,10 +119,12 @@ Page<ProfilePageData, ProfilePageCustom>({
     }
 
     const bootstrap = this.profilePageService.bootstrap();
+    const canUseInvite = canUseInviteCapability(authService.getUserInfo());
     this.setData({
       profile: bootstrap.profile,
       inviteBindingState: bootstrap.inviteBindingState,
-      showInviteBindEntry: bootstrap.inviteBindingState !== 'bound',
+      showInviteBindEntry: canUseInvite && bootstrap.inviteBindingState !== 'bound',
+      canUseInvite,
       ...buildPageLayoutScreenModelPayload(bootstrap.screenModel),
     });
 
@@ -132,6 +139,7 @@ Page<ProfilePageData, ProfilePageCustom>({
     }
 
     const bootstrap = this.profilePageService.bootstrap();
+    const canUseInvite = canUseInviteCapability(authService.getUserInfo());
     if (bootstrap.profile === null && this.data.profile === null) {
       void this.loadProfile({ forceRefreshBinding: true });
       return;
@@ -139,7 +147,8 @@ Page<ProfilePageData, ProfilePageCustom>({
     this.setData({
       profile: bootstrap.profile ?? this.data.profile,
       inviteBindingState: bootstrap.inviteBindingState,
-      showInviteBindEntry: bootstrap.inviteBindingState !== 'bound',
+      showInviteBindEntry: canUseInvite && bootstrap.inviteBindingState !== 'bound',
+      canUseInvite,
       ...buildPageLayoutScreenModelPayload(bootstrap.screenModel),
     });
     void this.loadProfile({ forceRefreshBinding: true });
@@ -175,11 +184,13 @@ Page<ProfilePageData, ProfilePageCustom>({
       await showAuthExpiredModalAndRelogin();
       return;
     }
+    const canUseInvite = canUseInviteCapability(authService.getUserInfo());
 
     this.setData({
       profile: result.profile,
       inviteBindingState: result.inviteBindingState,
-      showInviteBindEntry: result.inviteBindingState !== 'bound',
+      showInviteBindEntry: canUseInvite && result.inviteBindingState !== 'bound',
+      canUseInvite,
       ...buildPageLayoutScreenModelPayload(result.screenModel),
     });
 
@@ -212,15 +223,32 @@ Page<ProfilePageData, ProfilePageCustom>({
   },
 
   navigateToInviteBind() {
+    if (!this.ensureInviteAvailable()) {
+      return;
+    }
     void wx.navigateTo({
       url: '/pages/invite-bind/invite-bind',
     });
   },
 
   navigateToInviteShare() {
+    if (!this.ensureInviteAvailable()) {
+      return;
+    }
     void wx.navigateTo({
       url: '/pages/invite-share/invite-share',
     });
+  },
+
+  ensureInviteAvailable() {
+    if (this.data.canUseInvite) {
+      return true;
+    }
+    void wx.showToast({
+      title: '该功能暂不可用',
+      icon: 'none',
+    });
+    return false;
   },
 
   navigateToAbout() {

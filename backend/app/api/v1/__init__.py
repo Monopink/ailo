@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from app.api.v1.account_security import router as account_security_router
 from app.api.v1.auth import router as auth_router
+from app.api.v1.client import router as client_router
 from app.api.v1.contact_requests import router as contact_requests_router
 from app.api.v1.contacts import router as contacts_router
 from app.api.v1.discovery import router as discovery_router
@@ -24,6 +25,7 @@ v1_router = APIRouter()
 
 # Register API routers
 v1_router.include_router(auth_router)
+v1_router.include_router(client_router)
 v1_router.include_router(webhook_router)
 v1_router.include_router(contacts_router)
 v1_router.include_router(

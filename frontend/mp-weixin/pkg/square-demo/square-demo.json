@@ -3,7 +3,6 @@
   "navigationStyle": "custom",
   "usingComponents": {
     "t-navbar": "tdesign-miniprogram/navbar/navbar",
-    "t-icon": "tdesign-miniprogram/icon/icon",
     "page-layout": "/components/page-layout/page-layout",
     "app-avatar": "/components/ui/app-avatar/app-avatar"
   }

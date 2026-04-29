@@ -10,6 +10,11 @@ import { getLogger } from './utils/logger';
 import { initMessageService, type MessageService } from './utils/message/service';
 import conversationStore from './utils/message/conversation-store';
 import { normalizeError } from './utils/errors';
+import {
+  flushRuntimeSessionTickQueue,
+  startRuntimeSessionTick,
+  stopRuntimeSessionTick,
+} from './utils/runtime-segment';
 
 type MessagePayload = Ailo.MessagePayload;
 type LaunchOptions = WechatMiniprogram.App.LaunchShowOption;
@@ -17,6 +22,7 @@ type ShowOptions = WechatMiniprogram.App.LaunchShowOption;
 type PageNotFoundOption = WechatMiniprogram.App.PageNotFoundOption;
 type UnhandledRejectionResult = WechatMiniprogram.OnUnhandledRejectionListenerResult;
 type ThemeChangeResult = WechatMiniprogram.OnThemeChangeListenerResult;
+type NetworkStatusChangeResult = WechatMiniprogram.OnNetworkStatusChangeListenerResult;
 type AnyPageInstance = WechatMiniprogram.Page.Instance<
   WechatMiniprogram.IAnyObject,
   WechatMiniprogram.IAnyObject
@@ -27,10 +33,53 @@ type MessageHandlerPage = AnyPageInstance & {
 };
 
 const logger = getLogger('App');
+const PREVIEW_ROUTE_PREFIX = 'pkg/preview-';
+let previewReconnectRedirectInFlight = false;
+type RouteAwarePage = AnyPageInstance & { route: string; options: Record<string, unknown> };
 
 const getActivePage = (): AnyPageInstance | undefined => {
   const pages = getCurrentPages();
   return pages[pages.length - 1] as AnyPageInstance | undefined;
+};
+
+const toRouteAwarePage = (page: AnyPageInstance | undefined): RouteAwarePage | null => {
+  if (page === undefined) {
+    return null;
+  }
+  const maybePage = page as Partial<RouteAwarePage>;
+  if (
+    typeof maybePage.route !== 'string' ||
+    maybePage.route.trim() === '' ||
+    typeof maybePage.options !== 'object'
+  ) {
+    return null;
+  }
+  return maybePage as RouteAwarePage;
+};
+
+const shouldRelaunchBootAfterReconnect = (): boolean => {
+  const currentPage = toRouteAwarePage(getActivePage());
+  return (
+    typeof currentPage?.route === 'string' && currentPage.route.startsWith(PREVIEW_ROUTE_PREFIX)
+  );
+};
+
+const handleNetworkStatusChange = (event: NetworkStatusChangeResult): void => {
+  if (!event.isConnected) {
+    return;
+  }
+  void flushRuntimeSessionTickQueue();
+  if (previewReconnectRedirectInFlight || !shouldRelaunchBootAfterReconnect()) {
+    return;
+  }
+  previewReconnectRedirectInFlight = true;
+  logger.info('Network reconnected in preview mode, relaunch boot');
+  void wx.reLaunch({
+    url: '/pages/boot/boot?source=network_reconnected',
+    complete: () => {
+      previewReconnectRedirectInFlight = false;
+    },
+  });
 };
 
 const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
@@ -53,10 +102,14 @@ const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
       checkGlobalData();
       logger.info('========================');
     }
+    wx.onNetworkStatusChange(handleNetworkStatusChange);
+    startRuntimeSessionTick('app_launch');
   },
 
   onShow(options: ShowOptions) {
     logger.info('App shown', { options });
+    startRuntimeSessionTick('app_show');
+    void flushRuntimeSessionTickQueue();
     if (this.globalData.messageService !== null) {
       void this.globalData.messageService.resume().catch((error) => {
         const err = normalizeError(error);
@@ -67,6 +120,7 @@ const appOptions: WechatMiniprogram.App.Options<AppInstance> = {
 
   onHide() {
     logger.info('App hidden');
+    stopRuntimeSessionTick();
     if (this.globalData.messageService !== null) {
       this.globalData.messageService.suspend();
     }

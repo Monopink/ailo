@@ -9,6 +9,7 @@ After updating configs through CRUD, call SystemConfigService.reload_cache() to 
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TypedDict
 
 from sqlalchemy import select
@@ -165,6 +166,39 @@ class SystemConfigService:
         return _ensure_string_config_value(value, key)
 
     @staticmethod
+    async def get_config_time_str(
+        db: AsyncSession,
+        key: str,
+        *,
+        required: bool = True,
+    ) -> str:
+        """Get a configuration value as normalized UTC ISO8601 datetime string."""
+        value = await SystemConfigService.get_config(db, key, required=required)
+        if value is None:
+            if required:
+                raise MissingConfigurationError(config_key=key)
+            return ""
+        if not isinstance(value, str):
+            raise ConfigurationError(
+                message=f"Configuration '{key}' expects an ISO8601 datetime string.",
+                config_key=key,
+                details={"received_type": type(value).__name__},
+            )
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ConfigurationError(
+                message=f"Configuration '{key}' expects an ISO8601 datetime string.",
+                config_key=key,
+                details={"value": value},
+            ) from exc
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        else:
+            parsed = parsed.astimezone(UTC)
+        return parsed.isoformat().replace("+00:00", "Z")
+
+    @staticmethod
     async def get_config_bool(
         db: AsyncSession,
         key: str,
@@ -290,6 +324,37 @@ class SystemConfigService:
         )
 
     @staticmethod
+    def _convert_time_single_value(
+        *,
+        value: JSONValue,
+        config_key: str,
+        value_type: int,
+    ) -> str | None:
+        """Convert one TIME value to normalized UTC ISO8601 string."""
+        if not isinstance(value, str):
+            raise ConfigurationError(
+                message="Configuration expects an ISO8601 datetime string.",
+                config_key=config_key,
+                details={"value": value, "value_type": int(value_type)},
+            )
+        raw_value = value.strip()
+        if raw_value == "":
+            return None
+        try:
+            parsed = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ConfigurationError(
+                message="Configuration expects an ISO8601 datetime string.",
+                config_key=config_key,
+                details={"value": value, "value_type": int(value_type)},
+            ) from exc
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        else:
+            parsed = parsed.astimezone(UTC)
+        return parsed.isoformat().replace("+00:00", "Z")
+
+    @staticmethod
     def _convert_single_value(  # noqa: PLR0911
         value: JSONValue,
         value_type: int,
@@ -304,6 +369,13 @@ class SystemConfigService:
                 message="Configuration expects a string value.",
                 config_key=config_key,
                 details={"value": value, "value_type": int(value_type)},
+            )
+
+        if value_type == ConfigValueType.TIME:
+            return SystemConfigService._convert_time_single_value(
+                value=value,
+                config_key=config_key,
+                value_type=value_type,
             )
 
         if value_type == ConfigValueType.NUMBER:
@@ -420,6 +492,16 @@ async def get_config_str(
 ) -> str:
     """Get configuration value as a string."""
     return await SystemConfigService.get_config_str(db, key, required=required)
+
+
+async def get_config_time_str(
+    db: AsyncSession,
+    key: str,
+    *,
+    required: bool = True,
+) -> str:
+    """Get configuration value as normalized UTC ISO8601 datetime string."""
+    return await SystemConfigService.get_config_time_str(db, key, required=required)
 
 
 async def get_config_bool(

@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 from starlette_admin import (
+    BooleanField,
     DateTimeField,
     EnumField,
     HasOne,
@@ -22,6 +23,7 @@ from starlette_admin.actions import link_row_action
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 
+from app.admin.i18n import admin_square_category_theme_label
 from app.admin.views.base import IntegerEnumField
 from app.core.database import get_sessionmaker
 from app.enums import (
@@ -33,6 +35,7 @@ from app.enums import (
     ClientType,
     ExposureStrategy,
     LocaleCode,
+    SquareCategoryReviewVisibilityScope,
     SquareCategoryStatus,
     SquareCategoryTheme,
     SquareEntryStatus,
@@ -48,7 +51,9 @@ logger = get_logger(__name__)
 
 _CATEGORY_KEY_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _ICON_REF_PATTERN = re.compile(r"^tdesign:[a-z0-9-]+$")
-_THEME_CHOICES = [(item, admin_square_category_theme_label(item)) for item in SQUARE_CATEGORY_THEME_KEYS]
+_THEME_CHOICES = [
+    (item, admin_square_category_theme_label(item)) for item in SQUARE_CATEGORY_THEME_KEYS
+]
 
 
 def _extract_relation_id(value: object) -> int | None:
@@ -262,6 +267,19 @@ class SquareCategoryView(ModelView):
             required=True,
             help_text="Only active categories are returned to clients",
         ),
+        BooleanField(
+            "minor_visible",
+            label="Minor Visible",
+            required=True,
+            help_text="Whether this category is visible to minor users",
+        ),
+        IntegerEnumField(
+            "review_visibility_scope",
+            enum=SquareCategoryReviewVisibilityScope,
+            label="Review Visibility Scope",
+            required=True,
+            help_text="Visibility scope for regular/reviewer users",
+        ),
         _SquareCategoryAITypeCountField(
             "ai_type_total",
             label="AI Types (Total)",
@@ -299,6 +317,8 @@ class SquareCategoryView(ModelView):
     def get_create_defaults(self, request: Request) -> dict[str, Any]:
         return {
             "status": SquareCategoryStatus.ACTIVE,
+            "minor_visible": False,
+            "review_visibility_scope": SquareCategoryReviewVisibilityScope.REGULAR_USERS,
             "sort_order": 100,
             "theme_key": SquareCategoryTheme.BLUE.value,
             "icon_ref": "tdesign:chat",

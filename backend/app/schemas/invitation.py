@@ -115,7 +115,7 @@ class InvitationShareCardResponse(BaseSchema):
 
 
 class InvitationIntakeRequest(BaseModel):
-    """Invitation intake request for clipboard/link/manual recognition."""
+    """Invitation intake request for clipboard/link/manual parsing."""
 
     source: InvitationSource = Field(
         ...,
@@ -132,10 +132,31 @@ class InvitationIntakeRequest(BaseModel):
         default=None,
         description="Invite code passed by link or manual input",
     )
+    segment_type: int = Field(
+        default=0,
+        ge=0,
+        le=1,
+        description="Client audience segment snapshot (0=standard,1=limited)",
+    )
+    runtime_observation_id: int | None = Field(
+        default=None,
+        ge=1,
+        description="Optional linked runtime observation id",
+    )
+    client_user_agent: str | None = Field(
+        default=None,
+        max_length=2048,
+        description="Client user-agent snapshot",
+    )
+    device_id: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Client device id snapshot",
+    )
 
     @model_validator(mode="after")
-    def validate_payload_has_recognition_input(self) -> InvitationIntakeRequest:
-        """Ensure at least one recognition input exists."""
+    def validate_payload_has_intake_input(self) -> InvitationIntakeRequest:
+        """Ensure at least one intake input exists."""
         if (self.raw_text is None or self.raw_text.strip() == "") and (
             self.invite_code is None or self.invite_code.strip() == ""
         ):

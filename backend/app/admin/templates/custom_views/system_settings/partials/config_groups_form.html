@@ -46,7 +46,8 @@
 
       <div class="config-list">
         {% for config_key, config in group.configs.items() %}
-        <div class="config-row mb-3 pb-3 border-bottom">
+        {% set field_error = field_errors.get(config_key) if field_errors else None %}
+        <div class="config-row mb-3 pb-3 border-bottom{% if field_error %} border-danger{% endif %}">
           <div class="config-name">
             <label class="form-label fw-bold mb-1" for="config_modify_{{ config_key }}">
               {{ config.display_name }}
@@ -58,6 +59,11 @@
               &nbsp;
               {% endif %}
             </small>
+            {% if field_error %}
+            <small class="text-danger d-block mt-1">
+              {{ field_error }}
+            </small>
+            {% endif %}
           </div>
 
           {% if config.config_shape == 2 %}
@@ -151,14 +157,14 @@
             <input type="hidden" name="config_clear_{{ config_key }}" id="config_clear_{{ config_key }}" value="">
             <div class="input-group">
               {% if config.value_type == 3 %}
-              <select class="form-select" name="config_modify_{{ config_key }}" id="config_modify_{{ config_key }}">
+              <select class="form-select" name="config_modify_{{ config_key }}" id="config_modify_{{ config_key }}" data-value-type="{{ config.value_type }}">
                 <option value="">{{ admin_text("-- No Change --") }}</option>
                 <option value="true">true</option>
                 <option value="false">false</option>
               </select>
 
               {% elif config.value_type == 5 %}
-              <select class="form-select" name="config_modify_{{ config_key }}" id="config_modify_{{ config_key }}">
+              <select class="form-select" name="config_modify_{{ config_key }}" id="config_modify_{{ config_key }}" data-value-type="{{ config.value_type }}">
                 <option value="">{{ admin_text("-- No Change --") }}</option>
                 {% for value in config.allowed_values %}
                 <option value="{{ value }}">{{ value }}</option>
@@ -166,13 +172,25 @@
               </select>
 
               {% elif config.value_type == 2 %}
-              <input type="number" class="form-control" name="config_modify_{{ config_key }}" id="config_modify_{{ config_key }}" placeholder="{{ admin_text('Leave empty for no change') }}" min="0">
+              <input type="number" class="form-control" name="config_modify_{{ config_key }}" id="config_modify_{{ config_key }}" placeholder="{{ admin_text('Leave empty for no change') }}" min="0" data-value-type="{{ config.value_type }}">
+
+              {% elif config.value_type == 6 %}
+              <input
+                type="datetime-local"
+                class="field-datetime form-control"
+                name="config_modify_{{ config_key }}"
+                id="config_modify_{{ config_key }}"
+                placeholder="{{ admin_text('Leave empty for no change') }}"
+                data-alt-format="F j, Y  H:i:S"
+                data-locale="{{ get_locale() }}"
+                data-value-type="{{ config.value_type }}"
+              >
 
               {% elif config.value_type == 4 %}
-              <textarea class="form-control" name="config_modify_{{ config_key }}" id="config_modify_{{ config_key }}" rows="3" placeholder='{{ admin_text("Leave empty for no change. Example: [\"value1\",\"value2\"]") }}'></textarea>
+              <textarea class="form-control" name="config_modify_{{ config_key }}" id="config_modify_{{ config_key }}" rows="3" placeholder="{{ admin_text('Leave empty for no change') }}" data-value-type="{{ config.value_type }}"></textarea>
 
               {% else %}
-              <input type="text" class="form-control" name="config_modify_{{ config_key }}" id="config_modify_{{ config_key }}" placeholder="{{ admin_text('Leave empty for no change') }}">
+              <input type="text" class="form-control" name="config_modify_{{ config_key }}" id="config_modify_{{ config_key }}" placeholder="{{ admin_text('Leave empty for no change') }}" data-value-type="{{ config.value_type }}">
               {% endif %}
 
               <button

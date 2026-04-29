@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
+const path = require('node:path');
 
 function tryReadGitShortSha(rootDir) {
   try {
@@ -14,8 +15,20 @@ function tryReadGitShortSha(rootDir) {
   }
 }
 
-function buildBuildInfoSource({ id, builtAt }) {
-  return `export const BUILD_INFO = {\n  id: '${id}',\n  builtAt: '${builtAt}',\n};\n`;
+function readPackageVersion(rootDir) {
+  try {
+    const packageJsonPath = path.join(rootDir, 'package.json');
+    const raw = fs.readFileSync(packageJsonPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    const version = typeof parsed.version === 'string' ? parsed.version.trim() : '';
+    return version;
+  } catch {
+    return '';
+  }
+}
+
+function buildBuildInfoSource({ id, builtAt, appVersion }) {
+  return `export const BUILD_INFO = {\n  id: '${id}',\n  builtAt: '${builtAt}',\n  appVersion: '${appVersion}',\n};\n`;
 }
 
 function readFileOrEmpty(filePath) {
@@ -43,7 +56,8 @@ module.exports = {
     const generatedTsPath = ctx.resolvePath('utils', 'build-info.generated.ts');
     const id = tryReadGitShortSha(ctx.rootDir);
     const builtAt = new Date().toISOString();
-    const content = buildBuildInfoSource({ id, builtAt });
+    const appVersion = readPackageVersion(ctx.rootDir);
+    const content = buildBuildInfoSource({ id, builtAt, appVersion });
 
     const changed = writeIfChanged(generatedTsPath, content, ctx.dryRun);
     if (changed) {

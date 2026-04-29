@@ -4,6 +4,7 @@ import { isNonEmptyString } from '../../utils/guards';
 import { LOGIN_CONFIG } from '../../utils/config';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { normalizeCampaignCodeParam, normalizeInviteCodeParam } from '../../utils/invite-code';
+import { probeRuntimeSegment, reportPreflightProbeResult } from '../../utils/runtime-segment';
 import {
   createLoginPageService,
   type AuthSuccessPayload,
@@ -51,7 +52,6 @@ interface LoginPageCustom {
   handlePrivacyDialogClose(): void;
   handleAuthSuccess(authResult: AuthSuccessPayload): Promise<void>;
   prefillInviteCodeFromClipboard(): Promise<void>;
-  navigateToSquareDemo(): void;
   navigateToUserAgreement(): void;
   navigateToPrivacyPolicy(): void;
 }
@@ -311,10 +311,6 @@ Page<LoginPageData, LoginPageCustom>({
     this.setData({ privacyDialogVisible: false });
   },
 
-  navigateToSquareDemo() {
-    void wx.navigateTo({ url: '/pkg/square-demo/square-demo' });
-  },
-
   async prefillInviteCodeFromClipboard() {
     if (this.clipboardIntakeAttempted) {
       return;
@@ -349,6 +345,12 @@ Page<LoginPageData, LoginPageCustom>({
 
   async handleAuthSuccess(authResult: AuthSuccessPayload) {
     await this.loginPageService.persistAuth(authResult);
+    const probe = await probeRuntimeSegment();
+    void reportPreflightProbeResult({
+      probe,
+      pagePath: '/pages/login/login',
+      entrySource: 'post_login',
+    });
 
     if (typeof authResult.message === 'string' && authResult.message.trim() !== '') {
       showToast(authResult.message);

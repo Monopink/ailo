@@ -1,0 +1,37 @@
+<page-layout
+  style="--color-bg-page: var(--color-bg-secondary); --color-bg-header-solid: var(--color-bg-white);"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{false}}">
+  <view slot="header" class="preview-header">
+    <t-navbar left-arrow="{{true}}" bind:left-click="handleBack">
+      <view slot="title" class="navbar-title">{{title}}</view>
+    </t-navbar>
+    <view class="preview-subtitle">游客身份</view>
+  </view>
+
+  <view slot="content" class="preview-page">
+    <view class="preview-list">
+      <view
+        wx:for="{{messages}}"
+        wx:key="id"
+        class="preview-msg {{item.sender === 'guest' ? 'preview-msg--guest' : ''}}">
+        <view class="preview-msg__bubble">
+          <view>{{item.text}}</view>
+          <view class="preview-msg__time">{{item.timeLabel}}</view>
+        </view>
+      </view>
+      <view wx:if="{{messages.length === 0}}" class="preview-empty">暂无消息</view>
+    </view>
+    <view class="preview-chat-input">
+      <input
+        class="preview-chat-input__field"
+        value="{{draftText}}"
+        placeholder="输入一条消息"
+        bindinput="handleInput" />
+      <view class="preview-chat-input__send" bindtap="handleSend">发送</view>
+    </view>
+  </view>
+</page-layout>

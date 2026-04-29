@@ -76,6 +76,7 @@
 - `3`：`BOOLEAN`
 - `4`：`JSON`
 - `5`：`ENUM`
+- `6`：`TIME`（UTC ISO8601 字符串）
 
 ## 8) 值形态（config_shape）
 

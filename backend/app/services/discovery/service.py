@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums import SquareCategoryTheme
+from app.models.user import User
 from app.schemas.discovery import (
     SquareCategoryItem,
     SquareCategoryListResponse,
@@ -14,7 +15,9 @@ from app.schemas.discovery import (
 )
 from app.services.discovery import data as discovery_data
 from app.services.media.config import get_media_base_url
+from app.services.minor_mode_policy import is_minor_mode_enabled
 from app.services.profile.avatar import get_avatar_url
+from app.services.review_scope_policy import resolve_visible_review_scopes
 from app.services.security.rate_limiter import check_rate_limit
 from app.services.system_config import get_config_int
 from app.type_defs import JSONValue
@@ -59,10 +62,20 @@ def _normalize_preset_remark(raw_remark: str | None) -> str | None:
     return raw_remark
 
 
-async def get_square_categories(db: AsyncSession) -> SquareCategoryListResponse:
+async def get_square_categories(
+    db: AsyncSession,
+    *,
+    current_user: User,
+) -> SquareCategoryListResponse:
     """Get active square categories for clients."""
 
-    categories = await discovery_data.get_active_square_categories(db)
+    visible_review_scopes = resolve_visible_review_scopes(current_user)
+    require_minor_visible = is_minor_mode_enabled(current_user)
+    categories = await discovery_data.get_active_square_categories(
+        db,
+        visible_review_scopes=visible_review_scopes,
+        require_minor_visible=require_minor_visible,
+    )
     items = [
         SquareCategoryItem(
             category_key=item.category_key,
@@ -78,6 +91,8 @@ async def get_square_categories(db: AsyncSession) -> SquareCategoryListResponse:
 
 async def get_square_contacts(
     db: AsyncSession,
+    *,
+    current_user: User,
     user_qiao_id: str,
     category_key: str,
     cursor: str | None = None,
@@ -109,7 +124,13 @@ async def get_square_contacts(
             if page_size <= 0:
                 raise ValueError(f"Expected positive integer configuration, got {page_size!r}")
 
-        categories = await discovery_data.get_active_square_categories(db)
+        visible_review_scopes = resolve_visible_review_scopes(current_user)
+        require_minor_visible = is_minor_mode_enabled(current_user)
+        categories = await discovery_data.get_active_square_categories(
+            db,
+            visible_review_scopes=visible_review_scopes,
+            require_minor_visible=require_minor_visible,
+        )
         category_keys = {item.category_key for item in categories}
         if category_key not in category_keys:
             raise ValueError(_ERR_INVALID_CATEGORY)
@@ -207,6 +228,7 @@ async def get_stranger_profile(
     db: AsyncSession,
     qiao_id: str,
     *,
+    current_user: User | None = None,
     category_key: str | None = None,
 ) -> StrangerProfileResponse | None:
     """
@@ -215,6 +237,8 @@ async def get_stranger_profile(
     This is a public endpoint that returns basic persona metadata.
     """
     try:
+        visible_review_scopes = resolve_visible_review_scopes(current_user)
+        require_minor_visible = is_minor_mode_enabled(current_user)
         (
             persona,
             profile,
@@ -224,6 +248,8 @@ async def get_stranger_profile(
             db=db,
             qiao_id=qiao_id,
             category_key=category_key,
+            visible_review_scopes=visible_review_scopes,
+            require_minor_visible=require_minor_visible,
         )
 
         if not profile or not persona:

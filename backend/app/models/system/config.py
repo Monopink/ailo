@@ -38,7 +38,7 @@ class SystemConfig(AutoIncrementModel):
     value_type: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
-        comment="Value type: 1=string, 2=number, 3=boolean, 4=json, 5=enum",
+        comment="Value type: 1=string, 2=number, 3=boolean, 4=json, 5=enum, 6=time",
     )
 
     config_shape: Mapped[int] = mapped_column(
@@ -72,7 +72,7 @@ class SystemConfig(AutoIncrementModel):
     )
 
     __table_args__ = (
-        CheckConstraint("value_type IN (1, 2, 3, 4, 5)", name="ck_system_configs_value_type"),
+        CheckConstraint("value_type IN (1, 2, 3, 4, 5, 6)", name="ck_system_configs_value_type"),
         CheckConstraint("config_shape IN (1, 2)", name="ck_system_configs_shape"),
         CheckConstraint(
             "config_scope IN ('system', 'security', 'operation')",

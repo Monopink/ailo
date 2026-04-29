@@ -4,6 +4,7 @@ import { fetchAllContactsFromApi } from '../../utils/contact-sync';
 import { normalizeError } from '../../utils/errors';
 import { isNonEmptyString } from '../../utils/guards';
 import { getLogger } from '../../utils/logger';
+import { getInvitationRuntimeContext, reportRuntimeObservation } from '../../utils/runtime-segment';
 import { getDeviceId, saveContacts, type StoredAuthUser } from '../../utils/storage';
 import {
   type AuthUserPayload,
@@ -43,6 +44,7 @@ export type WechatPhoneAuthPayload = { phoneCode: string } | { encryptedData: st
 
 const normalizeAuthUser = (payload: AuthUserPayload): StoredAuthUser => ({
   qiao_id: payload.qiao_id,
+  account_segment: payload.account_segment,
 });
 
 export class LoginPageService extends BasePageService {
@@ -205,6 +207,18 @@ export class LoginPageService extends BasePageService {
     inviteCode?: string;
   }): Promise<string> {
     const seq = this.startRequest();
+    const deviceId = await getDeviceId();
+    const runtimeContext = getInvitationRuntimeContext();
+    const runtimeObservationId = await reportRuntimeObservation({
+      eventName: 'invite_intake_attempt',
+      pagePath: '/pages/login/login',
+      entrySource: options.source,
+      eventPayload: {
+        trigger: options.trigger,
+        invite_code: options.inviteCode ?? '',
+        clipboard_raw_text: options.trigger === 'clipboard' ? (options.rawText ?? '') : '',
+      },
+    });
     const response = await requestValidated(InvitationPublicIntakeResponseSchema, {
       url: PUBLIC_INVITATION_INTAKE_ENDPOINT,
       method: 'POST',
@@ -213,6 +227,9 @@ export class LoginPageService extends BasePageService {
         trigger: options.trigger,
         raw_text: options.rawText,
         invite_code: options.inviteCode,
+        device_id: deviceId,
+        ...runtimeContext,
+        runtime_observation_id: runtimeObservationId ?? runtimeContext.runtime_observation_id,
       },
       auth: false,
     });

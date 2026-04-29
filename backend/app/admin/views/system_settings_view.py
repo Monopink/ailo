@@ -156,6 +156,7 @@ class SystemSettingsView(CustomView):
                 "token_length": len(webhook_token) if webhook_token else 0,
                 "conversation_id": conversation_id,
                 "leancloud_config": leancloud_status,
+                "field_errors": {},
             }
 
             # Handle POST request (save settings)
@@ -183,6 +184,7 @@ class SystemSettingsView(CustomView):
 
                     # Track changes for logging
                     changes = []
+                    pending_updates: list[dict[str, object]] = []
 
                     # Only process modification fields (config_modify_*)
                     media_config_updated = False
@@ -205,50 +207,64 @@ class SystemSettingsView(CustomView):
                             # Get old value for logging
                             old_value = await get_config(db, config_key)
 
-                            # Update config through CRUD layer (validates enum)
-                            try:
-                                target_value = value_str
-                                validate_enum = True
-                                allow_empty = False
-                                new_value_log = value_str
+                            target_value = value_str
+                            validate_enum = True
+                            allow_empty = False
+                            new_value_log = value_str
 
-                                if not value_str and should_clear:
-                                    config_shape = ConfigShape(int(config.config_shape))
-                                    target_value = "[]" if config_shape == ConfigShape.ARRAY else ""
-                                    validate_enum = False
-                                    allow_empty = True
-                                    new_value_log = "<cleared>"
-                                elif (
-                                    ConfigShape(int(config.config_shape)) == ConfigShape.ARRAY
-                                    and value_str == "[]"
-                                ):
-                                    allow_empty = True
+                            if not value_str and should_clear:
+                                config_shape = ConfigShape(int(config.config_shape))
+                                target_value = "[]" if config_shape == ConfigShape.ARRAY else ""
+                                validate_enum = False
+                                allow_empty = True
+                                new_value_log = "<cleared>"
+                            elif (
+                                ConfigShape(int(config.config_shape)) == ConfigShape.ARRAY
+                                and value_str == "[]"
+                            ):
+                                allow_empty = True
 
-                                updated_config = await system_configs.update_config_value(
-                                    db,
-                                    config_key=config_key,
-                                    config_value=target_value,
-                                    updated_by=admin_user_id,
-                                    validate_enum=validate_enum,
-                                    allow_empty=allow_empty,
-                                    commit=False,
+                            pending_updates.append(
+                                {
+                                    "config_key": config_key,
+                                    "target_value": target_value,
+                                    "validate_enum": validate_enum,
+                                    "allow_empty": allow_empty,
+                                    "old_value": old_value,
+                                    "new_value": new_value_log,
+                                }
+                            )
+
+                    # Update config through CRUD layer (validates enum/value type)
+                    for item in pending_updates:
+                        config_key = str(item["config_key"])
+                        try:
+                            updated_config = await system_configs.update_config_value(
+                                db,
+                                config_key=config_key,
+                                config_value=item["target_value"],
+                                updated_by=admin_user_id,
+                                validate_enum=bool(item["validate_enum"]),
+                                allow_empty=bool(item["allow_empty"]),
+                                commit=False,
+                            )
+                            if updated_config:
+                                changes.append(
+                                    {
+                                        "config_key": config_key,
+                                        "old_value": item["old_value"],
+                                        "new_value": item["new_value"],
+                                    }
                                 )
-
-                                if updated_config:
-                                    changes.append(
-                                        {
-                                            "config_key": config_key,
-                                            "old_value": old_value,
-                                            "new_value": new_value_log,
-                                        }
-                                    )
-                                    if config_key == "media_public_base_url":
-                                        media_config_updated = True
-                            except (TypeError, ValueError) as ve:
-                                # Enum validation failed
-                                await db.rollback()
-                                context["error"] = str(ve)
-                                return templates.TemplateResponse(self._template_name(), context)
+                                if config_key == "media_public_base_url":
+                                    media_config_updated = True
+                        except (TypeError, ValueError) as ve:
+                            await db.rollback()
+                            context["error"] = str(ve)
+                            context["field_errors"] = {
+                                config_key: str(ve),
+                            }
+                            return templates.TemplateResponse(self._template_name(), context)
 
                     if changes:
                         await db.commit()
@@ -263,14 +279,17 @@ class SystemSettingsView(CustomView):
 
                         # Create operation logs for each change
                         for change in changes:
+                            resource_key = str(change["config_key"])
+                            old_value = str(change["old_value"])
+                            new_value = str(change["new_value"])
                             await create_operation_log(
                                 db=db,
                                 admin_user_id=admin_user_id,
                                 operation_type=2,  # UPDATE
                                 resource_type="system_config",
-                                resource_id=change["config_key"],
-                                resource_name=change["config_key"].replace("_", " ").title(),
-                                operation_desc=f"Updated from '{change['old_value']}' to '{change['new_value']}'",
+                                resource_id=resource_key,
+                                resource_name=resource_key.replace("_", " ").title(),
+                                operation_desc=f"Updated from '{old_value}' to '{new_value}'",
                                 request=request,
                             )
 
@@ -338,6 +357,7 @@ class SystemSettingsView(CustomView):
                 "webhook_token": None,
                 "token_length": 0,
                 "conversation_id": None,
+                "field_errors": {},
                 "leancloud_config": {
                     "configured": False,
                     "has_app_id": False,

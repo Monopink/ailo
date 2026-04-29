@@ -43,6 +43,10 @@ from app.services.invitation.intake import (
 )
 from app.services.invitation.intake_orchestrator import orchestrate_invitation_intake
 from app.services.invitation.share_card import resolve_invite_share_card
+from app.services.review_scope_policy import (
+    is_invitation_capability_allowed,
+    resolve_effective_review_scope,
+)
 from app.services.security.rate_limiter import check_rate_limit
 from app.services.system_config import get_config_str_list
 from app.utils.logging import get_logger
@@ -58,6 +62,18 @@ INVITE_SHARE_LINK_PLACEHOLDER = "{{link}}"
 INVITE_CAP_REACHED_ERROR = "邀请人数已达上限"
 INVITE_SHARE_COMMAND_TEXTS_CONFIG_KEY = "invite_share_command_texts"
 INVITE_SHARE_CARD_TITLES_CONFIG_KEY = "invite_share_card_titles"
+
+
+def _ensure_invitation_capability_or_raise(current_user: User) -> None:
+    if is_invitation_capability_allowed(current_user):
+        return
+    logger.info(
+        "invitation_capability_blocked",
+        user_id=int(current_user.id),
+        user_qiao_id=current_user.qiao_id,
+        review_scope=resolve_effective_review_scope(current_user).name,
+    )
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="当前账号暂不可用该功能")
 
 
 def _generate_user_invite_code() -> str:
@@ -217,6 +233,7 @@ async def get_invitation_binding_status(
     db: AsyncSession = Depends(get_db),
 ) -> InvitationBindingStatusResponse:
     """Get whether current user has already bound an invite code."""
+    _ensure_invitation_capability_or_raise(current_user)
     try:
         binding = await invite_binding_crud.get_by_invitee_user_id(
             db,
@@ -242,6 +259,7 @@ async def get_my_invite_code(
     db: AsyncSession = Depends(get_db),
 ) -> InvitationCodeResponse:
     """Get or create the current user's invite code."""
+    _ensure_invitation_capability_or_raise(current_user)
     try:
         code = await _get_or_create_user_invite_code(db, user_id=current_user.id)
         return InvitationCodeResponse(code=code)
@@ -264,6 +282,7 @@ async def get_invitation_policy(
     db: AsyncSession = Depends(get_db),
 ) -> InvitationPolicyResponse:
     """Get unified invitation policy for client pages."""
+    _ensure_invitation_capability_or_raise(_current_user)
     try:
         policy_rules = await get_invitation_policy_rules(db, for_update=False)
         invitee_rule = policy_rules.invitee_rule
@@ -299,6 +318,7 @@ async def get_invitation_stats(
     db: AsyncSession = Depends(get_db),
 ) -> InvitationStatsResponse:
     """Get invitation stats for current user."""
+    _ensure_invitation_capability_or_raise(current_user)
     try:
         policy = await _get_inviter_reward_policy(db)
         success_invite_count = await invite_binding_crud.count_success_by_inviter_user_id(
@@ -359,6 +379,7 @@ async def get_invitation_share_command(
     db: AsyncSession = Depends(get_db),
 ) -> InvitationShareCommandResponse:
     """Get invite command payload for copy/share text."""
+    _ensure_invitation_capability_or_raise(current_user)
     try:
         code = await _get_or_create_user_invite_code(db, user_id=current_user.id)
         link = f"{str(request.base_url).rstrip('/')}/i/{code}"
@@ -399,6 +420,7 @@ async def get_invitation_share_card(
     db: AsyncSession = Depends(get_db),
 ) -> InvitationShareCardResponse:
     """Get mini-program share card payload."""
+    _ensure_invitation_capability_or_raise(current_user)
     try:
         code = await _get_or_create_user_invite_code(db, user_id=current_user.id)
 
@@ -441,6 +463,7 @@ async def intake_invitation_code(
     db: AsyncSession = Depends(get_db),
 ) -> InvitationIntakeResponse:
     """Intake invitation text/link input and return one recognized valid invite code."""
+    _ensure_invitation_capability_or_raise(current_user)
     result = await orchestrate_invitation_intake(
         db,
         mode="auth",
@@ -449,6 +472,10 @@ async def intake_invitation_code(
         raw_text=payload.raw_text,
         invite_code=payload.invite_code,
         actor_user_id=int(current_user.id),
+        reviewer_flag_snapshot=1 if payload.segment_type == 1 else 0,
+        runtime_observation_id=payload.runtime_observation_id,
+        client_user_agent=payload.client_user_agent or "",
+        client_device_id=payload.device_id or "",
     )
     return InvitationIntakeResponse(
         recognized_code=result.recognized_code,
@@ -464,6 +491,7 @@ async def resolve_invite_code(
     db: AsyncSession = Depends(get_db),
 ) -> InvitationResolveResponse:
     """Resolve an invite code and check whether it is bindable for current user."""
+    _ensure_invitation_capability_or_raise(current_user)
     actor_user_id = int(current_user.id)
     await _check_invite_resolve_rate_limit_or_raise(user_id=actor_user_id, db=db)
     code = normalize_invite_code_or_raise(payload.code)
@@ -513,6 +541,7 @@ async def bind_invite_code(
     db: AsyncSession = Depends(get_db),
 ) -> InvitationBindResponse:
     """Bind user invite code and apply invite rewards."""
+    _ensure_invitation_capability_or_raise(current_user)
     actor_user_id = int(current_user.id)
     await _check_invite_bind_rate_limit_or_raise(user_id=actor_user_id, db=db)
     code = normalize_invite_code_or_raise(payload.code)
@@ -642,6 +671,7 @@ async def track_invitation_event(
     db: AsyncSession = Depends(get_db),
 ) -> InvitationEventTrackResponse:
     """Track invitation events from client pages."""
+    _ensure_invitation_capability_or_raise(current_user)
     actor_user_id = int(current_user.id)
     source = normalize_event_source_or_raise(payload.source)
     event_type = _event_type_to_code(payload.event_type)

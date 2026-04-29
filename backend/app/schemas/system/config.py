@@ -3,7 +3,7 @@
 This module contains Pydantic schemas for system configuration management.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
@@ -51,6 +51,19 @@ def _normalize_single_value(  # noqa: PLR0911
         if not isinstance(value, str) or value.strip() == "":
             raise ValueError(f"{field_name} must be a non-empty string for STRING/ENUM type")
         return value.strip()
+
+    if value_type == ConfigValueType.TIME:
+        if not isinstance(value, str) or value.strip() == "":
+            raise ValueError(f"{field_name} must be a non-empty ISO8601 string for TIME type")
+        try:
+            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError(f"{field_name} must be an ISO8601 string for TIME type") from exc
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        else:
+            parsed = parsed.astimezone(UTC)
+        return parsed.isoformat().replace("+00:00", "Z")
 
     return value
 

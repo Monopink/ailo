@@ -1,0 +1,35 @@
+<page-layout
+  style="--color-navbar-glass-bg: var(--color-bg-primary); --color-bg-header-solid: var(--color-bg-primary);"
+  headerSolidMode="manual"
+  headerSolid="{{true}}"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}">
+  <t-navbar slot="header" left-arrow="{{true}}">
+    <view slot="title" class="navbar-title">账号与安全</view>
+  </t-navbar>
+  <view slot="content" class="account-security card-container">
+    <view class="card-wrapper">
+      <t-cell-group theme="card">
+        <t-cell title="手机号" note="{{phoneMasked}}" hover="{{false}}" />
+      </t-cell-group>
+    </view>
+
+    <view class="card-wrapper">
+      <t-cell-group theme="card">
+        <t-cell title="修改手机号" arrow hover bindtap="handleReadonlyAction" />
+        <t-cell title="登录设备管理" arrow hover bindtap="handleReadonlyAction" />
+      </t-cell-group>
+    </view>
+
+    <view class="card-wrapper">
+      <t-cell-group theme="card">
+        <t-cell hover bindtap="handleReadonlyAction">
+          <text slot="title" class="account-security__danger-title">账号注销</text>
+        </t-cell>
+      </t-cell-group>
+    </view>
+  </view>
+</page-layout>

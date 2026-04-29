@@ -1,0 +1,2 @@
+@import '/pages/square-entry/square-entry.wxss';
+@import '/styles/preview-pages.wxss';

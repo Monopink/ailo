@@ -82,7 +82,7 @@
       </view>
 
       <!-- Group 2: Invitation -->
-      <view class="card-wrapper">
+      <view wx:if="{{canUseInvite}}" class="card-wrapper">
         <t-cell-group theme="card">
           <t-cell
             wx:if="{{showInviteBindEntry}}"

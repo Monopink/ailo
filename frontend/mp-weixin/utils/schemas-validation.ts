@@ -42,6 +42,7 @@ export type ContactProfile = z.infer<typeof ContactProfileSchema>;
 
 export const UserProfileSchema = z.object({
   qiao_id: z.string(),
+  account_segment: z.union([z.literal(0), z.literal(1)]),
   username: z.string().nullable(),
   nickname: z.string().nullable(),
   avatar_url: z.string().nullable(),
@@ -181,10 +182,32 @@ export type MinorModePinVerifyResponse = z.infer<typeof MinorModePinVerifyRespon
 
 export const AuthUserPayloadSchema = z.object({
   qiao_id: z.string(),
+  account_segment: z.union([z.literal(0), z.literal(1)]),
   nickname: z.string().optional().nullable(),
   avatar_url: z.string().optional().nullable(),
 });
 export type AuthUserPayload = z.infer<typeof AuthUserPayloadSchema>;
+
+const AuthUserPayloadRawSchema = z.object({
+  qiao_id: z.string(),
+  account_segment: z.union([z.literal(0), z.literal(1)]),
+  nickname: z.string().optional().nullable(),
+  avatar_url: z.string().optional().nullable(),
+});
+
+const ClientHealthResponseRawSchema = z.object({
+  status: z.literal('ok'),
+  server_time_ms: z.number().int().nonnegative(),
+});
+
+export const ClientHealthResponseSchema = ClientHealthResponseRawSchema;
+export type ClientHealthResponse = z.infer<typeof ClientHealthResponseSchema>;
+
+export const ClientPreflightProbeResponseSchema = z.object({
+  segment_type: z.union([z.literal(0), z.literal(1)]),
+  server_time_ms: z.number().int().nonnegative(),
+});
+export type ClientPreflightProbeResponse = z.infer<typeof ClientPreflightProbeResponseSchema>;
 
 export const WechatLoginCheckSchema = z.object({
   status: z.enum(['bound', 'need_phone']),
@@ -192,7 +215,15 @@ export const WechatLoginCheckSchema = z.object({
   refresh_token: z.string().nullable().optional(),
   expires_in: z.number().nullable().optional(),
   needs_profile_setup: z.boolean().nullable().optional(),
-  user: AuthUserPayloadSchema.nullable().optional(),
+  user: AuthUserPayloadRawSchema.transform((payload) => ({
+    qiao_id: payload.qiao_id,
+    account_segment: payload.account_segment,
+    nickname: payload.nickname ?? null,
+    avatar_url: payload.avatar_url ?? null,
+  }))
+    .pipe(AuthUserPayloadSchema)
+    .nullable()
+    .optional(),
   message: z.string().nullable().optional(),
 });
 export type WechatLoginCheckResponse = z.infer<typeof WechatLoginCheckSchema>;
@@ -203,7 +234,12 @@ export const WechatBindPhoneResponseSchema = z.object({
   refresh_token: z.string(),
   expires_in: z.number(),
   needs_profile_setup: z.boolean(),
-  user: AuthUserPayloadSchema,
+  user: AuthUserPayloadRawSchema.transform((payload) => ({
+    qiao_id: payload.qiao_id,
+    account_segment: payload.account_segment,
+    nickname: payload.nickname ?? null,
+    avatar_url: payload.avatar_url ?? null,
+  })).pipe(AuthUserPayloadSchema),
   message: z.string().optional().nullable(),
   binding_reused: z.boolean().optional(),
   replaced_old_wechat: z.boolean().optional(),

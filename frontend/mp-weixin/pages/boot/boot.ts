@@ -1,12 +1,20 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { getLogger } from '../../utils/logger';
 import authService from '../../utils/auth-service';
+import {
+  probeRuntimeSegment,
+  reportPreflightProbeResult,
+  reportRuntimeObservation,
+  type RuntimeProbeResult,
+} from '../../utils/runtime-segment';
 
 const logger = getLogger('Boot');
 const LOADING_INDICATOR_DELAY_MS = 220;
 const LOADING_TEXT_DELAY_MS = 1200;
 
 type TimerHandle = ReturnType<typeof setTimeout>;
+
+type RouteOptions = Record<string, string | undefined>;
 
 interface BootPageData {
   pageLayoutData: PageLayoutData;
@@ -21,6 +29,9 @@ interface BootPageCustom {
   _startLoadingFeedback(): void;
   _clearLoadingFeedback(): void;
   _routeOnce(callback: () => void): void;
+  _routeUnauthenticated(options: RouteOptions, probe: RuntimeProbeResult): boolean;
+  _handleAuthenticatedRoute(app: AppInstance, options: RouteOptions): Promise<void>;
+  _warmupMessageService(app: AppInstance): Promise<void>;
 }
 
 const toError = (error: unknown): Error => {
@@ -36,8 +47,6 @@ const toError = (error: unknown): Error => {
     return new Error('Unknown error');
   }
 };
-
-type RouteOptions = Record<string, string | undefined>;
 
 const normalizeQueryValue = (value: string | undefined): string | null => {
   if (typeof value !== 'string') {
@@ -66,6 +75,32 @@ const buildRouteUrl = (basePath: string, options: RouteOptions): string => {
   return `${basePath}?${params.join('&')}`;
 };
 
+const resolveAuthenticatedAccountSegment = (): 0 | 1 => {
+  const user = authService.getUserInfo();
+  if (user?.account_segment === 1) {
+    return 1;
+  }
+  return 0;
+};
+
+const reportBootRouteDecision = async (
+  probe: RuntimeProbeResult,
+  routeTarget: 'square_demo' | 'preview' | 'login' | 'index' | 'setup',
+  source: string
+): Promise<void> => {
+  await reportRuntimeObservation({
+    eventName: 'boot_route_decision',
+    pagePath: '/pages/boot/boot',
+    entrySource: source,
+    probe,
+    eventPayload: {
+      route_target: routeTarget,
+      is_online: probe.isOnline,
+      probe_source: probe.probeSource,
+    },
+  });
+};
+
 Page<BootPageData, BootPageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
@@ -92,44 +127,45 @@ Page<BootPageData, BootPageCustom>({
 
     try {
       const app = getApp<AppInstance>();
-      const isAuthenticated = await authService.initialize();
+      const [isAuthenticated, probe] = await Promise.all([
+        authService.initialize(),
+        probeRuntimeSegment(),
+      ]);
 
       logger.info('Boot routing', {
         isAuthenticated,
         needsProfileSetup: authService.needsProfileSetup(),
+        runtimeSegment: probe.segmentType,
+        isOnline: probe.isOnline,
+        probeSource: probe.probeSource,
         options,
+      });
+      void reportPreflightProbeResult({
+        probe,
+        pagePath: '/pages/boot/boot',
+        entrySource: 'cold_start',
       });
 
       if (!isAuthenticated) {
-        const loginUrl = buildRouteUrl('/pages/login/login', options);
-        this._routeOnce(() => {
-          void wx.redirectTo({ url: loginUrl });
-        });
-        return;
+        const routed = this._routeUnauthenticated(options, probe);
+        if (routed) {
+          return;
+        }
       }
 
-      try {
-        await app.getConversationStore().init();
-        await app.initMessageService();
-      } catch (error) {
-        const err = toError(error);
-        logger.warn('Boot warmup failed, continue routing', { error: err.message });
-      }
-
-      if (authService.needsProfileSetup()) {
-        const setupUrl = buildRouteUrl('/pages/setup/setup', options);
-        this._routeOnce(() => {
-          void wx.redirectTo({ url: setupUrl });
-        });
-        return;
-      }
-
-      this._routeOnce(() => {
-        void wx.switchTab({ url: '/pages/index/index' });
-      });
+      await this._handleAuthenticatedRoute(app, options);
     } catch (error) {
       const err = toError(error);
       logger.error('Boot routing error', { error: err.message });
+      void reportRuntimeObservation({
+        eventName: 'boot_route_decision',
+        pagePath: '/pages/boot/boot',
+        entrySource: 'boot_error',
+        eventPayload: {
+          route_target: 'login',
+          error_message: err.message,
+        },
+      });
       this._routeOnce(() => {
         void wx.redirectTo({ url: '/pages/login/login' });
       });
@@ -170,6 +206,77 @@ Page<BootPageData, BootPageCustom>({
       clearTimeout(this._loadingTextTimer);
       this._loadingTextTimer = null;
     }
+  },
+
+  _routeUnauthenticated(options: RouteOptions, probe: RuntimeProbeResult) {
+    if (probe.segmentType === 1) {
+      if (probe.isOnline) {
+        void reportBootRouteDecision(probe, 'square_demo', 'cold_start');
+        this._routeOnce(() => {
+          void wx.redirectTo({ url: '/pkg/square-demo/square-demo?source=runtime_segment' });
+        });
+        return true;
+      }
+
+      void reportBootRouteDecision(probe, 'preview', 'cold_start');
+      this._routeOnce(() => {
+        void wx.redirectTo({ url: '/pkg/preview-index/preview-index?source=runtime_segment' });
+      });
+      return true;
+    }
+
+    void reportBootRouteDecision(probe, 'login', 'cold_start');
+    const loginUrl = buildRouteUrl('/pages/login/login', options);
+    this._routeOnce(() => {
+      void wx.redirectTo({ url: loginUrl });
+    });
+    return true;
+  },
+
+  async _warmupMessageService(app: AppInstance) {
+    try {
+      await app.getConversationStore().init();
+      await app.initMessageService();
+    } catch (error) {
+      const err = toError(error);
+      logger.warn('Boot warmup failed, continue routing', { error: err.message });
+    }
+  },
+
+  async _handleAuthenticatedRoute(app: AppInstance, options: RouteOptions) {
+    const accountSegment = resolveAuthenticatedAccountSegment();
+
+    await this._warmupMessageService(app);
+
+    if (authService.needsProfileSetup()) {
+      const setupUrl = buildRouteUrl('/pages/setup/setup', options);
+      void reportRuntimeObservation({
+        eventName: 'boot_route_decision',
+        pagePath: '/pages/boot/boot',
+        entrySource: 'cold_start',
+        eventPayload: {
+          route_target: 'setup',
+          account_segment: accountSegment,
+        },
+      });
+      this._routeOnce(() => {
+        void wx.redirectTo({ url: setupUrl });
+      });
+      return;
+    }
+
+    void reportRuntimeObservation({
+      eventName: 'boot_route_decision',
+      pagePath: '/pages/boot/boot',
+      entrySource: 'cold_start',
+      eventPayload: {
+        route_target: 'index',
+        account_segment: accountSegment,
+      },
+    });
+    this._routeOnce(() => {
+      void wx.switchTab({ url: '/pages/index/index' });
+    });
   },
 
   _routeOnce(callback: () => void) {

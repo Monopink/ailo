@@ -44,6 +44,13 @@
   - `theme_key` (string) - 主题键
   - `icon_ref` (string) - 图标引用（`tdesign:<icon-name>`）
 
+### 可见性规则
+
+- 分类结果按当前登录用户过滤：
+  - `review_scope=0 (non_review)`：可见 `all_users + regular_users`
+  - `review_scope=1 (mp_weixin_review)`：可见 `all_users + all_reviewers + mp_weixin_reviewers`
+- 当用户开启青少年模式时，额外要求分类 `minor_visible=true`，与上面的 `review_visibility_scope` 同时生效。
+
 ### 相关文档
 
 分类的筛选与排序规则见：`docs/spec/contact/square.md`
@@ -69,6 +76,10 @@
 - `feed_version` (string, 可选) - 当前 Feed 版本
 - `refresh` (boolean, 可选) - 是否刷新并生成新 Feed 版本，默认 `false`
 - `page_size` (integer, 可选) - 每页数量，默认取系统配置
+
+### 分类约束
+
+- `category_key` 必须属于当前用户可见分类集合；不可见分类会返回 `400`。
 
 ### 成功响应 (200)
 
@@ -176,6 +187,7 @@ Square 列表的预设字段（`tags`、`remark`）生成规则见：`docs/spec/
 - 未传 `category_key` 时，返回 `category_key=null`、`category_title=null`。
 - `category_key` 格式非法时返回 `400`（请求参数错误）。
 - `category_key` 格式合法但无效或下线时，返回 `category_key=null`、`category_title=null`。
+- `category_key` 格式合法但对当前用户不可见时，返回 `category_key=null`、`category_title=null`。
 - `tags` 永远返回数组；无预设时返回 `[]`。
 - `remark` 字段永远存在；无预设时返回 `null`。
 - 预设字段生成规则见：`docs/spec/contact/square.md`

@@ -13,6 +13,8 @@ import { PROFILE_BIO_RULE, PROFILE_NICKNAME_RULE, validateTextLimit } from '../.
 import { getWechatProfileCapabilities } from '../../utils/wechat-profile-capability';
 import { normalizeCampaignCodeParam, normalizeInviteCodeParam } from '../../utils/invite-code';
 import inviteBindingService from '../../utils/invite-binding-service';
+import { ACCOUNT_SEGMENT } from '../../utils/constants/user';
+import { canUseInviteCapability } from '../../utils/access-capability';
 
 const MIN_NICKNAME_LENGTH = 2;
 const WHITESPACE_REGEX = /\s/u;
@@ -56,6 +58,7 @@ interface SetupPageData {
   canUseChooseAvatar: boolean;
   useWechatNicknameInput: boolean;
   canUseNicknameReview: boolean;
+  canUseInvite: boolean;
 }
 
 interface SetupPageCustom {
@@ -204,8 +207,15 @@ const validateSetupSubmissionOrToast = (
   return { trimmedNickname };
 };
 
-const mapProfileToStoredUser = (profile: { qiao_id: string }): StoredAuthUser => ({
+const mapProfileToStoredUser = (
+  profile: { qiao_id: string },
+  currentUser: StoredAuthUser | null
+): StoredAuthUser => ({
   qiao_id: profile.qiao_id,
+  account_segment:
+    currentUser?.account_segment === ACCOUNT_SEGMENT.MEMBER_LIMITED
+      ? currentUser.account_segment
+      : ACCOUNT_SEGMENT.MEMBER_FULL,
 });
 
 const resolveSubmittedNickname = (currentNickname: string, event?: FormSubmitEvent): string => {
@@ -267,6 +277,7 @@ Page<SetupPageData, SetupPageCustom>({
     canUseChooseAvatar: false,
     useWechatNicknameInput: false,
     canUseNicknameReview: false,
+    canUseInvite: true,
   },
 
   setupPageService: null as unknown as ReturnType<typeof createSetupPageService>,
@@ -275,19 +286,21 @@ Page<SetupPageData, SetupPageCustom>({
     logger.info('Profile setup page loaded');
     this.setupPageService = createSetupPageService();
     const capabilities = getWechatProfileCapabilities();
+    const canUseInvite = canUseInviteCapability(authService.getUserInfo());
     const linkInviteCode = normalizeInviteCodeParam(options?.inviteCode);
     const campaignCode = normalizeCampaignCodeParam(options?.campaignCode);
     this.setData({
       canUseChooseAvatar: capabilities.canUseChooseAvatar,
       useWechatNicknameInput: capabilities.canUseNicknameInput,
       canUseNicknameReview: capabilities.canUseNicknameReview,
+      canUseInvite,
       campaignCode,
     });
     if (!authService.isAuthenticated()) {
       void wx.redirectTo({ url: buildLoginUrl(linkInviteCode, campaignCode) });
       return;
     }
-    if (linkInviteCode !== '') {
+    if (canUseInvite && linkInviteCode !== '') {
       try {
         const intake = await this.setupPageService.intakeInviteCode({
           source: 'link',
@@ -402,7 +415,7 @@ Page<SetupPageData, SetupPageCustom>({
     if (!this.ensureProfileRequired()) {
       return;
     }
-    if (this.data.inviteCode.trim() !== '') {
+    if (!this.data.canUseInvite || this.data.inviteCode.trim() !== '') {
       return;
     }
 
@@ -590,14 +603,14 @@ Page<SetupPageData, SetupPageCustom>({
       if (updatedProfile === null) {
         return;
       }
-      const storedUser = mapProfileToStoredUser(updatedProfile);
+      const storedUser = mapProfileToStoredUser(updatedProfile, authService.getUserInfo());
       await authService.updateUserInfo(storedUser);
       authService.setNeedsProfileSetup(false);
 
       let completionToastTitle = '资料已更新';
       let completionToastIcon: WechatMiniprogram.ShowToastOption['icon'] = 'success';
       const inviteCode = this.data.inviteCode.trim();
-      if (inviteCode !== '') {
+      if (this.data.canUseInvite && inviteCode !== '') {
         try {
           await this.setupPageService.bindInviteCode(inviteCode, 'setup');
           inviteBindingService.markBound();

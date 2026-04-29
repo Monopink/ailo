@@ -1,0 +1,119 @@
+<page-layout
+  style="--color-navbar-glass-bg: transparent; --color-bg-header-solid: transparent; --color-bg-footer-fixed: var(--color-tabbar-glass-bg); --footer-glass-blur: var(--tabbar-glass-blur);"
+  headerSolidMode="manual"
+  headerSolid="{{false}}"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  fixedFooter="{{true}}">
+  <t-navbar slot="header" left-arrow="{{false}}" />
+  <view slot="content" class="profile">
+    <view class="profile__header">
+      <view
+        class="profile__tap-target profile__tap-target--avatar"
+        bindtap="navigateToProfileDetail"
+        hover-class="profile__tap-target--hover"
+        hover-stay-time="80">
+        <app-avatar
+          class="profile__avatar profile__avatar-image"
+          src="{{guestProfile.avatarUrl}}"
+          size="128rpx"
+          shape="circle"
+          mode="aspectFill"
+          webp="{{true}}"
+          lazy="{{false}}" />
+      </view>
+
+      <view
+        class="profile__tap-target profile__tap-target--name"
+        bindtap="navigateToProfileDetail"
+        hover-class="profile__tap-target--hover"
+        hover-stay-time="80">
+        <view class="profile__name-row">
+          <text class="profile__name">{{guestProfile.nickname}}</text>
+        </view>
+      </view>
+
+      <text class="profile__qiao-id">敲敲号：{{guestProfile.qiaoId}}</text>
+    </view>
+
+    <view class="profile__cards card-container">
+      <view class="card-wrapper">
+        <t-cell-group theme="card">
+          <t-cell
+            title="我的资料"
+            t-class-left="profile__menu-left"
+            t-class-title="profile__menu-title"
+            arrow
+            hover
+            bindtap="navigateToProfileDetail">
+            <view slot="left-icon" class="profile__menu-icon-wrap">
+              <t-icon
+                t-class="profile__menu-icon"
+                name="user-circle"
+                size="var(--font-size-lg)"
+                color="#4d7bff" />
+            </view>
+          </t-cell>
+          <t-cell
+            title="账号与安全"
+            t-class-left="profile__menu-left"
+            t-class-title="profile__menu-title"
+            arrow
+            hover
+            bindtap="navigateToAccountSecurity">
+            <view slot="left-icon" class="profile__menu-icon-wrap">
+              <t-icon
+                t-class="profile__menu-icon"
+                name="user-safety"
+                size="var(--font-size-lg)"
+                color="#ff8a00" />
+            </view>
+          </t-cell>
+        </t-cell-group>
+      </view>
+
+      <view class="card-wrapper">
+        <t-cell-group theme="card">
+          <t-cell
+            title="关于"
+            t-class-left="profile__menu-left"
+            t-class-title="profile__menu-title"
+            arrow
+            hover
+            bindtap="navigateToAbout">
+            <view slot="left-icon" class="profile__menu-icon-wrap">
+              <t-icon
+                t-class="profile__menu-icon"
+                name="info-circle"
+                size="var(--font-size-lg)"
+                color="#22c55e" />
+            </view>
+          </t-cell>
+        </t-cell-group>
+      </view>
+    </view>
+
+    <view wx:if="{{showBuildInfo && buildInfoText}}" class="profile__build-info">
+      {{buildInfoText}}
+    </view>
+  </view>
+
+  <view slot="footer" class="preview-tabbar theme-scope">
+    <view
+      wx:for="{{tabItems}}"
+      wx:key="key"
+      class="preview-tabbar__item {{activeTabKey === item.key ? 'preview-tabbar__item--active' : ''}}"
+      data-key="{{item.key}}"
+      bindtap="handleTabTap">
+      <image
+        class="preview-tabbar__icon"
+        src="{{activeTabKey === item.key ? item.activeIcon : item.icon}}"
+        mode="aspectFit"
+        style="width: {{item.iconSize}}; height: {{item.iconSize}};" />
+      <text class="preview-tabbar__text">{{item.label}}</text>
+    </view>
+  </view>
+</page-layout>

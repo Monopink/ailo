@@ -6,14 +6,13 @@
 
 import authService from './auth-service';
 import { getLogger } from './logger';
-import { isNonEmptyString } from './guards';
 import { normalizeError } from './errors';
+import { promptLoginAndRedirect } from './login-redirect';
 
 const logger = getLogger('AuthGuard');
 
 interface RequireAuthOptions {
-  showModal?: boolean;
-  redirectUrl?: string | null;
+  source?: string;
 }
 
 interface RequireAuthForActionOptions {
@@ -29,7 +28,7 @@ export async function requireAuth(
   page: WechatMiniprogram.Page.Instance<Record<string, unknown>, Record<string, unknown>>,
   options: RequireAuthOptions = {}
 ): Promise<boolean> {
-  const { showModal = true, redirectUrl = null } = options;
+  const { source = 'auth_guard' } = options;
 
   try {
     logger.debug('Waiting for auth initialization', { route: getPageRoute(page) });
@@ -42,31 +41,9 @@ export async function requireAuth(
 
     logger.info('User not authenticated, handling redirect', {
       route: getPageRoute(page),
-      showModal,
-      redirectUrl,
+      source,
     });
-
-    if (showModal) {
-      void wx.showModal({
-        title: '提示',
-        content: '请先登录后再访问此页面',
-        confirmText: '去登录',
-        cancelText: '取消',
-        success: (res) => {
-          if (res.confirm) {
-            void wx.navigateTo({
-              url: '/pages/login/login',
-            });
-          } else {
-            handleCancelRedirect(redirectUrl);
-          }
-        },
-      });
-    } else if (isNonEmptyString(redirectUrl)) {
-      void wx.reLaunch({ url: redirectUrl });
-    } else {
-      handleCancelRedirect(redirectUrl);
-    }
+    await promptLoginAndRedirect({ source });
 
     return false;
   } catch (error: unknown) {
@@ -88,7 +65,7 @@ export async function requireAuth(
 export async function requireAuthForAction(
   options: RequireAuthForActionOptions = {}
 ): Promise<boolean> {
-  const { title = '提示', content = '请先登录后再继续操作' } = options;
+  const { title = '提示', content = '请先登录后继续操作' } = options;
 
   try {
     const authenticated = await authService.waitForInit();
@@ -98,20 +75,8 @@ export async function requireAuthForAction(
     }
 
     logger.info('User not authenticated for action');
-
-    void wx.showModal({
-      title,
-      content,
-      confirmText: '去登录',
-      cancelText: '取消',
-      success: (res) => {
-        if (res.confirm) {
-          void wx.navigateTo({
-            url: '/pages/login/login',
-          });
-        }
-      },
-    });
+    logger.debug('Auth action prompt fallback text', { title, content });
+    await promptLoginAndRedirect({ source: 'auth_action' });
 
     return false;
   } catch (error: unknown) {
@@ -126,20 +91,6 @@ export async function requireAuthForAction(
 
 export function isAuthenticated(): boolean {
   return authService.isAuthenticated();
-}
-
-function handleCancelRedirect(redirectUrl?: string | null): void {
-  if (isNonEmptyString(redirectUrl)) {
-    void wx.reLaunch({ url: redirectUrl });
-    return;
-  }
-
-  const pages = getCurrentPages();
-  if (pages.length > 1) {
-    void wx.navigateBack();
-  } else {
-    void wx.reLaunch({ url: '/pages/login/login' });
-  }
 }
 
 export default {

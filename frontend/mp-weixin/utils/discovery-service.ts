@@ -3,7 +3,6 @@ import { requestValidated } from './api';
 import { getAvatarUrl } from './avatar';
 import {
   buildSquareCategoryCards,
-  getFallbackSquareCategoryCards,
   isValidCategoryKey,
   type SquareCategoryCard,
 } from './constants/square';
@@ -172,8 +171,8 @@ class SquareDiscoveryService {
       method: 'GET',
     });
     const cards = buildSquareCategoryCards(response.items);
-    const isFallback = cards.length === 0;
-    const items = isFallback ? getFallbackSquareCategoryCards() : cards;
+    const isFallback = false;
+    const items = cards;
     const entry: SquareCategoriesCacheEntry = {
       items,
       timestamp: Date.now(),
@@ -190,7 +189,7 @@ class SquareDiscoveryService {
   }
 
   getFallbackCategories(): SquareCategoryCard[] {
-    return getFallbackSquareCategoryCards();
+    return [];
   }
 
   clearCache(categoryKey: string): void {

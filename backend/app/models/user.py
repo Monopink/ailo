@@ -7,13 +7,23 @@ from datetime import datetime
 from uuid import UUID
 
 from markupsafe import escape
-from sqlalchemy import BigInteger, Boolean, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import INET, JSONB, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from starlette.requests import Request
 
-from app.enums import UserType
+from app.enums import ReviewScope, UserType
 from app.models.base import Base, SnowflakeIDMixin, SnowflakeModel, SnowflakeQiaoModel, StatusMixin
 from app.type_defs import JSONDict
 
@@ -71,6 +81,13 @@ class User(SnowflakeQiaoModel, StatusMixin):
         server_default=text("1"),
         comment="User type: 1=normal, 2=official, 3=virtual",
     )
+    review_scope: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=ReviewScope.NON_REVIEW,
+        server_default=text("0"),
+        comment="Review scope: 0=non-review, 1=mp_weixin-review",
+    )
 
     needs_profile_setup: Mapped[bool] = mapped_column(
         Boolean,
@@ -110,7 +127,7 @@ class User(SnowflakeQiaoModel, StatusMixin):
 
     # Indexes - Only essential indexes for MVP
     # Note: phone, email already have unique indexes
-    __table_args__ = ()
+    __table_args__ = (CheckConstraint("review_scope IN (0, 1)", name="ck_users_review_scope"),)
 
     def __admin_select2_repr__(self, request: Request) -> str:
         return f"<span>[{self.id}] {escape(self.qiao_id)} / {escape(self.username)}</span>"

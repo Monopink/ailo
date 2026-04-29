@@ -25,6 +25,13 @@ class UserType(IntEnum):
     VIRTUAL = 3  # Virtual user (for AI testing)
 
 
+class ReviewScope(IntEnum):
+    """Review scope classification (users.review_scope)."""
+
+    NON_REVIEW = 0
+    MP_WEIXIN_REVIEW = 1
+
+
 class UserTokenStatus(IntEnum):
     """User token status (user_tokens.status)."""
 

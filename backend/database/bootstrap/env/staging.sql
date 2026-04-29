@@ -11,7 +11,22 @@ INSERT INTO admin_users (username, password_hash, role, status) VALUES
 ON CONFLICT (username) DO NOTHING;
 
 UPDATE system_configs AS sc
-SET config_value = v.config_value,
+SET config_value = CASE
+        WHEN sc.value_type = 2 THEN to_jsonb((btrim(v.config_value_text))::bigint)
+        WHEN sc.value_type = 3 THEN
+            CASE
+                WHEN lower(btrim(v.config_value_text)) IN ('true', '1', 'yes', 'on') THEN 'true'::jsonb
+                WHEN lower(btrim(v.config_value_text)) IN ('false', '0', 'no', 'off') THEN 'false'::jsonb
+                ELSE NULL
+            END
+        WHEN sc.value_type = 4 THEN v.config_value_text::jsonb
+        WHEN sc.value_type = 6 THEN
+            CASE
+                WHEN btrim(v.config_value_text) = '' THEN 'null'::jsonb
+                ELSE to_jsonb(v.config_value_text)
+            END
+        ELSE to_jsonb(v.config_value_text)
+    END,
     updated_at = NOW()
 FROM (
     VALUES
@@ -30,7 +45,7 @@ FROM (
         ('auth_password_lockout_duration_seconds', '900'),
         ('sms_rate_limit_requests', '1'),
         ('admin_captcha_mode', 'strict')
-) AS v(config_key, config_value)
+) AS v(config_key, config_value_text)
 WHERE sc.config_key = v.config_key;
 
 UPDATE llm_configs

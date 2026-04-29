@@ -4,6 +4,7 @@
 
 {% block head_css %}
 <link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/system-settings.css') }}">
+<link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/flatpickr.min.css') }}">
 {% endblock %}
 
 {% block header %}
@@ -89,9 +90,14 @@ window.qiaoSystemSettingsPageConfig = {
     noChanges: {{ admin_text("No changes to save. All modification fields are empty.") | tojson | safe }},
     changeConfirmTitle: {{ admin_text("You are about to modify the following configuration(s):") | tojson | safe }},
     changeConfirmQuestion: {{ admin_text("Are you sure you want to save these changes?") | tojson | safe }},
+    confirmField: {{ admin_text("Field") | tojson | safe }},
+    confirmFrom: {{ admin_text("Current") | tojson | safe }},
+    confirmTo: {{ admin_text("New Value") | tojson | safe }},
+    confirmSave: {{ admin_text("Confirm Save") | tojson | safe }},
+    cancel: {{ admin_text("Cancel") | tojson | safe }},
+    confirmModalUnavailable: {{ admin_text("Confirmation dialog is unavailable. Please refresh the page and try again.") | tojson | safe }},
     currentValueNotSelectable: {{ admin_text("Current value is not available in selectable options.") | tojson | safe }},
     leaveEmptyNoChange: {{ admin_text("Leave empty for no change") | tojson | safe }},
-    leaveEmptyNoChangeExample: {{ admin_text("Leave empty for no change. Example: [\"value1\",\"value2\"]") | tojson | safe }},
     enterJsonItem: {{ admin_text("Enter JSON item") | tojson | safe }},
     enterValue: {{ admin_text("Enter value") | tojson | safe }},
     noChangeOption: {{ admin_text("-- No Change --") | tojson | safe }},
@@ -108,5 +114,9 @@ window.qiaoSystemSettingsPageConfig = {
   }
 };
 </script>
+<script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/vendor/flatpickr.min.js') }}"></script>
+{% if get_locale() != "en" %}
+<script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='i18n/flatpickr/' ~ get_locale() ~ '.js') }}"></script>
+{% endif %}
 <script type="module" src="{{ url_for(__name__ ~ ':statics', path='js/system-settings/pages/operation-settings.js') }}"></script>
 {% endblock %}

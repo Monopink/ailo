@@ -2,12 +2,11 @@
 Creates ModelView instances for user management and admin system models.
 """
 
-import json
 from typing import Any
 
 from sqlalchemy import select
 from starlette.requests import Request
-from starlette_admin import DateTimeField, EnumField, JSONField, StringField
+from starlette_admin import DateTimeField, EnumField, IntegerField, JSONField, StringField
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 
@@ -25,6 +24,7 @@ from app.enums import (
 from app.models.admin import AdminLoginLog, AdminOperationLog, AdminUser
 from app.models.system.alerting import AlertEvent, AlertEventEntity
 from app.models.system.config import SystemConfig
+from app.models.system.runtime_observation import ClientRuntimeObservation
 
 from .base import BaseRoleAwareModelView
 
@@ -119,118 +119,8 @@ class SystemConfigView(ModelView):
         DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    @staticmethod
-    def _parse_json_if_needed(value: Any) -> Any:
-        if not isinstance(value, str):
-            return value
-        raw = value.strip()
-        if raw == "":
-            return value
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            return value
-
-    @staticmethod
-    def _normalize_single_value(  # noqa: PLR0911
-        value_type: ConfigValueType,
-        value: Any,
-        field_name: str,
-        *,
-        allow_empty_string: bool = False,
-    ) -> Any:
-        if allow_empty_string and isinstance(value, str) and value.strip() == "":
-            return ""
-
-        if value_type == ConfigValueType.NUMBER:
-            if isinstance(value, bool):
-                raise TypeError(f"{field_name} must be integer.")
-            if isinstance(value, int):
-                return value
-            if isinstance(value, float):
-                if not value.is_integer():
-                    raise ValueError(f"{field_name} must be integer.")
-                return int(value)
-            if isinstance(value, str):
-                raw_value = value.strip()
-                if raw_value == "":
-                    raise ValueError(f"{field_name} must be integer.")
-                try:
-                    return int(raw_value)
-                except (TypeError, ValueError) as exc:
-                    raise ValueError(f"{field_name} must be integer.") from exc
-            raise TypeError(f"{field_name} must be integer.")
-
-        if value_type == ConfigValueType.BOOLEAN:
-            if isinstance(value, bool):
-                return value
-            if isinstance(value, str):
-                lowered = value.strip().lower()
-                if lowered in {"true", "1", "yes", "on"}:
-                    return True
-                if lowered in {"false", "0", "no", "off"}:
-                    return False
-            raise ValueError(f"{field_name} must be boolean.")
-
-        if value_type in {ConfigValueType.STRING, ConfigValueType.ENUM}:
-            if not isinstance(value, str):
-                raise TypeError(f"{field_name} must be string.")
-            text = value.strip()
-            if text == "":
-                if allow_empty_string:
-                    return ""
-                raise ValueError(f"{field_name} must be non-empty string.")
-            return text
-
-        return value
-
-    @classmethod
-    def _normalize_value_by_shape(
-        cls, *, value_type: ConfigValueType, config_shape: ConfigShape, value: Any, field_name: str
-    ) -> Any:
-        if config_shape == ConfigShape.SINGLE:
-            return cls._normalize_single_value(value_type, value, field_name)
-
-        if not isinstance(value, list):
-            raise TypeError(f"{field_name} must be array when config_shape is ARRAY.")
-        normalized_items: list[Any] = []
-        for item in value:
-            normalized_items.append(cls._normalize_single_value(value_type, item, field_name))
-        if len(normalized_items) == 0:
-            raise ValueError(f"{field_name} array cannot be empty.")
-        return normalized_items
-
     async def validate(self, request: Request, data: dict[str, Any]) -> None:
-        """Validate system config payload before create/edit."""
-        value_type_raw = data.get("value_type")
-        config_shape_raw = data.get("config_shape")
-        if value_type_raw is not None and config_shape_raw is not None:
-            value_type = ConfigValueType(int(value_type_raw))
-            config_shape = ConfigShape(int(config_shape_raw))
-
-            config_value = self._parse_json_if_needed(data.get("config_value"))
-            default_value = self._parse_json_if_needed(data.get("default_value"))
-
-            try:
-                data["config_value"] = self._normalize_value_by_shape(
-                    value_type=value_type,
-                    config_shape=config_shape,
-                    value=config_value,
-                    field_name="config_value",
-                )
-            except (TypeError, ValueError) as exc:
-                raise FormValidationError({"config_value": str(exc)}) from exc
-
-            try:
-                data["default_value"] = self._normalize_single_value(
-                    value_type,
-                    default_value,
-                    "default_value",
-                    allow_empty_string=True,
-                )
-            except (TypeError, ValueError) as exc:
-                raise FormValidationError({"default_value": str(exc)}) from exc
-
+        """Keep SystemConfigView unopinionated for config_value/default_value."""
         await super().validate(request, data)
 
 
@@ -483,6 +373,78 @@ class AlertEventEntityView(ModelView):
     ]
 
 
+class ClientRuntimeObservationView(ModelView):
+    """Read-only runtime observation view for system troubleshooting."""
+
+    def can_create(self, request: Request) -> bool:
+        return False
+
+    def can_edit(self, request: Request) -> bool:
+        return False
+
+    def can_delete(self, request: Request) -> bool:
+        return False
+
+    fields_default_sort = [("occurred_at", True)]
+    searchable_fields = [
+        "client_type",
+        "device_id",
+        "session_id",
+        "event_name",
+        "request_id",
+        "entry_source",
+    ]
+    sortable_fields = [
+        "id",
+        "client_type",
+        "device_id",
+        "session_id",
+        "user_id",
+        "build_id",
+        "event_name",
+        "entry_source",
+        "scope_snapshot",
+        "network_type",
+        "ua_fetch_status",
+        "occurred_at",
+        "created_at",
+    ]
+
+    fields = [
+        StringField("id", label="ID", help_text="Runtime observation ID"),
+        StringField("client_type", label="Client Type", help_text="Client platform type"),
+        StringField("device_id", label="Device ID", help_text="Client device identifier"),
+        StringField(
+            "session_id", label="Session ID", help_text="Client runtime session identifier"
+        ),
+        StringField("user_id", label="User ID", help_text="Bound user id when available"),
+        StringField("user_agent", label="User Agent", help_text="Runtime user-agent snapshot"),
+        StringField("event_name", label="Event Name", help_text="Runtime event name"),
+        StringField("page_path", label="Page Path", help_text="Page path at event time"),
+        StringField("entry_source", label="Entry Source", help_text="Entry source tag"),
+        IntegerField("scope_snapshot", label="Scope Snapshot", help_text="0=standard, 1=limited"),
+        JSONField("feature_hits", label="Feature Hits", help_text="Matched runtime feature names"),
+        IntegerField("ua_fetch_status", label="UA Fetch Status", help_text="0~3"),
+        JSONField("event_payload", label="Event Payload", help_text="Runtime event payload"),
+        StringField(
+            "event_payload_digest",
+            label="Payload Digest",
+            help_text="SHA256 digest of normalized payload",
+        ),
+        StringField("request_id", label="Request ID", help_text="Client request identifier"),
+        StringField("platform", label="Platform", help_text="Runtime platform"),
+        StringField("os_version", label="OS Version", help_text="Client OS version"),
+        StringField("app_version", label="App Version", help_text="Client app version"),
+        StringField("build_id", label="Build ID", help_text="Client build identifier"),
+        DateTimeField("build_time", label="Build Time", help_text="Client build time (UTC)"),
+        StringField(
+            "network_type", label="Network Type", help_text="Network type at reporting time"
+        ),
+        DateTimeField("occurred_at", label="Occurred At", help_text="Client event time (UTC)"),
+        DateTimeField("created_at", label="Created At", help_text="Server ingestion time (UTC)"),
+    ]
+
+
 # Create view instances
 system_config_view = SystemConfigView(
     SystemConfig, name="System Config", icon="fa fa-cog", identity="system_configs"
@@ -508,12 +470,19 @@ alert_event_entity_view = AlertEventEntityView(
     icon="fa fa-link",
     identity="alert_event_entities",
 )
+client_runtime_observation_view = ClientRuntimeObservationView(
+    ClientRuntimeObservation,
+    name="Client Runtime Observations",
+    icon="fa fa-signal",
+    identity="client_runtime_observations",
+)
 
 # Export all user and admin views
 SYSTEM_MODEL_VIEWS = [
     system_config_view,
     alert_event_view,
     alert_event_entity_view,
+    client_runtime_observation_view,
     admin_user_view,
     admin_operation_log_view,
     admin_login_log_view,

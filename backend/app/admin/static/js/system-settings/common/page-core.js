@@ -12,7 +12,7 @@ function parseConfigPayload(rawValue) {
   }
   try {
     return JSON.parse(rawValue);
-  } catch (error) {
+  } catch {
     return rawValue;
   }
 }
@@ -31,6 +31,115 @@ function normalizeCurrentConfigValue(value) {
     return JSON.stringify(value);
   }
   return String(value);
+}
+
+function padDateTimePart(value) {
+  return String(value).padStart(2, '0');
+}
+
+function formatDateTimeForPicker(date) {
+  const year = date.getFullYear();
+  const month = padDateTimePart(date.getMonth() + 1);
+  const day = padDateTimePart(date.getDate());
+  const hours = padDateTimePart(date.getHours());
+  const minutes = padDateTimePart(date.getMinutes());
+  const seconds = padDateTimePart(date.getSeconds());
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+function isoToPickerDateTimeValue(value) {
+  if (typeof value !== 'string' || value.trim() === '') {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return formatDateTimeForPicker(date);
+}
+
+function parsePickerDateTime(value) {
+  if (typeof value !== 'string' || value.trim() === '') {
+    return null;
+  }
+  const normalized = value.trim();
+
+  if (typeof window.flatpickr === 'function') {
+    const parsedByFlatpickr = window.flatpickr.parseDate(normalized, 'Y-m-d H:i:S');
+    if (parsedByFlatpickr instanceof Date && !Number.isNaN(parsedByFlatpickr.getTime())) {
+      return parsedByFlatpickr;
+    }
+    const parsedByFlatpickrNoSeconds = window.flatpickr.parseDate(normalized, 'Y-m-d H:i');
+    if (parsedByFlatpickrNoSeconds instanceof Date && !Number.isNaN(parsedByFlatpickrNoSeconds.getTime())) {
+      return parsedByFlatpickrNoSeconds;
+    }
+  }
+
+  const fallbackInput = normalized.includes(' ') ? normalized.replace(' ', 'T') : normalized;
+  const date = new Date(fallbackInput);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date;
+}
+
+function pickerDateTimeToIso(input, value) {
+  const parsed = parsePickerDateTime(value);
+  if (parsed instanceof Date) {
+    return parsed.toISOString();
+  }
+
+  const selected =
+    input &&
+    input._flatpickr &&
+    Array.isArray(input._flatpickr.selectedDates) &&
+    input._flatpickr.selectedDates.length > 0
+      ? input._flatpickr.selectedDates[0]
+      : null;
+  if (selected instanceof Date && !Number.isNaN(selected.getTime())) {
+    return selected.toISOString();
+  }
+  return '';
+}
+
+function setPickerInputValue(input, value) {
+  const normalized = isoToPickerDateTimeValue(value);
+  if (input && input._flatpickr) {
+    if (normalized === '') {
+      input._flatpickr.clear();
+      return;
+    }
+    input._flatpickr.setDate(normalized, true, 'Y-m-d H:i:S');
+    return;
+  }
+  if (input) {
+    input.value = normalized;
+  }
+}
+
+function isTimeValueTypeInput(input) {
+  return input && input.dataset && input.dataset.valueType === '6';
+}
+
+function initDateTimePickers() {
+  if (typeof window.flatpickr !== 'function') {
+    return;
+  }
+  document.querySelectorAll('input.field-datetime[data-value-type="6"]').forEach((input) => {
+    if (input._flatpickr) {
+      return;
+    }
+    window.flatpickr(input, {
+      enableTime: true,
+      allowInput: true,
+      enableSeconds: true,
+      time_24hr: true,
+      altInput: true,
+      dateFormat: 'Y-m-d H:i:S',
+      altFormat: input.dataset.altFormat || 'F j, Y  H:i:S',
+      locale: input.dataset.locale || 'default',
+    });
+  });
 }
 
 function escapeHtmlAttribute(value) {
@@ -165,9 +274,6 @@ function getArrayCurrentValues(editor) {
 
 function getArrayInputPlaceholder(i18n, valueType, isExisting) {
   if (isExisting) {
-    if (valueType === 4) {
-      return t(i18n, 'leaveEmptyNoChangeExample', 'Leave empty for no change. Example: ["value1","value2"]');
-    }
     return t(i18n, 'leaveEmptyNoChange', 'Leave empty for no change');
   }
   if (valueType === 4) {
@@ -210,7 +316,7 @@ function buildArrayEditorInput(editor, i18n, item, { isExisting = false } = {}) 
   }
 
   if (valueType === 2) {
-    const placeholder = getArrayInputPlaceholder(i18n, valueType, isExisting);
+    const placeholder = escapeHtmlAttribute(getArrayInputPlaceholder(i18n, valueType, isExisting));
     return `
       <input
         type="number"
@@ -222,7 +328,7 @@ function buildArrayEditorInput(editor, i18n, item, { isExisting = false } = {}) 
     `;
   }
 
-  const placeholder = getArrayInputPlaceholder(i18n, valueType, isExisting);
+  const placeholder = escapeHtmlAttribute(getArrayInputPlaceholder(i18n, valueType, isExisting));
   return `
     <input
       type="text"
@@ -593,56 +699,184 @@ function setupArrayEditor(editor, i18n) {
   });
 }
 
+function ensureConfigChangeConfirmModal(i18n) {
+  let modalRoot = document.getElementById('system-settings-change-confirm-modal');
+  if (!modalRoot) {
+    modalRoot = document.createElement('div');
+    modalRoot.id = 'system-settings-change-confirm-modal';
+    modalRoot.className = 'modal fade';
+    modalRoot.tabIndex = -1;
+    modalRoot.setAttribute('aria-labelledby', 'system-settings-change-confirm-title');
+    modalRoot.setAttribute('aria-hidden', 'true');
+    modalRoot.innerHTML = `
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="system-settings-change-confirm-title">${escapeHtmlAttribute(
+              t(i18n, 'changeConfirmTitle', 'You are about to modify the following configuration(s):')
+            )}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted mb-3">${escapeHtmlAttribute(
+              t(i18n, 'changeConfirmQuestion', 'Are you sure you want to save these changes?')
+            )}</p>
+            <div class="table-responsive">
+              <table class="table table-sm table-bordered align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width: 26%">${escapeHtmlAttribute(t(i18n, 'confirmField', 'Field'))}</th>
+                    <th style="width: 37%">${escapeHtmlAttribute(t(i18n, 'confirmFrom', 'Current'))}</th>
+                    <th style="width: 37%">${escapeHtmlAttribute(t(i18n, 'confirmTo', 'New Value'))}</th>
+                  </tr>
+                </thead>
+                <tbody data-change-rows></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">${escapeHtmlAttribute(
+              t(i18n, 'cancel', 'Cancel')
+            )}</button>
+            <button type="button" class="btn btn-primary" data-confirm-submit="true">${escapeHtmlAttribute(
+              t(i18n, 'confirmSave', 'Confirm Save')
+            )}</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modalRoot);
+  }
+
+  const bootstrapApi = window.bootstrap;
+  if (!bootstrapApi || typeof bootstrapApi.Modal !== 'function') {
+    return null;
+  }
+
+  const modalInstance = bootstrapApi.Modal.getOrCreateInstance(modalRoot, {
+    backdrop: 'static',
+    keyboard: false,
+  });
+  const rowsContainer = modalRoot.querySelector('[data-change-rows]');
+  const confirmButton = modalRoot.querySelector('[data-confirm-submit="true"]');
+  if (!rowsContainer || !confirmButton) {
+    return null;
+  }
+
+  return {
+    modalInstance,
+    rowsContainer,
+    confirmButton,
+  };
+}
+
+function normalizeFieldLabelFromConfigKey(key) {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function normalizeChangesForSubmit() {
+  const changes = [];
+  document.querySelectorAll('[name^="config_modify_"]').forEach((input) => {
+    const rawValue = input.value ? input.value.trim() : '';
+    const value = isTimeValueTypeInput(input) ? pickerDateTimeToIso(input, rawValue) : rawValue;
+    if (isTimeValueTypeInput(input) && value !== '') {
+      input.value = value;
+    }
+    const key = input.name.replace('config_modify_', '');
+    const currentValueEl = document.querySelector(`[data-current-${key}]`);
+    const currentValue = currentValueEl ? currentValueEl.textContent.trim() : '';
+    if (value) {
+      changes.push({
+        key: normalizeFieldLabelFromConfigKey(key),
+        from: currentValue,
+        to: value,
+      });
+      return;
+    }
+    const clearFlag = document.getElementById(`config_clear_${key}`);
+    if (clearFlag && clearFlag.value === '1') {
+      changes.push({
+        key: normalizeFieldLabelFromConfigKey(key),
+        from: currentValue,
+        to: '<cleared>',
+      });
+    }
+  });
+  return changes;
+}
+
 function setupConfigChangeConfirmation(i18n) {
-  const saveButton = document.getElementById('save-settings-btn');
-  if (!saveButton) {
+  const form = document.getElementById('config-settings-form');
+  if (!form) {
     return;
   }
-  saveButton.addEventListener('click', (event) => {
-    const changes = [];
-    document.querySelectorAll('[name^="config_modify_"]').forEach((input) => {
-      const value = input.value ? input.value.trim() : '';
-      const key = input.name.replace('config_modify_', '');
-      const currentValueEl = document.querySelector(`[data-current-${key}]`);
-      const currentValue = currentValueEl ? currentValueEl.textContent.trim() : '';
-      if (value) {
-        changes.push({
-          key: key.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()),
-          from: currentValue,
-          to: value,
-        });
-        return;
-      }
-      const clearFlag = document.getElementById(`config_clear_${key}`);
-      if (clearFlag && clearFlag.value === '1') {
-        changes.push({
-          key: key.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()),
-          from: currentValue,
-          to: '<cleared>',
-        });
-      }
-    });
 
+  const modalHandle = ensureConfigChangeConfirmModal(i18n);
+  let allowDirectSubmit = false;
+
+  form.addEventListener('submit', (event) => {
+    if (allowDirectSubmit) {
+      return;
+    }
+    const changes = normalizeChangesForSubmit();
     if (changes.length === 0) {
       event.preventDefault();
       window.alert(t(i18n, 'noChanges', 'No changes to save. All modification fields are empty.'));
       return;
     }
 
-    const message = `${t(
-      i18n,
-      'changeConfirmTitle',
-      'You are about to modify the following configuration(s):'
-    )}\n\n${changes.map((change) => `• ${change.key}: ${change.from} → ${change.to}`).join('\n')}\n\n${t(
-      i18n,
-      'changeConfirmQuestion',
-      'Are you sure you want to save these changes?'
-    )}`;
-
-    if (!window.confirm(message)) {
+    if (modalHandle === null) {
       event.preventDefault();
+      window.alert(
+        t(i18n, 'confirmModalUnavailable', 'Confirmation dialog is unavailable. Please refresh the page and try again.')
+      );
+      return;
     }
+
+    event.preventDefault();
+    modalHandle.rowsContainer.innerHTML = changes
+      .map(
+        (change) => `
+          <tr>
+            <td><code>${escapeHtmlAttribute(change.key)}</code></td>
+            <td><span class="text-muted">${escapeHtmlAttribute(change.from || '(empty)')}</span></td>
+            <td><strong>${escapeHtmlAttribute(change.to || '(empty)')}</strong></td>
+          </tr>
+        `
+      )
+      .join('');
+    modalHandle.modalInstance.show();
   });
+
+  if (modalHandle !== null) {
+    modalHandle.confirmButton.addEventListener('click', () => {
+      allowDirectSubmit = true;
+      modalHandle.modalInstance.hide();
+      if (typeof form.requestSubmit === 'function') {
+        form.requestSubmit();
+      } else {
+        form.submit();
+      }
+    });
+  }
+}
+
+function focusFirstFieldError() {
+  const firstErrorRow = document.querySelector('.config-row.border-danger');
+  if (!(firstErrorRow instanceof HTMLElement)) {
+    return;
+  }
+  firstErrorRow.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center',
+    inline: 'nearest',
+  });
+  const focusTarget = firstErrorRow.querySelector('input, select, textarea, button');
+  if (focusTarget instanceof HTMLElement) {
+    window.setTimeout(() => {
+      focusTarget.focus();
+    }, 250);
+  }
 }
 
 function setupScalarInputs(i18n) {
@@ -658,14 +892,19 @@ function setupScalarInputs(i18n) {
         return;
       }
       const normalizedValue = normalizeCurrentConfigValue(parseConfigPayload(rawValue));
+      const finalValue = isTimeValueTypeInput(input) ? isoToPickerDateTimeValue(normalizedValue) : normalizedValue;
       if (input.tagName === 'SELECT') {
-        const hasOption = Array.from(input.options).some((option) => option.value === normalizedValue);
-        if (!hasOption && normalizedValue !== '') {
+        const hasOption = Array.from(input.options).some((option) => option.value === finalValue);
+        if (!hasOption && finalValue !== '') {
           window.alert(t(i18n, 'currentValueNotSelectable', 'Current value is not available in selectable options.'));
           return;
         }
       }
-      input.value = normalizedValue;
+      if (isTimeValueTypeInput(input)) {
+        setPickerInputValue(input, normalizedValue);
+      } else {
+        input.value = finalValue;
+      }
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.focus();
       setScalarDeleteState(target, false);
@@ -683,7 +922,12 @@ function setupScalarInputs(i18n) {
       if (!input) {
         return;
       }
-      input.value = normalizeCurrentConfigValue(parseConfigPayload(rawValue));
+      const normalizedValue = normalizeCurrentConfigValue(parseConfigPayload(rawValue));
+      if (isTimeValueTypeInput(input)) {
+        setPickerInputValue(input, normalizedValue);
+      } else {
+        input.value = normalizedValue;
+      }
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.focus();
       setScalarDeleteState(target, false);
@@ -807,7 +1051,7 @@ async function postJson(url, method) {
   let data = null;
   try {
     data = await response.json();
-  } catch (error) {
+  } catch {
     data = null;
   }
   return { ok: response.ok, data };
@@ -825,7 +1069,7 @@ function setupSystemManagementActions(config, i18n) {
         try {
           await navigator.clipboard.writeText(conversationId);
           window.alert(t(i18n, 'conversationIdCopied', 'Conversation ID copied!'));
-        } catch (error) {
+        } catch {
           window.alert(t(i18n, 'copyFailed', 'Failed to copy'));
         }
         return;
@@ -835,7 +1079,7 @@ function setupSystemManagementActions(config, i18n) {
         try {
           await navigator.clipboard.writeText(webhookUrl);
           window.alert(t(i18n, 'webhookCopied', 'Webhook URL copied to clipboard!'));
-        } catch (error) {
+        } catch {
           window.alert(t(i18n, 'copyUrlFailed', 'Failed to copy URL'));
         }
         return;
@@ -867,7 +1111,7 @@ function setupSystemManagementActions(config, i18n) {
           }
           const detail = result.data && result.data.error ? result.data.error : '';
           window.alert(`✗ ${t(i18n, 'failedPrefix', 'Failed:')} ${detail}`);
-        } catch (error) {
+        } catch {
           window.alert(`✗ ${t(i18n, 'regenerateConversationFailed', 'Failed to regenerate conversation')}`);
         }
         return;
@@ -896,7 +1140,7 @@ function setupSystemManagementActions(config, i18n) {
               ? result.data.error || result.data.detail
               : t(i18n, 'unknownError', 'Unknown error');
           window.alert(`✗ ${t(i18n, 'failedPrefix', 'Failed:')} ${detail}`);
-        } catch (error) {
+        } catch {
           window.alert(`✗ ${t(i18n, 'regenerateTokenFailed', 'Failed to regenerate token')}`);
         }
       }
@@ -907,12 +1151,14 @@ function setupSystemManagementActions(config, i18n) {
 export function initSystemSettingsPage(config = {}) {
   const i18n = config.i18n || {};
 
+  initDateTimePickers();
   setupConfigChangeConfirmation(i18n);
   setupQuickNav();
   setupScalarInputs(i18n);
   document.querySelectorAll('[data-array-editor="true"]').forEach((editor) => {
     setupArrayEditor(editor, i18n);
   });
+  focusFirstFieldError();
 
   if (config.pageMode === 'system') {
     setupSystemManagementActions(config, i18n);

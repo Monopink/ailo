@@ -128,7 +128,7 @@
         </t-cell-group>
       </view>
 
-      <view class="card-wrapper">
+      <view wx:if="{{canUseInvite}}" class="card-wrapper">
         <t-cell-group theme="card">
           <t-cell
             title="邀请码（选填）"

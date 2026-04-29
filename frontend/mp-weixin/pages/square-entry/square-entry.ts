@@ -163,8 +163,8 @@ Page<SquareEntryPageData, SquareEntryPageCustom>({
 
   async onShow() {
     initTabBar(this);
-    const isAuth = await requireAuth(this as unknown as AuthGuardPage);
-    if (!isAuth) {
+    const passGuard = await requireAuth(this as unknown as AuthGuardPage);
+    if (!passGuard) {
       return;
     }
     const blocked = await this.checkMinorModeDiscoveryBlocked();

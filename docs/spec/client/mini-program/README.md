@@ -11,3 +11,5 @@
 ## 通用规则
 
 通用交互与数据规范见：`../base/README.md`
+
+语义命名与前后端字段对照见：`./semantic-alignment.md`

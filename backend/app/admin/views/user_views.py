@@ -10,11 +10,13 @@ from datetime import UTC, datetime, timedelta
 from typing import ClassVar, cast
 
 from sqlalchemy import delete, desc, func, select
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import (
+    BooleanField,
     CustomView,
     DateTimeField,
     HasOne,
@@ -39,6 +41,7 @@ from app.enums import (
     Gender,
     ProfileModifierType,
     ProfileOwnerType,
+    ReviewScope,
     UserStatus,
     UserType,
 )
@@ -61,6 +64,7 @@ from .base import BaseRoleAwareModelView, InvertedBooleanField
 FormData = MutableMapping[str, object | None]
 
 PASSWORD_MIN_LENGTH = 8
+MINOR_MODE_PIN_LENGTH = 4
 
 
 class _ProfileAvatarPreviewField(ImageField):
@@ -117,6 +121,10 @@ class UserView(BaseRoleAwareModelView):
         "avatar_preview",
         "qiao_id",
         "password_hash",
+        "minor_mode_pin_hash",
+        "minor_mode_enabled_at",
+        "minor_mode_disabled_at",
+        "minor_mode_pin_updated_at",
         "created_at",
         "updated_at",
         "last_login",
@@ -126,13 +134,21 @@ class UserView(BaseRoleAwareModelView):
         "avatar_preview",
         "qiao_id",
         "password_hash",
+        "minor_mode_pin_hash",
         "verified_at",
+        "minor_mode_enabled_at",
+        "minor_mode_disabled_at",
+        "minor_mode_pin_updated_at",
         "created_at",
         "updated_at",
         "last_login",
     ]
-    exclude_fields_from_list: ClassVar[list[str]] = ["password_hash", "password"]
-    exclude_fields_from_detail: ClassVar[list[str]] = ["password_hash", "password"]
+    exclude_fields_from_list: ClassVar[list[str]] = ["password_hash", "password", "minor_mode_pin"]
+    exclude_fields_from_detail: ClassVar[list[str]] = [
+        "password_hash",
+        "password",
+        "minor_mode_pin",
+    ]
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
     row_actions: ClassVar[list[str]] = ["view", "profile", "edit"]
@@ -143,6 +159,11 @@ class UserView(BaseRoleAwareModelView):
         "qiao_id",
         "status",
         "user_type",
+        "review_scope",
+        "minor_mode_enabled",
+        "minor_mode_enabled_at",
+        "minor_mode_disabled_at",
+        "minor_mode_pin_updated_at",
         "needs_profile_setup",
         "created_at",
         "updated_at",
@@ -206,6 +227,46 @@ class UserView(BaseRoleAwareModelView):
             help_text="User classification (default: Normal)",
             required=True,
         ),
+        IntegerEnumField(
+            "review_scope",
+            enum=ReviewScope,
+            label="Review Scope",
+            help_text="Review scope classification (default: Non-review)",
+            required=True,
+        ),
+        BooleanField(
+            "minor_mode_enabled",
+            label="Minor Mode Enabled",
+            help_text="Whether minor mode is enabled for this account",
+            required=True,
+        ),
+        StringField(
+            "minor_mode_pin",
+            label="Minor Mode PIN",
+            help_text=(
+                "Warning: Leave blank to keep current minor mode PIN unchanged. "
+                f"Enter new {MINOR_MODE_PIN_LENGTH}-digit PIN to change."
+            ),
+            required=False,
+        ),
+        DateTimeField(
+            "minor_mode_enabled_at",
+            label="Minor Mode Enabled At",
+            help_text="Timestamp when minor mode was enabled",
+            read_only=True,
+        ),
+        DateTimeField(
+            "minor_mode_disabled_at",
+            label="Minor Mode Disabled At",
+            help_text="Timestamp when minor mode was disabled",
+            read_only=True,
+        ),
+        DateTimeField(
+            "minor_mode_pin_updated_at",
+            label="Minor Mode PIN Updated At",
+            help_text="Timestamp when minor mode PIN was last updated",
+            read_only=True,
+        ),
         InvertedBooleanField(
             "needs_profile_setup",
             label="Profile Completed",
@@ -242,6 +303,27 @@ class UserView(BaseRoleAwareModelView):
                     f"Password must be at least {PASSWORD_MIN_LENGTH} characters long"
                 )
 
+        minor_mode_pin_value = data.get("minor_mode_pin")
+        normalized_minor_pin = ""
+        if minor_mode_pin_value is not None:
+            if not isinstance(minor_mode_pin_value, str):
+                errors["minor_mode_pin"] = "Minor mode PIN must be exactly 4 digits"
+            else:
+                normalized_minor_pin = minor_mode_pin_value.strip()
+                if normalized_minor_pin != "":
+                    if (
+                        len(normalized_minor_pin) != MINOR_MODE_PIN_LENGTH
+                        or not normalized_minor_pin.isdigit()
+                    ):
+                        errors["minor_mode_pin"] = "Minor mode PIN must be exactly 4 digits"
+                    else:
+                        data["minor_mode_pin"] = normalized_minor_pin
+
+        minor_mode_enabled_value = data.get("minor_mode_enabled")
+        if request.url.path.endswith("/create"):
+            if bool(minor_mode_enabled_value) and normalized_minor_pin == "":
+                errors["minor_mode_pin"] = "Minor mode PIN is required when enabling minor mode"
+
         phone_value = data.get("phone")
         if isinstance(phone_value, str):
             normalized_phone_input = phone_value.strip()
@@ -268,10 +350,23 @@ class UserView(BaseRoleAwareModelView):
 
     async def before_create(self, _request: Request, data: FormData, obj: User) -> None:
         """Hash password before creating user. Convert empty unique fields to NULL."""
+        now = datetime.now(UTC)
         password = data.pop("password", None)
+        minor_mode_pin = data.pop("minor_mode_pin", None)
 
         if isinstance(password, str) and password:
             obj.password_hash = get_password_hash(password)
+        if isinstance(minor_mode_pin, str) and minor_mode_pin:
+            obj.minor_mode_pin_hash = get_password_hash(minor_mode_pin)
+            obj.minor_mode_pin_updated_at = now
+
+        if bool(obj.minor_mode_enabled):
+            obj.minor_mode_enabled_at = now
+            obj.minor_mode_disabled_at = None
+            if obj.minor_mode_pin_hash is None:
+                raise FormValidationError(
+                    {"minor_mode_pin": "Minor mode PIN is required when enabling minor mode"}
+                )
 
         # Convert empty unique fields to NULL to avoid unique constraint violation
         convert_empty_strings_to_none(obj, ["phone", "email", "username"])
@@ -324,11 +419,29 @@ class UserView(BaseRoleAwareModelView):
 
         Convert empty unique fields to NULL.
         """
+        now = datetime.now(UTC)
         password = data.pop("password", None)
+        minor_mode_pin = data.pop("minor_mode_pin", None)
 
         # Only update password if a new one is provided
         if isinstance(password, str) and password:
             obj.password_hash = get_password_hash(password)
+        if isinstance(minor_mode_pin, str) and minor_mode_pin:
+            obj.minor_mode_pin_hash = get_password_hash(minor_mode_pin)
+            obj.minor_mode_pin_updated_at = now
+
+        minor_mode_history = sa_inspect(obj).attrs.minor_mode_enabled.history
+        if minor_mode_history.has_changes():
+            if bool(obj.minor_mode_enabled):
+                obj.minor_mode_enabled_at = now
+                obj.minor_mode_disabled_at = None
+                if obj.minor_mode_pin_hash is None:
+                    raise FormValidationError(
+                        {"minor_mode_pin": "Minor mode PIN is required when enabling minor mode"}
+                    )
+            else:
+                obj.minor_mode_disabled_at = now
+                obj.minor_mode_pin_hash = None
 
         # Convert empty unique fields to NULL to avoid unique constraint violation
         convert_empty_strings_to_none(obj, ["phone", "email", "username"])

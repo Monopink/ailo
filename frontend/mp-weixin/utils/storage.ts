@@ -229,6 +229,7 @@ export interface LocalSettings {
 
 export interface StoredAuthUser extends JsonRecord {
   qiao_id: string;
+  account_segment?: number;
 }
 
 function normalizeContact(contact: unknown): StoredContact {

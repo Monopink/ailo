@@ -17,6 +17,8 @@ import {
 import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 import { mapTagToneClasses } from '../../utils/tag-tone';
 import { initTabBar } from '../../utils/tab-bar';
+import authService from '../../utils/auth-service';
+import { canUseInviteCapability } from '../../utils/access-capability';
 
 const logger = getLogger('ContactList');
 const CONNECTION_ISSUE_DELAY = 8000;
@@ -389,6 +391,7 @@ interface ContactListPageData {
   showContactLimitHint: boolean;
   showContactLimitReached: boolean;
   contactLimitHintText: string;
+  canUseInvite: boolean;
   showConnectionIssue: boolean;
   navbarTitle: string;
   wordmarkSrc: string;
@@ -425,6 +428,7 @@ interface ContactListPageCustom {
   refreshTagLayout(): void;
   refreshMessagePreviewLayout(): void;
   scheduleAutoRetryLoad(): void;
+  syncInviteCapability(): boolean;
   applyLoadedList(
     screenModel: ScreenModel,
     contactList: ContactListItem[],
@@ -504,6 +508,7 @@ Page<ContactListPageData, ContactListPageCustom>({
     showContactLimitHint: false,
     showContactLimitReached: false,
     contactLimitHintText: '',
+    canUseInvite: true,
     showConnectionIssue: false,
     navbarTitle: APP_CONFIG.brandName,
     wordmarkSrc: getWordmarkSrcByTheme(getCurrentTheme()),
@@ -543,6 +548,7 @@ Page<ContactListPageData, ContactListPageCustom>({
     if (!isAuth) {
       return;
     }
+    this.syncInviteCapability();
 
     void this.loadContactList();
   },
@@ -551,6 +557,7 @@ Page<ContactListPageData, ContactListPageCustom>({
     initTabBar(this);
     this.updateNavigationTitle();
     this.syncWordmarkByTheme();
+    this.syncInviteCapability();
     void this.loadContactsFromCache().finally(() => {
       void this.refreshContactListFromAPI();
     });
@@ -909,12 +916,21 @@ Page<ContactListPageData, ContactListPageCustom>({
     }, delay);
   },
 
+  syncInviteCapability() {
+    const canUseInvite = canUseInviteCapability(authService.getUserInfo());
+    if (this.data.canUseInvite !== canUseInvite) {
+      this.setData({ canUseInvite });
+    }
+    return canUseInvite;
+  },
+
   applyLoadedList(screenModel, contactList, unreadTotal, availableContactSlots) {
     const contactListForRender = decorateContactList(contactList);
     const normalizedAvailableSlots =
       typeof availableContactSlots === 'number' && Number.isFinite(availableContactSlots)
         ? Math.max(0, Math.floor(availableContactSlots))
         : null;
+    const canUseInvite = this.syncInviteCapability();
     const showContactLimitHint =
       contactListForRender.length > 0 && normalizedAvailableSlots !== null;
     const showContactLimitReached = showContactLimitHint && normalizedAvailableSlots === 0;
@@ -929,6 +945,7 @@ Page<ContactListPageData, ContactListPageCustom>({
       showContactLimitHint,
       showContactLimitReached,
       contactLimitHintText,
+      canUseInvite,
       ...buildPageLayoutScreenModelPayload(screenModel),
     });
     this.scheduleTagLayoutRefresh();
@@ -1085,6 +1102,10 @@ Page<ContactListPageData, ContactListPageCustom>({
   },
 
   goToInviteShare() {
+    if (!this.syncInviteCapability()) {
+      showToast('该功能暂不可用');
+      return;
+    }
     void wx.navigateTo({ url: '/pages/invite-share/invite-share' });
   },
 

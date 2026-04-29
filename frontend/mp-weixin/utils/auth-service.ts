@@ -8,8 +8,10 @@ import { saveUserInfo, StoredAuthUser } from './storage';
 import { isNonEmptyString } from './guards';
 import { normalizeError } from './errors';
 import conversationPresenceStore from './message/conversation-presence-store';
+import { ACCOUNT_SEGMENT } from './constants/user';
 
 const logger = getLogger('AuthService');
+const AUTH_PROFILE_VERIFY_TIMEOUT_MS = 1200;
 
 interface RefreshTokenResponse {
   access_token: string;
@@ -138,7 +140,14 @@ const isTransientAuthError = (error: unknown): boolean => {
 const getStoredUserInfoSync = (): StoredAuthUser | null => {
   try {
     const stored = wx.getStorageSync<StoredAuthUser | null>(STORAGE_KEYS.USER_INFO);
-    if (stored !== null && typeof stored === 'object' && isNonEmptyString(stored.qiao_id)) {
+    if (
+      stored !== null &&
+      typeof stored === 'object' &&
+      isNonEmptyString(stored.qiao_id) &&
+      (typeof stored.account_segment === 'undefined' ||
+        stored.account_segment === ACCOUNT_SEGMENT.MEMBER_FULL ||
+        stored.account_segment === ACCOUNT_SEGMENT.MEMBER_LIMITED)
+    ) {
       return stored;
     }
   } catch (error: unknown) {
@@ -148,9 +157,18 @@ const getStoredUserInfoSync = (): StoredAuthUser | null => {
   return null;
 };
 
-const mapProfileToStoredUser = (profile: UserProfileResponse): StoredAuthUser => ({
-  qiao_id: profile.qiao_id,
-});
+const mapProfileToStoredUser = (
+  profile: UserProfileResponse,
+  _previousUser: StoredAuthUser | null
+): StoredAuthUser => {
+  return {
+    qiao_id: profile.qiao_id,
+    account_segment:
+      profile.account_segment === ACCOUNT_SEGMENT.MEMBER_LIMITED
+        ? ACCOUNT_SEGMENT.MEMBER_LIMITED
+        : ACCOUNT_SEGMENT.MEMBER_FULL,
+  };
+};
 
 class AuthService {
   private _isAuthenticated = false;
@@ -203,8 +221,10 @@ class AuthService {
       });
 
       try {
-        const profile = await fetchCurrentUserProfile();
-        const verifiedUser = mapProfileToStoredUser(profile);
+        const profile = await fetchCurrentUserProfile({
+          timeoutMs: AUTH_PROFILE_VERIFY_TIMEOUT_MS,
+        });
+        const verifiedUser = mapProfileToStoredUser(profile, storedUser);
         await saveUserInfo(verifiedUser);
         this._setAuthState(true, token, verifiedUser);
         this._initialized = true;

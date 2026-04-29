@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.crud.invite import invite_binding as invite_binding_crud
 from app.crud.invite import invite_code as invite_code_crud
 from app.crud.invite import invite_event as invite_event_crud
-from app.crud.invite import invite_recognition_log as invite_recognition_log_crud
+from app.crud.invite import invite_intake_log as invite_intake_log_crud
 from app.enums.invite import InviteEventType
 from app.services.invitation.intake import (
     normalize_event_source_or_raise,
@@ -22,8 +22,7 @@ from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-RECOGNITION_LOG_DEDUP_WINDOW_SECONDS = 2
-RECOGNITION_LOG_TRIGGER = "clipboard"
+RECOGNITION_LOG_DEDUP_WINDOW_SECONDS = 600
 IntakeMode = Literal["auth", "public"]
 
 
@@ -90,6 +89,10 @@ async def orchestrate_invitation_intake(
     raw_text: str | None,
     invite_code: str | None,
     actor_user_id: int | None,
+    reviewer_flag_snapshot: int = 0,
+    runtime_observation_id: int | None = None,
+    client_user_agent: str = "",
+    client_device_id: str = "",
 ) -> IntakeOrchestrationResult:
     """Run intake flow for authenticated/public invitation recognition."""
     normalized_source = normalize_event_source_or_raise(source)
@@ -132,44 +135,53 @@ async def orchestrate_invitation_intake(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误")
 
     try:
-        if valid and invite_code_id is not None and recognized_code is not None:
-            await invite_event_crud.create_event(
-                db,
-                event_type=int(InviteEventType.OPEN),
-                actor_user_id=actor_user_id,
-                invite_code_id=invite_code_id,
-                event_source=normalized_source,
-                code_snapshot=recognized_code,
-                event_payload={"trigger": normalized_trigger},
-            )
+        is_recent_duplicate = await invite_intake_log_crud.exists_recent_duplicate(
+            db,
+            actor_user_id=actor_user_id,
+            source=normalized_source,
+            trigger=normalized_trigger,
+            raw_text=normalized_raw_text,
+            first_candidate=intake_candidate.first_candidate,
+            runtime_observation_id=runtime_observation_id,
+            client_user_agent=client_user_agent,
+            client_device_id=client_device_id,
+            within_seconds=RECOGNITION_LOG_DEDUP_WINDOW_SECONDS,
+        )
 
-        if normalized_trigger == RECOGNITION_LOG_TRIGGER:
-            is_recent_duplicate = await invite_recognition_log_crud.exists_recent_duplicate(
+        if valid and invite_code_id is not None and recognized_code is not None:
+            if not is_recent_duplicate:
+                await invite_event_crud.create_event(
+                    db,
+                    event_type=int(InviteEventType.OPEN),
+                    actor_user_id=actor_user_id,
+                    invite_code_id=invite_code_id,
+                    event_source=normalized_source,
+                    code_snapshot=recognized_code,
+                    event_payload={"trigger": normalized_trigger},
+                )
+
+        if not is_recent_duplicate:
+            log_bindable: bool | None
+            if actor_user_id is None:
+                log_bindable = None
+            else:
+                log_bindable = bindable if valid else False
+            await invite_intake_log_crud.create_log(
                 db,
                 actor_user_id=actor_user_id,
                 source=normalized_source,
                 trigger=normalized_trigger,
                 raw_text=normalized_raw_text,
-                within_seconds=RECOGNITION_LOG_DEDUP_WINDOW_SECONDS,
+                first_candidate=intake_candidate.first_candidate,
+                recognized_code=recognized_code,
+                invite_code_id=invite_code_id,
+                valid=valid,
+                bindable=log_bindable,
+                reviewer_flag_snapshot=1 if reviewer_flag_snapshot == 1 else 0,
+                runtime_observation_id=runtime_observation_id,
+                client_user_agent=client_user_agent.strip(),
+                client_device_id=client_device_id.strip(),
             )
-            if not is_recent_duplicate:
-                log_bindable: bool | None
-                if actor_user_id is None:
-                    log_bindable = None
-                else:
-                    log_bindable = bindable if valid else False
-                await invite_recognition_log_crud.create_log(
-                    db,
-                    actor_user_id=actor_user_id,
-                    source=normalized_source,
-                    trigger=normalized_trigger,
-                    raw_text=normalized_raw_text,
-                    first_candidate=intake_candidate.first_candidate,
-                    recognized_code=recognized_code,
-                    invite_code_id=invite_code_id,
-                    valid=valid,
-                    bindable=log_bindable,
-                )
     except Exception as exc:
         await db.rollback()
         logger.warning(

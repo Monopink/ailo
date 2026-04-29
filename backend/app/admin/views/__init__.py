@@ -68,7 +68,7 @@ from .growth_views import (
     invite_binding_view,
     invite_code_view,
     invite_event_view,
-    invite_recognition_log_view,
+    invite_intake_log_view,
     redeem_code_batch_view,
     redeem_code_claim_view,
     redeem_code_view,
@@ -115,6 +115,7 @@ from .system_views import (
     admin_user_view,
     alert_event_entity_view,
     alert_event_view,
+    client_runtime_observation_view,
     system_config_view,
 )
 from .token_views import (
@@ -209,6 +210,7 @@ __all__ = [
     "admin_login_log_view",
     "alert_event_view",
     "alert_event_entity_view",
+    "client_runtime_observation_view",
     "entitlement_reason_code_view",
     "entitlement_type_view",
     "entitlement_operation_view",
@@ -234,7 +236,7 @@ __all__ = [
     "invite_binding_view",
     "invite_code_view",
     "invite_event_view",
-    "invite_recognition_log_view",
+    "invite_intake_log_view",
     "redeem_code_batch_view",
     "redeem_code_view",
     "redeem_code_claim_view",

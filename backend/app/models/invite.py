@@ -153,10 +153,10 @@ class InviteEvent(ImmutableAutoIncrementModel):
     )
 
 
-class InviteRecognitionLog(ImmutableAutoIncrementModel):
-    """Invite recognition log for clipboard/link recognition analysis."""
+class InviteIntakeLog(ImmutableAutoIncrementModel):
+    """Invite intake log for clipboard/link/manual input analysis."""
 
-    __tablename__ = "invite_recognition_logs"
+    __tablename__ = "invite_intake_logs"
 
     actor_user_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -171,30 +171,54 @@ class InviteRecognitionLog(ImmutableAutoIncrementModel):
     )
     valid: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     bindable: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    reviewer_flag_snapshot: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    runtime_observation_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("client_runtime_observations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    client_user_agent: Mapped[str] = mapped_column(String(2048), nullable=False, default="")
+    client_device_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")
 
     actor_user = relationship("User", foreign_keys=[actor_user_id], lazy="raise", viewonly=True)
     invite_code = relationship(
         "InviteCode", foreign_keys=[invite_code_id], lazy="raise", viewonly=True
     )
+    runtime_observation = relationship(
+        "ClientRuntimeObservation",
+        foreign_keys=[runtime_observation_id],
+        lazy="raise",
+        viewonly=True,
+    )
 
     __table_args__ = (
         CheckConstraint(
             "source IN ('login', 'setup', 'link', 'invite_bind_page', 'invite_share_page')",
-            name="ck_invite_recognition_logs_source",
+            name="ck_invite_intake_logs_source",
         ),
         CheckConstraint(
             "trigger ~ '^[a-z0-9_\\-]{1,32}$'",
-            name="ck_invite_recognition_logs_trigger_format",
+            name="ck_invite_intake_logs_trigger_format",
         ),
         CheckConstraint(
             "first_candidate IS NULL OR first_candidate ~ '^[A-Z0-9]{6}$'",
-            name="ck_invite_recognition_logs_first_candidate_format",
+            name="ck_invite_intake_logs_first_candidate_format",
         ),
         CheckConstraint(
             "recognized_code IS NULL OR recognized_code ~ '^[A-Z0-9]{6}$'",
-            name="ck_invite_recognition_logs_recognized_code_format",
+            name="ck_invite_intake_logs_recognized_code_format",
         ),
-        Index("idx_invite_recognition_logs_created_at", "created_at"),
-        Index("idx_invite_recognition_logs_source_created_at", "source", "created_at"),
-        Index("idx_invite_recognition_logs_recognized_code", "recognized_code"),
+        CheckConstraint(
+            "reviewer_flag_snapshot IN (0, 1)",
+            name="ck_invite_intake_logs_reviewer_flag_snapshot",
+        ),
+        Index("idx_invite_intake_logs_created_at", "created_at"),
+        Index("idx_invite_intake_logs_source_created_at", "source", "created_at"),
+        Index("idx_invite_intake_logs_recognized_code", "recognized_code"),
+        Index("idx_invite_intake_logs_runtime_observation", "runtime_observation_id"),
+        Index("idx_invite_intake_logs_device_created_at", "client_device_id", "created_at"),
     )
+
+
+# Compatibility alias for modules that are not migrated yet.
+InviteRecognitionLog = InviteIntakeLog

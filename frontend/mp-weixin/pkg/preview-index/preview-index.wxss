@@ -1,0 +1,2 @@
+@import '/pages/index/index.wxss';
+@import '/styles/preview-pages.wxss';

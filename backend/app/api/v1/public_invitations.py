@@ -32,6 +32,10 @@ async def intake_public_invitation_code(
         raw_text=payload.raw_text,
         invite_code=payload.invite_code,
         actor_user_id=None,
+        reviewer_flag_snapshot=1 if payload.segment_type == 1 else 0,
+        runtime_observation_id=payload.runtime_observation_id,
+        client_user_agent=payload.client_user_agent or "",
+        client_device_id=payload.device_id or "",
     )
     return InvitationPublicIntakeResponse(
         recognized_code=result.recognized_code,

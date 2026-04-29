@@ -1,0 +1,81 @@
+<page-layout
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}">
+  <t-navbar slot="header" left-arrow="{{true}}">
+    <view slot="title" class="navbar-title">我的资料</view>
+  </t-navbar>
+  <view slot="content" class="profile-detail card-container">
+    <view
+      class="profile-detail__avatar"
+      bindtap="handleReadonlyAction"
+      hover-class="profile-detail__avatar--active">
+      <view class="profile-detail__avatar-image-wrap">
+        <app-avatar
+          class="profile-detail__avatar-image"
+          src="{{guestProfile.avatarUrl}}"
+          size="112rpx"
+          shape="circle"
+          mode="aspectFill"
+          webp="{{true}}"
+          lazy="{{false}}" />
+        <view class="profile-detail__avatar-edit-badge">
+          <t-icon name="edit-1" size="var(--icon-xs)" color="var(--color-text-primary)" />
+        </view>
+      </view>
+      <text class="profile-detail__avatar-hint">点击设置头像</text>
+    </view>
+
+    <view class="card-wrapper">
+      <t-cell-group theme="card">
+        <t-cell
+          title="敲敲号"
+          t-class-title="profile-cell__title"
+          t-class-center="profile-detail__cell-center"
+          hover
+          arrow
+          bindtap="handleReadonlyAction">
+          <text slot="note" class="profile-cell__note">{{guestProfile.qiaoId}}</text>
+        </t-cell>
+      </t-cell-group>
+    </view>
+
+    <view class="card-wrapper">
+      <t-cell-group theme="card">
+        <t-cell
+          title="昵称"
+          t-class-title="profile-cell__title"
+          t-class-center="profile-detail__cell-center"
+          hover
+          arrow
+          bindtap="handleReadonlyAction">
+          <text slot="note" class="profile-cell__note">{{guestProfile.nickname}}</text>
+        </t-cell>
+      </t-cell-group>
+    </view>
+
+    <view class="card-wrapper">
+      <t-cell-group theme="card">
+        <t-cell
+          title="地区"
+          t-class-title="profile-cell__title"
+          t-class-center="profile-detail__cell-center"
+          hover
+          arrow
+          bindtap="handleReadonlyAction">
+          <text slot="note" class="profile-cell__note">{{guestProfile.region}}</text>
+        </t-cell>
+        <t-cell
+          title="个性签名"
+          t-class-title="profile-cell__title"
+          arrow
+          hover
+          bindtap="handleReadonlyAction">
+          <text slot="description" class="profile-cell__description">{{guestProfile.bio}}</text>
+        </t-cell>
+      </t-cell-group>
+    </view>
+  </view>
+</page-layout>

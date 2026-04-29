@@ -1,0 +1,180 @@
+<page-layout
+  style="--color-bg-page: var(--color-bg-white); --color-bg-header-solid: var(--color-bg-white); --color-bg-footer-fixed: var(--color-tabbar-glass-bg); --footer-glass-blur: var(--tabbar-glass-blur); --color-navbar-glass-bg: transparent;"
+  screenState="{{pageLayoutData.screenModel.screenState}}"
+  contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
+  refreshState="{{pageLayoutData.screenModel.refreshState}}"
+  emptyMessage="{{pageLayoutData.emptyMessage}}"
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  fixedFooter="{{true}}">
+  <view slot="header" class="index-page__header">
+    <view class="index-page__top-fade" />
+    <view class="index-page__header-main">
+      <t-navbar left-arrow="{{false}}" />
+      <view class="page-large-title index-page__large-title">
+        <image class="index-page__wordmark" src="{{wordmarkSrc}}" mode="widthFix" />
+      </view>
+      <view wx:if="{{showConnectionIssue}}" class="index-page__connection">
+        <text class="index-page__connection-text">正在连接...</text>
+      </view>
+    </view>
+  </view>
+
+  <view slot="content" class="index-page__content">
+    <t-cell-group>
+    <t-swipe-cell
+        class="index-swipe-cell"
+        wx:for="{{contactList}}"
+        wx:key="conversation_id"
+        right="{{item.swipeActions}}"
+        data-id="{{item.conversation_id}}"
+        data-index="{{index}}"
+        bind:click="onSwipeActionClick">
+        <t-cell
+          class="index-cell"
+          t-class-left="index-cell__left"
+          t-class-center="index-cell__center-slot"
+          t-class-title="index-cell__title-slot"
+          t-class-description="index-cell__description-slot"
+          align="top"
+          hover
+          bind:click="goToChat"
+          data-id="{{item.conversation_id}}"
+          data-title="{{item.displayName}}"
+          data-index="{{index}}">
+          <app-avatar slot="image" src="" size="medium" shape="circle" />
+          <view slot="title" class="index-cell__title-row">
+            <text class="index-cell__title list-text-primary">{{item.displayName}}</text>
+            <text class="list-time index-cell__title-time">{{item.lastMessageTime}}</text>
+          </view>
+          <view
+            slot="description"
+            class="index-cell__description">
+            <view
+              wx:if="{{item.hasTags}}"
+              class="index-cell__tags-row">
+              <view class="index-cell__tags-track">
+                <view
+                  wx:for="{{item.visibleTags}}"
+                  wx:for-item="tag"
+                  wx:for-index="tagIndex"
+                  wx:key="index"
+                  class="index-cell__tag-pill {{item.visibleTagToneClasses[tagIndex]}}">
+                  <text class="index-cell__tag-pill-text">{{tag}}</text>
+                </view>
+                <view
+                  wx:if="{{item.hiddenTagCount > 0}}"
+                  class="index-cell__tag-pill index-cell__tag-pill--overflow">
+                  <text class="index-cell__tag-pill-text">+{{item.hiddenTagCount}}</text>
+                </view>
+              </view>
+            </view>
+            <view wx:if="{{item.hasTags}}" class="index-cell__message-line">
+              <view class="index-cell__message-main">
+                <view class="list-text-secondary index-cell__message-text index-cell__message-text--single">
+                  {{item.lastMessage}}
+                </view>
+              </view>
+              <view wx:if="{{item.hasUnread}}" class="index-cell__message-badge">
+                <t-badge
+                  count="{{item.unreadBadge}}"
+                  dot="{{item.unreadDot}}"
+                  max-count="99"
+                  size="large"
+                  shape="circle"
+                  t-class-count="index-cell__badge" />
+              </view>
+            </view>
+            <view wx:else class="index-cell__message-two-lines">
+              <view class="index-cell__message-main index-cell__message-main--double">
+                <view wx:if="{{item.showTwoMessagePreview}}" class="index-cell__message-stack">
+                  <view class="list-text-secondary index-cell__message-text index-cell__message-text--single">
+                    {{item.lastMessage}}
+                  </view>
+                  <view class="list-text-secondary index-cell__message-text index-cell__message-text--single">
+                    {{item.secondLastMessage}}
+                  </view>
+                </view>
+                <view wx:else class="list-text-secondary index-cell__message-text index-cell__message-text--double">
+                  {{item.lastMessage}}
+                </view>
+              </view>
+              <view wx:if="{{item.hasUnread}}" class="index-cell__message-badge index-cell__message-badge--double">
+                <t-badge
+                  count="{{item.unreadBadge}}"
+                  dot="{{item.unreadDot}}"
+                  max-count="99"
+                  size="large"
+                  shape="circle"
+                  t-class-count="index-cell__badge" />
+              </view>
+            </view>
+          </view>
+        </t-cell>
+      </t-swipe-cell>
+    </t-cell-group>
+
+    <view wx:if="{{showContactLimitHint}}" class="index-contact-limit">
+      <text class="index-contact-limit__text">{{contactLimitHintText}}</text>
+      <t-button
+        wx:if="{{!showContactLimitReached}}"
+        class="index-contact-limit__action"
+        theme="primary"
+        variant="text"
+        size="small"
+        bindtap="goToSquareEntry">
+        去添加 ❯
+      </t-button>
+      <t-button
+        wx:elif="{{showContactLimitReached && canUseInvite}}"
+        class="index-contact-limit__action"
+        theme="primary"
+        variant="text"
+        size="small"
+        bindtap="goToInviteShare">
+        邀请朋友加入增加联系人上限 ❯
+      </t-button>
+    </view>
+
+    <view class="index-tag-measure">
+      <view
+        wx:for="{{tagMeasureItems}}"
+        wx:key="key"
+        class="index-tag-measure__item index-cell__tag-pill {{item.kind === 'overflow' ? 'index-cell__tag-pill--overflow' : ''}}">
+        <text class="index-cell__tag-pill-text">{{item.text}}</text>
+      </view>
+    </view>
+    <view class="index-message-measure">
+      <text
+        wx:for="{{messageMeasureItems}}"
+        wx:key="key"
+        class="index-message-measure__item list-text-secondary index-cell__message-text index-cell__message-text--single">
+        {{item.text}}
+      </text>
+    </view>
+  </view>
+
+  <view slot="empty" class="index-page__empty">
+    <text class="index-page__empty-message">{{pageLayoutData.emptyMessage}}</text>
+    <view class="index-page__empty-action">
+      <t-button class="index-page__empty-button" size="medium" theme="primary" bindtap="goToSquareEntry">
+        去添加
+      </t-button>
+    </view>
+  </view>
+
+  <view slot="footer" class="preview-tabbar theme-scope">
+    <view
+      wx:for="{{tabItems}}"
+      wx:key="key"
+      class="preview-tabbar__item {{activeTabKey === item.key ? 'preview-tabbar__item--active' : ''}}"
+      data-key="{{item.key}}"
+      bindtap="handleTabTap">
+      <image
+        class="preview-tabbar__icon"
+        src="{{activeTabKey === item.key ? item.activeIcon : item.icon}}"
+        mode="aspectFit"
+        style="width: {{item.iconSize}}; height: {{item.iconSize}};" />
+      <text class="preview-tabbar__text">{{item.label}}</text>
+    </view>
+  </view>
+</page-layout>

@@ -7,6 +7,7 @@ This module imports all system-related SQLAlchemy models.
 # Alerting models
 from .alerting import AlertEvent, AlertEventEntity
 from .config import SystemConfig
+from .runtime_observation import ClientRuntimeObservation
 
 # Statistics models
 from .stats import (
@@ -28,6 +29,7 @@ __all__ = [
     # Alerting
     "AlertEvent",
     "AlertEventEntity",
+    "ClientRuntimeObservation",
     # User statistics
     "StatsUserDaily",
     "StatsUserWeekly",

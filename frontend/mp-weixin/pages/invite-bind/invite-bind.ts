@@ -5,6 +5,8 @@ import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 import { requireAuth } from '../../utils/auth-guard';
 import { getLogger } from '../../utils/logger';
 import inviteBindingService from '../../utils/invite-binding-service';
+import authService from '../../utils/auth-service';
+import { canUseInviteCapability } from '../../utils/access-capability';
 
 const logger = getLogger('InviteBind');
 
@@ -51,6 +53,15 @@ const buildRewardHintText = (
   return `你将增加${inviteeRewardContactDelta}个联系人上限，邀请方将增加${inviterRewardContactDelta}个联系人上限`;
 };
 
+const navigateWhenInviteUnavailable = (): void => {
+  void wx.showToast({ title: '该功能暂不可用', icon: 'none' });
+  if (getCurrentPages().length > 1) {
+    void wx.navigateBack();
+    return;
+  }
+  void wx.switchTab({ url: '/pages/index/index' });
+};
+
 Page<InviteBindPageData, InviteBindPageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
@@ -72,6 +83,10 @@ Page<InviteBindPageData, InviteBindPageCustom>({
     this.invitationService = createInviteBindService();
     const isAuth = await requireAuth(this as unknown as AuthGuardPage);
     if (!isAuth) {
+      return;
+    }
+    if (!canUseInviteCapability(authService.getUserInfo())) {
+      navigateWhenInviteUnavailable();
       return;
     }
     this.setData(buildScreenModelPayload('ready', 'data', 'idle'));

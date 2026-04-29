@@ -6,7 +6,6 @@
     "page-layout": "/components/page-layout/page-layout",
     "t-button": "tdesign-miniprogram/button/button",
     "t-checkbox": "tdesign-miniprogram/checkbox/checkbox",
-    "t-dialog": "tdesign-miniprogram/dialog/dialog",
-    "t-icon": "tdesign-miniprogram/icon/icon"
+    "t-dialog": "tdesign-miniprogram/dialog/dialog"
   }
 }

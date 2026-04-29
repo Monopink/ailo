@@ -24,6 +24,7 @@ __all__ = [
     "require_sms_rate_limit",
     "require_message_rate_limit",
     "get_current_user",
+    "get_current_user_optional",
     "get_db",
 ]
 
@@ -280,3 +281,14 @@ async def get_current_user(request: Request, db: DBSession) -> User:
     logger.debug("user_authenticated", qiao_id=user.qiao_id)
 
     return user
+
+
+async def get_current_user_optional(request: Request, db: DBSession) -> User | None:
+    """Get current user when bearer token is valid, otherwise return None."""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None
+    try:
+        return await get_current_user(request, db)
+    except HTTPException:
+        return None

@@ -158,6 +158,8 @@ module.exports = {
     'libs/',
     'test/',
     'minitest/',
+    'deleted/',
+    '**/deleted/**',
     '**/*.generated.d.ts',
     '*.config.js',
     '**/*.js', // Ignore all compiled JS files from TypeScript

@@ -4,6 +4,8 @@ import { classifyError } from '../../utils/error-classifier';
 import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 import { requireAuth } from '../../utils/auth-guard';
 import { getLogger } from '../../utils/logger';
+import authService from '../../utils/auth-service';
+import { canUseInviteCapability } from '../../utils/access-capability';
 
 type AuthGuardPage = WechatMiniprogram.Page.Instance<
   Record<string, unknown>,
@@ -71,6 +73,15 @@ const buildRuleHintText = (
   return `每次成功绑定后，你增加 ${inviterRewardContactDelta} 个联系人上限，对方增加 ${inviteeRewardContactDelta} 个联系人上限。`;
 };
 
+const navigateWhenInviteUnavailable = (): void => {
+  void wx.showToast({ title: '该功能暂不可用', icon: 'none' });
+  if (getCurrentPages().length > 1) {
+    void wx.navigateBack();
+    return;
+  }
+  void wx.switchTab({ url: '/pages/index/index' });
+};
+
 Page<InviteSharePageData, InviteSharePageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
@@ -103,6 +114,10 @@ Page<InviteSharePageData, InviteSharePageCustom>({
     this.invitationService = createInviteShareService();
     const isAuth = await requireAuth(this as unknown as AuthGuardPage);
     if (!isAuth) {
+      return;
+    }
+    if (!canUseInviteCapability(authService.getUserInfo())) {
+      navigateWhenInviteUnavailable();
       return;
     }
     void wx.showShareMenu({ menus: ['shareAppMessage'] });

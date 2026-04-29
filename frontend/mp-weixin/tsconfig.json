@@ -24,5 +24,13 @@
     "types": ["miniprogram-api-typings"]
   },
   "include": ["**/*.ts", "**/*.d.ts"],
-  "exclude": ["node_modules", "miniprogram_npm", "test", "minitest", "**/*.js"]
+  "exclude": [
+    "node_modules",
+    "miniprogram_npm",
+    "test",
+    "minitest",
+    "deleted",
+    "**/deleted/**",
+    "**/*.js"
+  ]
 }

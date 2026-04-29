@@ -53,6 +53,7 @@ from .invite import (
     InviteBinding,
     InviteCode,
     InviteEvent,
+    InviteIntakeLog,
     InviteRecognitionLog,
 )
 from .llm import LLMConfig, LLMProvider, LLMTestLog
@@ -70,6 +71,7 @@ from .security import UserRiskStats, UserViolationLog
 from .system import (
     AlertEvent,
     AlertEventEntity,
+    ClientRuntimeObservation,
     StatsAIDaily,
     StatsAIMonthly,
     StatsAIWeekly,
@@ -138,6 +140,7 @@ __all__ = [
     "InviteCode",
     "InviteBinding",
     "InviteEvent",
+    "InviteIntakeLog",
     "InviteRecognitionLog",
     "Campaign",
     "CampaignAttribution",
@@ -154,6 +157,7 @@ __all__ = [
     "StatsAIWeekly",
     "AlertEvent",
     "AlertEventEntity",
+    "ClientRuntimeObservation",
     "StatsMessageDaily",
     "StatsMessageMonthly",
     "StatsMessageWeekly",

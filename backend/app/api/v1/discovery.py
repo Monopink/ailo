@@ -8,7 +8,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_user_optional
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.discovery import (
@@ -42,7 +42,10 @@ async def get_square_categories(
 ) -> SquareCategoryListResponse:
     """Get active square categories."""
     try:
-        response = await discovery_service.get_square_categories(db=db)
+        response = await discovery_service.get_square_categories(
+            db=db,
+            current_user=current_user,
+        )
         logger.info(
             "square_categories_retrieved",
             user_qiao_id=current_user.qiao_id,
@@ -87,6 +90,7 @@ async def get_square_contacts(
     try:
         return await discovery_service.get_square_contacts(
             db=db,
+            current_user=current_user,
             user_qiao_id=current_user.qiao_id,
             category_key=category_key,
             cursor=cursor,
@@ -148,6 +152,7 @@ async def get_square_contacts(
 async def get_stranger_profile(
     qiao_id: str,
     category_key: str | None = Query(None, description="Source category key (optional)"),
+    current_user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
 ) -> StrangerProfileResponse:
     """Get stranger profile by qiao_id."""
@@ -163,6 +168,7 @@ async def get_stranger_profile(
         profile = await discovery_service.get_stranger_profile(
             db=db,
             qiao_id=qiao_id,
+            current_user=current_user,
             category_key=category_key,
         )
         if not profile:

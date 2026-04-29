@@ -16,6 +16,8 @@ import { isNonEmptyString } from '../../utils/guards';
 import { getLogger } from '../../utils/logger';
 import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 import { type ScreenModel } from '../services/pages/page-state';
+import authService from '../../utils/auth-service';
+import { canUseInviteCapability } from '../../utils/access-capability';
 
 const logger = getLogger('StrangerInfo');
 
@@ -308,6 +310,17 @@ Page<StrangerInfoPageData, StrangerInfoPageCustom>({
   },
 
   async promptContactLimitReached() {
+    const canUseInvite = canUseInviteCapability(authService.getUserInfo());
+    if (!canUseInvite) {
+      await wx.showModal({
+        title: '联系人达到上限',
+        content: '联系人达到上限，先和他们聊聊吧。',
+        showCancel: false,
+        confirmText: '我知道了',
+      });
+      return;
+    }
+
     const result = await new Promise<WechatMiniprogram.ShowModalSuccessCallbackResult>(
       (resolve) => {
         wx.showModal({

@@ -17,6 +17,15 @@ class SquareCategoryStatus(IntEnum):
     INACTIVE = 2
 
 
+class SquareCategoryReviewVisibilityScope(IntEnum):
+    """Category review visibility scope (square_categories.review_visibility_scope)."""
+
+    ALL_USERS = 0
+    REGULAR_USERS = 1
+    ALL_REVIEWERS = 2
+    MP_WEIXIN_REVIEWERS = 3
+
+
 class SquareCategoryTheme(StrEnum):
     """Square category theme keys (source of truth for square_categories.theme_key)."""
 

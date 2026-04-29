@@ -51,6 +51,13 @@
 3. `BOOLEAN=3`：布尔值
 4. `JSON=4`：JSON 值
 5. `ENUM=5`：受限选项值（需配合 `allowed_values`）
+6. `TIME=6`：UTC 时间字符串（ISO8601）
+
+`TIME` 类型在管理后台的输入与回显规则：
+
+- 输入控件：`field-datetime`（基于 flatpickr）
+- 提交存储：转换为 UTC ISO8601 字符串（带 `Z`）
+- 页面回显：UTC 值转换为管理员本地时区显示
 
 ## 配置形态（`config_shape`）
 

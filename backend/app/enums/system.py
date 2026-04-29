@@ -11,6 +11,7 @@ class ConfigValueType(IntEnum):
     BOOLEAN = 3
     JSON = 4
     ENUM = 5  # Select from allowed_values
+    TIME = 6  # RFC3339/ISO8601 datetime string in UTC
 
 
 class ConfigShape(IntEnum):

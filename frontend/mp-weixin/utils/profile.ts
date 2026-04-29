@@ -9,15 +9,19 @@ import {
 export type UserProfileResponse = UserProfile;
 export type AccountInfoResponse = AccountInfo;
 export type UsernameAvailabilityResponse = UsernameCheckResponse;
+type ProfileRequestOptions = { timeoutMs?: number };
 
 const PROFILE_ENDPOINT = '/user/profile';
 const ACCOUNT_ENDPOINT = '/user/account';
 const USERNAME_CHECK_ENDPOINT = '/user/username/check';
 
-export async function fetchCurrentUserProfile(): Promise<UserProfileResponse> {
+export async function fetchCurrentUserProfile(
+  options: ProfileRequestOptions = {}
+): Promise<UserProfileResponse> {
   return await requestValidated(UserProfileSchema, {
     url: PROFILE_ENDPOINT,
     method: 'GET',
+    timeoutMs: options.timeoutMs,
   });
 }
 

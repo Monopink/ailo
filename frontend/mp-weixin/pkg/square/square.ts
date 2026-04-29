@@ -224,7 +224,18 @@ Page<SquarePageData, SquarePageCustom>({
   applyCategories(categories, preferredKey = null, strictPreferred = false) {
     const normalized = categories.filter((item) => isValidCategoryKey(item.categoryKey));
     if (normalized.length === 0) {
-      void this.switchToEntry('暂无内容');
+      this.setData({
+        categories: [],
+        contacts: [],
+        hasMore: false,
+        nextCursor: null,
+        feedVersion: null,
+        ...buildPageLayoutScreenModelPayload({
+          screenState: 'ready',
+          contentVariant: 'empty',
+          refreshState: 'idle',
+        }),
+      });
       return false;
     }
 
@@ -259,8 +270,7 @@ Page<SquarePageData, SquarePageCustom>({
 
   bootstrapCategories() {
     const cache = squareDiscoveryService.getCategoriesCacheEntry();
-    const fallback = squareDiscoveryService.getFallbackCategories();
-    let categories = fallback;
+    let categories: SquareCategoryCard[] = [];
     if (cache !== null && Array.isArray(cache.items) && cache.items.length > 0) {
       const age = Date.now() - cache.timestamp;
       const isFresh = age < SQUARE_CATEGORIES_CACHE_TTL_MS;
@@ -270,7 +280,22 @@ Page<SquarePageData, SquarePageCustom>({
         categories = cache.items;
       }
     }
-    this.applyCategories(categories, this._requestedCategoryKey, false);
+    if (categories.length > 0) {
+      this.applyCategories(categories, this._requestedCategoryKey, false);
+      return;
+    }
+    this.setData({
+      categories: [],
+      contacts: [],
+      hasMore: false,
+      nextCursor: null,
+      feedVersion: null,
+      ...buildPageLayoutScreenModelPayload({
+        screenState: 'ready',
+        contentVariant: 'data',
+        refreshState: 'idle',
+      }),
+    });
   },
 
   async refreshCategories() {
@@ -351,8 +376,8 @@ Page<SquarePageData, SquarePageCustom>({
   },
 
   async onShow() {
-    const isAuth = await requireAuth(this as unknown as AuthGuardPage);
-    if (!isAuth) {
+    const passGuard = await requireAuth(this as unknown as AuthGuardPage);
+    if (!passGuard) {
       return;
     }
     const allowed = await this.ensureMinorModeAllowed();
@@ -566,7 +591,6 @@ Page<SquarePageData, SquarePageCustom>({
         refreshState: 'idle',
       }),
     });
-
     this.loadContactsWithCache();
   },
 

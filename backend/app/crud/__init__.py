@@ -23,7 +23,7 @@ from .invite import (
     invite_binding,
     invite_code,
     invite_event,
-    invite_recognition_log,
+    invite_intake_log,
 )
 
 # LLM CRUD
@@ -75,7 +75,7 @@ __all__ = [
     "invite_code",
     "invite_binding",
     "invite_event",
-    "invite_recognition_log",
+    "invite_intake_log",
     "campaign",
     "campaign_attribution",
     "growth_reward_rule",

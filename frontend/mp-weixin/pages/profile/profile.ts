@@ -6,7 +6,6 @@ import { type ScreenModel } from '../../services/pages/page-state';
 import { createProfilePageService } from '../../services/pages/profile-service';
 import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 import { initTabBar } from '../../utils/tab-bar';
-import { isNonEmptyString } from '../../utils/guards';
 import { IS_PROD } from '../../utils/env';
 import { BUILD_INFO, formatBuildInfoText } from '../../utils/build-info';
 import type { InviteBindingState } from '../../utils/invite-binding-service';
@@ -50,7 +49,6 @@ interface ProfilePageCustom {
   onAvatarRenderError(
     event: WechatMiniprogram.CustomEvent<WechatMiniprogram.GeneralCallbackResult>
   ): void;
-  probeAvatarUrl(url: string): void;
   onUnload(): void;
 }
 
@@ -194,10 +192,6 @@ Page<ProfilePageData, ProfilePageCustom>({
       ...buildPageLayoutScreenModelPayload(result.screenModel),
     });
 
-    if (result.profile !== null) {
-      this.probeAvatarUrl(result.profile.displayAvatar);
-    }
-
     if (result.profile === null && result.screenModel.refreshState === 'degraded') {
       this.scheduleAutoRetryLoad();
       return;
@@ -268,33 +262,6 @@ Page<ProfilePageData, ProfilePageCustom>({
     logger.error('Avatar render failed in native image', {
       detail: event.detail,
       avatarUrl: this.data.profile?.displayAvatar ?? '',
-    });
-  },
-
-  probeAvatarUrl(url: string) {
-    if (!isNonEmptyString(url)) {
-      logger.warn('Avatar probe skipped: empty URL');
-      return;
-    }
-
-    logger.info('Avatar probe start', { url });
-    wx.getImageInfo({
-      src: url,
-      success: (result) => {
-        logger.info('Avatar probe success', {
-          url,
-          width: result.width,
-          height: result.height,
-          type: result.type,
-          path: result.path,
-        });
-      },
-      fail: (error) => {
-        logger.error('Avatar probe failed', {
-          url,
-          error,
-        });
-      },
     });
   },
 });

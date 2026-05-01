@@ -88,10 +88,10 @@
               <view class="index-cell__message-main index-cell__message-main--double">
                 <view wx:if="{{item.showTwoMessagePreview}}" class="index-cell__message-stack">
                   <view class="list-text-secondary index-cell__message-text index-cell__message-text--single">
-                    {{item.lastMessage}}
+                    {{item.secondLastMessage}}
                   </view>
                   <view class="list-text-secondary index-cell__message-text index-cell__message-text--single">
-                    {{item.secondLastMessage}}
+                    {{item.lastMessage}}
                   </view>
                 </view>
                 <view wx:else class="list-text-secondary index-cell__message-text index-cell__message-text--double">

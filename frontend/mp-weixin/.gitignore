@@ -5,6 +5,7 @@ miniprogram_npm/
 # Logs
 *.log
 npm-debug.log*
+scripts/devtools/logs/
 
 # Editor
 .vscode/

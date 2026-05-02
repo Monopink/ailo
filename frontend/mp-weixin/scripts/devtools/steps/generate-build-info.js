@@ -1,15 +1,91 @@
 const fs = require('node:fs');
-const { execFileSync } = require('node:child_process');
 const path = require('node:path');
+
+function readTextIfExists(filePath) {
+  try {
+    return fs.readFileSync(filePath, 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
+
+function resolveGitDirectory(startDir) {
+  let currentDir = path.resolve(startDir);
+  while (true) {
+    const gitPath = path.join(currentDir, '.git');
+    if (fs.existsSync(gitPath)) {
+      const stats = fs.statSync(gitPath);
+      if (stats.isDirectory()) {
+        return gitPath;
+      }
+      if (stats.isFile()) {
+        const marker = readTextIfExists(gitPath);
+        const match = marker.match(/^gitdir:\s*(.+)$/i);
+        if (match && match[1]) {
+          return path.resolve(currentDir, match[1].trim());
+        }
+      }
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      return '';
+    }
+    currentDir = parentDir;
+  }
+}
+
+function resolveShaFromPackedRefs(gitDir, refName) {
+  const packedRefsPath = path.join(gitDir, 'packed-refs');
+  const packedRefs = readTextIfExists(packedRefsPath);
+  if (packedRefs === '') {
+    return '';
+  }
+  const refLine = packedRefs
+    .split('\n')
+    .find((line) => line.endsWith(` ${refName}`) && !line.startsWith('#') && !line.startsWith('^'));
+  if (!refLine) {
+    return '';
+  }
+  const [sha] = refLine.split(' ');
+  return typeof sha === 'string' ? sha.trim() : '';
+}
+
+function toShortSha(fullSha) {
+  if (typeof fullSha !== 'string') {
+    return '';
+  }
+  const normalized = fullSha.trim();
+  if (normalized.length < 7) {
+    return normalized;
+  }
+  return normalized.slice(0, 7);
+}
 
 function tryReadGitShortSha(rootDir) {
   try {
-    const output = execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
-      cwd: rootDir,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-    return typeof output === 'string' ? output.trim() : '';
+    const gitDir = resolveGitDirectory(rootDir);
+    if (gitDir === '') {
+      return '';
+    }
+
+    const headContent = readTextIfExists(path.join(gitDir, 'HEAD'));
+    if (headContent === '') {
+      return '';
+    }
+    if (!headContent.startsWith('ref:')) {
+      return toShortSha(headContent);
+    }
+
+    const refName = headContent.slice(4).trim();
+    const refPath = path.join(gitDir, refName.split('/').join(path.sep));
+    const refSha = readTextIfExists(refPath);
+    if (refSha !== '') {
+      return toShortSha(refSha);
+    }
+
+    const packedSha = resolveShaFromPackedRefs(gitDir, refName);
+    return toShortSha(packedSha);
   } catch {
     return '';
   }
@@ -57,6 +133,7 @@ module.exports = {
     const id = tryReadGitShortSha(ctx.rootDir);
     const builtAt = new Date().toISOString();
     const appVersion = readPackageVersion(ctx.rootDir);
+    ctx.buildInfo = { id, builtAt, appVersion };
     const content = buildBuildInfoSource({ id, builtAt, appVersion });
 
     const changed = writeIfChanged(generatedTsPath, content, ctx.dryRun);

@@ -2,6 +2,9 @@
 All business logic is handled through internal API calls.
 """
 
+import copy
+from typing import Any
+
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.templating import Jinja2Templates
@@ -26,6 +29,7 @@ from app.services.system_config import (
     get_config,
     get_configs_by_group_with_scope,
 )
+from app.services.system_settings_validation import validate_operation_config_updates
 from app.utils.admin_logs import create_operation_log
 from app.utils.logging import get_logger
 
@@ -109,7 +113,7 @@ class SystemSettingsView(CustomView):
             config_groups = await get_configs_by_group_with_scope(db, scopes=self._scopes)
             self._localize_config_groups(config_groups)
             editable_config_keys: set[str] = set()
-            editable_configs: dict[str, object] = {}
+            editable_configs: dict[str, Any] = {}
             for group in config_groups.values():
                 for config_key, config in group["configs"].items():
                     editable_config_keys.add(config_key)
@@ -185,6 +189,16 @@ class SystemSettingsView(CustomView):
                     # Track changes for logging
                     changes = []
                     pending_updates: list[dict[str, object]] = []
+                    review_validation_keys = (
+                        "mp_weixin_review_deadline_at",
+                        "mp_weixin_review_build_time_from",
+                        "mp_weixin_review_build_time_to",
+                    )
+                    persisted_review_values: dict[str, object] = {
+                        config_key: copy.deepcopy(editable_configs[config_key].config_value)
+                        for config_key in review_validation_keys
+                        if config_key in editable_configs
+                    }
 
                     # Only process modification fields (config_modify_*)
                     media_config_updated = False
@@ -204,8 +218,9 @@ class SystemSettingsView(CustomView):
                             if not value_str and not should_clear:
                                 continue
 
-                            # Get old value for logging
-                            old_value = await get_config(db, config_key)
+                            # Get old value from loaded config object to avoid
+                            # hard-failing when optional keys are absent in DB.
+                            old_value = copy.deepcopy(config.config_value)
 
                             target_value = value_str
                             validate_enum = True
@@ -264,6 +279,33 @@ class SystemSettingsView(CustomView):
                             context["field_errors"] = {
                                 config_key: str(ve),
                             }
+                            return templates.TemplateResponse(self._template_name(), context)
+
+                    if pending_updates:
+                        effective_review_values: dict[str, object] = {
+                            config_key: copy.deepcopy(editable_configs[config_key].config_value)
+                            for config_key in review_validation_keys
+                            if config_key in editable_configs
+                        }
+                        validation_issues = validate_operation_config_updates(
+                            effective_review_values,
+                            persisted_values=persisted_review_values,
+                        )
+                        if validation_issues:
+                            await db.rollback()
+                            field_errors: dict[str, str] = {}
+                            for issue in validation_issues:
+                                existing_message = field_errors.get(issue.config_key)
+                                if existing_message:
+                                    field_errors[issue.config_key] = (
+                                        f"{existing_message}；{issue.message}"
+                                    )
+                                else:
+                                    field_errors[issue.config_key] = issue.message
+                            context["error"] = admin_text(
+                                "Failed to update settings: {error}"
+                            ).format(error="审核配置校验失败")
+                            context["field_errors"] = field_errors
                             return templates.TemplateResponse(self._template_name(), context)
 
                     if changes:

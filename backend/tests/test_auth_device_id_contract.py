@@ -32,13 +32,20 @@ def test_wechat_requests_require_uuid_device_id() -> None:
     """WeChat login/bind requests reject non-UUID device_id values."""
     invalid_device_id: Any = "not-a-uuid"  # reason: negative validation test input
     with pytest.raises(ValidationError):
-        WeChatLoginRequest(login_code="code", device_id=invalid_device_id)
+        WeChatLoginRequest(
+            login_code="code",
+            device_id=invalid_device_id,
+            build_id="20260502.1",
+            build_time="2026-05-02T08:00:00Z",
+        )
 
     with pytest.raises(ValidationError):
         WeChatBindPhoneRequest(
             login_code="code",
             phone_code="phone_code",
             device_id=invalid_device_id,
+            build_id="20260502.1",
+            build_time="2026-05-02T08:00:00Z",
         )
 
 
@@ -50,6 +57,8 @@ def test_verify_phone_request_requires_uuid_device_id() -> None:
             phone="+8613800138000",
             sms_code="123456",
             device_id=invalid_device_id,
+            build_id="20260502.1",
+            build_time="2026-05-02T08:00:00Z",
         )
 
 

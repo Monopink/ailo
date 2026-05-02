@@ -33,7 +33,7 @@
 
 - `client_type` (string, required): 客户端标识，枚举值：`mp_weixin`
 - `device_id` (string): 设备标识，最大 64
-- `user_agent` (string): 运行态 UA，最大 2048
+- `user_agent` (string): 运行态 UA 快照（观测字段），最大 2048
 - `platform` (string): 平台标识，最大 32
 - `os_version` (string): 系统版本，最大 64
 - `app_version` (string): 客户端版本，最大 32
@@ -69,10 +69,7 @@
 
 ### 判定规则
 
-- 当请求携带有效鉴权且账号内部标记命中受限分段时，返回 `segment_type=1`。
-- 当请求未携带有效鉴权且 `system_configs.mp_weixin_review_mode=true` 时，返回 `segment_type=1`。
-- 当未命中账号标记时，服务端按运行态特征判定返回 `segment_type`。
-- 当运行态判定命中受限分段时，服务端会触发账号内部标记升级（仅 `0 -> 1`）。
+- 分段判定业务规则见：`docs/spec/review-mode.md` 的“审核员分段判定”章节。
 - `preflight_probe_result` 作为观测事件名保留，不做语义改名。
 
 ## 上报运行态观测事件
@@ -122,7 +119,7 @@
 - `client_type` (string, required): 客户端标识，枚举值：`mp_weixin`
 - `device_id` (string, required): 设备标识，最大 64
 - `session_id` (string): 会话标识，最大 64
-- `user_agent` (string): 运行态 UA，最大 2048
+- `user_agent` (string): 运行态 UA 快照（观测字段），最大 2048
 - `platform` (string): 平台标识，最大 32
 - `os_version` (string): 系统版本，最大 64
 - `app_version` (string): 客户端版本，最大 32
@@ -130,7 +127,7 @@
 - `build_time` (string | null): 构建时间（ISO8601）
 - `network_type` (string): 网络类型，最大 32
 - `segment_type` (integer): 分段结果（`0=standard`、`1=limited`）
-- `matched_features` (array): 命中特征集合，元素最大 64
+- `matched_features` (array): 客户端运行态命中特征快照，元素最大 64
 - `ua_fetch_status` (integer): UA 读取状态（`0=unknown`、`1=success`、`2=failed`、`3=unavailable`）
 - `event_name` (string, required): 事件名，最大 64
 - `page_path` (string): 页面路径，最大 255

@@ -12,6 +12,8 @@
 - [退出登录](#退出登录) - `POST /api/v1/auth/logout`
 
 > **登录统一约束**：所有登录签发接口都必须上送 `device_id`（UUID）并稳定复用；`device_id` 生成与持久化规范见 `../spec/client/base/device-id.md`。
+>
+> **审核员判定统一约束**：`POST /api/v1/auth/phone`、`POST /api/v1/auth/wechat/login`、`POST /api/v1/auth/wechat/bind-phone` 必须上送 `build_id` 与 `build_time`；若值为空或时间无法解析，按非审核员处理。判定规则见 `docs/spec/client/mini-program/README.md` 的“审核员分段判定”章节。
 
 ## 网关访问控制
 
@@ -101,7 +103,9 @@
 {
   "phone": "+8613800138000",
   "sms_code": "123456",
-  "device_id": "33333333-3333-3333-3333-333333333333"
+  "device_id": "33333333-3333-3333-3333-333333333333",
+  "build_id": "20260502.1",
+  "build_time": "2026-05-02T08:00:00Z"
 }
 ```
 
@@ -118,6 +122,12 @@
 - `device_id` (string, 必填)
   - 设备/安装级 UUID
   - 必须稳定持久化并在同一设备复用
+
+- `build_id` (string, 必填)
+  - 小程序构建标识，最大 64
+
+- `build_time` (string, 必填)
+  - 小程序构建时间（ISO8601，UTC）
 
 ### 成功响应 (200)
 
@@ -180,7 +190,9 @@
 ```json
 {
   "login_code": "wx_login_code",
-  "device_id": "33333333-3333-3333-3333-333333333333"
+  "device_id": "33333333-3333-3333-3333-333333333333",
+  "build_id": "20260502.1",
+  "build_time": "2026-05-02T08:00:00Z"
 }
 ```
 
@@ -188,6 +200,8 @@
 
 - `login_code` (string, 必填) - 来自 `wx.login()`
 - `device_id` (string, 必填) - 设备/安装级 UUID（稳定复用）
+- `build_id` (string, 必填) - 小程序构建标识，最大 64
+- `build_time` (string, 必填) - 小程序构建时间（ISO8601，UTC）
 
 **响应（已绑定）**
 
@@ -236,7 +250,9 @@
 {
   "login_code": "wx_login_code",
   "phone_code": "wx_phone_code",
-  "device_id": "33333333-3333-3333-3333-333333333333"
+  "device_id": "33333333-3333-3333-3333-333333333333",
+  "build_id": "20260502.1",
+  "build_time": "2026-05-02T08:00:00Z"
 }
 ```
 
@@ -245,6 +261,8 @@
 - `login_code` (string, 必填) - 来自 `wx.login()`
 - `phone_code` (string, 必填) - 来自 `getPhoneNumber`
 - `device_id` (string, 必填) - 设备/安装级 UUID（稳定复用）
+- `build_id` (string, 必填) - 小程序构建标识，最大 64
+- `build_time` (string, 必填) - 小程序构建时间（ISO8601，UTC）
 
 **请求参数（兼容协议：encryptedData + iv）**
 
@@ -253,7 +271,9 @@
   "login_code": "wx_login_code",
   "encrypted_data": "wx_encrypted_data",
   "iv": "wx_iv",
-  "device_id": "33333333-3333-3333-3333-333333333333"
+  "device_id": "33333333-3333-3333-3333-333333333333",
+  "build_id": "20260502.1",
+  "build_time": "2026-05-02T08:00:00Z"
 }
 ```
 
@@ -263,6 +283,8 @@
 - `encrypted_data` (string, 必填) - 来自 `getPhoneNumber` 回调
 - `iv` (string, 必填) - 来自 `getPhoneNumber` 回调
 - `device_id` (string, 必填) - 设备/安装级 UUID（稳定复用）
+- `build_id` (string, 必填) - 小程序构建标识，最大 64
+- `build_time` (string, 必填) - 小程序构建时间（ISO8601，UTC）
 
 **成功响应 (200)**
 

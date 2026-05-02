@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.invite import invite_binding as invite_binding_crud
@@ -13,6 +14,7 @@ from app.crud.invite import invite_code as invite_code_crud
 from app.crud.invite import invite_event as invite_event_crud
 from app.crud.invite import invite_intake_log as invite_intake_log_crud
 from app.enums.invite import InviteEventType
+from app.models.system.runtime_observation import ClientRuntimeObservation
 from app.services.invitation.intake import (
     normalize_event_source_or_raise,
     normalize_trigger_or_raise,
@@ -80,6 +82,26 @@ def _record_failed_log_key(*, mode: IntakeMode) -> str:
     return "invite_intake_record_failed"
 
 
+async def _resolve_linked_runtime_observation_id(
+    db: AsyncSession, *, runtime_observation_id: int | None
+) -> int | None:
+    """Return a FK-safe runtime observation id, otherwise null."""
+    if runtime_observation_id is None:
+        return None
+    row = await db.execute(
+        select(ClientRuntimeObservation.id).where(
+            ClientRuntimeObservation.id == runtime_observation_id
+        )
+    )
+    if row.first() is None:
+        logger.info(
+            "invite_intake_runtime_observation_missing",
+            runtime_observation_id=runtime_observation_id,
+        )
+        return None
+    return runtime_observation_id
+
+
 async def orchestrate_invitation_intake(
     db: AsyncSession,
     *,
@@ -135,6 +157,10 @@ async def orchestrate_invitation_intake(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误")
 
     try:
+        linked_runtime_observation_id = await _resolve_linked_runtime_observation_id(
+            db,
+            runtime_observation_id=runtime_observation_id,
+        )
         is_recent_duplicate = await invite_intake_log_crud.exists_recent_duplicate(
             db,
             actor_user_id=actor_user_id,
@@ -142,7 +168,7 @@ async def orchestrate_invitation_intake(
             trigger=normalized_trigger,
             raw_text=normalized_raw_text,
             first_candidate=intake_candidate.first_candidate,
-            runtime_observation_id=runtime_observation_id,
+            runtime_observation_id=linked_runtime_observation_id,
             client_user_agent=client_user_agent,
             client_device_id=client_device_id,
             within_seconds=RECOGNITION_LOG_DEDUP_WINDOW_SECONDS,
@@ -178,7 +204,7 @@ async def orchestrate_invitation_intake(
                 valid=valid,
                 bindable=log_bindable,
                 reviewer_flag_snapshot=1 if reviewer_flag_snapshot == 1 else 0,
-                runtime_observation_id=runtime_observation_id,
+                runtime_observation_id=linked_runtime_observation_id,
                 client_user_agent=client_user_agent.strip(),
                 client_device_id=client_device_id.strip(),
             )

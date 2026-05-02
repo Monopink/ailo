@@ -1,5 +1,6 @@
 import { requestValidated } from '../../utils/api';
 import authService from '../../utils/auth-service';
+import { BUILD_INFO } from '../../utils/build-info';
 import { fetchAllContactsFromApi } from '../../utils/contact-sync';
 import { normalizeError } from '../../utils/errors';
 import { isNonEmptyString } from '../../utils/guards';
@@ -151,6 +152,8 @@ export class LoginPageService extends BasePageService {
         login_code: loginCode,
         ...bindPayload,
         device_id: deviceId,
+        build_id: BUILD_INFO.id,
+        build_time: BUILD_INFO.builtAt,
       },
       auth: false,
     });
@@ -269,6 +272,8 @@ export class LoginPageService extends BasePageService {
         data: {
           login_code: loginCode,
           device_id: deviceId,
+          build_id: BUILD_INFO.id,
+          build_time: BUILD_INFO.builtAt,
         },
         auth: false,
       });

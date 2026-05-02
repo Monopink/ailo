@@ -14,6 +14,12 @@ class WeChatLoginRequest(BaseModel):
 
     login_code: str = Field(..., description="Login code from wx.login()")
     device_id: UUID = Field(..., description="Device/installation UUID")
+    build_id: str = Field(..., description="Mini-program build identifier", max_length=64)
+    build_time: str | None = Field(
+        ...,
+        description="Mini-program build time (ISO8601, UTC)",
+        max_length=64,
+    )
 
 
 class WeChatLoginResponse(BaseModel):
@@ -50,6 +56,12 @@ class WeChatBindPhoneRequest(BaseModel):
         None, description="IV for encrypted phone payload from getPhoneNumber (legacy protocol)"
     )
     device_id: UUID = Field(..., description="Device/installation UUID")
+    build_id: str = Field(..., description="Mini-program build identifier", max_length=64)
+    build_time: str | None = Field(
+        ...,
+        description="Mini-program build time (ISO8601, UTC)",
+        max_length=64,
+    )
 
     @model_validator(mode="after")
     def validate_phone_payload(self) -> "WeChatBindPhoneRequest":
@@ -103,6 +115,12 @@ class VerifyPhoneRequest(BaseModel):
     phone: str = Field(..., description="Phone number in E.164 format")
     sms_code: str = Field(..., description="SMS verification code")
     device_id: UUID = Field(..., description="Device/installation UUID")
+    build_id: str = Field(..., description="Mini-program build identifier", max_length=64)
+    build_time: str | None = Field(
+        ...,
+        description="Mini-program build time (ISO8601, UTC)",
+        max_length=64,
+    )
 
 
 class VerifyPhoneResponse(BaseModel):

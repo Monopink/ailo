@@ -20,12 +20,7 @@ const PROBE_TIMEOUT_MS = 1200;
 const OBSERVATION_TIMEOUT_MS = 1000;
 const RUNTIME_SESSION_TICK_INTERVAL_MS = 30 * 1000;
 const MAX_RUNTIME_SESSION_TICK_QUEUE_SIZE = 240;
-const RUNTIME_SIGNATURE_TOKENS = [
-  { key: 'xweb', token: 'xweb/' },
-  { key: 'windows_wechat_runtime', token: 'windowswechat/wmpf' },
-  { key: 'mini_program_windows', token: 'miniprogramenv/windows' },
-] as const;
-const _RUNTIME_STATE_SOURCE_VALUES = ['local', 'server', 'offline_36h', 'default'] as const;
+const _RUNTIME_STATE_SOURCE_VALUES = ['server', 'offline_36h', 'default'] as const;
 const _RUNTIME_STATE_LEVEL_VALUES = ['provisional', 'confirmed'] as const;
 
 let runtimeSessionId: string | null = null;
@@ -138,7 +133,7 @@ const normalizeStateLevel = (value: unknown): RuntimeStateLevel => {
 };
 
 const normalizeStateSource = (value: unknown): RuntimeStateSource => {
-  if (value === 'local' || value === 'server' || value === 'offline_36h' || value === 'default') {
+  if (value === 'server' || value === 'offline_36h' || value === 'default') {
     return value;
   }
   return 'default';
@@ -194,28 +189,6 @@ const isOnlineNetworkType = (networkType: string): boolean => {
     return false;
   }
   return true;
-};
-
-const classifyByUserAgent = (
-  userAgent: string
-): { segmentType: SegmentType; matchedFeatures: string[] } => {
-  const normalized = userAgent.trim().toLowerCase();
-  if (normalized === '') {
-    return { segmentType: 0, matchedFeatures: [] };
-  }
-
-  const matchedFeatures: string[] = [];
-  RUNTIME_SIGNATURE_TOKENS.forEach((signature) => {
-    if (normalized.includes(signature.token)) {
-      matchedFeatures.push(signature.key);
-    }
-  });
-
-  const isLimited = RUNTIME_SIGNATURE_TOKENS.every((item) => matchedFeatures.includes(item.key));
-  return {
-    segmentType: isLimited ? 1 : 0,
-    matchedFeatures,
-  };
 };
 
 const getRuntimeSessionId = (): string => {
@@ -543,24 +516,6 @@ export const probeRuntimeSegment = async (
   const networkType = await getNetworkType();
   const isOnline = isOnlineNetworkType(networkType);
   const rendererResult = await fetchRendererUserAgent();
-  const localDecision = classifyByUserAgent(rendererResult.userAgent);
-
-  if (rendererResult.status === 1 && !forceServerProbe) {
-    const state = createRuntimeSegmentState({
-      segmentType: localDecision.segmentType,
-      stateSource: 'local',
-      issuedAtMs: occurredAtMs,
-      matchedFeatures: localDecision.matchedFeatures,
-      uaFetchStatus: rendererResult.status,
-      userAgent: rendererResult.userAgent,
-    });
-    storeRuntimeSegmentState(state);
-    return {
-      ...state,
-      isOnline,
-      probeSource: 'local',
-    };
-  }
 
   if (!isOnline) {
     const isInOfflinePreviewWindow = isWithinOfflinePreviewWindow();
@@ -587,7 +542,7 @@ export const probeRuntimeSegment = async (
       segmentType: normalizeSegmentType(remoteDecision.segment_type),
       stateSource: 'server',
       issuedAtMs: occurredAtMs,
-      matchedFeatures: localDecision.matchedFeatures,
+      matchedFeatures: [],
       uaFetchStatus: rendererResult.status,
       userAgent: rendererResult.userAgent,
     });
@@ -604,7 +559,7 @@ export const probeRuntimeSegment = async (
       segmentType: 0,
       stateSource: 'default',
       issuedAtMs: occurredAtMs,
-      matchedFeatures: localDecision.matchedFeatures,
+      matchedFeatures: [],
       uaFetchStatus: rendererResult.status,
       userAgent: rendererResult.userAgent,
     });

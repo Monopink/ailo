@@ -167,7 +167,10 @@ VALUES
 ('runtime_observation_rate_limit_window_seconds', '60', '60', 2, 'Runtime observation window in seconds', 'runtime', NULL),
 ('runtime_preflight_probe_rate_limit_requests', '20', '20', 2, 'Runtime preflight probe requests per window', 'runtime', NULL),
 ('runtime_preflight_probe_rate_limit_window_seconds', '60', '60', 2, 'Runtime preflight probe window in seconds', 'runtime', NULL),
-('mp_weixin_review_mode', 'false', 'false', 3, 'Enable review routing override for unauthenticated mp_weixin preflight probes', 'review', NULL),
+('mp_weixin_review_deadline_at', '', '', 6, 'UTC deadline for mp_weixin review cycle; null or expired means non-review period', 'review', NULL),
+('mp_weixin_review_build_ids', '[]', '[]', 1, 'Build IDs used for mp_weixin reviewer detection', 'review', NULL),
+('mp_weixin_review_build_time_from', '', '', 6, 'Lower UTC bound for mp_weixin reviewer build time matching', 'review', NULL),
+('mp_weixin_review_build_time_to', '', '', 6, 'Upper UTC bound for mp_weixin reviewer build time matching', 'review', NULL),
 ('public_invite_intake_rate_limit_requests', '20', '20', 2, 'Public invitation intake requests per window', 'invite', NULL),
 ('public_invite_intake_rate_limit_window_seconds', '60', '60', 2, 'Public invitation intake window in seconds', 'invite', NULL),
 ('sms_verify_rate_limit_requests', '10', '10', 2, 'SMS verification attempts per window', 'sms', NULL),
@@ -237,6 +240,16 @@ WHERE config_key IN (
     'default_nickname_suffix_length'
 )
    OR group_name = 'contacts';
+
+-- Align review-cycle keys to system scope.
+UPDATE system_configs
+SET config_scope = 'system'
+WHERE config_key IN (
+    'mp_weixin_review_deadline_at',
+    'mp_weixin_review_build_ids',
+    'mp_weixin_review_build_time_from',
+    'mp_weixin_review_build_time_to'
+);
 
 -- Drop deprecated operation invite-share keys.
 DELETE FROM system_configs

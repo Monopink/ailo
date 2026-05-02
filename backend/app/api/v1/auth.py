@@ -26,7 +26,7 @@ from app.crud.user import login_record as login_record_crud
 from app.crud.user import user as user_crud
 from app.crud.user import user_auth as user_auth_crud
 from app.crud.user import user_token as token_crud
-from app.enums import AuthType, DetectionSource, DeviceType, LoginResult, LoginType, ReviewScope
+from app.enums import AuthType, DetectionSource, DeviceType, LoginResult, LoginType
 from app.exceptions.error_codes import build_protective_denial_detail
 from app.models.base import generate_qiao_id
 from app.models.profile import Profile
@@ -56,7 +56,10 @@ from app.schemas.verify import (
 from app.services.entitlement.service import ensure_system_initial_ai_contact_limit
 from app.services.profile.avatar import get_avatar_url
 from app.services.profile.integrity import ensure_user_profile
-from app.services.review_scope_classifier import classify_runtime_review_scope
+from app.services.review_scope_build_cycle import (
+    classify_mp_weixin_review_scope_by_build_cycle,
+    load_mp_weixin_review_cycle_config,
+)
 from app.services.security import SecurityRequestContext, enforce_attack_scan, is_ip_blocked
 from app.services.security.auth_tracker import check_lockout, record_auth_failure, reset_failures
 from app.services.security.rate_limiter import check_password_login_rate_limit, check_rate_limit
@@ -688,7 +691,6 @@ async def password_login(
         )
 
     await reset_failures(auth_identifier, "user_auth")
-    _apply_login_review_scope_upgrade(user=user, user_agent=user_agent)
 
     token_pair = await _issue_jwt_token_for_user(
         db,
@@ -782,32 +784,20 @@ def _build_user_payload(
     }
 
 
-def _resolve_new_mp_user_review_scope(user_agent: str | None) -> int:
-    """Resolve review scope for newly registered mini-program users."""
-    decision = classify_runtime_review_scope(user_agent)
-    if decision.is_limited_scope:
-        return int(ReviewScope.MP_WEIXIN_REVIEW)
-    return int(ReviewScope.NON_REVIEW)
-
-
-def _apply_login_review_scope_upgrade(
+async def _resolve_new_mp_user_review_scope(
+    db: AsyncSession,
     *,
-    user: User,
-    user_agent: str | None,
-) -> None:
-    """Apply one-way review-scope upgrade for login flows."""
-    if int(user.review_scope) == int(ReviewScope.MP_WEIXIN_REVIEW):
-        return
-    decision = classify_runtime_review_scope(user_agent)
-    if not decision.is_limited_scope:
-        return
-    user.review_scope = int(ReviewScope.MP_WEIXIN_REVIEW)
-    logger.info(
-        "user_review_scope_upgraded_by_runtime_ua",
-        user_id=int(user.id),
-        qiao_id=user.qiao_id,
-        matched_features=list(decision.matched_features),
+    build_id: str | None,
+    build_time: str | None,
+) -> int:
+    """Resolve review scope for newly registered mini-program users."""
+    config = await load_mp_weixin_review_cycle_config(db)
+    decision = classify_mp_weixin_review_scope_by_build_cycle(
+        config=config,
+        build_id=build_id,
+        build_time=build_time,
     )
+    return int(decision.review_scope)
 
 
 class SendSMSRequest(BaseModel):
@@ -974,7 +964,6 @@ async def wechat_login(
             logger.warning("wechat_login_user_inactive", qiao_id=user.qiao_id, ip=client_ip)
             raise HTTPException(status_code=400, detail="账号状态异常")
 
-        _apply_login_review_scope_upgrade(user=user, user_agent=user_agent)
         token_pair = await _issue_jwt_token_for_user(
             db,
             user=user,
@@ -1181,7 +1170,11 @@ async def bind_wechat_phone(
             try:
                 user_id = generate_snowflake_id()
                 qiao_id = generate_qiao_id()
-                review_scope = _resolve_new_mp_user_review_scope(user_agent)
+                review_scope = await _resolve_new_mp_user_review_scope(
+                    db,
+                    build_id=body.build_id,
+                    build_time=body.build_time,
+                )
 
                 user = User(
                     id=user_id,
@@ -1300,7 +1293,6 @@ async def bind_wechat_phone(
             logger.warning("wechat_login_user_inactive", qiao_id=user.qiao_id, ip=client_ip)
             raise HTTPException(status_code=400, detail="账号状态异常")
 
-        _apply_login_review_scope_upgrade(user=user, user_agent=user_agent)
         token_pair = await _issue_jwt_token_for_user(
             db,
             user=user,
@@ -1704,7 +1696,11 @@ async def verify_phone(
             try:
                 user_id = generate_snowflake_id()
                 qiao_id = generate_qiao_id()
-                review_scope = _resolve_new_mp_user_review_scope(user_agent)
+                review_scope = await _resolve_new_mp_user_review_scope(
+                    db,
+                    build_id=body.build_id,
+                    build_time=body.build_time,
+                )
                 user = User(
                     id=user_id,
                     qiao_id=qiao_id,
@@ -1743,7 +1739,6 @@ async def verify_phone(
                 ip=client_ip,
             )
 
-        _apply_login_review_scope_upgrade(user=user, user_agent=user_agent)
         # Check user status
         if not await user_crud.is_active(user):
             await _record_login_attempt(

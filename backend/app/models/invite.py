@@ -212,6 +212,11 @@ class InviteIntakeLog(ImmutableAutoIncrementModel):
             "reviewer_flag_snapshot IN (0, 1)",
             name="ck_invite_intake_logs_reviewer_flag_snapshot",
         ),
+        CheckConstraint(
+            "client_device_id = '' OR client_device_id ~* "
+            "'^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'",
+            name="ck_invite_intake_logs_client_device_id_format",
+        ),
         Index("idx_invite_intake_logs_created_at", "created_at"),
         Index("idx_invite_intake_logs_source_created_at", "source", "created_at"),
         Index("idx_invite_intake_logs_recognized_code", "recognized_code"),

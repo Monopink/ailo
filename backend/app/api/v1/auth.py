@@ -1542,6 +1542,27 @@ async def verify_phone(
             )
             raise HTTPException(status_code=400, detail="手机号格式无效")
 
+        sms_verify_identifiers = (
+            f"phone:{normalized_phone}",
+            f"ip_phone:{client_ip}:{normalized_phone}",
+        )
+        for sms_verify_identifier in sms_verify_identifiers:
+            allowed, error_code, retry_after = await check_rate_limit(
+                sms_verify_identifier,
+                "sms_verify",
+                db,
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=_protective_denial_detail(
+                        reason="SMS_VERIFY_RATE_LIMIT",
+                        camouflage_message="验证码校验过于频繁，请稍后再试",
+                        limiter_error=error_code,
+                        retry_after=retry_after,
+                    ),
+                )
+
         # 2. Verify SMS code
         _consume_sms_code(normalized_phone, body.sms_code)
         logger.info("verify_phone_sms_verified", phone=normalized_phone, ip=client_ip)

@@ -21,6 +21,7 @@ from app.core.database import get_db
 from app.enums import ReviewScope
 from app.models.user import User
 from app.services.review_scope_classifier import classify_runtime_review_scope
+from app.services.security.rate_limiter import check_rate_limit
 from app.utils.client_ip import ClientIPResolutionError, get_client_ip
 from app.utils.logging import get_logger
 from app.utils.snowflake import generate_snowflake_id
@@ -54,6 +55,13 @@ RATE_LIMIT_WINDOW_MAX = 10
 RATE_LIMIT_DAY_SECONDS = 86400.0
 RATE_LIMIT_DAY_MAX = 500
 _CONTROL_CHARS_PATTERN = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_UUID_PATTERN = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
+_RUNTIME_SESSION_ID_PATTERN = re.compile(r"^[A-Za-z0-9:_\-]{1,64}$")
+_RUNTIME_PAGE_PATH_PATTERN = re.compile(r"^/[A-Za-z0-9/_\-.]{0,254}$")
+_RUNTIME_ENTRY_SOURCE_PATTERN = re.compile(r"^[A-Za-z0-9:_\-]{1,64}$")
 
 
 class _InMemoryWindowLimiter:
@@ -234,6 +242,22 @@ def _normalize_feature_hits(raw_features: list[str]) -> list[str]:
     return normalized
 
 
+def _is_uuid(value: str) -> bool:
+    return _UUID_PATTERN.fullmatch(value) is not None
+
+
+def _is_valid_runtime_session_id(value: str) -> bool:
+    return _RUNTIME_SESSION_ID_PATTERN.fullmatch(value) is not None
+
+
+def _is_valid_runtime_page_path(value: str) -> bool:
+    return _RUNTIME_PAGE_PATH_PATTERN.fullmatch(value) is not None
+
+
+def _is_valid_runtime_entry_source(value: str) -> bool:
+    return _RUNTIME_ENTRY_SOURCE_PATTERN.fullmatch(value) is not None
+
+
 def _safe_client_ip(request: Request) -> str:
     try:
         return get_client_ip(request)
@@ -263,6 +287,21 @@ def _is_runtime_rate_limited(*, client_ip: str, device_id: str, session_id: str)
     return any(runtime_limiter.is_limited(limit_key) for limit_key in limit_keys)
 
 
+async def _is_security_rate_limited(
+    *,
+    db: AsyncSession,
+    group: str,
+    identifiers: tuple[str, ...],
+) -> bool:
+    for identifier in identifiers:
+        if identifier == "":
+            continue
+        allowed, _error_code, _retry_after = await check_rate_limit(identifier, group, db)
+        if not allowed:
+            return True
+    return False
+
+
 @router.get("/health", response_model=ClientHealthResponse)
 async def client_health() -> ClientHealthResponse:
     """Lightweight health probe used by mini-program startup flow."""
@@ -274,13 +313,30 @@ async def client_health() -> ClientHealthResponse:
 
 @router.post("/preflight-probe", response_model=PreflightProbeResponse)
 async def preflight_probe(
+    request: Request,
     payload: PreflightProbeRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
 ) -> PreflightProbeResponse:
     """Classify runtime segment when client-side UA classification is unavailable."""
-    if payload.client_type.strip() != CLIENT_TYPE_MP_WEIXIN:
+    client_type = payload.client_type.strip()
+    device_id = _normalize_text(payload.device_id.strip(), max_length=64).lower()
+    if client_type != CLIENT_TYPE_MP_WEIXIN or not _is_uuid(device_id):
         raise HTTPException(status_code=400, detail="请求参数错误")
+
+    client_ip = _safe_client_ip(request)
+    if await _is_security_rate_limited(
+        db=db,
+        group="runtime_preflight_probe",
+        identifiers=(
+            f"ip:{client_ip}" if client_ip != "" else "",
+            f"device:{device_id}",
+        ),
+    ):
+        return PreflightProbeResponse(
+            segment_type=0,
+            server_time_ms=int(datetime.now(UTC).timestamp() * 1000),
+        )
 
     decision = classify_runtime_review_scope(payload.user_agent)
     if current_user is not None and int(current_user.review_scope) == int(
@@ -305,7 +361,7 @@ async def preflight_probe(
     response_model=RuntimeObservationResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def report_runtime_observation(
+async def report_runtime_observation(  # noqa: PLR0911
     request: Request,
     payload: RuntimeObservationPayload,
     db: AsyncSession = Depends(get_db),
@@ -314,23 +370,36 @@ async def report_runtime_observation(
     """Persist runtime environment and behavior observations from mini-program clients."""
     client_type = payload.client_type.strip()
     event_name = payload.event_name.strip()
-    device_id = payload.device_id.strip()
+    device_id = _normalize_text(payload.device_id.strip(), max_length=64).lower()
+    session_id = _normalize_text(payload.session_id.strip(), max_length=64)
+    page_path = _normalize_text(payload.page_path.strip(), max_length=255)
+    entry_source = _normalize_text(payload.entry_source.strip(), max_length=64)
+    network_type = _normalize_text(payload.network_type.strip(), max_length=32)
     if (
         client_type != CLIENT_TYPE_MP_WEIXIN
         or event_name not in RUNTIME_EVENT_NAME_WHITELIST
-        or device_id == ""
+        or not _is_uuid(device_id)
+        or not _is_valid_runtime_session_id(session_id)
+        or not _is_valid_runtime_page_path(page_path)
+        or not _is_valid_runtime_entry_source(entry_source)
     ):
         return RuntimeObservationResponse(accepted=False, event_id=0)
 
-    session_id = payload.session_id.strip()
-    page_path = payload.page_path.strip()
-    entry_source = payload.entry_source.strip()
-    network_type = payload.network_type.strip()
     client_ip = _safe_client_ip(request)
     if _is_runtime_rate_limited(
         client_ip=client_ip,
         device_id=device_id,
         session_id=session_id,
+    ):
+        return RuntimeObservationResponse(accepted=False, event_id=0)
+    if await _is_security_rate_limited(
+        db=db,
+        group="runtime_observation",
+        identifiers=_build_runtime_limit_keys(
+            client_ip=client_ip,
+            device_id=device_id,
+            session_id=session_id,
+        ),
     ):
         return RuntimeObservationResponse(accepted=False, event_id=0)
 
@@ -458,6 +527,7 @@ async def report_runtime_observation(
                 INSERT INTO client_runtime_observations (
                     id,
                     client_type,
+                    client_ip,
                     device_id,
                     session_id,
                     user_id,
@@ -481,6 +551,7 @@ async def report_runtime_observation(
                 ) VALUES (
                     :id,
                     :client_type,
+                    :client_ip,
                     :device_id,
                     :session_id,
                     :user_id,
@@ -507,6 +578,7 @@ async def report_runtime_observation(
             {
                 "id": event_id,
                 "client_type": client_type,
+                "client_ip": _normalize_text(client_ip, max_length=45),
                 "device_id": device_id,
                 "session_id": session_id,
                 "user_id": user_id,
@@ -516,13 +588,13 @@ async def report_runtime_observation(
                 "app_version": _normalize_text(payload.app_version.strip(), max_length=32),
                 "build_id": _normalize_text(payload.build_id.strip(), max_length=64),
                 "build_time": build_time,
-                "network_type": _normalize_text(network_type, max_length=32),
+                "network_type": network_type,
                 "scope_snapshot": scope_snapshot,
                 "feature_hits": json.dumps(feature_hits, ensure_ascii=False),
                 "ua_fetch_status": payload.ua_fetch_status,
                 "event_name": event_name,
-                "page_path": _normalize_text(page_path, max_length=255),
-                "entry_source": _normalize_text(entry_source, max_length=64),
+                "page_path": page_path,
+                "entry_source": entry_source,
                 "event_payload": json.dumps(sanitized_payload, ensure_ascii=False),
                 "event_payload_digest": payload_digest,
                 "request_id": _normalize_text(payload.request_id.strip(), max_length=128),

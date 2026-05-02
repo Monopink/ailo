@@ -44,6 +44,10 @@ FROM (
         ('auth_password_failure_window_seconds', '1800'),
         ('auth_password_lockout_duration_seconds', '900'),
         ('sms_rate_limit_requests', '1'),
+        ('runtime_observation_rate_limit_requests', '30'),
+        ('runtime_preflight_probe_rate_limit_requests', '10'),
+        ('public_invite_intake_rate_limit_requests', '10'),
+        ('sms_verify_rate_limit_requests', '5'),
         ('admin_captcha_mode', 'strict')
 ) AS v(config_key, config_value_text)
 WHERE sc.config_key = v.config_key;

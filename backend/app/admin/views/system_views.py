@@ -388,6 +388,7 @@ class ClientRuntimeObservationView(ModelView):
     fields_default_sort = [("occurred_at", True)]
     searchable_fields = [
         "client_type",
+        "client_ip",
         "device_id",
         "session_id",
         "event_name",
@@ -397,6 +398,7 @@ class ClientRuntimeObservationView(ModelView):
     sortable_fields = [
         "id",
         "client_type",
+        "client_ip",
         "device_id",
         "session_id",
         "user_id",
@@ -413,6 +415,7 @@ class ClientRuntimeObservationView(ModelView):
     fields = [
         StringField("id", label="ID", help_text="Runtime observation ID"),
         StringField("client_type", label="Client Type", help_text="Client platform type"),
+        StringField("client_ip", label="Client IP", help_text="Resolved client IP"),
         StringField("device_id", label="Device ID", help_text="Client device identifier"),
         StringField(
             "session_id", label="Session ID", help_text="Client runtime session identifier"

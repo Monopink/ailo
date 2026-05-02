@@ -37,6 +37,10 @@ RATE_LIMIT_REQUEST_KEYS: dict[str, str] = {
     "media_upload": "media_upload_rate_limit_requests",
     "invite_code_resolve": "invite_code_resolve_rate_limit_requests",
     "invite_code_bind": "invite_code_bind_rate_limit_requests",
+    "runtime_observation": "runtime_observation_rate_limit_requests",
+    "runtime_preflight_probe": "runtime_preflight_probe_rate_limit_requests",
+    "public_invite_intake": "public_invite_intake_rate_limit_requests",
+    "sms_verify": "sms_verify_rate_limit_requests",
 }
 
 RATE_LIMIT_WINDOW_KEYS: dict[str, tuple[str, int]] = {
@@ -55,6 +59,10 @@ RATE_LIMIT_WINDOW_KEYS: dict[str, tuple[str, int]] = {
     "media_upload": ("media_upload_rate_limit_window_seconds", 1),
     "invite_code_resolve": ("invite_code_resolve_rate_limit_window_seconds", 1),
     "invite_code_bind": ("invite_code_bind_rate_limit_window_seconds", 1),
+    "runtime_observation": ("runtime_observation_rate_limit_window_seconds", 1),
+    "runtime_preflight_probe": ("runtime_preflight_probe_rate_limit_window_seconds", 1),
+    "public_invite_intake": ("public_invite_intake_rate_limit_window_seconds", 1),
+    "sms_verify": ("sms_verify_rate_limit_window_seconds", 1),
 }
 
 RATE_LIMIT_WHITELIST_KEYS: dict[str, str | None] = {
@@ -73,6 +81,10 @@ RATE_LIMIT_WHITELIST_KEYS: dict[str, str | None] = {
     "media_upload": None,
     "invite_code_resolve": None,
     "invite_code_bind": None,
+    "runtime_observation": None,
+    "runtime_preflight_probe": None,
+    "public_invite_intake": None,
+    "sms_verify": None,
 }
 
 

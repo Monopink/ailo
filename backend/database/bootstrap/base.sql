@@ -95,7 +95,7 @@ VALUES
 -- Username configurations
 ('default_nickname_prefix', '无名敲客_', '无名敲客_', 1, 'Default prefix for system-generated profile nickname', 'profile', NULL),
 ('default_nickname_suffix_length', '6', '6', 2, 'Random uppercase suffix length for system-generated profile nickname (>=1)', 'profile', NULL),
-('username_reserved_words', '["admin","root","system","support","operator","moderator","service","official","help","security"]', 'admin', 1, 'Reserved usernames (lowercase), JSON array', 'username', NULL),
+('username_reserved_words', '["admin","root","system","support","operator","moderator","service","official","help","security","qiaoqiaoai"]', 'admin', 1, 'Reserved usernames (lowercase), JSON array', 'username', NULL),
 
 -- LeanCloud IM configurations
 ('leancloud_im_server_url', 'https://zcuk19lc.lc-cn-n1-shared.com', '', 1, 'LeanCloud IM server URL', 'im_leancloud', NULL),
@@ -161,6 +161,16 @@ VALUES
 ('sms_rate_limit_requests', '10', '1', 2, 'SMS requests per window', 'sms', NULL),
 ('sms_rate_limit_window_seconds', '60', '60', 2, 'SMS window in seconds', 'sms', NULL),
 ('sms_whitelist', '', '', 1, 'SMS whitelist phones (comma separated)', 'sms', NULL),
+
+-- Runtime and invitation intake rate limit configuration
+('runtime_observation_rate_limit_requests', '60', '60', 2, 'Runtime observation requests per window', 'runtime', NULL),
+('runtime_observation_rate_limit_window_seconds', '60', '60', 2, 'Runtime observation window in seconds', 'runtime', NULL),
+('runtime_preflight_probe_rate_limit_requests', '20', '20', 2, 'Runtime preflight probe requests per window', 'runtime', NULL),
+('runtime_preflight_probe_rate_limit_window_seconds', '60', '60', 2, 'Runtime preflight probe window in seconds', 'runtime', NULL),
+('public_invite_intake_rate_limit_requests', '20', '20', 2, 'Public invitation intake requests per window', 'invite', NULL),
+('public_invite_intake_rate_limit_window_seconds', '60', '60', 2, 'Public invitation intake window in seconds', 'invite', NULL),
+('sms_verify_rate_limit_requests', '10', '10', 2, 'SMS verification attempts per window', 'sms', NULL),
+('sms_verify_rate_limit_window_seconds', '60', '60', 2, 'SMS verification attempt window in seconds', 'sms', NULL),
 
 -- SMS provider configuration
 ('sms_provider', 'mock', 'mock', 1, 'SMS provider', 'sms', '["mock"]'::jsonb),

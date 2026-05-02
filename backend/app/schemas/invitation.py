@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -10,6 +11,10 @@ from app.enums.invite import InviteResolveCodeType
 from app.schemas.common import BaseSchema
 
 InvitationSource = Literal["login", "setup", "link", "invite_bind_page", "invite_share_page"]
+_UUID_PATTERN = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
 
 
 class InvitationCodeResponse(BaseSchema):
@@ -127,7 +132,7 @@ class InvitationIntakeRequest(BaseModel):
         max_length=32,
         description="Trigger tag (e.g. clipboard/link_param/manual_input)",
     )
-    raw_text: str | None = Field(default=None, description="Raw clipboard text")
+    raw_text: str | None = Field(default=None, max_length=2048, description="Raw clipboard text")
     invite_code: str | None = Field(
         default=None,
         description="Invite code passed by link or manual input",
@@ -157,6 +162,11 @@ class InvitationIntakeRequest(BaseModel):
     @model_validator(mode="after")
     def validate_payload_has_intake_input(self) -> InvitationIntakeRequest:
         """Ensure at least one intake input exists."""
+        if self.device_id is not None:
+            normalized_device_id = self.device_id.strip().lower()
+            if normalized_device_id != "" and _UUID_PATTERN.fullmatch(normalized_device_id) is None:
+                raise ValueError("device_id format is invalid")
+            self.device_id = normalized_device_id
         if (self.raw_text is None or self.raw_text.strip() == "") and (
             self.invite_code is None or self.invite_code.strip() == ""
         ):

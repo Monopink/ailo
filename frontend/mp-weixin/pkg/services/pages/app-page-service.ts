@@ -1,4 +1,5 @@
 import { fetchAppPage } from '../../utils/app-page-service';
+import { getPreviewFallbackPageContent } from '../../utils/app-page-preview-fallback';
 import { isNonEmptyString } from '../../../utils/guards';
 import { BasePageService } from './base-page-service';
 import { createBootingScreenModel, createReadyScreenModel, type ScreenModel } from './page-state';
@@ -12,6 +13,10 @@ export interface AppPageLoadResult {
   screenModel: ScreenModel;
   title: string;
   contentRendered: string;
+}
+
+export interface AppPageLoadOptions {
+  allowPreviewFallback: boolean;
 }
 
 export class AppPageService extends BasePageService {
@@ -29,7 +34,7 @@ export class AppPageService extends BasePageService {
     };
   }
 
-  async load(pageKey: string): Promise<AppPageLoadResult | null> {
+  async load(pageKey: string, options: AppPageLoadOptions): Promise<AppPageLoadResult | null> {
     if (!isNonEmptyString(pageKey)) {
       return {
         screenModel: createReadyScreenModel({ contentVariant: 'blank' }),
@@ -56,6 +61,19 @@ export class AppPageService extends BasePageService {
     } catch {
       if (!this.isRequestActive(seq)) {
         return null;
+      }
+      if (options.allowPreviewFallback) {
+        const fallbackContent = getPreviewFallbackPageContent(pageKey);
+        if (fallbackContent !== null) {
+          return {
+            screenModel: createReadyScreenModel({
+              contentVariant: 'data',
+              refreshState: 'idle',
+            }),
+            title: fallbackContent.title,
+            contentRendered: fallbackContent.contentRendered,
+          };
+        }
       }
       return {
         screenModel: createReadyScreenModel({ contentVariant: 'blank' }),

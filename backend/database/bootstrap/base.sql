@@ -167,6 +167,7 @@ VALUES
 ('runtime_observation_rate_limit_window_seconds', '60', '60', 2, 'Runtime observation window in seconds', 'runtime', NULL),
 ('runtime_preflight_probe_rate_limit_requests', '20', '20', 2, 'Runtime preflight probe requests per window', 'runtime', NULL),
 ('runtime_preflight_probe_rate_limit_window_seconds', '60', '60', 2, 'Runtime preflight probe window in seconds', 'runtime', NULL),
+('mp_weixin_review_mode', 'false', 'false', 3, 'Enable review routing override for unauthenticated mp_weixin preflight probes', 'review', NULL),
 ('public_invite_intake_rate_limit_requests', '20', '20', 2, 'Public invitation intake requests per window', 'invite', NULL),
 ('public_invite_intake_rate_limit_window_seconds', '60', '60', 2, 'Public invitation intake window in seconds', 'invite', NULL),
 ('sms_verify_rate_limit_requests', '10', '10', 2, 'SMS verification attempts per window', 'sms', NULL),

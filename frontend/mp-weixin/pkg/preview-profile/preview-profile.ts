@@ -73,7 +73,7 @@ Page<PreviewProfilePageData, PreviewProfilePageCustom>({
   },
 
   navigateToAbout() {
-    void wx.navigateTo({ url: '/pkg/about/about' });
+    void wx.navigateTo({ url: '/pkg/about/about?previewMode=1' });
   },
 
   handleTabTap(event: WechatMiniprogram.BaseEvent) {

@@ -13,6 +13,11 @@
 
 > **登录统一约束**：所有登录签发接口都必须上送 `device_id`（UUID）并稳定复用；`device_id` 生成与持久化规范见 `../spec/client/base/device-id.md`。
 
+## 网关访问控制
+
+- `POST /api/v1/auth/*` 受网关安全策略保护。
+- 当请求命中网关 UA 拦截规则时，接口直接返回 `403 Forbidden`。
+
 ---
 
 ## 发送短信验证码

@@ -1,5 +1,7 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
+import authService from '../../utils/auth-service';
 import { getLogger } from '../../utils/logger';
+import { shouldAllowPreviewAccess } from '../../utils/runtime-segment';
 import { type ScreenModel } from '../services/pages/page-state';
 import { createAppPageService } from '../services/pages/app-page-service';
 
@@ -10,6 +12,7 @@ interface AppPageData extends Record<string, unknown> {
   pageKey: string;
   title: string;
   contentRendered: string;
+  allowPreviewFallback: boolean;
 }
 
 interface AppPageCustom {
@@ -36,6 +39,7 @@ Page<AppPageData, AppPageCustom>({
     pageKey: '',
     title: '',
     contentRendered: '',
+    allowPreviewFallback: false,
   },
 
   appPageService: null as unknown as ReturnType<typeof createAppPageService>,
@@ -46,9 +50,14 @@ Page<AppPageData, AppPageCustom>({
 
   async onLoad(options: Record<string, string | undefined>) {
     this.appPageService = createAppPageService();
+    const allowPreviewFallback =
+      options.previewFallback === '1' &&
+      shouldAllowPreviewAccess() &&
+      !authService.isAuthenticated();
     const bootstrap = this.appPageService.bootstrap(options.pageKey);
     this.setData({
       pageKey: bootstrap.pageKey,
+      allowPreviewFallback,
       ...buildPageLayoutScreenModelPayload(bootstrap.screenModel),
     });
     if (bootstrap.pageKey.length === 0) {
@@ -77,7 +86,9 @@ Page<AppPageData, AppPageCustom>({
       refreshState: 'idle',
     });
 
-    const result = await this.appPageService.load(this.data.pageKey);
+    const result = await this.appPageService.load(this.data.pageKey, {
+      allowPreviewFallback: this.data.allowPreviewFallback,
+    });
     if (result === null) {
       return;
     }

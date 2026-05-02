@@ -22,6 +22,7 @@ from app.enums import ReviewScope
 from app.models.user import User
 from app.services.review_scope_classifier import classify_runtime_review_scope
 from app.services.security.rate_limiter import check_rate_limit
+from app.services.system_config import get_config as get_system_config
 from app.utils.client_ip import ClientIPResolutionError, get_client_ip
 from app.utils.logging import get_logger
 from app.utils.snowflake import generate_snowflake_id
@@ -62,6 +63,7 @@ _UUID_PATTERN = re.compile(
 _RUNTIME_SESSION_ID_PATTERN = re.compile(r"^[A-Za-z0-9:_\-]{1,64}$")
 _RUNTIME_PAGE_PATH_PATTERN = re.compile(r"^/[A-Za-z0-9/_\-.]{0,254}$")
 _RUNTIME_ENTRY_SOURCE_PATTERN = re.compile(r"^[A-Za-z0-9:_\-]{1,64}$")
+MP_WEIXIN_REVIEW_MODE_CONFIG_KEY = "mp_weixin_review_mode"
 
 
 class _InMemoryWindowLimiter:
@@ -302,6 +304,26 @@ async def _is_security_rate_limited(
     return False
 
 
+async def _is_mp_weixin_review_mode_enabled(db: AsyncSession) -> bool:
+    raw_value = await get_system_config(db, MP_WEIXIN_REVIEW_MODE_CONFIG_KEY, required=False)
+    if raw_value is None:
+        return False
+    if isinstance(raw_value, bool):
+        return raw_value
+    if isinstance(raw_value, str):
+        lowered = raw_value.strip().lower()
+        if lowered in {"true", "1", "yes", "on"}:
+            return True
+        if lowered in {"false", "0", "no", "off", ""}:
+            return False
+    logger.warning(
+        "invalid_mp_weixin_review_mode_config_value",
+        config_key=MP_WEIXIN_REVIEW_MODE_CONFIG_KEY,
+        value=raw_value,
+    )
+    return False
+
+
 @router.get("/health", response_model=ClientHealthResponse)
 async def client_health() -> ClientHealthResponse:
     """Lightweight health probe used by mini-program startup flow."""
@@ -324,6 +346,27 @@ async def preflight_probe(
     if client_type != CLIENT_TYPE_MP_WEIXIN or not _is_uuid(device_id):
         raise HTTPException(status_code=400, detail="请求参数错误")
 
+    if current_user is not None and int(current_user.review_scope) == int(
+        ReviewScope.MP_WEIXIN_REVIEW
+    ):
+        return PreflightProbeResponse(
+            segment_type=1,
+            server_time_ms=int(datetime.now(UTC).timestamp() * 1000),
+        )
+
+    if current_user is None and await _is_mp_weixin_review_mode_enabled(db):
+        logger.info(
+            "preflight_probe_review_mode_override",
+            config_key=MP_WEIXIN_REVIEW_MODE_CONFIG_KEY,
+            segment_type=1,
+            client_type=client_type,
+            device_id=device_id,
+        )
+        return PreflightProbeResponse(
+            segment_type=1,
+            server_time_ms=int(datetime.now(UTC).timestamp() * 1000),
+        )
+
     client_ip = _safe_client_ip(request)
     if await _is_security_rate_limited(
         db=db,
@@ -339,13 +382,6 @@ async def preflight_probe(
         )
 
     decision = classify_runtime_review_scope(payload.user_agent)
-    if current_user is not None and int(current_user.review_scope) == int(
-        ReviewScope.MP_WEIXIN_REVIEW
-    ):
-        return PreflightProbeResponse(
-            segment_type=1,
-            server_time_ms=int(datetime.now(UTC).timestamp() * 1000),
-        )
     if current_user is not None and decision.is_limited_scope:
         current_user.review_scope = int(ReviewScope.MP_WEIXIN_REVIEW)
         db.add(current_user)

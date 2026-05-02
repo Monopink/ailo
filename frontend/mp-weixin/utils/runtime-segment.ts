@@ -5,12 +5,17 @@ import { ACCOUNT_SEGMENT } from './constants/user';
 import { STORAGE_KEYS } from './config';
 import { normalizeError } from './errors';
 import { getLogger } from './logger';
-import { ClientPreflightProbeResponseSchema, type ClientPreflightProbeResponse } from './schemas';
+import {
+  ClientHealthResponseSchema,
+  ClientPreflightProbeResponseSchema,
+  type ClientPreflightProbeResponse,
+} from './schemas';
 import { getDeviceId } from './storage';
 
 const logger = getLogger('RuntimeSegment');
 
 const OFFLINE_PREVIEW_WINDOW_MS = 36 * 60 * 60 * 1000;
+const HEALTH_PROBE_TIMEOUT_MS = 900;
 const PROBE_TIMEOUT_MS = 1200;
 const OBSERVATION_TIMEOUT_MS = 1000;
 const RUNTIME_SESSION_TICK_INTERVAL_MS = 30 * 1000;
@@ -49,6 +54,15 @@ export interface RuntimeSegmentState {
 export interface RuntimeProbeResult extends RuntimeSegmentState {
   isOnline: boolean;
   probeSource: RuntimeProbeSource;
+}
+
+export interface ClientHealthProbeResult {
+  isReachable: boolean;
+  serverTimeMs: number | null;
+}
+
+interface RuntimeProbeOptions {
+  forceServerProbe?: boolean;
 }
 
 type RendererUserAgentResult = {
@@ -108,7 +122,7 @@ const resolveOfflinePreviewExpiresAtMs = (): number | null => {
   return builtAtMs + OFFLINE_PREVIEW_WINDOW_MS;
 };
 
-const isWithinOfflinePreviewWindow = (): boolean => {
+export const isWithinOfflinePreviewWindow = (): boolean => {
   const expiresAtMs = resolveOfflinePreviewExpiresAtMs();
   if (expiresAtMs === null) {
     return false;
@@ -498,14 +512,40 @@ const preflightProbeSegment = async (
   }
 };
 
-export const probeRuntimeSegment = async (): Promise<RuntimeProbeResult> => {
+export const probeClientHealth = async (): Promise<ClientHealthProbeResult> => {
+  try {
+    const response = await requestValidated(ClientHealthResponseSchema, {
+      url: '/client/health',
+      method: 'GET',
+      auth: false,
+      retryAuth: false,
+      timeoutMs: HEALTH_PROBE_TIMEOUT_MS,
+    });
+    return {
+      isReachable: true,
+      serverTimeMs: response.server_time_ms,
+    };
+  } catch (error: unknown) {
+    const err = normalizeError(error);
+    logger.debug('client_health_probe_failed', { error: err.message });
+    return {
+      isReachable: false,
+      serverTimeMs: null,
+    };
+  }
+};
+
+export const probeRuntimeSegment = async (
+  options: RuntimeProbeOptions = {}
+): Promise<RuntimeProbeResult> => {
+  const forceServerProbe = options.forceServerProbe === true;
   const occurredAtMs = Date.now();
   const networkType = await getNetworkType();
   const isOnline = isOnlineNetworkType(networkType);
   const rendererResult = await fetchRendererUserAgent();
   const localDecision = classifyByUserAgent(rendererResult.userAgent);
 
-  if (rendererResult.status === 1) {
+  if (rendererResult.status === 1 && !forceServerProbe) {
     const state = createRuntimeSegmentState({
       segmentType: localDecision.segmentType,
       stateSource: 'local',
@@ -559,6 +599,23 @@ export const probeRuntimeSegment = async (): Promise<RuntimeProbeResult> => {
     };
   }
 
+  if (forceServerProbe) {
+    const fallbackState = createRuntimeSegmentState({
+      segmentType: 0,
+      stateSource: 'default',
+      issuedAtMs: occurredAtMs,
+      matchedFeatures: localDecision.matchedFeatures,
+      uaFetchStatus: rendererResult.status,
+      userAgent: rendererResult.userAgent,
+    });
+    storeRuntimeSegmentState(fallbackState);
+    return {
+      ...fallbackState,
+      isOnline,
+      probeSource: 'server_unavailable',
+    };
+  }
+
   const currentState = getRuntimeSegmentState();
   if (currentState !== null) {
     return {
@@ -606,6 +663,20 @@ export const shouldAllowPreviewAccess = (): boolean => {
   }
   const state = getRuntimeSegmentState();
   return isConfirmedLimitedState(state);
+};
+
+export const applyOfflinePreviewFallbackState = (): void => {
+  const issuedAtMs = Date.now();
+  const state = createRuntimeSegmentState({
+    segmentType: 1,
+    stateSource: 'offline_36h',
+    issuedAtMs,
+    expiresAtMs: resolveOfflinePreviewExpiresAtMs(),
+    matchedFeatures: [],
+    uaFetchStatus: 0,
+    userAgent: '',
+  });
+  storeRuntimeSegmentState(state);
 };
 
 export const reportPreflightProbeResult = async (options: {

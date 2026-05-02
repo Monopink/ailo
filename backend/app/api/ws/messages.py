@@ -19,6 +19,7 @@ from app.core.database import get_sessionmaker
 from app.crud.contact import contact as contact_crud
 from app.crud.user import user as user_crud
 from app.crud.user import user_token as token_crud
+from app.enums import DetectionSource
 from app.exceptions.error_codes import build_error_code
 from app.models.message import MessageDevice, MessageEndpoint, MessageHistory
 from app.models.user import User
@@ -32,6 +33,7 @@ from app.services.message.providers.websocket import (
     parse_typing_payload,
 )
 from app.services.message.websocket.manager import ws_manager
+from app.services.security import SecurityRequestContext, enforce_attack_scan, is_ip_blocked
 from app.utils.logging import get_logger
 
 WS_PRESENCE_LEASE_TTL_SECONDS = 90
@@ -55,6 +57,16 @@ async def _send_ack(ws: WebSocket, *, ws_frame_id: str, payload: dict[str, objec
 
 def _new_request_id() -> str:
     return f"req_{uuid4().hex[:12]}"
+
+
+def _extract_ws_client_ip(ws: WebSocket) -> str:
+    raw_client_ip = ws.headers.get("x-client-ip", "").strip()
+    if raw_client_ip:
+        return raw_client_ip[:45]
+    forwarded_for = ws.headers.get("x-forwarded-for", "").strip()
+    if not forwarded_for:
+        return ""
+    return forwarded_for.split(",")[0].strip()[:45]
 
 
 def _build_ws_error_payload(*, status_code: int, detail: str) -> dict[str, object]:
@@ -184,7 +196,7 @@ async def _upsert_presence_endpoint(
     )
 
 
-async def _handle_auth(
+async def _handle_auth(  # noqa: PLR0911
     ws: WebSocket,
     *,
     session_factory: async_sessionmaker[AsyncSession],
@@ -227,6 +239,45 @@ async def _handle_auth(
         return None
 
     async with session_factory() as db:
+        client_ip = _extract_ws_client_ip(ws)
+        if client_ip and await is_ip_blocked(db, client_ip):
+            await _close_ws_with_error(
+                ws,
+                ws_frame_id=ws_frame_id,
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="请求来源受限",
+                close_code=1008,
+            )
+            return None
+
+        match = await enforce_attack_scan(
+            db,
+            context=SecurityRequestContext(
+                detection_source=DetectionSource.API_AUTH,
+                request_method="WS_AUTH",
+                request_path="/ws/messages",
+                client_ip=client_ip,
+                request_id=_new_request_id(),
+                user_id=None,
+                user_qiao_id=None,
+            ),
+            fields={
+                "access_token": access_token,
+                "device_id": device_id,
+                "user_agent": ws.headers.get("user-agent", ""),
+            },
+            extra_evidence={"layer": "ws_messages"},
+        )
+        if match is not None:
+            await _close_ws_with_error(
+                ws,
+                ws_frame_id=ws_frame_id,
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="请求来源受限",
+                close_code=1008,
+            )
+            return None
+
         user = await _authenticate_access_token(db, access_token=access_token)
         if not user:
             await _close_ws_with_error(

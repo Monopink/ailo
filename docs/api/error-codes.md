@@ -109,6 +109,7 @@ WebSocket `error` 帧（`type=error`）使用同一字段：
 - 必须与同模块某个常见可纠正错误完全同态：同 HTTP 状态码、同 error_code、同 message
 - 禁止根据风控命中原因返回差异化文案、错误码或状态码
 - 风控真实原因仅允许记录在日志（risk_reason / risk_rule_id / request_id / internal_risk_code），禁止对外返回
+- 对外 `reason` 可返回稳定枚举（例如 `ATTACK_DETECTED`、`IP_BLOCKED`）用于客户端流程控制，但不得据此泄露规则细节
 
 ### 三、平台异常（系统错误）
 

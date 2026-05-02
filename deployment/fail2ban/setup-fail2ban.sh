@@ -24,13 +24,19 @@ fi
 if [[ "$TARGET_ENV" == "staging" ]]; then
     JAIL_SOURCE="$FAIL2BAN_DIR/jail.d/ailo-nginx-admin-auth-staging.local"
     JAIL_NAME="ailo-nginx-admin-auth-staging"
+    API_ATTACK_JAIL_SOURCE="$FAIL2BAN_DIR/jail.d/ailo-nginx-api-attack-staging.local"
+    API_ATTACK_JAIL_NAME="ailo-nginx-api-attack-staging"
     NGINX_LOG_PATH="/opt/ailo-staging/logs/nginx/admin_access.log"
     NGINX_LOGS_PATH="/opt/ailo-staging/logs/nginx/logs_access.log"
+    NGINX_ACCESS_LOG_PATH="/opt/ailo-staging/logs/nginx/access.log"
 else
     JAIL_SOURCE="$FAIL2BAN_DIR/jail.d/ailo-nginx-admin-auth-prod.local"
     JAIL_NAME="ailo-nginx-admin-auth-prod"
+    API_ATTACK_JAIL_SOURCE="$FAIL2BAN_DIR/jail.d/ailo-nginx-api-attack-prod.local"
+    API_ATTACK_JAIL_NAME="ailo-nginx-api-attack-prod"
     NGINX_LOG_PATH="/opt/ailo-prod/logs/nginx/admin_access.log"
     NGINX_LOGS_PATH="/opt/ailo-prod/logs/nginx/logs_access.log"
+    NGINX_ACCESS_LOG_PATH="/opt/ailo-prod/logs/nginx/access.log"
 fi
 
 if ! command -v fail2ban-client >/dev/null 2>&1; then
@@ -53,13 +59,18 @@ fi
 mkdir -p "$(dirname "$NGINX_LOG_PATH")"
 touch "$NGINX_LOG_PATH"
 touch "$NGINX_LOGS_PATH"
+touch "$NGINX_ACCESS_LOG_PATH"
 
 install -m 0644 "$FAIL2BAN_DIR/filter.d/ailo-nginx-admin-auth.conf" \
     /etc/fail2ban/filter.d/ailo-nginx-admin-auth.conf
+install -m 0644 "$FAIL2BAN_DIR/filter.d/ailo-nginx-api-attack.conf" \
+    /etc/fail2ban/filter.d/ailo-nginx-api-attack.conf
 install -m 0644 "$JAIL_SOURCE" /etc/fail2ban/jail.d/ailo-nginx-admin-auth.local
+install -m 0644 "$API_ATTACK_JAIL_SOURCE" /etc/fail2ban/jail.d/ailo-nginx-api-attack.local
 install -m 0644 "$FAIL2BAN_DIR/jail.d/ailo-recidive.local" /etc/fail2ban/jail.d/ailo-recidive.local
 
 sed -i "s|__IGNOREIP__|$IGNORE_IPS|g" /etc/fail2ban/jail.d/ailo-nginx-admin-auth.local
+sed -i "s|__IGNOREIP__|$IGNORE_IPS|g" /etc/fail2ban/jail.d/ailo-nginx-api-attack.local
 sed -i "s|__IGNOREIP__|$IGNORE_IPS|g" /etc/fail2ban/jail.d/ailo-recidive.local
 
 systemctl enable fail2ban >/dev/null
@@ -70,5 +81,6 @@ fail2ban-client reload >/dev/null
 
 echo "[INFO] Active jail status:"
 fail2ban-client status "$JAIL_NAME"
+fail2ban-client status "$API_ATTACK_JAIL_NAME"
 
 echo "[INFO] Setup completed for $TARGET_ENV."

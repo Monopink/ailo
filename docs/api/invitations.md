@@ -195,6 +195,7 @@
 
 - **路径**: `POST /api/v1/public/invitations/intake`
 - **认证**: 无（匿名可用）
+- **安全约束**: 先执行 IP 封禁检查与攻击签名检测，命中返回 `403`
 
 ### 请求体
 
@@ -235,6 +236,12 @@
 
 - `recognized_code` (string | null) - 识别出的有效邀请码；未命中时为 `null`
 - `valid` (boolean) - 是否识别到 active 邀请码
+
+### 安全拒绝响应 (403)
+
+- `reason`: `ATTACK_DETECTED` 或 `IP_BLOCKED`
+- `request_id`: 请求追踪 ID
+- 安全拒绝时不执行邀请码识别主流程，不写入 intake 业务结果。
 
 ### 业务规则
 

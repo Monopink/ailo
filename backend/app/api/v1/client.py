@@ -10,6 +10,7 @@ import unicodedata
 from collections import deque
 from datetime import UTC, datetime, timedelta
 from threading import Lock
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -18,9 +19,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_optional
 from app.core.database import get_db
-from app.enums import ReviewScope
+from app.enums import DetectionSource, ReviewScope
+from app.exceptions.error_codes import build_protective_denial_detail
 from app.models.user import User
 from app.services.review_scope_classifier import classify_runtime_review_scope
+from app.services.security import SecurityRequestContext, enforce_attack_scan, is_ip_blocked
 from app.services.security.rate_limiter import check_rate_limit
 from app.services.system_config import get_config as get_system_config
 from app.utils.client_ip import ClientIPResolutionError, get_client_ip
@@ -267,6 +270,73 @@ def _safe_client_ip(request: Request) -> str:
         return ""
 
 
+def _new_request_id(request: Request) -> str:
+    request_id = getattr(request.state, "request_id", None)
+    if isinstance(request_id, str) and request_id:
+        return request_id
+    header_value = request.headers.get("X-Request-ID") or request.headers.get("x-request-id")
+    if isinstance(header_value, str) and header_value.strip():
+        request_id = header_value.strip()
+    else:
+        request_id = f"req_{uuid4().hex[:12]}"
+    request.state.request_id = request_id
+    return request_id
+
+
+async def _guard_runtime_attack(
+    request: Request,
+    *,
+    db: AsyncSession,
+    user: User | None,
+    fields: dict[str, str],
+    detection_source: DetectionSource,
+    request_path: str,
+) -> str:
+    client_ip = _safe_client_ip(request)
+    request_id = _new_request_id(request)
+    if client_ip != "" and await is_ip_blocked(db, client_ip):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=build_protective_denial_detail(
+                reason="IP_BLOCKED",
+                camouflage_message="请求来源受限",
+                risk_rule_id="security_ip_block",
+                metadata={"request_id": request_id},
+            ),
+        )
+
+    match = await enforce_attack_scan(
+        db,
+        context=SecurityRequestContext(
+            detection_source=detection_source,
+            request_method=request.method,
+            request_path=request_path,
+            client_ip=client_ip,
+            request_id=request_id,
+            user_id=int(user.id) if user is not None else None,
+            user_qiao_id=str(user.qiao_id) if user is not None else None,
+        ),
+        fields=fields,
+        extra_evidence={"layer": "client_api"},
+    )
+    if match is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=build_protective_denial_detail(
+                reason="ATTACK_DETECTED",
+                camouflage_message="请求来源受限",
+                risk_rule_id=match.rule_code,
+                internal_risk_code=match.rule_code,
+                metadata={
+                    "request_id": request_id,
+                    "rule_code": match.rule_code,
+                    "field_name": match.field_name,
+                },
+            ),
+        )
+    return request_id
+
+
 def _build_runtime_limit_keys(
     *, client_ip: str, device_id: str, session_id: str
 ) -> tuple[str, ...]:
@@ -341,6 +411,22 @@ async def preflight_probe(
     current_user: User | None = Depends(get_current_user_optional),
 ) -> PreflightProbeResponse:
     """Classify runtime segment when client-side UA classification is unavailable."""
+    await _guard_runtime_attack(
+        request,
+        db=db,
+        user=current_user,
+        fields={
+            "client_type": payload.client_type,
+            "device_id": payload.device_id,
+            "user_agent": payload.user_agent,
+            "platform": payload.platform,
+            "os_version": payload.os_version,
+            "app_version": payload.app_version,
+            "build_id": payload.build_id,
+        },
+        detection_source=DetectionSource.API_RUNTIME,
+        request_path=request.url.path,
+    )
     client_type = payload.client_type.strip()
     device_id = _normalize_text(payload.device_id.strip(), max_length=64).lower()
     if client_type != CLIENT_TYPE_MP_WEIXIN or not _is_uuid(device_id):
@@ -404,6 +490,27 @@ async def report_runtime_observation(  # noqa: PLR0911
     current_user: User | None = Depends(get_current_user_optional),
 ) -> RuntimeObservationResponse:
     """Persist runtime environment and behavior observations from mini-program clients."""
+    await _guard_runtime_attack(
+        request,
+        db=db,
+        user=current_user,
+        fields={
+            "client_type": payload.client_type,
+            "device_id": payload.device_id,
+            "session_id": payload.session_id,
+            "user_agent": payload.user_agent,
+            "platform": payload.platform,
+            "os_version": payload.os_version,
+            "app_version": payload.app_version,
+            "build_id": payload.build_id,
+            "network_type": payload.network_type,
+            "event_name": payload.event_name,
+            "page_path": payload.page_path,
+            "entry_source": payload.entry_source,
+        },
+        detection_source=DetectionSource.API_RUNTIME,
+        request_path=request.url.path,
+    )
     client_type = payload.client_type.strip()
     event_name = payload.event_name.strip()
     device_id = _normalize_text(payload.device_id.strip(), max_length=64).lower()

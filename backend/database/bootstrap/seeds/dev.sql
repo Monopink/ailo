@@ -918,13 +918,13 @@ ON CONFLICT (file_id) DO NOTHING;
 -- Insert sample user violation logs
 INSERT INTO user_violation_logs (id, user_id, user_qiao_id, instance_id, instance_qiao_id, violation_type, severity_level, original_message, auto_action_taken, manual_review_status) VALUES
 (223788765171154976, 223788765171154945, 'qqid_test_user_001', 223788765171154944, 'qiao_DLdfyH5GoGBv8q6l', 1, 2, '请帮我生成一些不当内容', 1, 1),
-(223788765171154977, 223788765171154946, 'qqid_test_user_002', NULL, NULL, 3, 1, '重复发送相同消息多次', 2, 1)
+(223788765171154977, 223788765171154946, 'qqid_test_user_002', NULL, NULL, 99, 1, '重复发送相同消息多次', 2, 1)
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert sample user risk stats (Snowflake ID)
 INSERT INTO user_risk_stats (id, user_id, user_qiao_id, total_violations, violation_by_type, last_violation_at, current_risk_level, consecutive_violations, warning_count, restriction_count, suspension_count, last_action_at) VALUES
 (223788765171155005, 223788765171154945, 'qqid_test_user_001', 1, '{"prompt_injection": 1}', NOW() - INTERVAL '1 hour', 2, 1, 1, 0, 0, NOW() - INTERVAL '1 hour'),
-(223788765171155006, 223788765171154946, 'qqid_test_user_002', 1, '{"spam": 1}', NOW() - INTERVAL '30 minutes', 1, 1, 1, 0, 0, NOW() - INTERVAL '30 minutes')
+(223788765171155006, 223788765171154946, 'qqid_test_user_002', 1, '{"other": 1}', NOW() - INTERVAL '30 minutes', 1, 1, 1, 0, 0, NOW() - INTERVAL '30 minutes')
 ON CONFLICT (id) DO NOTHING;
 
 -- Insert sample user tokens

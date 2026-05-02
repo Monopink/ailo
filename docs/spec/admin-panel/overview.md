@@ -32,7 +32,14 @@
 
 详见 [system-settings.md](system-settings.md)。
 
-### 4) 自定义页面
+### 4) 安全管理
+
+- 用户违规日志
+- 用户风险统计
+- IP 风险统计
+- IP 封禁记录
+
+### 5) 自定义页面
 
 - Chat Console（消息系统联调主工具）
 - Entitlement Operations（通用权益发放/调整台，归属 `App Content` 菜单）
@@ -44,7 +51,7 @@
 其中 Chat Console 详见 [chat-console.md](chat-console.md)。
 AI Advanced Edit 详见 [ai-advanced-edit.md](ai-advanced-edit.md)。
 
-### 5) 统计报表
+### 6) 统计报表
 
 - 用户统计、消息统计、AI 统计
 

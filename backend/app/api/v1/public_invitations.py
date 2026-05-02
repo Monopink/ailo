@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.enums import DetectionSource
+from app.exceptions.error_codes import build_protective_denial_detail
 from app.schemas.invitation import (
     InvitationIntakeRequest,
     InvitationPublicIntakeResponse,
 )
 from app.services.invitation.intake_orchestrator import orchestrate_invitation_intake
+from app.services.security import SecurityRequestContext, enforce_attack_scan, is_ip_blocked
 from app.services.security.rate_limiter import check_rate_limit
 from app.utils.client_ip import ClientIPResolutionError, get_client_ip
 from app.utils.logging import get_logger
@@ -25,6 +30,70 @@ def _safe_client_ip(request: Request) -> str:
         return get_client_ip(request)
     except ClientIPResolutionError:
         return ""
+
+
+def _request_id(request: Request) -> str:
+    request_id = getattr(request.state, "request_id", None)
+    if isinstance(request_id, str) and request_id:
+        return request_id
+    header_value = request.headers.get("X-Request-ID") or request.headers.get("x-request-id")
+    if isinstance(header_value, str) and header_value.strip():
+        request_id = header_value.strip()
+    else:
+        request_id = f"req_{uuid4().hex[:12]}"
+    request.state.request_id = request_id
+    return request_id
+
+
+async def _guard_public_attack(
+    *,
+    request: Request,
+    payload: InvitationIntakeRequest,
+    db: AsyncSession,
+) -> None:
+    client_ip = _safe_client_ip(request)
+    if client_ip != "" and await is_ip_blocked(db, client_ip):
+        raise HTTPException(
+            status_code=403,
+            detail=build_protective_denial_detail(
+                reason="IP_BLOCKED",
+                camouflage_message="请求来源受限",
+                metadata={"request_id": _request_id(request)},
+            ),
+        )
+
+    match = await enforce_attack_scan(
+        db,
+        context=SecurityRequestContext(
+            detection_source=DetectionSource.API_PUBLIC_INVITATION,
+            request_method=request.method,
+            request_path=request.url.path,
+            client_ip=client_ip,
+            request_id=_request_id(request),
+            user_id=None,
+            user_qiao_id=None,
+        ),
+        fields={
+            "source": payload.source,
+            "trigger": payload.trigger,
+            "raw_text": payload.raw_text or "",
+            "invite_code": payload.invite_code or "",
+            "client_user_agent": payload.client_user_agent or "",
+            "device_id": payload.device_id or "",
+        },
+        extra_evidence={"layer": "public_invitation"},
+    )
+    if match is not None:
+        raise HTTPException(
+            status_code=403,
+            detail=build_protective_denial_detail(
+                reason="ATTACK_DETECTED",
+                camouflage_message="请求来源受限",
+                risk_rule_id=match.rule_code,
+                internal_risk_code=match.rule_code,
+                metadata={"rule_code": match.rule_code, "field_name": match.field_name},
+            ),
+        )
 
 
 async def _is_public_intake_rate_limited(
@@ -58,6 +127,7 @@ async def intake_public_invitation_code(
     db: AsyncSession = Depends(get_db),
 ) -> InvitationPublicIntakeResponse:
     """Intake public invitation text/link input and return one recognized valid invite code."""
+    await _guard_public_attack(request=request, payload=payload, db=db)
     if await _is_public_intake_rate_limited(request=request, payload=payload, db=db):
         return InvitationPublicIntakeResponse(recognized_code=None, valid=False)
 

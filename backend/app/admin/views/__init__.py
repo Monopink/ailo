@@ -93,6 +93,8 @@ from .message_media_views import (
 from .profile_avatar_advanced_edit_view import profile_avatar_advanced_edit_view
 from .security_views import (
     SECURITY_MODEL_VIEWS,
+    security_ip_block_view,
+    security_ip_risk_stats_view,
     user_risk_stats_view,
     user_violation_log_view,
 )
@@ -252,6 +254,8 @@ __all__ = [
     # Individual security views
     "user_violation_log_view",
     "user_risk_stats_view",
+    "security_ip_risk_stats_view",
+    "security_ip_block_view",
     # Individual token views
     "user_token_view",
     "login_record_view",

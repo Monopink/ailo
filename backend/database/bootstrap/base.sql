@@ -172,6 +172,14 @@ VALUES
 ('public_invite_intake_rate_limit_window_seconds', '60', '60', 2, 'Public invitation intake window in seconds', 'invite', NULL),
 ('sms_verify_rate_limit_requests', '10', '10', 2, 'SMS verification attempts per window', 'sms', NULL),
 ('sms_verify_rate_limit_window_seconds', '60', '60', 2, 'SMS verification attempt window in seconds', 'sms', NULL),
+('security_user_auto_suspend_enabled', 'true', 'true', 3, 'Enable automatic user suspension on high-risk attacks', 'security_attack', NULL),
+('security_rule_version', '2026-05-02', '2026-05-02', 1, 'Current attack-rule version used by enforcement pipeline', 'security_attack', NULL),
+('security_ip_block_high_ttl_seconds', '86400', '86400', 2, 'TTL (seconds) for high-risk IP block when threshold reached', 'security_attack', NULL),
+('security_ip_block_medium_ttl_seconds', '3600', '3600', 2, 'TTL (seconds) for medium-risk IP block when threshold reached', 'security_attack', NULL),
+('security_ip_high_risk_threshold_count', '8', '8', 2, 'High-risk IP hit count threshold', 'security_attack', NULL),
+('security_ip_high_risk_threshold_window_seconds', '300', '300', 2, 'High-risk IP threshold window in seconds', 'security_attack', NULL),
+('security_ip_medium_risk_threshold_count', '20', '20', 2, 'Medium-risk IP hit count threshold', 'security_attack', NULL),
+('security_ip_medium_risk_threshold_window_seconds', '600', '600', 2, 'Medium-risk IP threshold window in seconds', 'security_attack', NULL),
 
 -- SMS provider configuration
 ('sms_provider', 'mock', 'mock', 1, 'SMS provider', 'sms', '["mock"]'::jsonb),

@@ -171,6 +171,7 @@ check_requirements() {
 
     if [ -n "$NGINX_LOG_DIR" ]; then
         mkdir -p "$NGINX_LOG_DIR"
+        touch "$NGINX_LOG_DIR/access.log"
         touch "$NGINX_LOG_DIR/admin_access.log"
         touch "$NGINX_LOG_DIR/logs_access.log"
     fi

@@ -67,7 +67,7 @@ from .message import (
 )
 from .profile import Profile, UserProfileLog
 from .redeem import RedeemCode, RedeemCodeBatch, RedeemCodeClaim
-from .security import UserRiskStats, UserViolationLog
+from .security import SecurityIPBlock, SecurityIPRiskStats, UserRiskStats, UserViolationLog
 from .system import (
     AlertEvent,
     AlertEventEntity,
@@ -167,6 +167,8 @@ __all__ = [
     "SystemConfig",
     "User",
     "UserProfileLog",
+    "SecurityIPBlock",
+    "SecurityIPRiskStats",
     "UserRiskStats",
     "UserToken",
     "UserViolationLog",

@@ -93,3 +93,32 @@
    - 凭证无效（账号不存在 / 密码错误）：记录一次 failure（计入 `failure_window`），返回 400 + `账号或密码错误`
    - 账号状态非 ACTIVE：记录一次 failure（计入 `failure_window`），返回 400 + `账号状态异常`
    - 成功：清空 failure 记录，继续签发 token
+
+---
+
+## 攻击检测与处罚闭环
+
+本节适用于登录链路与统一 API 安全接入层。
+
+### 检测分类
+
+- `prompt_injection`
+- `sql_injection`
+- `command_injection`
+- `path_traversal`
+- `other`
+
+### 独立处罚轨
+
+- 用户处罚轨（仅在可定位账号时生效）：
+  - 高危命中后将 `users.status` 更新为 `suspended`
+  - 立即撤销该账号全部有效 `user_tokens`
+  - 同步更新 `user_risk_stats`
+- IP 处罚轨（与用户处罚独立）：
+  - 所有命中先累计到 `security_ip_risk_stats`
+  - 仅当窗口计数达到阈值后，写入 `security_ip_blocks` 执行 TTL 封禁
+
+### 默认阈值与 TTL
+
+- 高危窗口：5 分钟，阈值 `>= 8`
+- 高危封禁 TTL：86400 秒（24 小时）

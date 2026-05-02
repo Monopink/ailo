@@ -35,4 +35,5 @@ ignoreip = 127.0.0.1/8 ::1 123.456.123.456
 ``` shell
 sudo systemctl restart fail2ban
 sudo fail2ban-client status ailo-nginx-admin-auth-prod
+sudo fail2ban-client status ailo-nginx-api-attack-prod
 ```

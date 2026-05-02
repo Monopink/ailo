@@ -11,7 +11,7 @@ import hashlib
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -26,7 +26,7 @@ from app.crud.user import login_record as login_record_crud
 from app.crud.user import user as user_crud
 from app.crud.user import user_auth as user_auth_crud
 from app.crud.user import user_token as token_crud
-from app.enums import AuthType, DeviceType, LoginResult, LoginType, ReviewScope
+from app.enums import AuthType, DetectionSource, DeviceType, LoginResult, LoginType, ReviewScope
 from app.exceptions.error_codes import build_protective_denial_detail
 from app.models.base import generate_qiao_id
 from app.models.profile import Profile
@@ -57,6 +57,7 @@ from app.services.entitlement.service import ensure_system_initial_ai_contact_li
 from app.services.profile.avatar import get_avatar_url
 from app.services.profile.integrity import ensure_user_profile
 from app.services.review_scope_classifier import classify_runtime_review_scope
+from app.services.security import SecurityRequestContext, enforce_attack_scan, is_ip_blocked
 from app.services.security.auth_tracker import check_lockout, record_auth_failure, reset_failures
 from app.services.security.rate_limiter import check_password_login_rate_limit, check_rate_limit
 from app.services.security.sms.factory import create_sms_provider
@@ -175,6 +176,69 @@ def _get_client_ip(request: Request) -> str:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="请求来源无效",
         ) from exc
+
+
+def _get_request_id(request: Request) -> str:
+    request_id = getattr(request.state, "request_id", None)
+    if isinstance(request_id, str) and request_id:
+        return request_id
+    header_value = request.headers.get("X-Request-ID") or request.headers.get("x-request-id")
+    if isinstance(header_value, str) and header_value.strip():
+        request_id = header_value.strip()
+    else:
+        request_id = f"req_{uuid4().hex[:12]}"
+    request.state.request_id = request_id
+    return request_id
+
+
+async def _guard_auth_attack(
+    request: Request,
+    *,
+    db: AsyncSession,
+    user: User | None,
+    fields: dict[str, str],
+    detection_source: DetectionSource,
+) -> None:
+    client_ip = _get_client_ip(request)
+    request_id = _get_request_id(request)
+    if await is_ip_blocked(db, client_ip):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=_protective_denial_detail(
+                reason="IP_BLOCKED",
+                camouflage_message="登录失败，请稍后再试",
+                risk_rule_id="security_ip_block",
+                request_id=request_id,
+            ),
+        )
+
+    match = await enforce_attack_scan(
+        db,
+        context=SecurityRequestContext(
+            detection_source=detection_source,
+            request_method=request.method,
+            request_path=request.url.path,
+            client_ip=client_ip,
+            request_id=request_id,
+            user_id=int(user.id) if user is not None else None,
+            user_qiao_id=user.qiao_id if user is not None else None,
+        ),
+        fields=fields,
+        extra_evidence={"layer": "auth_api"},
+    )
+    if match is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=_protective_denial_detail(
+                reason="ATTACK_DETECTED",
+                camouflage_message="登录失败，请稍后再试",
+                risk_rule_id=match.rule_code,
+                internal_risk_code=match.rule_code,
+                request_id=request_id,
+                rule_code=match.rule_code,
+                field_name=match.field_name,
+            ),
+        )
 
 
 async def _record_login_attempt(
@@ -522,6 +586,18 @@ async def password_login(
     client_ip = _get_client_ip(request)
     user_agent = request.headers.get("user-agent")
     device_type = body.device_type
+    await _guard_auth_attack(
+        request,
+        db=db,
+        user=None,
+        fields={
+            "identifier": body.identifier,
+            "password": body.password,
+            "device_id": str(body.device_id),
+            "device_type": str(int(body.device_type)),
+        },
+        detection_source=DetectionSource.API_AUTH,
+    )
 
     identifier = body.identifier.strip()
     if not identifier:
@@ -833,6 +909,16 @@ async def wechat_login(
     """WeChat Mini Program login stage 1: openid check only."""
     client_ip = _get_client_ip(request)
     user_agent = request.headers.get("user-agent")
+    await _guard_auth_attack(
+        request,
+        db=db,
+        user=None,
+        fields={
+            "login_code": body.login_code,
+            "device_id": str(body.device_id),
+        },
+        detection_source=DetectionSource.API_AUTH,
+    )
     wechat_client = WeChatClient()
 
     try:
@@ -994,6 +1080,19 @@ async def bind_wechat_phone(
     """WeChat Mini Program login stage 2: bind phone and issue tokens."""
     client_ip = _get_client_ip(request)
     user_agent = request.headers.get("user-agent")
+    await _guard_auth_attack(
+        request,
+        db=db,
+        user=None,
+        fields={
+            "login_code": body.login_code,
+            "phone_code": body.phone_code or "",
+            "encrypted_data": body.encrypted_data or "",
+            "iv": body.iv or "",
+            "device_id": str(body.device_id),
+        },
+        detection_source=DetectionSource.API_AUTH,
+    )
     wechat_client = WeChatClient()
 
     try:
@@ -1279,6 +1378,16 @@ async def refresh_wechat_phone(
 ) -> WeChatRefreshPhoneResponse:
     """Refresh bound phone number via WeChat authorization for authenticated users."""
     client_ip = _get_client_ip(request)
+    await _guard_auth_attack(
+        request,
+        db=db,
+        user=current_user,
+        fields={
+            "login_code": body.login_code,
+            "phone_code": body.phone_code,
+        },
+        detection_source=DetectionSource.API_AUTH,
+    )
     wechat_client = WeChatClient()
 
     try:
@@ -1419,9 +1528,18 @@ async def refresh_wechat_phone(
 
 @router.post("/refresh-token", response_model=RefreshTokenResponse)
 async def refresh_token(
-    body: RefreshTokenRequest, db: AsyncSession = Depends(get_db)
+    request: Request,
+    body: RefreshTokenRequest,
+    db: AsyncSession = Depends(get_db),
 ) -> RefreshTokenResponse:
     """Refresh access token using refresh token."""
+    await _guard_auth_attack(
+        request,
+        db=db,
+        user=None,
+        fields={"refresh_token": body.refresh_token},
+        detection_source=DetectionSource.API_AUTH,
+    )
     refresh_token = body.refresh_token.strip()
     if not refresh_token:
         raise HTTPException(status_code=400, detail="登录已失效，请重新登录")
@@ -1525,6 +1643,17 @@ async def verify_phone(
     """
     client_ip = _get_client_ip(request)
     user_agent = request.headers.get("user-agent")
+    await _guard_auth_attack(
+        request,
+        db=db,
+        user=None,
+        fields={
+            "phone": body.phone,
+            "sms_code": body.sms_code,
+            "device_id": str(body.device_id),
+        },
+        detection_source=DetectionSource.API_AUTH,
+    )
 
     try:
         # 1. Normalize phone number

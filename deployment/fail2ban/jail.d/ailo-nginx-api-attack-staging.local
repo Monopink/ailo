@@ -1,0 +1,10 @@
+[ailo-nginx-api-attack-staging]
+enabled = true
+port = http,https
+filter = ailo-nginx-api-attack
+logpath = /opt/ailo-staging/logs/nginx/access.log
+findtime = 5m
+maxretry = 8
+bantime = 24h
+backend = auto
+ignoreip = __IGNOREIP__

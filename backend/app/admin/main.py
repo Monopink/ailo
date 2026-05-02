@@ -82,6 +82,8 @@ from .views import (
     redeem_code_batch_view,
     redeem_code_claim_view,
     redeem_code_view,
+    security_ip_block_view,
+    security_ip_risk_stats_view,
     square_category_view,
     square_type_entry_view,
     stats_ai_daily_view,
@@ -174,8 +176,6 @@ def _register_dropdowns(admin_instance: Admin) -> None:
             user_auth_view,
             user_token_view,
             login_record_view,
-            user_risk_stats_view,
-            user_violation_log_view,
         ],
         always_open=False,
     )
@@ -316,6 +316,19 @@ def _register_dropdowns(admin_instance: Admin) -> None:
         always_open=False,
     )
     admin_instance.add_view(stats_group)
+
+    security_group = DropDown(
+        "Security",
+        icon="fa fa-shield-alt",
+        views=[
+            user_violation_log_view,
+            user_risk_stats_view,
+            security_ip_risk_stats_view,
+            security_ip_block_view,
+        ],
+        always_open=False,
+    )
+    admin_instance.add_view(security_group)
 
     system_group = DropDown(
         "System",

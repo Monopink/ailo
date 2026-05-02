@@ -18,6 +18,22 @@
 - `POST /api/v1/auth/*` 受网关安全策略保护。
 - 当请求命中网关 UA 拦截规则时，接口直接返回 `403 Forbidden`。
 
+## 安全拒绝响应（攻击检测）
+
+- 以下接口在业务处理前执行攻击签名检测与 IP 封禁检查：
+  - `POST /api/v1/auth/login`
+  - `POST /api/v1/auth/wechat/login`
+  - `POST /api/v1/auth/wechat/bind-phone`
+  - `POST /api/v1/auth/wechat/refresh-phone`
+  - `POST /api/v1/auth/refresh-token`
+  - `POST /api/v1/auth/phone`
+- 命中后统一返回 `403 Forbidden`，并保持保护性拒绝语义（不暴露真实规则细节）。
+- 典型机器字段：
+  - `reason`: `ATTACK_DETECTED` 或 `IP_BLOCKED`
+  - `risk_rule_id`: 命中的规则编码（如 `sql_injection_pattern`）
+  - `request_id`: 请求追踪 ID
+- 用户侧必须只依赖 `error_code` 与 `reason` 分支，不依赖文案。
+
 ---
 
 ## 发送短信验证码

@@ -31,9 +31,9 @@ def _violation_type_key(violation_type: ViolationType) -> str:
     """
     mapping: dict[ViolationType, str] = {
         ViolationType.PROMPT_INJECTION: "prompt_injection",
-        ViolationType.ABUSE_CONTENT: "abuse_content",
-        ViolationType.SPAM: "spam",
-        ViolationType.HARASSMENT: "harassment",
+        ViolationType.SQL_INJECTION: "sql_injection",
+        ViolationType.COMMAND_INJECTION: "command_injection",
+        ViolationType.PATH_TRAVERSAL: "path_traversal",
         ViolationType.OTHER: "other",
     }
     return mapping.get(violation_type, "other")

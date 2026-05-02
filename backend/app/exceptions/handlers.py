@@ -86,6 +86,15 @@ def _extract_user_reason(detail: object | None) -> str | None:
     return None
 
 
+def _extract_protective_reason(detail: object | None) -> str | None:
+    if not isinstance(detail, Mapping):
+        return None
+    raw_reason = detail.get("risk_reason")
+    if isinstance(raw_reason, str) and raw_reason.strip():
+        return raw_reason.strip()
+    return None
+
+
 def _is_admin_api_path(path: str) -> bool:
     return path == ADMIN_API_PREFIX or path.startswith(f"{ADMIN_API_PREFIX}/")
 
@@ -263,6 +272,7 @@ def _build_response(
             status_code=protective_status,
             error_code=protective_error_code,
             message=protective_message,
+            reason=_extract_protective_reason(detail),
         )
 
     if use_admin_error_shape:

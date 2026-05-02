@@ -5,12 +5,18 @@ from collections import deque
 from collections.abc import Awaitable, Callable
 from uuid import uuid4
 
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
+from app.core.database import get_sessionmaker
+from app.enums import DetectionSource
 from app.exceptions.error_codes import build_error_code
+from app.models.user import User, UserToken
+from app.services.security import SecurityRequestContext, enforce_attack_scan, is_ip_blocked
 from app.utils.client_ip import ClientIPResolutionError, get_client_ip
 from app.utils.logging import get_logger
 
@@ -44,7 +50,7 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
 
         logger.info("api_rate_limit_middleware_initialized")
 
-    async def dispatch(
+    async def dispatch(  # noqa: PLR0911
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         """Process request with rate limiting.
@@ -96,6 +102,50 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
                 headers={REQUEST_ID_HEADER: request_id},
             )
 
+        request_id = self._get_or_create_request_id(request)
+        session_factory = get_sessionmaker()
+        async with session_factory() as db:
+            if await is_ip_blocked(db, ip):
+                return self._build_denied_response(
+                    path=request.url.path,
+                    request_id=request_id,
+                    reason="IP_BLOCKED",
+                )
+
+            user = await self._resolve_user_from_bearer_token(request=request, db=db)
+            match = await enforce_attack_scan(
+                db,
+                context=SecurityRequestContext(
+                    detection_source=DetectionSource.MIDDLEWARE,
+                    request_method=request.method,
+                    request_path=request.url.path,
+                    client_ip=ip,
+                    request_id=request_id,
+                    user_id=int(user.id) if user is not None else None,
+                    user_qiao_id=str(user.qiao_id) if user is not None else None,
+                ),
+                fields={
+                    "path": request.url.path,
+                    "query": request.url.query or "",
+                    "user_agent": request.headers.get("User-Agent", ""),
+                },
+                extra_evidence={"layer": "api_rate_limit_middleware"},
+            )
+            if match is not None:
+                logger.warning(
+                    "api_attack_blocked_by_middleware",
+                    rule_code=match.rule_code,
+                    path=request.url.path,
+                    method=request.method,
+                    ip=ip,
+                    request_id=request_id,
+                )
+                return self._build_denied_response(
+                    path=request.url.path,
+                    request_id=request_id,
+                    reason="ATTACK_DETECTED",
+                )
+
         # Check rate limit
         now = time.time()
 
@@ -143,6 +193,46 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
             self._cleanup_cache(now, window_seconds)
 
         return await call_next(request)
+
+    @staticmethod
+    async def _resolve_user_from_bearer_token(request: Request, db: AsyncSession) -> User | None:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return None
+        token = auth_header[7:].strip()
+        if token == "":
+            return None
+
+        token_result = await db.execute(
+            select(UserToken).where(
+                and_(
+                    UserToken.access_token == token,
+                    UserToken.status == 1,
+                    UserToken.access_revoked_at.is_(None),
+                )
+            )
+        )
+        user_token = token_result.scalar_one_or_none()
+        if user_token is None:
+            return None
+
+        user_result = await db.execute(select(User).where(User.id == user_token.user_id))
+        return user_result.scalar_one_or_none()
+
+    @staticmethod
+    def _build_denied_response(*, path: str, request_id: str, reason: str) -> JSONResponse:
+        message = "请求来源受限"
+        error_code = build_error_code(path=path, status_code=403, detail=message)
+        return JSONResponse(
+            status_code=403,
+            content={
+                "error_code": error_code,
+                "message": message,
+                "reason": reason,
+                "request_id": request_id,
+            },
+            headers={REQUEST_ID_HEADER: request_id},
+        )
 
     def _cleanup_cache(self, now: float, window_seconds: int) -> None:
         """Clean up cache entries for IPs with no recent requests.

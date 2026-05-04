@@ -44,6 +44,7 @@ const DEFAULT_ASSET_PATHS = {
   avatarPlaceholderPath: '/assets/avatar-placeholder.webp',
   demoAvatarDirPath: '/demo/avatars',
   loginBackgroundPath: '/login/bg.webp',
+  officialAccountQrCodePath: '/official-account/qrcode.webp',
 } as const;
 
 export interface AssetConfig {
@@ -51,9 +52,16 @@ export interface AssetConfig {
   avatarPlaceholderPath: string;
   demoAvatarDirPath: string;
   loginBackgroundPath: string;
+  officialAccountQrCodePath: string;
   avatarPlaceholderUrl: string;
   demoAvatarBaseUrl: string;
   loginBackgroundUrl: string;
+  officialAccountQrCodeUrl: string;
+}
+
+export interface OfficialAccountConfig {
+  originalId: string;
+  username: string;
 }
 
 export interface LocalConfigOverride {
@@ -65,6 +73,7 @@ export interface LocalConfigOverride {
     avatarPlaceholderPath?: string;
     demoAvatarDirPath?: string;
     loginBackgroundPath?: string;
+    officialAccountQrCodePath?: string;
   };
 }
 
@@ -141,6 +150,13 @@ const normalizeLocalAssetConfig = (
     }
   }
 
+  if (typeof assetRecord.officialAccountQrCodePath === 'string') {
+    const officialAccountQrCodePath = normalizePath(assetRecord.officialAccountQrCodePath);
+    if (officialAccountQrCodePath !== '') {
+      normalized.officialAccountQrCodePath = officialAccountQrCodePath;
+    }
+  }
+
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 };
 
@@ -199,6 +215,9 @@ const effectiveAssetDemoAvatarDirPath =
 const effectiveAssetLoginBackgroundPath =
   effectiveLocalOverride.ASSET_CONFIG?.loginBackgroundPath ??
   DEFAULT_ASSET_PATHS.loginBackgroundPath;
+const effectiveAssetOfficialAccountQrCodePath =
+  effectiveLocalOverride.ASSET_CONFIG?.officialAccountQrCodePath ??
+  DEFAULT_ASSET_PATHS.officialAccountQrCodePath;
 
 export const API_CONFIG: ApiConfig = {
   // Base URL for API requests
@@ -224,6 +243,9 @@ export const ASSET_CONFIG: AssetConfig = {
   // Relative path for login page background image
   loginBackgroundPath: effectiveAssetLoginBackgroundPath,
 
+  // Relative path for official account QR code image
+  officialAccountQrCodePath: effectiveAssetOfficialAccountQrCodePath,
+
   // Full URL for placeholder avatar image
   avatarPlaceholderUrl: buildAssetUrl(
     effectiveAssetCosBaseUrl,
@@ -235,6 +257,17 @@ export const ASSET_CONFIG: AssetConfig = {
 
   // Full URL for login page background image
   loginBackgroundUrl: buildAssetUrl(effectiveAssetCosBaseUrl, effectiveAssetLoginBackgroundPath),
+
+  // Full URL for official account QR code image
+  officialAccountQrCodeUrl: buildAssetUrl(
+    effectiveAssetCosBaseUrl,
+    effectiveAssetOfficialAccountQrCodePath
+  ),
+};
+
+export const OFFICIAL_ACCOUNT_CONFIG: OfficialAccountConfig = {
+  originalId: 'gh_bc8a67c54b1a',
+  username: 'qiaoqiaoaichat',
 };
 
 export interface MessageConfig {

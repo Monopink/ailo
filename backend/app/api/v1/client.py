@@ -45,6 +45,8 @@ RUNTIME_EVENT_NAME_WHITELIST: frozenset[str] = frozenset(
         "login_clipboard_intake",
         "invite_intake_attempt",
         "runtime_session_tick",
+        "official_account_follow_attempt",
+        "official_account_follow_fallback_shown",
     }
 )
 UAFetchStatusValue = int

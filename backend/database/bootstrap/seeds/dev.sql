@@ -64,18 +64,6 @@ INSERT INTO app_pages (
     '# 隐私政策\n\n我们将依法保护你的个人信息与隐私安全。',
     '<h1>隐私政策</h1><p>我们将依法保护你的个人信息与隐私安全。</p>',
     1
-),
-(
-    223788765171155122,
-    'contact_us',
-    'mini-program',
-    'zh-CN',
-    2,
-    '联系我们',
-    2,
-    '# 联系我们\n\n公众号：敲敲AI\n\n如需帮助，请通过公众号与我们联系。',
-    '<h1>联系我们</h1><p>公众号：敲敲AI</p><p>如需帮助，请通过公众号与我们联系。</p>',
-    1
 )
 ON CONFLICT (page_key, client_type, locale) DO NOTHING;
 

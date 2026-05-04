@@ -45,7 +45,9 @@
 
 - 用户协议入口（`page_key=user_agreement`）
 - 隐私政策入口（`page_key=privacy_policy`）
-- 联系我们入口（`page_key=contact_us`）
+- 联系我们入口（公众号关注引导）：
+  - 主链路：点击后调用 `wx.openOfficialAccountProfile({ username })` 打开公众号主页。
+  - 降级链路：当主链路不可用或调用失败时，展示公众号二维码（支持长按识别）与“复制公众号用户名”按钮。
 - 版权信息
 
 ## 个人资料页（自己）

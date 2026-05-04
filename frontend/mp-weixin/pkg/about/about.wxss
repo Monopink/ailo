@@ -8,3 +8,41 @@
 .about .card-wrapper:first-child {
   margin-top: var(--space-lg);
 }
+
+.official-account-fallback {
+  padding: var(--space-lg);
+}
+
+.official-account-fallback__header {
+  margin-bottom: var(--space-md);
+}
+
+.official-account-fallback__title {
+  display: block;
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.official-account-fallback__subtitle {
+  display: block;
+  margin-top: var(--space-xs);
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.official-account-fallback__qrcode {
+  width: 480rpx;
+  height: 480rpx;
+  margin: 0 auto;
+  display: block;
+  border-radius: var(--radius-lg);
+  background-color: var(--color-bg-secondary);
+}
+
+.official-account-fallback__tip {
+  margin-top: var(--space-md);
+  text-align: center;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}

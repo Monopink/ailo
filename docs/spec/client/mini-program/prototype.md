@@ -68,7 +68,9 @@
 - 关于页展示“用户协议”“隐私政策”“联系我们（公众号）”入口：
   - 用户协议：`page_key=user_agreement`
   - 隐私政策：`page_key=privacy_policy`
-  - 联系我们：`page_key=contact_us`
+  - 联系我们（公众号关注引导）：
+    - 主链路：点击后调用 `wx.openOfficialAccountProfile({ username })` 打开公众号主页。
+    - 降级链路：当主链路不可用或调用失败时，展示公众号二维码（支持长按识别）与“复制公众号用户名”按钮。
 - 协议详情页为通用页面，按 `page_key` 拉取并使用 `content_rendered` 渲染，渲染格式固定 `html`。
 - 协议内容读取请求必须携带 `X-Client=mini-program`。
 

@@ -171,6 +171,8 @@ VALUES
 ('mp_weixin_review_build_ids', '[]', '[]', 1, 'Build IDs used for mp_weixin reviewer detection', 'review', NULL),
 ('mp_weixin_review_build_time_from', '', '', 6, 'Lower UTC bound for mp_weixin reviewer build time matching', 'review', NULL),
 ('mp_weixin_review_build_time_to', '', '', 6, 'Upper UTC bound for mp_weixin reviewer build time matching', 'review', NULL),
+('mp_weixin_release_build_ids', '[]', '[]', 1, 'Release build IDs used for mp_weixin simulator reviewer detection', 'review', NULL),
+('mp_weixin_review_ip_blacklist', '[]', '[]', 1, 'Reviewer IP blacklist for mp_weixin reviewer detection', 'review', NULL),
 ('public_invite_intake_rate_limit_requests', '20', '20', 2, 'Public invitation intake requests per window', 'invite', NULL),
 ('public_invite_intake_rate_limit_window_seconds', '60', '60', 2, 'Public invitation intake window in seconds', 'invite', NULL),
 ('sms_verify_rate_limit_requests', '10', '10', 2, 'SMS verification attempts per window', 'sms', NULL),
@@ -248,7 +250,9 @@ WHERE config_key IN (
     'mp_weixin_review_deadline_at',
     'mp_weixin_review_build_ids',
     'mp_weixin_review_build_time_from',
-    'mp_weixin_review_build_time_to'
+    'mp_weixin_review_build_time_to',
+    'mp_weixin_release_build_ids',
+    'mp_weixin_review_ip_blacklist'
 );
 
 -- Drop deprecated operation invite-share keys.

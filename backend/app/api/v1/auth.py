@@ -789,6 +789,8 @@ async def _resolve_new_mp_user_review_scope(
     *,
     build_id: str | None,
     build_time: str | None,
+    user_agent: str | None,
+    client_ip: str | None,
 ) -> int:
     """Resolve review scope for newly registered mini-program users."""
     config = await load_mp_weixin_review_cycle_config(db)
@@ -796,6 +798,8 @@ async def _resolve_new_mp_user_review_scope(
         config=config,
         build_id=build_id,
         build_time=build_time,
+        user_agent=user_agent,
+        client_ip=client_ip,
     )
     return int(decision.review_scope)
 
@@ -1174,6 +1178,8 @@ async def bind_wechat_phone(
                     db,
                     build_id=body.build_id,
                     build_time=body.build_time,
+                    user_agent=user_agent,
+                    client_ip=client_ip,
                 )
 
                 user = User(
@@ -1700,6 +1706,8 @@ async def verify_phone(
                     db,
                     build_id=body.build_id,
                     build_time=body.build_time,
+                    user_agent=user_agent,
+                    client_ip=client_ip,
                 )
                 user = User(
                     id=user_id,

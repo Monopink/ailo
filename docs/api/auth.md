@@ -13,7 +13,7 @@
 
 > **登录统一约束**：所有登录签发接口都必须上送 `device_id`（UUID）并稳定复用；`device_id` 生成与持久化规范见 `../spec/client/base/device-id.md`。
 >
-> **审核员判定统一约束**：`POST /api/v1/auth/phone`、`POST /api/v1/auth/wechat/login`、`POST /api/v1/auth/wechat/bind-phone` 必须上送 `build_id` 与 `build_time`；若值为空或时间无法解析，按非审核员处理。判定规则见 `docs/spec/client/mini-program/README.md` 的“审核员分段判定”章节。
+> **审核员判定写入约束**：`POST /api/v1/auth/phone`、`POST /api/v1/auth/wechat/bind-phone` 在创建新用户时，会基于构建信息、请求 UA、请求 IP 执行审核员判定，并初始化写入 `users.review_scope`。判定规则见 `docs/spec/review-mode.md` 的“审核员分段判定”章节。
 
 ## 网关访问控制
 

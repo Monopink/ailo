@@ -193,6 +193,8 @@ class SystemSettingsView(CustomView):
                         "mp_weixin_review_deadline_at",
                         "mp_weixin_review_build_time_from",
                         "mp_weixin_review_build_time_to",
+                        "mp_weixin_review_ip_blacklist",
+                        "mp_weixin_release_build_ids",
                     )
                     persisted_review_values: dict[str, object] = {
                         config_key: copy.deepcopy(editable_configs[config_key].config_value)
@@ -309,17 +311,7 @@ class SystemSettingsView(CustomView):
                             return templates.TemplateResponse(self._template_name(), context)
 
                     if changes:
-                        await db.commit()
-
-                        # Reload cache to sync changes to Service layer
-                        await SystemConfigService.reload_cache(db)
-
-                        if media_config_updated:
-                            await refresh_media_base_url(db)
-                            reload_storage_backend()
-                            logger.info("media_public_base_url_reloaded")
-
-                        # Create operation logs for each change
+                        # Create operation logs for each change, then commit once with the config updates.
                         for change in changes:
                             resource_key = str(change["config_key"])
                             old_value = str(change["old_value"])
@@ -333,7 +325,18 @@ class SystemSettingsView(CustomView):
                                 resource_name=resource_key.replace("_", " ").title(),
                                 operation_desc=f"Updated from '{old_value}' to '{new_value}'",
                                 request=request,
+                                commit=False,
                             )
+
+                        await db.commit()
+
+                        # Reload cache to sync changes to Service layer
+                        await SystemConfigService.reload_cache(db)
+
+                        if media_config_updated:
+                            await refresh_media_base_url(db)
+                            reload_storage_backend()
+                            logger.info("media_public_base_url_reloaded")
 
                         context["success"] = admin_text(
                             "Successfully updated {count} configuration(s)"

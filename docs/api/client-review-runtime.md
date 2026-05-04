@@ -70,6 +70,7 @@
 ### 判定规则
 
 - 分段判定业务规则见：`docs/spec/review-mode.md` 的“审核员分段判定”章节。
+- `preflight-probe` 判定输入包含 `build_id`、`build_time`、`user_agent`、`client_ip`。
 - `preflight_probe_result` 作为观测事件名保留，不做语义改名。
 
 ## 上报运行态观测事件

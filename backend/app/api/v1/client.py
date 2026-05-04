@@ -440,6 +440,8 @@ async def preflight_probe(
         config=review_cycle_config,
         build_id=payload.build_id,
         build_time=payload.build_time,
+        user_agent=payload.user_agent,
+        client_ip=client_ip,
     )
     return PreflightProbeResponse(
         segment_type=1 if decision.is_limited_scope else 0,

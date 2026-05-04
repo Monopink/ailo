@@ -1,19 +1,29 @@
 ## 审核员分段判定
 
-- 判定输入字段：`build_id`、`build_time`。
+- 判定输入字段：`build_id`、`build_time`、`user_agent`、`client_ip`。
 - 判定配置字段：
   - `system_configs.mp_weixin_review_deadline_at`
   - `system_configs.mp_weixin_review_build_ids`
   - `system_configs.mp_weixin_review_build_time_from`
   - `system_configs.mp_weixin_review_build_time_to`
-- 审核周期条件：`mp_weixin_review_deadline_at` 非空且未过期（UTC）；为空或过期视为不在审核期。
-- 构建匹配条件：
+- 审核版规则（build-cycle）：
+  - `mp_weixin_review_deadline_at` 非空且未过期（UTC）；为空或过期视为不在审核期。
+  - 仅设置 `mp_weixin_review_deadline_at` 不会触发 build-cycle 命中；必须至少配置 `mp_weixin_review_build_ids` 或 `mp_weixin_review_build_time_from/to`，build-cycle 才可能命中。
   - `mp_weixin_review_build_ids` 非空时，`build_id` 必须命中列表。
   - `mp_weixin_review_build_time_from/to` 非空时，`build_time` 必须落入闭区间。
   - 仅存在一类条件时，只匹配该类。
   - 两类条件都存在时，必须同时命中。
-- 最终审核员结果：`in_review_period AND build_match`。
+- 正式版模拟器规则：
+  - `build_id` 命中 `system_configs.mp_weixin_release_build_ids`。
+  - `user_agent` 小写后包含 `wechatdevtools`。
+  - 两条件同时命中则该规则命中。
+- 审核 IP 规则：
+  - `client_ip` 命中 `system_configs.mp_weixin_review_ip_blacklist` 则规则命中。
+  - 黑名单按精确 IP 匹配。
+- 运营配置约束：
+  - `mp_weixin_release_build_ids` / `mp_weixin_review_ip_blacklist` 允许设置为空数组，用于关闭对应规则分支。
+- 最终审核员结果：审核版规则 OR 正式版模拟器规则 OR 审核 IP 规则。
 - 无鉴权请求：`/api/v1/client/preflight-probe` 使用该规则返回 `segment_type`。
 - 登录与使用链路：`/api/v1/auth/phone`（已存在账号登录）、`/api/v1/auth/wechat/login`、`/api/v1/auth/wechat/bind-phone`（复用已存在账号）、`/api/v1/client/preflight-probe` 使用同一规则判定审核分段，但不写入 `users.review_scope`。
 - 账号标记规则：仅在小程序注册创建账号时，命中审核分段才将 `users.review_scope` 初始化为 `1`；创建后不在登录或使用链路自动升级，不自动回退。
-- 请求缺失构建信息时，按非审核员处理，不阻断登录注册流程。
+- 请求缺失判定输入时，仅影响对应规则分支；其他规则分支继续独立判定。

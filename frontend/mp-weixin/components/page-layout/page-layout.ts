@@ -8,6 +8,24 @@
 const VALID_SCREEN_STATES = new Set(['booting', 'ready']);
 const VALID_CONTENT_VARIANTS = new Set(['data', 'empty', 'blank']);
 const VALID_REFRESH_STATES = new Set(['idle', 'refreshing', 'degraded']);
+const VALID_THEME_MODES = new Set(['system', 'fixed-light', 'fixed-dark']);
+
+const normalizeThemeMode = (input: string): 'system' | 'fixed-light' | 'fixed-dark' => {
+  if (VALID_THEME_MODES.has(input)) {
+    return input as 'system' | 'fixed-light' | 'fixed-dark';
+  }
+  return 'system';
+};
+
+const getThemeClassName = (themeMode: 'system' | 'fixed-light' | 'fixed-dark'): string => {
+  if (themeMode === 'fixed-light') {
+    return 'page-layout--theme-fixed-light';
+  }
+  if (themeMode === 'fixed-dark') {
+    return 'page-layout--theme-fixed-dark';
+  }
+  return '';
+};
 
 const reportInvalidScreenModel = (input: {
   screenState: string;
@@ -82,15 +100,21 @@ Component({
       type: Number,
       value: 12,
     },
+    themeMode: {
+      type: String,
+      value: 'system',
+    },
   },
 
   data: {
     isHeaderSolid: false,
+    themeClassName: '',
   },
 
   lifetimes: {
     attached() {
       this.validateScreenModel();
+      this.syncThemeMode(this.properties.themeMode);
     },
   },
 
@@ -103,6 +127,9 @@ Component({
     'screenState,contentVariant,refreshState'() {
       this.validateScreenModel();
     },
+    themeMode(themeMode: string) {
+      this.syncThemeMode(themeMode);
+    },
   },
 
   methods: {
@@ -112,6 +139,15 @@ Component({
         contentVariant: this.properties.contentVariant,
         refreshState: this.properties.refreshState,
       });
+    },
+
+    syncThemeMode(themeMode: string) {
+      const normalizedThemeMode = normalizeThemeMode(themeMode);
+      const themeClassName = getThemeClassName(normalizedThemeMode);
+      if (this.data.themeClassName === themeClassName) {
+        return;
+      }
+      this.setData({ themeClassName });
     },
 
     onEmptyAction() {

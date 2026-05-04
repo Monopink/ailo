@@ -61,6 +61,18 @@
 - `theme.json` 必须同时定义 `light` 与 `dark` 变量
 - `app.json` 的 window/tabBar 字段使用 `@变量` 引用
 
+## 页面级主题锁
+
+- 页面主题模式通过页面根容器统一声明，页面内部不做分散式主题判断
+- 页面主题模式包含 `system`、`fixed-light`、`fixed-dark`
+- `system` 页面使用全局语义颜色变量，颜色跟随系统亮暗切换
+- `fixed-light` 与 `fixed-dark` 页面使用页面级主题锁，颜色在系统亮暗切换时保持固定
+- 页面级主题锁以页面级颜色变量组为唯一颜色来源，页面样式只引用该变量组
+- 页面级主题锁覆盖 `--color-*` 与 `--td-*` 的颜色映射，保证自绘样式与 TDesign 组件颜色一致
+- 页面级主题锁页面不定义 `@media (prefers-color-scheme: dark)` 规则
+- 固定视觉资产页面归类为页面级主题锁页面
+- 当前固定视觉资产页面: `pages/login/login`、`pages/invite-share/invite-share`
+
 ## 页面背景与 TabBar
 
 - 页面默认背景使用 `--color-bg-primary`（浅灰）

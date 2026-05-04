@@ -1,5 +1,6 @@
 <page-layout
   style="--color-navbar-glass-bg: transparent; --color-bg-header-solid: transparent; --color-bg-footer-fixed: transparent; --footer-glass-blur: var(--navbar-glass-blur); --color-separator: transparent;"
+  themeMode="fixed-light"
   headerSolidMode="manual"
   headerSolid="{{false}}"
   screenState="{{pageLayoutData.screenModel.screenState}}"

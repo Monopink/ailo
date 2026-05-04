@@ -1,4 +1,4 @@
-<view class="page-layout">
+<view class="page-layout {{themeClassName}}">
   <view class="page-layout__header {{isHeaderSolid ? 'page-layout__header--solid' : ''}}">
     <slot name="header" />
   </view>

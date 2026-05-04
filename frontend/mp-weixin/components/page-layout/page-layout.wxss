@@ -18,6 +18,126 @@
   overflow: hidden;
 }
 
+.page-layout--theme-fixed-light {
+  --color-primary: #e5ff00;
+  --color-primary-light: #f1ff80;
+  --color-primary-lighter: #fbffd6;
+  --color-primary-dark: #bfd400;
+  --color-accent: #ffc300;
+  --color-accent-light: #fff4d9;
+  --color-bg-primary: #fafafa;
+  --color-bg-page: #fafafa;
+  --color-bg-muted: #f5f5f5;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #fafafa;
+  --color-bg-white: #ffffff;
+  --color-bg-input: #eeeeee;
+  --color-bg-hover: #f0f0f0;
+  --color-bg-disabled: #f5f5f5;
+  --color-bg-mask: rgb(0 0 0 / 40%);
+  --color-navbar-glass-bg-base: rgb(247 247 247 / 68%);
+  --color-navbar-glass-bg: var(--color-navbar-glass-bg-base);
+  --color-tabbar-glass-bg: transparent;
+  --color-glass-card-bg: rgb(255 255 255 / 80%);
+  --color-glass-card-border: rgb(255 255 255 / 50%);
+  --color-overlay-strong: rgb(255 255 255 / 85%);
+  --color-overlay-muted: rgb(0 0 0 / 25%);
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #666666;
+  --color-text-tertiary: #999999;
+  --color-text-quaternary: #c0c0c0;
+  --color-text-placeholder: #b0b0b0;
+  --color-text-disabled: #c0c0c0;
+  --color-text-inverse: #ffffff;
+  --color-text-on-brand: #1a1a1a;
+  --color-border-base: #e8e8e8;
+  --color-border-light: #f0f0f0;
+  --color-separator: rgb(0 0 0 / 6%);
+  --color-success: #07c160;
+  --color-warning: #ff9500;
+  --color-error: #ff3b30;
+  --color-link: #007aff;
+  --td-bg-color-page: var(--color-bg-primary);
+  --td-bg-color-container: var(--color-bg-secondary);
+  --td-bg-color-secondarycontainer: var(--color-bg-tertiary);
+  --td-bg-color-component: var(--color-bg-input);
+  --td-bg-color-component-hover: var(--color-bg-hover);
+  --td-bg-color-component-active: var(--color-bg-hover);
+  --td-bg-color-component-disabled: var(--color-bg-disabled);
+  --td-text-color-primary: var(--color-text-primary);
+  --td-text-color-secondary: var(--color-text-secondary);
+  --td-text-color-placeholder: var(--color-text-placeholder);
+  --td-text-color-disabled: var(--color-text-disabled);
+  --td-text-color-anti: var(--color-text-inverse);
+  --td-button-primary-color: var(--color-text-on-brand);
+  --td-border-level-1-color: var(--color-border-base);
+  --td-border-level-2-color: var(--color-border-light);
+  --td-component-border: var(--color-border-base);
+  --td-component-stroke: var(--color-separator);
+  --td-cell-border-color: var(--color-separator);
+  --td-cell-group-border-color: var(--color-separator);
+}
+
+.page-layout--theme-fixed-dark {
+  --color-primary: #c6dc00;
+  --color-primary-light: #d9e95a;
+  --color-primary-lighter: #4c5620;
+  --color-primary-dark: #a5b800;
+  --color-accent: #ffc300;
+  --color-accent-light: #3d3520;
+  --color-bg-primary: #000000;
+  --color-bg-page: #000000;
+  --color-bg-muted: #2a2b2f;
+  --color-bg-secondary: #1c1c1e;
+  --color-bg-tertiary: #2c2c2e;
+  --color-bg-white: #000000;
+  --color-bg-input: #2a2b2f;
+  --color-bg-hover: #2c2c2e;
+  --color-bg-disabled: #1c1c1e;
+  --color-bg-mask: rgb(0 0 0 / 60%);
+  --color-navbar-glass-bg-base: rgb(72 72 74 / 55%);
+  --color-navbar-glass-bg: var(--color-navbar-glass-bg-base);
+  --color-tabbar-glass-bg: transparent;
+  --color-glass-card-bg: rgb(30 30 30 / 80%);
+  --color-glass-card-border: rgb(255 255 255 / 10%);
+  --color-overlay-strong: rgb(255 255 255 / 85%);
+  --color-overlay-muted: rgb(0 0 0 / 25%);
+  --color-text-primary: #f5f5f5;
+  --color-text-secondary: #afafaf;
+  --color-text-tertiary: #8e8e93;
+  --color-text-quaternary: #636366;
+  --color-text-placeholder: #757575;
+  --color-text-disabled: #636366;
+  --color-text-inverse: #000000;
+  --color-text-on-brand: #1a1a1a;
+  --color-border-base: #38383a;
+  --color-border-light: #2c2c2e;
+  --color-separator: rgb(255 255 255 / 16%);
+  --color-success: #0bbf68;
+  --color-warning: #ff9f0a;
+  --color-error: #ff453a;
+  --color-link: #0a84ff;
+  --td-bg-color-page: var(--color-bg-primary);
+  --td-bg-color-container: var(--color-bg-secondary);
+  --td-bg-color-secondarycontainer: var(--color-bg-tertiary);
+  --td-bg-color-component: var(--color-bg-input);
+  --td-bg-color-component-hover: var(--color-bg-hover);
+  --td-bg-color-component-active: var(--color-bg-hover);
+  --td-bg-color-component-disabled: var(--color-bg-disabled);
+  --td-text-color-primary: var(--color-text-primary);
+  --td-text-color-secondary: var(--color-text-secondary);
+  --td-text-color-placeholder: var(--color-text-placeholder);
+  --td-text-color-disabled: var(--color-text-disabled);
+  --td-text-color-anti: var(--color-text-inverse);
+  --td-button-primary-color: var(--color-text-on-brand);
+  --td-border-level-1-color: var(--color-border-base);
+  --td-border-level-2-color: var(--color-border-light);
+  --td-component-border: var(--color-border-base);
+  --td-component-stroke: var(--color-separator);
+  --td-cell-border-color: var(--color-separator);
+  --td-cell-group-border-color: var(--color-separator);
+}
+
 /* ========================================
    Header Area - Always Visible
    ======================================== */

@@ -197,22 +197,3 @@
   line-height: var(--line-height-base);
   text-align: center;
 }
-
-@media (prefers-color-scheme: dark) {
-  .login-bg {
-    opacity: 0.4;
-  }
-
-  .login-bg-remote--visible {
-    opacity: 0.74;
-  }
-
-  .login-bottom-scrim {
-    background: linear-gradient(
-      to top,
-      rgb(8 10 14 / 74%) 0%,
-      rgb(8 10 14 / 40%) 46%,
-      rgb(8 10 14 / 0%) 100%
-    );
-  }
-}

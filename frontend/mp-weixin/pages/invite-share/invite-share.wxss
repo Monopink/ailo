@@ -34,30 +34,6 @@
   background-size: 100% 100%;
 }
 
-@media (prefers-color-scheme: dark) {
-  .invite-share {
-    background-color: rgb(138 22 28);
-    background-image: linear-gradient(
-        180deg,
-        rgb(150 24 30) 0%,
-        rgb(150 24 30) 20%,
-        rgb(132 50 54) 42%,
-        rgb(66 42 46) 60%,
-        rgb(24 24 28) 100%
-      ),
-      radial-gradient(
-        circle at 50% 20%,
-        rgb(255 220 208 / 12%) 0%,
-        rgb(255 220 208 / 12%) 22%,
-        rgb(255 220 208 / 0%) 52%
-      ),
-      radial-gradient(circle at 16% 14%, rgb(255 170 146 / 12%) 0%, rgb(255 170 146 / 0%) 28%),
-      radial-gradient(circle at 86% 16%, rgb(255 210 174 / 10%) 0%, rgb(255 210 174 / 0%) 28%),
-      radial-gradient(circle at 18% 70%, rgb(255 210 190 / 8%) 0%, rgb(255 210 190 / 0%) 34%),
-      radial-gradient(circle at 84% 66%, rgb(255 226 210 / 8%) 0%, rgb(255 226 210 / 0%) 34%);
-  }
-}
-
 .invite-share__content {
   padding: 0 var(--padding-page);
   box-sizing: border-box;
@@ -627,12 +603,6 @@
   backdrop-filter: blur(calc(var(--navbar-glass-blur) + var(--space-xxs))) saturate(148%);
   border-top: 0;
   box-shadow: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  .invite-share__footer {
-    background: transparent;
-  }
 }
 
 .invite-share__action {

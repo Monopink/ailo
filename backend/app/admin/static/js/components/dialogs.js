@@ -1,9 +1,9 @@
 (function () {
-  const modalId = 'qiao-admin-confirm-modal';
-  const titleId = 'qiao-admin-confirm-title';
-  const messageId = 'qiao-admin-confirm-message';
-  const cancelId = 'qiao-admin-confirm-cancel';
-  const confirmId = 'qiao-admin-confirm-confirm';
+  const modalId = 'ailo-admin-confirm-modal';
+  const titleId = 'ailo-admin-confirm-title';
+  const messageId = 'ailo-admin-confirm-message';
+  const cancelId = 'ailo-admin-confirm-cancel';
+  const confirmId = 'ailo-admin-confirm-confirm';
 
   let modalInstance = null;
 
@@ -126,7 +126,7 @@
     });
   }
 
-  window.qiaoAdminDialogs = Object.freeze({
+  window.ailoDialogs = Object.freeze({
     confirm,
   });
 })();

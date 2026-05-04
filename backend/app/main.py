@@ -167,7 +167,7 @@ async def set_theme(mode: str, request: Request) -> RedirectResponse:
     target = referer if referer and referer.startswith(("http://", "https://")) else fallback
     response = RedirectResponse(url=target, status_code=303)
     response.set_cookie(
-        "qiao_admin_theme", normalized, max_age=60 * 60 * 24 * 365, path="/", samesite="lax"
+        "ailo_admin_theme", normalized, max_age=60 * 60 * 24 * 365, path="/", samesite="lax"
     )
     return response
 

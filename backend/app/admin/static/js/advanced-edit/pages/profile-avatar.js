@@ -1,6 +1,6 @@
 import { withButtonLoading } from '../common/save-flow.js';
 
-const config = window.qiaoAdvancedEditProfileAvatarConfig || {};
+const config = window.ailoAdvancedEditProfileAvatarConfig || {};
 
 function requireNumericId(value, name) {
   const strValue = typeof value === 'string' ? value : String(value ?? '');

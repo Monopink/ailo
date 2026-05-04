@@ -536,76 +536,39 @@ async function initEntitlementOperationsPage(config) {
   }
 
   function initializeUserSelect2() {
-    if (!userIdEl || typeof window.jQuery === 'undefined') {
+    if (!userIdEl) {
       return;
     }
-
-    const $ = window.jQuery;
-    const $userSelect = $(userIdEl);
-    if (typeof $userSelect.select2 !== 'function') {
+    const searchSelect = window.ailoSearchSelect;
+    if (!searchSelect || typeof searchSelect.initSearchSelect !== 'function') {
       return;
     }
-
-    const placeholder = String(userIdEl.dataset.placeholder || i18n.selectUserPrompt || '');
-    $userSelect.select2({
-      width: '100%',
-      placeholder,
-      allowClear: true,
+    searchSelect.initSearchSelect({
+      element: userIdEl,
+      searchUrl: String(api.userSearch || ''),
+      placeholder: String(userIdEl.dataset.placeholder || i18n.selectUserPrompt || ''),
       minimumInputLength: 1,
-      ajax: {
-        transport: function (params, success, failure) {
-          const searchTerm = String((params.data && params.data.term) || '').trim();
-          if (searchTerm === '') {
-            success({ items: [] });
-            return null;
-          }
-          fetch(`${api.userSearch}?q=${encodeURIComponent(searchTerm)}&limit=20`, {
-            credentials: 'same-origin',
-          })
-            .then(async (response) => {
-              const data = await parseJsonResponse(response);
-              if (!response.ok) {
-                throw new Error(data.detail || i18n.searchFailed);
-              }
-              return data;
-            })
-            .then((data) => success(data))
-            .catch((error) => {
-              failure(error);
-            });
-          return null;
-        },
-        processResults: function (data) {
-          const items = Array.isArray(data.items) ? data.items : [];
-          return {
-            results: items.map((item) => ({
-              id: String(item.user_id),
-              text: String(item.display_label || `[${item.user_id}]`),
-            })),
-          };
-        },
-      },
+      limit: 20,
+      allowClear: true,
       language: {
-        inputTooShort: () => i18n.selectUserPrompt || '',
-        noResults: () => i18n.noSearchResult || '',
-        searching: () => i18n.searchingUsers || '',
-        errorLoading: () => i18n.searchFailed || '',
+        inputTooShort: i18n.selectUserPrompt || '',
+        noResults: i18n.noSearchResult || '',
+        searching: i18n.searchingUsers || '',
+        errorLoading: i18n.searchFailed || '',
       },
-    });
-
-    $userSelect.on('select2:select', () => {
-      refreshUserPanels().catch((error) => {
-        showResult({
-          success: false,
-          title: i18n.snapshotLoadFailed,
-          body: String(error?.message || i18n.snapshotLoadFailed),
+      onSelect: () => {
+        refreshUserPanels().catch((error) => {
+          showResult({
+            success: false,
+            title: i18n.snapshotLoadFailed,
+            body: String(error?.message || i18n.snapshotLoadFailed),
+          });
         });
-      });
-    });
-
-    $userSelect.on('select2:clear', () => {
-      renderCurrentAvailable(null);
-      clearUserAssets();
+      },
+      onClear: () => {
+        renderCurrentAvailable(null);
+        clearUserAssets();
+      },
     });
   }
 
@@ -676,6 +639,6 @@ async function initEntitlementOperationsPage(config) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  const config = window.qiaoEntitlementOperationsPageConfig || {};
+  const config = window.ailoEntitlementOperationsPageConfig || {};
   initEntitlementOperationsPage(config);
 });

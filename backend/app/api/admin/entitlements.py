@@ -99,9 +99,10 @@ def _parse_positive_user_id(raw_user_id: str) -> int:
 async def search_users_for_entitlement_operations(
     q: str = Query(default="", max_length=100),
     limit: int = Query(default=20, ge=1, le=50),
+    page: int = Query(default=1, ge=1, le=200),
     admin_user: dict[str, Any] = Depends(verify_admin_session),
     db: AsyncSession = Depends(get_db),
-) -> dict[str, list[dict[str, Any]]]:
+) -> dict[str, Any]:
     """Search users by id/username/phone/email for operation form selection."""
     _require_admin_identity(admin_user, require_write=False)
     query = q.strip()
@@ -126,6 +127,8 @@ async def search_users_for_entitlement_operations(
     if len(conditions) == 0:
         return {"items": []}
 
+    offset = (page - 1) * limit
+
     stmt = (
         select(User.id, User.username, User.phone, User.email)
         .where(
@@ -133,26 +136,38 @@ async def search_users_for_entitlement_operations(
             or_(*conditions),
         )
         .order_by(User.id.desc())
-        .limit(limit)
+        .offset(offset)
+        .limit(limit + 1)
     )
     result = await db.execute(stmt)
     rows = result.all()
-    items = [
-        {
-            "user_id": str(int(row[0])),
-            "username": row[1],
-            "phone": mask_phone(str(row[2])) if row[2] is not None else None,
-            "email": mask_email(str(row[3])) if row[3] is not None else None,
-            "display_label": build_masked_user_display_label(
-                user_id=int(row[0]),
-                username=row[1] if isinstance(row[1], str) else None,
-                phone=row[2] if isinstance(row[2], str) else None,
-                email=row[3] if isinstance(row[3], str) else None,
-            ),
-        }
-        for row in rows
-    ]
-    return {"items": items}
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+    items = []
+    for row in rows:
+        user_id = int(row[0])
+        username = row[1] if isinstance(row[1], str) else None
+        phone = row[2] if isinstance(row[2], str) else None
+        email = row[3] if isinstance(row[3], str) else None
+        display_label = build_masked_user_display_label(
+            user_id=user_id,
+            username=username,
+            phone=phone,
+            email=email,
+        )
+        items.append(
+            {
+                "id": str(user_id),
+                "text": display_label,
+                "meta": {
+                    "user_id": str(user_id),
+                    "username": username,
+                    "phone": mask_phone(phone) if phone is not None else None,
+                    "email": mask_email(email) if email is not None else None,
+                },
+            }
+        )
+    return {"items": items, "has_more": has_more}
 
 
 @entitlements_router.get(

@@ -5,7 +5,7 @@ import { personalityPlaceholderMethods } from './personality-placeholders.js';
 import { personalityCsvMethods } from './personality-csv.js';
 import { personalitySchemaMethods } from './personality-schema.js';
 
-const config = window.qiaoAdvancedEditPersonalityConfig || {};
+const config = window.ailoAdvancedEditPersonalityConfig || {};
 
 function requireNumericId(value, name) {
   const strValue = typeof value === 'string' ? value : String(value ?? '');
@@ -17,7 +17,7 @@ function requireNumericId(value, name) {
 
 const PERSONALITY_ID = requireNumericId(config.personalityId, 'personalityId');
 const LIST_URL = config.listUrl;
-const dialogs = window.qiaoAdminDialogs;
+const dialogs = window.ailoDialogs;
 
 const app = {
   state: {

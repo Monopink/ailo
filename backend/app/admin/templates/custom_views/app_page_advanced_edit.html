@@ -120,7 +120,7 @@
           id="btn-cancel-app-page-edit"
           class="btn btn-danger"
           href="{{ url_for(__name__ ~ ':list', identity='app_page') }}"
-          data-qiao-guard-ignore="true"
+          data-ailo-guard-ignore="true"
         >Cancel</a>
         <button type="submit" class="btn btn-success">Save</button>
       </div>
@@ -138,7 +138,7 @@ const saveUrl = `/admin-api/content/app-page/${encodedDocumentId}/save`;
 const renderUrl = `/admin-api/content/app-page/${encodedDocumentId}/render`;
 const contentHtmlInput = document.getElementById('content-html');
 const renderedPreview = document.getElementById('rendered-preview');
-const dialogs = window.qiaoAdminDialogs;
+const dialogs = window.ailoDialogs;
 
 function buildPayload() {
   return {
@@ -149,7 +149,7 @@ function buildPayload() {
 }
 
 let lastSavedState = buildPayload();
-const unsavedGuard = window.qiaoUnsavedGuard.create({
+const unsavedGuard = window.ailoUnsavedGuard.create({
   isDirty: () => hasUnsavedChanges(),
 });
 

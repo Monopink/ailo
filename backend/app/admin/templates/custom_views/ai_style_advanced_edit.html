@@ -1,7 +1,8 @@
-﻿{% extends "layout.html" %}
+{% extends "layout.html" %}
 {% block title %}<title>Edit Style</title>{% endblock %}
 {% block head_css %}
 <link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/admin-fixes.css') }}">
+<link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/select2.min.css') }}">
 {% endblock %}
 {% block header %}
 <div class="d-flex justify-content-between align-items-center">
@@ -82,7 +83,7 @@
               id="btn-cancel-style-edit"
               href="{{ url_for(__name__ ~ ':list', identity='ai_style') }}"
               class="btn btn-danger"
-              data-qiao-guard-ignore="true"
+              data-ailo-guard-ignore="true"
             >Cancel</a>
             <button type="button" class="btn" onclick="saveAll('continue', this)">Save and continue editing</button>
             <button type="button" class="btn btn-success" onclick="saveAll('save', this)">Save</button>
@@ -321,6 +322,11 @@
 
   .mapping-table {
     margin-top: 20px;
+    overflow-x: auto;
+  }
+  .mapping-table .table {
+    width: 100%;
+    table-layout: fixed;
   }
 
   .mapping-table input[type="number"] {
@@ -330,6 +336,66 @@
   .mapping-table select {
     min-width: 0;
     width: 100%;
+  }
+  .mapping-table th.mapping-col-color,
+  .mapping-table td.mapping-col-color {
+    width: 6%;
+  }
+  .mapping-table th.mapping-col-start,
+  .mapping-table td.mapping-col-start,
+  .mapping-table th.mapping-col-end,
+  .mapping-table td.mapping-col-end {
+    width: 15%;
+  }
+  .mapping-table th.mapping-col-relationship,
+  .mapping-table td.mapping-col-relationship {
+    width: 37%;
+  }
+  .mapping-table th.mapping-col-priority,
+  .mapping-table td.mapping-col-priority {
+    width: 10%;
+  }
+  .mapping-table th.mapping-col-limit,
+  .mapping-table td.mapping-col-limit {
+    width: 8%;
+  }
+  .mapping-table th.mapping-col-action,
+  .mapping-table td.mapping-col-action {
+    width: 9%;
+  }
+  .mapping-table td.mapping-col-relationship .select2-container {
+    width: 100% !important;
+    min-width: 0;
+  }
+  .mapping-table .table th:nth-child(1),
+  .mapping-table .table td:nth-child(1) {
+    width: 6%;
+  }
+  .mapping-table .table th:nth-child(2),
+  .mapping-table .table td:nth-child(2),
+  .mapping-table .table th:nth-child(3),
+  .mapping-table .table td:nth-child(3) {
+    width: 15%;
+  }
+  .mapping-table .table th:nth-child(4),
+  .mapping-table .table td:nth-child(4) {
+    width: 37%;
+  }
+  .mapping-table .table th:nth-child(5),
+  .mapping-table .table td:nth-child(5) {
+    width: 10%;
+  }
+  .mapping-table .table th:nth-child(6),
+  .mapping-table .table td:nth-child(6) {
+    width: 8%;
+  }
+  .mapping-table .table th:nth-child(7),
+  .mapping-table .table td:nth-child(7) {
+    width: 9%;
+  }
+  .mapping-table .table td .form-control,
+  .mapping-table .table td .form-select {
+    min-width: 0;
   }
 
   .mapping-table .table thead,
@@ -353,6 +419,10 @@
     background-color: var(--tblr-tertiary-bg, var(--bs-tertiary-bg, #1f2429));
   }
 </style>
+{% endblock %}
+{% block script %}
+<script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/vendor/select2.min.js') }}"></script>
+<script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/components/search-select.js') }}"></script>
 <script>
   // Constants for placeholder delimiters
   const PLACEHOLDER_LEFT = '{' + '{';
@@ -376,7 +446,8 @@
     reuseModal: null,
     copyModal: null,
     editModal: null,
-    availableDimensions: []
+    selectedReusableDimension: null,
+    reusableDimensions: []
   };
 
   // Cache: how many other styles use a given dimension id
@@ -386,7 +457,7 @@
   const relationshipColors = [
     '#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', '#6f42c1', '#e83e8c', '#fd7e14'
   ];
-  const dialogs = window.qiaoAdminDialogs;
+  const dialogs = window.ailoDialogs;
   const styleListUrl = "{{ url_for(__name__ ~ ':list', identity='ai_style') }}";
   let lastSavedSnapshot = null;
   let unsavedGuard = null;
@@ -484,7 +555,7 @@
     }
     initializeMappings();
     lastSavedSnapshot = serializeSnapshot(buildRequestData().requestData);
-    unsavedGuard = window.qiaoUnsavedGuard.create({
+    unsavedGuard = window.ailoUnsavedGuard.create({
       isDirty: () => serializeSnapshot(buildRequestData().requestData) !== lastSavedSnapshot
     });
     document.getElementById('btn-cancel-style-edit')?.addEventListener('click', async (event) => {
@@ -949,9 +1020,9 @@
     '<th style="width:60px;"></th>' +
     '<th scope="col">起始位置</th>' +
     '<th scope="col">结束位置</th>' +
-    '<th scope="col">关系</th>' +
+    '<th scope="col" class="mapping-col-relationship">关系</th>' +
     '<th scope="col">优先级</th>' +
-    '<th scope="col">次数限制</th>' +
+    '<th scope="col" class="mapping-col-limit">次数限制</th>' +
     '<th scope="col" style="width:80px;">操作</th>' +
     '</tr>';
     table.appendChild(thead);
@@ -1026,11 +1097,10 @@
 
     // Relationship
     const relTd = document.createElement('td');
-    relTd.className = 'px-2';
+    relTd.className = 'px-2 mapping-col-relationship';
     const relSelect = document.createElement('select');
     relSelect.name = 'relationship_id';
     relSelect.className = 'form-select w-100';
-    relSelect.onchange = () => updateScoreAxisVisualization(dimensionName);
     relationships.forEach(rel => {
       const option = document.createElement('option');
       option.value = rel.id;
@@ -1058,7 +1128,7 @@
 
     // Limit count
     const limitTd = document.createElement('td');
-    limitTd.className = 'px-2';
+    limitTd.className = 'px-2 mapping-col-limit';
     const limitInput = document.createElement('input');
     limitInput.type = 'number';
     limitInput.name = 'limit_count';
@@ -1078,6 +1148,30 @@
     deleteBtn.onclick = () => removeMapping(deleteBtn, dimensionName);
     actionTd.appendChild(deleteBtn);
     row.appendChild(actionTd);
+
+    const searchSelect = window.ailoSearchSelect;
+    if (searchSelect && typeof searchSelect.initSearchSelect === 'function') {
+      searchSelect.initSearchSelect({
+        element: relSelect,
+        items: relationships.map((rel) => ({
+          id: String(rel.id),
+          text: rel.display_name || `ID ${rel.id}`,
+          meta: {
+            relationship_id: rel.id,
+            display_name: rel.display_name || '',
+          },
+        })),
+        placeholder: 'Search relationship',
+        allowClear: false,
+        minimumInputLength: 0,
+        language: {
+          noResults: 'No matching relationships found.',
+        },
+        onSelect: () => updateScoreAxisVisualization(dimensionName),
+      });
+    } else {
+      relSelect.onchange = () => updateScoreAxisVisualization(dimensionName);
+    }
 
     return row;
   }
@@ -1214,6 +1308,64 @@
     uiState.addModal?.show();
   }
 
+  function destroyReuseDimensionSearchSelect() {
+    const searchSelect = window.ailoSearchSelect;
+    const selector = document.getElementById('reuse-dim-selector');
+    if (!searchSelect || typeof searchSelect.destroySearchSelect !== 'function' || !selector) {
+      return;
+    }
+    searchSelect.destroySearchSelect(selector);
+  }
+
+  async function loadReusableDimensions() {
+    const collected = [];
+    let page = 1;
+    const limit = 50;
+
+    while (true) {
+      const response = await fetch(
+        `/admin-api/ai/style/{{ style.id }}/available-dimensions/search?limit=${limit}&page=${page}`
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || 'Search failed.');
+      }
+
+      const items = Array.isArray(data.items) ? data.items : [];
+      collected.push(...items);
+      if (!data.has_more || items.length === 0) {
+        break;
+      }
+      page += 1;
+    }
+
+    return collected;
+  }
+
+  function initializeReuseDimensionSearchSelect() {
+    const searchSelect = window.ailoSearchSelect;
+    const selector = document.getElementById('reuse-dim-selector');
+    if (!searchSelect || typeof searchSelect.initSearchSelect !== 'function' || !selector) {
+      return;
+    }
+    searchSelect.initSearchSelect({
+      element: selector,
+      items: uiState.reusableDimensions,
+      placeholder: 'Please search and select one dimension',
+      dropdownParent: document.getElementById('reuseDimensionModal'),
+      allowClear: true,
+      language: {
+        noResults: 'No matching dimensions found.',
+      },
+      onSelect: (selected) => {
+        uiState.selectedReusableDimension = selected || null;
+      },
+      onClear: () => {
+        uiState.selectedReusableDimension = null;
+      },
+    });
+  }
+
   // Common confirm dialog
   function showConfirmDialog({
     title = '确认',
@@ -1276,43 +1428,26 @@
   // Show reuse dimension modal
   async function showReuseDimensionModal() {
     const selector = document.getElementById('reuse-dim-selector');
-    selector.innerHTML = '';
+    destroyReuseDimensionSearchSelect();
+    uiState.selectedReusableDimension = null;
+    uiState.reusableDimensions = [];
+    document.getElementById('reuse-dim-initial').value = 500;
+    selector.innerHTML = '<option value=""></option>';
+    uiState.reuseModal?.show();
     try {
-      const response = await fetch('/admin-api/ai/style/{{ style.id }}/available-dimensions');
-      const data = await response.json();
-      const availableDimensions = data.items || [];
-      uiState.availableDimensions = availableDimensions;
-
-      if (availableDimensions.length === 0) {
+      uiState.reusableDimensions = await loadReusableDimensions();
+      if (uiState.reusableDimensions.length === 0) {
         alert('没有可复用的Dimension');
-        return;
       }
-
-      // default option
-      const def = document.createElement('option');
-      def.value = '';
-      def.textContent = '-- 请选择 --';
-      selector.appendChild(def);
-
-      availableDimensions.forEach(d => {
-        const opt = document.createElement('option');
-        opt.value = d.id;
-        opt.textContent = `${d.display_name || d.name} (${d.name})`;
-        opt.dataset.name = d.name;
-        opt.dataset.displayName = d.display_name || '';
-        selector.appendChild(opt);
-      });
-
-      document.getElementById('reuse-dim-initial').value = 500;
-      uiState.reuseModal?.show();
+      initializeReuseDimensionSearchSelect();
     } catch (e) {
       alert('加载Dimension列表失败: ' + e.message);
     }
   }
 
   function saveReuseDimension() {
-    const selector = document.getElementById('reuse-dim-selector');
-    const selectedId = parseInt(selector.value || '');
+    const selectedItem = uiState.selectedReusableDimension;
+    const selectedId = parseInt(selectedItem?.id || '');
     const ip = parseInt(document.getElementById('reuse-dim-initial').value);
     if (!selectedId) {
       alert('请选择一个Dimension');
@@ -1323,11 +1458,8 @@
       return;
     }
 
-    // Find selected option text for name/display
-    const opt = selector.selectedOptions[0];
-    const selectedName = opt?.dataset?.name;
-    const selectedDisplay = opt?.dataset?.displayName || selectedName;
-    const selectedDim = (uiState.availableDimensions || []).find(d => d.id === selectedId);
+    const selectedName = selectedItem?.meta?.name || '';
+    const selectedDisplay = selectedItem?.meta?.display_name || selectedName;
 
     const newDimension = {
       id: selectedId,
@@ -1339,8 +1471,8 @@
 
     dimensions.push(newDimension);
 
-    // If server returned mappings with the available dimension, reuse them
-    const dimensionMappings = (selectedDim?.mappings || []).map(idx => ({
+    const rawMappings = Array.isArray(selectedItem?.meta?.mappings) ? selectedItem.meta.mappings : [];
+    const dimensionMappings = rawMappings.map((idx) => ({
       ...idx,
       dimension_id: selectedId
     }));

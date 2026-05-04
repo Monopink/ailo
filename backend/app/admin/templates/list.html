@@ -162,4 +162,83 @@
             src="{{ url_for(__name__ ~ ':statics', path='js/actions.js').include_query_params(v=1) }}"></script>
     <script type="text/javascript"
             src="{{ url_for(__name__ ~ ':statics', path='js/list.js').include_query_params(v=2) }}"></script>
+    <script type="text/javascript">
+        (function () {
+            const adminIndexUrl = "{{ url_for(__name__ ~ ':index') }}";
+            const adminBasePath = new URL(adminIndexUrl, window.location.origin).pathname.replace(/\/$/, "");
+
+            function isInAdminScope(pathname) {
+                return pathname === adminBasePath || pathname.startsWith(adminBasePath + "/");
+            }
+
+            function appendNextToHref(rawHref) {
+                if (!rawHref || rawHref.startsWith("#") || rawHref.startsWith("javascript:")) {
+                    return rawHref;
+                }
+                let parsed;
+                try {
+                    parsed = new URL(rawHref, window.location.origin);
+                } catch (error) {
+                    return rawHref;
+                }
+                if (parsed.origin !== window.location.origin) {
+                    return rawHref;
+                }
+                if (!isInAdminScope(parsed.pathname) || parsed.searchParams.has("next")) {
+                    return rawHref;
+                }
+                if (parsed.pathname.includes("/api/")) {
+                    return rawHref;
+                }
+                const current = window.location.pathname + window.location.search;
+                parsed.searchParams.set("next", current);
+                return parsed.pathname + parsed.search + parsed.hash;
+            }
+
+            function patchLink(anchor) {
+                const href = anchor.getAttribute("href");
+                const patched = appendNextToHref(href);
+                if (patched !== href) {
+                    anchor.setAttribute("href", patched);
+                }
+            }
+
+            function patchListLinks() {
+                document
+                    .querySelectorAll("#dt a[href], .card-actions a[href], .btn-list a[href]")
+                    .forEach((anchor) => patchLink(anchor));
+            }
+
+            document.addEventListener(
+                "click",
+                function (event) {
+                    const anchor = event.target.closest("a[href]");
+                    if (!anchor) {
+                        return;
+                    }
+                    patchLink(anchor);
+                },
+                true
+            );
+
+            document.addEventListener(
+                "auxclick",
+                function (event) {
+                    const anchor = event.target.closest("a[href]");
+                    if (!anchor) {
+                        return;
+                    }
+                    patchLink(anchor);
+                },
+                true
+            );
+
+            $(document).ready(function () {
+                patchListLinks();
+                $("#dt").on("draw.dt", function () {
+                    patchListLinks();
+                });
+            });
+        })();
+    </script>
 {% endblock %}

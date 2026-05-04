@@ -238,7 +238,7 @@
                 id="btn-cancel-template-edit"
                 href="{{ url_for(__name__ ~ ':list', identity='ai_template') }}"
                 class="btn btn-danger"
-                data-qiao-guard-ignore="true"
+                data-ailo-guard-ignore="true"
               >Cancel</a>
               <button id="btn-save-continue-template-edit" type="submit" data-action="continue" class="btn">Save and continue editing</button>
               <button id="btn-save-template-edit" type="submit" data-action="save" class="btn btn-success">Save</button>
@@ -295,7 +295,7 @@
 
 {% block script %}
 <script>
-window.qiaoAdvancedEditTemplateConfig = {
+window.ailoAdvancedEditTemplateConfig = {
   templateId: {{ template.id|string|tojson|safe }},
   listUrl: "{{ url_for(__name__ ~ ':list', identity='ai_template') }}",
   algorithmParamSpecs: {{ (algorithm_param_specs or {}) | tojson | safe }},

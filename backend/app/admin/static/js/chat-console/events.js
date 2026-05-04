@@ -25,7 +25,7 @@ export function bindChatConsoleEvents({
   cancelTypingStartBuffer,
   closeLoginModal,
 }) {
-  const dialogs = window.qiaoAdminDialogs;
+  const dialogs = window.ailoDialogs;
   el.btnClearLog.addEventListener('click', clearLog);
   el.btnOpenLoginModal.addEventListener('click', () => {
     openLoginModal();

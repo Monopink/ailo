@@ -4,8 +4,8 @@ Handles style management including dimensions, associations, and relationship ma
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import delete, select, update
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import POSITION_MAX_VALUE
@@ -507,54 +507,92 @@ async def save_style_complete(
     }
 
 
-@style_router.get("/style/{style_id}/available-dimensions")
-async def get_available_dimensions(
-    style_id: int, db: AsyncSession = Depends(get_db)
+@style_router.get("/style/{style_id}/available-dimensions/search")
+async def search_available_dimensions(
+    style_id: int,
+    q: str = Query(default="", max_length=100),
+    limit: int = Query(default=20, ge=1, le=50),
+    page: int = Query(default=1, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Get dimensions not yet added to this style."""
-    # Get dimensions already in this style
-    existing_stmt = select(AIStyleDimension.dimension_id).where(
+    """Search dimensions that are not yet associated with the current style."""
+    style = await style_crud.get(db, record_id=style_id)
+    if style is None:
+        raise HTTPException(status_code=404, detail="Style not found")
+
+    query = q.strip()
+    offset = (page - 1) * limit
+
+    used_dimension_ids = select(AIStyleDimension.dimension_id).where(
         AIStyleDimension.style_id == style_id
     )
-    existing_result = await db.execute(existing_stmt)
-    existing_ids = {row[0] for row in existing_result.fetchall()}
+    stmt = select(AIDimension).where(~AIDimension.id.in_(used_dimension_ids))
 
-    # Get all dimensions not in this style
-    stmt = select(AIDimension).where(~AIDimension.id.in_(existing_ids))
-    result = await db.execute(stmt)
-    dimensions = result.scalars().all()
-
-    # Get mappings for each dimension (include id for updating globally)
-    items = []
-    for d in dimensions:
-        mappings_stmt = select(AIDimensionRelationshipMapping).where(
-            AIDimensionRelationshipMapping.dimension_id == d.id
+    if query:
+        stmt = stmt.where(
+            or_(
+                AIDimension.name.ilike(f"%{query}%"),
+                AIDimension.display_name.ilike(f"%{query}%"),
+            )
         )
-        mappings_result = await db.execute(mappings_stmt)
-        mappings = mappings_result.scalars().all()
 
+    result = await db.execute(
+        stmt.order_by(
+            AIDimension.display_name.asc().nulls_last(),
+            AIDimension.name.asc(),
+            AIDimension.id.asc(),
+        )
+        .offset(offset)
+        .limit(limit + 1)
+    )
+    dimensions = result.scalars().all()
+    has_more = len(dimensions) > limit
+    dimensions = dimensions[:limit]
+
+    dimension_ids = [dimension.id for dimension in dimensions]
+    mappings_by_dimension: dict[int, list[dict[str, Any]]] = {}
+    if dimension_ids:
+        mapping_result = await db.execute(
+            select(AIDimensionRelationshipMapping)
+            .where(AIDimensionRelationshipMapping.dimension_id.in_(dimension_ids))
+            .order_by(
+                AIDimensionRelationshipMapping.dimension_id.asc(),
+                AIDimensionRelationshipMapping.priority.asc(),
+                AIDimensionRelationshipMapping.start_position.asc(),
+                AIDimensionRelationshipMapping.end_position.asc(),
+                AIDimensionRelationshipMapping.id.asc(),
+            )
+        )
+        for mapping in mapping_result.scalars().all():
+            mappings_by_dimension.setdefault(mapping.dimension_id, []).append(
+                {
+                    "id": mapping.id,
+                    "start_position": mapping.start_position,
+                    "end_position": mapping.end_position,
+                    "relationship_id": mapping.relationship_id,
+                    "priority": mapping.priority,
+                    "limit_count": mapping.limit_count,
+                }
+            )
+
+    items = []
+    for dimension in dimensions:
+        display_name = dimension.display_name or dimension.name
         items.append(
             {
-                "id": d.id,
-                "name": d.name,
-                "display_name": d.display_name,
-                "description": d.description,
-                "initial_position": None,
-                "mappings": [
-                    {
-                        "id": idx.id,
-                        "start_position": idx.start_position,
-                        "end_position": idx.end_position,
-                        "relationship_id": idx.relationship_id,
-                        "priority": idx.priority,
-                        "limit_count": idx.limit_count,
-                    }
-                    for idx in mappings
-                ],
+                "id": str(dimension.id),
+                "text": f"{display_name} ({dimension.name})",
+                "meta": {
+                    "dimension_id": dimension.id,
+                    "name": dimension.name,
+                    "display_name": dimension.display_name,
+                    "description": dimension.description,
+                    "mappings": mappings_by_dimension.get(dimension.id, []),
+                },
             }
         )
 
-    return {"items": items}
+    return {"items": items, "has_more": has_more}
 
 
 @style_router.get("/style/{style_id}/dimension/{dimension_id}/other-styles")

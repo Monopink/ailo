@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-{% set _mode = request.cookies.get('qiao_admin_theme', 'auto') %}
+{% set _mode = request.cookies.get('ailo_admin_theme', 'auto') %}
 <html lang="en"{% if _mode in ['light','dark'] %} data-bs-theme="{{ _mode }}"{% endif %}>
 
 <head>

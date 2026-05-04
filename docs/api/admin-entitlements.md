@@ -27,6 +27,7 @@
 
 - `q` (string, 可选) - 搜索关键词，支持用户 ID、用户名、手机号、邮箱。
 - `limit` (integer, 可选) - 最大返回条数，范围 `1-50`，默认 `20`。
+- `page` (integer, 可选) - 页码，从 `1` 开始，默认 `1`。
 
 ### 成功响应（200）
 
@@ -34,21 +35,27 @@
 {
   "items": [
     {
-      "user_id": "10001",
-      "username": "alice",
-      "phone": "+86 138******00",
-      "email": "a***@example.com",
-      "display_label": "[10001] | alice | +86 138******00 | a***@example.com"
+      "id": "10001",
+      "text": "[10001] | alice | +86 138******00 | a***@example.com",
+      "meta": {
+        "user_id": "10001",
+        "username": "alice",
+        "phone": "+86 138******00",
+        "email": "a***@example.com"
+      }
     }
-  ]
+  ],
+  "has_more": false
 }
 ```
 
 ### 响应字段说明
 
 - `items` (array) - 匹配用户列表。
-- `user_id` (string) - 用户 ID 字符串，前端应按字符串传回写接口，避免大整数精度丢失。
-- `display_label` (string) - 下拉展示文案，包含用户 ID、用户名、脱敏手机号、脱敏邮箱（缺失字段不显示）。
+- `items[].id` (string) - 用户 ID 字符串，前端应按字符串传回写接口，避免大整数精度丢失。
+- `items[].text` (string) - 下拉展示文案，包含用户 ID、用户名、脱敏手机号、脱敏邮箱（缺失字段不显示）。
+- `items[].meta` (object) - 附加信息，包含 `user_id/username/phone/email`。
+- `has_more` (boolean) - 是否存在下一页搜索结果。
 - 当 `q` 为空时，返回空数组。
 
 ---

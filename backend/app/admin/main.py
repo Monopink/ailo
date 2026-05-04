@@ -12,13 +12,14 @@ from jinja2.utils import htmlsafe_json_dumps
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
 from starlette_admin import CustomView, DropDown, TimezoneConfig
-from starlette_admin.contrib.sqla import Admin
 
 from app.core.config import Settings, get_settings
 from app.core.database import get_engine
 
+from .admin_next import AdminWithNext
 from .auth import CustomAuthProvider
 from .i18n import admin_text, build_i18n_config, translate_labels
+from .navigation import get_admin_list_url
 from .views import (
     admin_login_log_view,
     admin_operation_log_view,
@@ -138,13 +139,14 @@ def _pretty_json(data: Any) -> str:
         return str(data)
 
 
-def _configure_template_env(admin_instance: Admin, settings: Settings) -> None:
+def _configure_template_env(admin_instance: AdminWithNext, settings: Settings) -> None:
     admin_instance.templates.env.filters["tojson"] = lambda data: htmlsafe_json_dumps(
         data, dumps=_admin_json_dumps
     )
     admin_instance.templates.env.filters["admin_translate_labels"] = translate_labels
     admin_instance.templates.env.globals["settings"] = settings
     admin_instance.templates.env.globals["admin_text"] = admin_text
+    admin_instance.templates.env.globals["admin_list_url"] = get_admin_list_url
     try:
         admin_instance.templates.env.auto_reload = True
         cache = getattr(admin_instance.templates.env, "cache", None)
@@ -155,7 +157,7 @@ def _configure_template_env(admin_instance: Admin, settings: Settings) -> None:
     admin_instance.templates.env.filters["prettyjson"] = _pretty_json
 
 
-def _register_dropdowns(admin_instance: Admin) -> None:
+def _register_dropdowns(admin_instance: AdminWithNext) -> None:
     operation_settings_view = SystemSettingsView(
         label="Operation Settings",
         icon="fa fa-sliders",
@@ -372,7 +374,7 @@ class ThemeSwitchView(CustomView):
         mode = str(request.path_params.get("mode", "light")).lower()
         if mode not in ("light", "dark", "auto"):
             mode = "light"
-        admin_app = cast(Admin | None, getattr(self, "admin", None))
+        admin_app = cast(AdminWithNext | None, getattr(self, "admin", None))
         if admin_app is None:
             raise RuntimeError("Admin application is not initialized")
         referer = request.headers.get("referer") or str(
@@ -380,7 +382,7 @@ class ThemeSwitchView(CustomView):
         )
         response = RedirectResponse(url=referer, status_code=303)
         response.set_cookie(
-            "qiao_admin_theme",
+            "ailo_admin_theme",
             mode,
             max_age=60 * 60 * 24 * 365,
             path="/",
@@ -389,7 +391,7 @@ class ThemeSwitchView(CustomView):
         return response
 
 
-def _add_custom_views(admin_instance: Admin) -> None:
+def _add_custom_views(admin_instance: AdminWithNext) -> None:
     theme_switch_view = ThemeSwitchView(
         label="Theme Switch",
         name="theme_switch",
@@ -399,8 +401,8 @@ def _add_custom_views(admin_instance: Admin) -> None:
     admin_instance.add_view(theme_switch_view)
 
 
-def _create_admin(settings: Settings) -> Admin:
-    admin_instance = Admin(
+def _create_admin(settings: Settings) -> AdminWithNext:
+    admin_instance = AdminWithNext(
         engine=get_engine(),
         title="Qiao Dashboard",
         base_url="/qiao-dash",
@@ -424,6 +426,6 @@ def _create_admin(settings: Settings) -> Admin:
 
 
 @lru_cache
-def get_admin() -> Admin:
+def get_admin() -> AdminWithNext:
     """Return cached Admin application instance."""
     return _create_admin(get_settings())

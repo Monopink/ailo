@@ -118,7 +118,7 @@
 
 {% block script %}
 <script>
-window.qiaoSystemSettingsPageConfig = {
+window.ailoSystemSettingsPageConfig = {
   pageMode: "system",
   conversationId: {{ (conversation_id or "") | tojson | safe }},
   webhookUrl: {{ (webhook_url or "") | tojson | safe }},

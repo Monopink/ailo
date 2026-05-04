@@ -1,4 +1,4 @@
-const config = window.qiaoAdvancedEditPersonalityConfig || {};
+const config = window.ailoAdvancedEditPersonalityConfig || {};
 
 function requireNumericId(value, name) {
   const strValue = typeof value === 'string' ? value : String(value ?? '');

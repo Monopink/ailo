@@ -200,7 +200,7 @@
               id="btn-cancel-personality-edit"
               href="{{ url_for(__name__ ~ ':list', identity='ai_personality') }}"
               class="btn btn-danger"
-              data-qiao-guard-ignore="true"
+              data-ailo-guard-ignore="true"
             >Cancel</a>
             <button id="btn-save-continue-personality-edit" type="button" class="btn" onclick="app.save('continue')">Save and continue editing</button>
             <button id="btn-save-personality-edit" type="button" class="btn btn-success" onclick="app.save('save')">Save</button>
@@ -346,7 +346,7 @@
 {% endblock %}
 {% block script %}
 <script>
-window.qiaoAdvancedEditPersonalityConfig = {
+window.ailoAdvancedEditPersonalityConfig = {
   personalityId: {{ personality.id|string|tojson|safe }},
   listUrl: "{{ url_for(__name__ ~ ':list', identity='ai_personality') }}",
 };

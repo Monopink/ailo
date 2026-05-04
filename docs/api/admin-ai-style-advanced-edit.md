@@ -145,10 +145,16 @@
 
 ---
 
-## 3) 获取可关联的维度列表
+## 3) 查询可关联的维度列表（支持搜索）
 
-- **Method / Path**: `GET /admin-api/ai/style/{style_id}/available-dimensions`
-- **用途**: 为“关联 Dimension”弹窗提供当前 style 尚未关联的维度及其已有 mappings
+- **Method / Path**: `GET /admin-api/ai/style/{style_id}/available-dimensions/search`
+- **用途**: 为“关联 Dimension”弹窗提供候选维度列表（仅返回当前 style 尚未关联的维度）
+
+### Query Parameters
+
+- `q`：搜索关键词，可匹配 `name` 与 `display_name`（大小写不敏感）。
+- `limit`：单页返回条数，范围 `1-50`，默认 `20`。
+- `page`：页码，从 `1` 开始，默认 `1`。
 
 ### Response
 
@@ -156,31 +162,36 @@
 {
   "items": [
     {
-      "id": 8,
-      "name": "trust",
-      "display_name": "信任",
-      "description": "互动中的信任水平",
-      "initial_position": null,
-      "mappings": [
-        {
-          "id": 41,
-          "start_position": 0,
-          "end_position": 300,
-          "relationship_id": 1,
-          "priority": 2,
-          "limit_count": 0
-        }
-      ]
+      "id": "8",
+      "text": "信任 (trust)",
+      "meta": {
+        "dimension_id": 8,
+        "name": "trust",
+        "display_name": "信任",
+        "description": "互动中的信任水平",
+        "mappings": [
+          {
+            "id": 41,
+            "start_position": 0,
+            "end_position": 300,
+            "relationship_id": 1,
+            "priority": 2,
+            "limit_count": 0
+          }
+        ]
+      }
     }
-  ]
+  ],
+  "has_more": false
 }
 ```
 
 ### 行为约束
 
-- 仅返回当前 style 未关联的维度。
-- `mappings` 返回该维度当前已有的全局 mappings，可用于关联前预览。
-- `initial_position` 固定返回 `null`，由页面在关联时另行填写。
+- 返回项统一使用 `id/text/meta` 结构，供可搜索下拉组件直接消费。
+- `meta.mappings` 返回该维度当前已有的全局 mappings，可用于关联后直接带入页面草稿。
+- `has_more=true` 表示存在下一页数据。
+- 当 `q` 为空时，返回该 style 全量可复用维度（受 `limit/page` 分页限制）。
 
 ---
 

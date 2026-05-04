@@ -7,7 +7,7 @@
                 <a href="{{ url_for(__name__ ~ ':index') }}">{{ admin_text("Admin") }}</a>
             </li>
             <li class="breadcrumb-item">
-                <a href="{{ url_for(__name__ ~ ':list', identity=model.identity) }}">{{ admin_text(model.label) }}</a>
+                <a href="{{ admin_list_url(request, model.identity) }}">{{ admin_text(model.label) }}</a>
             </li>
             <li class="breadcrumb-item active">{{ admin_text("Create") }}</li>
         </ol>
@@ -44,7 +44,7 @@
                         </div>
                         <div class="card-footer text-black">
                             <div class="btn-list ms-auto justify-content-end">
-                                <a href="{{ url_for(__name__ ~ ':list', identity=model.identity) }}"
+                                <a href="{{ admin_list_url(request, model.identity) }}"
                                    class="btn btn-danger">{{ admin_text("Cancel") }}</a>
                                 <button type="submit" name="_add_another"
                                         class="btn">{{ admin_text("Save and add another") }}</button>

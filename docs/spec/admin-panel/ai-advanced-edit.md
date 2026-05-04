@@ -61,6 +61,7 @@
 - 编辑 style 与 dimension 关联。
 - 编辑 `ai_dimensions.description` 作为维度默认描述来源。
 - 编辑 mapping 与初始位置规则。
+- “关联 Dimension”使用可搜索选择组件，从当前未关联维度中远程搜索并选择。
 
 ### description 边界
 

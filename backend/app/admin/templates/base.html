@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 {% set _locale = get_locale() %}
 {% set _html_lang = 'zh' if _locale.startswith('zh') else _locale|replace('_', '-') %}
-<html lang="{{ _html_lang }}"{% set _mode = request.cookies.get('qiao_admin_theme', 'auto') %}{% if _mode in ['light','dark'] %} data-bs-theme="{{ _mode }}"{% endif %}>
+<html lang="{{ _html_lang }}"{% set _mode = request.cookies.get('ailo_admin_theme', 'auto') %}{% if _mode in ['light','dark'] %} data-bs-theme="{{ _mode }}"{% endif %}>
 
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     {% block head_meta %}{% endblock %}
     {% block title %}<title>{{ title or app_title }}</title>{% endblock %}
 
-    {# SSR theme: set by cookie qiao_admin_theme = light|dark; if auto, set early via script before CSS #}
+    {# SSR theme: set by cookie ailo_admin_theme = light|dark; if auto, set early via script before CSS #}
     {% if _mode == 'auto' %}
     <script>
       (function(){
@@ -30,8 +30,8 @@
     <link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/fontawesome.min.css') }}">
     <!-- Project small fixes (e.g., alert fallbacks) -->
     <link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/admin-fixes.css') }}">
-    <script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/admin-dialogs.js') }}"></script>
-    <script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/admin-unsaved-guard.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/components/dialogs.js') }}"></script>
+    <script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/components/unsaved-guard.js') }}"></script>
 
     <style>
         @import url('https://rsms.me/inter/inter.css');
@@ -49,7 +49,7 @@
             height: 2rem;
         }
 
-        .qiao-admin-confirm-message {
+        .ailo-admin-confirm-message {
             white-space: pre-line;
         }
     </style>
@@ -59,19 +59,19 @@
 <body>
 {% block body %}{% endblock %}
 {% block modal %}{% endblock %}
-<div id="qiao-admin-confirm-modal" class="modal fade" tabindex="-1" aria-hidden="true">
+<div id="ailo-admin-confirm-modal" class="modal fade" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 id="qiao-admin-confirm-title" class="modal-title">确认</h5>
+        <h5 id="ailo-admin-confirm-title" class="modal-title">确认</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
       </div>
       <div class="modal-body">
-        <div id="qiao-admin-confirm-message" class="qiao-admin-confirm-message">确定执行该操作？</div>
+        <div id="ailo-admin-confirm-message" class="ailo-admin-confirm-message">确定执行该操作？</div>
       </div>
       <div class="modal-footer">
-        <button id="qiao-admin-confirm-cancel" type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-        <button id="qiao-admin-confirm-confirm" type="button" class="btn btn-primary">确认</button>
+        <button id="ailo-admin-confirm-cancel" type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button id="ailo-admin-confirm-confirm" type="button" class="btn btn-primary">确认</button>
       </div>
     </div>
   </div>

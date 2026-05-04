@@ -8,8 +8,8 @@ import { createMemoryController } from '../common/memory-controller.js';
 import { createSnapshotGuard } from '../common/edit-guard.js';
 import { postJson, withButtonLoading } from '../common/save-flow.js';
 
-const config = window.qiaoAdvancedEditTemplateConfig || {};
-const dialogs = window.qiaoAdminDialogs;
+const config = window.ailoAdvancedEditTemplateConfig || {};
+const dialogs = window.ailoDialogs;
 
 function requireNumericId(value, name) {
   const strValue = typeof value === 'string' ? value : String(value ?? '');

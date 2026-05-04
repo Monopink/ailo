@@ -11,7 +11,7 @@
     if (!anchor || anchor.hasAttribute('download')) {
       return false;
     }
-    if (anchor.dataset.qiaoGuardIgnore === 'true') {
+    if (anchor.dataset.ailoGuardIgnore === 'true') {
       return false;
     }
     const href = anchor.getAttribute('href');
@@ -48,7 +48,7 @@
     let disposed = false;
 
     async function confirmLeave(customMessage) {
-      const dialogs = window.qiaoAdminDialogs;
+      const dialogs = window.ailoDialogs;
       const message = customMessage || settings.message;
       if (!settings.isDirty()) {
         return true;
@@ -89,7 +89,7 @@
         return;
       }
       event.preventDefault();
-      const ok = await confirmLeave(anchor.dataset.qiaoGuardMessage);
+      const ok = await confirmLeave(anchor.dataset.ailoGuardMessage);
       if (!ok) {
         return;
       }
@@ -118,7 +118,7 @@
     });
   }
 
-  window.qiaoUnsavedGuard = Object.freeze({
+  window.ailoUnsavedGuard = Object.freeze({
     create: createUnsavedChangesGuard,
   });
 })();

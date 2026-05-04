@@ -357,7 +357,7 @@
             id="btn-cancel-instance-edit"
             href="{{ url_for(__name__ ~ ':list', identity='ai_instance') }}"
             class="btn btn-danger"
-            data-qiao-guard-ignore="true"
+            data-ailo-guard-ignore="true"
           >Cancel</a>
           <button id="btn-save-continue-instance-edit" type="submit" data-action="continue" class="btn" {% if schema_mismatch %}disabled{% endif %}>Save and continue editing</button>
           <button id="btn-save-instance-edit" type="submit" data-action="save" class="btn btn-success" {% if schema_mismatch %}disabled{% endif %}>Save</button>
@@ -441,7 +441,7 @@
 
 {% block script %}
 <script>
-window.qiaoAdvancedEditInstanceConfig = {
+window.ailoAdvancedEditInstanceConfig = {
   instanceId: {{ instance.id|string|tojson|safe }},
   listUrl: "{{ url_for(__name__ ~ ':list', identity='ai_instance') }}",
   algorithmParamSpecs: {{ (algorithm_param_specs or {}) | tojson | safe }},

@@ -34,7 +34,7 @@
             <select class="form-select" id="user-id" required data-placeholder="{{ admin_text('Please search and select one user') }}">
               <option value="">{{ admin_text("Please search and select one user") }}</option>
               {% if preset_user_option %}
-              <option value="{{ preset_user_option.user_id }}" selected>{{ preset_user_option.display_label }}</option>
+              <option value="{{ preset_user_option.id }}" selected>{{ preset_user_option.text }}</option>
               {% endif %}
             </select>
             <div class="ops-user-assets d-none mt-2" id="user-assets-panel">
@@ -253,7 +253,7 @@
 
 {% block script %}
 <script>
-window.qiaoEntitlementOperationsPageConfig = {
+window.ailoEntitlementOperationsPageConfig = {
   api: {
     operations: {{ operations_api_path | tojson | safe }},
     userSearch: {{ user_search_api_path | tojson | safe }},
@@ -305,5 +305,6 @@ window.qiaoEntitlementOperationsPageConfig = {
 };
 </script>
 <script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/vendor/select2.min.js') }}"></script>
+<script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/components/search-select.js') }}"></script>
 <script type="module" src="{{ url_for(__name__ ~ ':statics', path='js/entitlement-operations/page.js') }}"></script>
 {% endblock %}

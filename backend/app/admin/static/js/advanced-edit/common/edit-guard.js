@@ -5,7 +5,7 @@ export function serializeSnapshot(payload) {
 export function createSnapshotGuard(options) {
   const { buildPayload } = options;
   let lastSavedSnapshot = serializeSnapshot(buildPayload());
-  const guard = window.qiaoUnsavedGuard.create({
+  const guard = window.ailoUnsavedGuard.create({
     isDirty: () => serializeSnapshot(buildPayload()) !== lastSavedSnapshot,
   });
   return {

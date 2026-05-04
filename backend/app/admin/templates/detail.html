@@ -8,7 +8,7 @@
                 <a href="{{ url_for(__name__ ~ ':index') }}">{{ admin_text("Admin") }}</a>
             </li>
             <li class="breadcrumb-item">
-                <a href="{{ url_for(__name__ ~ ':list', identity=model.identity) }}">{{ admin_text(model.label) }}</a>
+                <a href="{{ admin_list_url(request, model.identity) }}">{{ admin_text(model.label) }}</a>
             </li>
             <li class="breadcrumb-item active">{{ admin_text("Detail") }}</li>
         </ol>
@@ -122,7 +122,7 @@
             function (actionName, element, msg) {
                 localStorage.successAlert = msg;
                 if (actionName === 'delete')
-                    window.location.replace("{{ url_for(__name__ ~ ':list', identity=model.identity)  | safe }}")
+                    window.location.replace("{{ admin_list_url(request, model.identity) | safe }}")
                 else
                     window.location.reload()
             },
@@ -133,6 +133,55 @@
 
         actionManager.initNoConfirmationActions();
         actionManager.initActionModal();
+
+        const preservedNext = new URLSearchParams(window.location.search).get("next");
+        const adminIndexUrl = "{{ url_for(__name__ ~ ':index') }}";
+        const adminBasePath = new URL(adminIndexUrl, window.location.origin).pathname.replace(/\/$/, "");
+
+        function patchAdminLink(anchor) {
+            if (!preservedNext) {
+                return;
+            }
+            const href = anchor.getAttribute("href");
+            if (!href || href.startsWith("#") || href.startsWith("javascript:")) {
+                return;
+            }
+            let parsed;
+            try {
+                parsed = new URL(href, window.location.origin);
+            } catch (error) {
+                return;
+            }
+            if (parsed.origin !== window.location.origin) {
+                return;
+            }
+            const inAdminScope =
+                parsed.pathname === adminBasePath || parsed.pathname.startsWith(adminBasePath + "/");
+            if (!inAdminScope || parsed.pathname.includes("/api/") || parsed.searchParams.has("next")) {
+                return;
+            }
+            parsed.searchParams.set("next", preservedNext);
+            anchor.setAttribute("href", parsed.pathname + parsed.search + parsed.hash);
+        }
+
+        $(document).ready(function(){
+            document
+                .querySelectorAll(".card-actions a[href], .breadcrumb a[href]")
+                .forEach((anchor) => patchAdminLink(anchor));
+
+            document.addEventListener(
+                "click",
+                function (event) {
+                    const anchor = event.target.closest("a[href]");
+                    if (!anchor) {
+                        return;
+                    }
+                    patchAdminLink(anchor);
+                },
+                true
+            );
+        });
+
         $(document).ready(function(){
             $("#searchInput").on("keyup", function() {
               var value = $(this).val().toLowerCase();

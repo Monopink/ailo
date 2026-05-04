@@ -179,8 +179,8 @@ class EntitlementOperationView(CustomView):
             preset_user_row = preset_user_result.one_or_none()
             if preset_user_row is not None:
                 preset_user_option = {
-                    "user_id": str(int(preset_user_row[0])),
-                    "display_label": build_masked_user_display_label(
+                    "id": str(int(preset_user_row[0])),
+                    "text": build_masked_user_display_label(
                         user_id=int(preset_user_row[0]),
                         username=preset_user_row[1]
                         if isinstance(preset_user_row[1], str)

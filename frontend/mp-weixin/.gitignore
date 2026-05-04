@@ -32,3 +32,8 @@ dist/
 
 # Generated runtime config
 utils/build-info.generated.ts
+
+# Local-only config overrides
+utils/config.local.ts
+utils/config.local.generated.ts
+utils/config.local.generated.js

@@ -1,3 +1,4 @@
+import { ASSET_CONFIG } from '../../utils/config';
 import { type SquareCategoryCard } from '../../utils/constants/square';
 
 export interface PreviewGuestProfile {
@@ -33,7 +34,7 @@ export interface PreviewMessage {
   timeLabel: string;
 }
 
-const COS_ASSET_BASE_URL = 'https://cortex.qiaoqiaoai.cn';
+const COS_ASSET_BASE_URL = ASSET_CONFIG.cosBaseUrl;
 
 const AVATARS = [
   `${COS_ASSET_BASE_URL}/demo/avatars/1.webp`,

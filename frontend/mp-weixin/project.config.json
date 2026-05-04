@@ -58,6 +58,14 @@
         "type": "file"
       },
       {
+        "value": "utils/config.local.js",
+        "type": "file"
+      },
+      {
+        "value": "utils/runtime-config.generated.js",
+        "type": "file"
+      },
+      {
         "value": ".map",
         "type": "suffix"
       },

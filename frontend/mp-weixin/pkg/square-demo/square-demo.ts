@@ -1,4 +1,5 @@
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
+import { ASSET_CONFIG } from '../../utils/config';
 import { getLogger } from '../../utils/logger';
 import { isValidCategoryKey, type SquareCategoryCard } from '../../utils/constants/square';
 import { isNonEmptyString } from '../../utils/guards';
@@ -15,8 +16,8 @@ interface SquareDemoContactViewModel {
   categoryKey: string;
 }
 
-const COS_ASSET_BASE_URL = 'https://cortex.qiaoqiaoai.cn';
-const AVATAR_PLACEHOLDER_URL = `${COS_ASSET_BASE_URL}/assets/avatar-placeholder.webp`;
+const DEMO_AVATAR_BASE_URL = ASSET_CONFIG.demoAvatarBaseUrl;
+const AVATAR_PLACEHOLDER_URL = ASSET_CONFIG.avatarPlaceholderUrl;
 const MORE_CATEGORY_KEY = 'more';
 const PREVIEW_COUNT = 5;
 const DEMO_TAB_DISCOVERY_INDEX = 1;
@@ -52,12 +53,12 @@ const DEMO_CATEGORIES: readonly SquareCategoryCard[] = [
 ];
 
 const DEMO_AVATARS: readonly string[] = [
-  `${COS_ASSET_BASE_URL}/demo/avatars/1.webp`,
-  `${COS_ASSET_BASE_URL}/demo/avatars/2.webp`,
-  `${COS_ASSET_BASE_URL}/demo/avatars/3.webp`,
-  `${COS_ASSET_BASE_URL}/demo/avatars/4.webp`,
-  `${COS_ASSET_BASE_URL}/demo/avatars/5.webp`,
-  `${COS_ASSET_BASE_URL}/demo/avatars/6.webp`,
+  `${DEMO_AVATAR_BASE_URL}/1.webp`,
+  `${DEMO_AVATAR_BASE_URL}/2.webp`,
+  `${DEMO_AVATAR_BASE_URL}/3.webp`,
+  `${DEMO_AVATAR_BASE_URL}/4.webp`,
+  `${DEMO_AVATAR_BASE_URL}/5.webp`,
+  `${DEMO_AVATAR_BASE_URL}/6.webp`,
 ];
 
 const pickDemoAvatar = (index: number): string => {

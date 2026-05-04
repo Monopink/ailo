@@ -1,7 +1,7 @@
 import { getLogger } from '../../utils/logger';
 import { normalizeError } from '../../utils/errors';
 import { isNonEmptyString } from '../../utils/guards';
-import { LOGIN_CONFIG } from '../../utils/config';
+import { ASSET_CONFIG, LOGIN_CONFIG } from '../../utils/config';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { normalizeCampaignCodeParam, normalizeInviteCodeParam } from '../../utils/invite-code';
 import { probeRuntimeSegment, reportPreflightProbeResult } from '../../utils/runtime-segment';
@@ -177,7 +177,7 @@ Page<LoginPageData, LoginPageCustom>({
   },
 
   prepareRemoteBackground() {
-    const remoteBackgroundUrl = LOGIN_CONFIG.loginBackgroundUrl;
+    const remoteBackgroundUrl = ASSET_CONFIG.loginBackgroundUrl;
     if (!isNonEmptyString(remoteBackgroundUrl)) {
       return;
     }

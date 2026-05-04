@@ -3,7 +3,25 @@
  * Centralized configuration for the miniprogram
  */
 
-import { ENV } from './env';
+import { ENV, IS_DEV } from './env';
+import { LOCAL_CONFIG_OVERRIDE as GENERATED_LOCAL_CONFIG_OVERRIDE } from './config.local.generated';
+
+const normalizeBaseUrl = (value: string): string => value.trim().replace(/\/+$/, '');
+
+const normalizePath = (value: string): string => {
+  const normalized = value.trim();
+  if (normalized === '') {
+    return '';
+  }
+  return normalized.startsWith('/') ? normalized : `/${normalized}`;
+};
+
+const buildAssetUrl = (baseUrl: string, path: string): string => {
+  if (baseUrl === '' || path === '') {
+    return '';
+  }
+  return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+};
 
 export interface ApiConfig {
   baseUrl: string;
@@ -17,15 +35,206 @@ const API_BASE_URLS = {
   release: 'https://synapse.qiaoqiaoai.cn',
 } as const;
 
+const ASSET_COS_BASE_URLS = {
+  trial: 'https://cortex.qiaoqiaoai.cn',
+  release: 'https://cortex.qiaoqiaoai.cn',
+} as const;
+
+const DEFAULT_ASSET_PATHS = {
+  avatarPlaceholderPath: '/assets/avatar-placeholder.webp',
+  demoAvatarDirPath: '/demo/avatars',
+  loginBackgroundPath: '/login/bg.webp',
+} as const;
+
+export interface AssetConfig {
+  cosBaseUrl: string;
+  avatarPlaceholderPath: string;
+  demoAvatarDirPath: string;
+  loginBackgroundPath: string;
+  avatarPlaceholderUrl: string;
+  demoAvatarBaseUrl: string;
+  loginBackgroundUrl: string;
+}
+
+export interface LocalConfigOverride {
+  API_CONFIG?: {
+    baseUrl?: string;
+  };
+  ASSET_CONFIG?: {
+    cosBaseUrl?: string;
+    avatarPlaceholderPath?: string;
+    demoAvatarDirPath?: string;
+    loginBackgroundPath?: string;
+  };
+}
+
+const toLocalOverrideCandidate = (moduleValue: unknown): Record<string, unknown> | null => {
+  if (typeof moduleValue !== 'object' || moduleValue === null) {
+    return null;
+  }
+
+  const moduleRecord = moduleValue as Record<string, unknown>;
+  const directCandidate = moduleRecord.LOCAL_CONFIG_OVERRIDE ?? moduleRecord.default;
+  if (directCandidate === undefined) {
+    return moduleRecord;
+  }
+  if (typeof directCandidate !== 'object' || directCandidate === null) {
+    return null;
+  }
+  return directCandidate as Record<string, unknown>;
+};
+
+const normalizeLocalApiConfig = (
+  source: Record<string, unknown>
+): LocalConfigOverride['API_CONFIG'] => {
+  const rawApiConfig = source.API_CONFIG;
+  if (typeof rawApiConfig !== 'object' || rawApiConfig === null) {
+    return undefined;
+  }
+  const apiRecord = rawApiConfig as Record<string, unknown>;
+  if (typeof apiRecord.baseUrl !== 'string') {
+    return undefined;
+  }
+  const baseUrl = normalizeBaseUrl(apiRecord.baseUrl);
+  if (baseUrl === '') {
+    return undefined;
+  }
+  return { baseUrl };
+};
+
+const normalizeLocalAssetConfig = (
+  source: Record<string, unknown>
+): LocalConfigOverride['ASSET_CONFIG'] => {
+  const rawAssetConfig = source.ASSET_CONFIG;
+  if (typeof rawAssetConfig !== 'object' || rawAssetConfig === null) {
+    return undefined;
+  }
+
+  const assetRecord = rawAssetConfig as Record<string, unknown>;
+  const normalized: NonNullable<LocalConfigOverride['ASSET_CONFIG']> = {};
+
+  if (typeof assetRecord.cosBaseUrl === 'string') {
+    const cosBaseUrl = normalizeBaseUrl(assetRecord.cosBaseUrl);
+    if (cosBaseUrl !== '') {
+      normalized.cosBaseUrl = cosBaseUrl;
+    }
+  }
+
+  if (typeof assetRecord.avatarPlaceholderPath === 'string') {
+    const avatarPlaceholderPath = normalizePath(assetRecord.avatarPlaceholderPath);
+    if (avatarPlaceholderPath !== '') {
+      normalized.avatarPlaceholderPath = avatarPlaceholderPath;
+    }
+  }
+
+  if (typeof assetRecord.demoAvatarDirPath === 'string') {
+    const demoAvatarDirPath = normalizePath(assetRecord.demoAvatarDirPath);
+    if (demoAvatarDirPath !== '') {
+      normalized.demoAvatarDirPath = demoAvatarDirPath;
+    }
+  }
+
+  if (typeof assetRecord.loginBackgroundPath === 'string') {
+    const loginBackgroundPath = normalizePath(assetRecord.loginBackgroundPath);
+    if (loginBackgroundPath !== '') {
+      normalized.loginBackgroundPath = loginBackgroundPath;
+    }
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+};
+
+const normalizeLocalConfigOverride = (moduleValue: unknown): LocalConfigOverride => {
+  const source = toLocalOverrideCandidate(moduleValue);
+  if (source === null) {
+    return {};
+  }
+
+  const API_CONFIG = normalizeLocalApiConfig(source);
+  const ASSET_CONFIG = normalizeLocalAssetConfig(source);
+
+  const normalized: LocalConfigOverride = {};
+  if (API_CONFIG !== undefined) {
+    normalized.API_CONFIG = API_CONFIG;
+  }
+  if (ASSET_CONFIG !== undefined) {
+    normalized.ASSET_CONFIG = ASSET_CONFIG;
+  }
+  return normalized;
+};
+
+const localConfigOverride = normalizeLocalConfigOverride(GENERATED_LOCAL_CONFIG_OVERRIDE);
+const hasLocalOverride = Object.keys(localConfigOverride).length > 0;
+
+if (!IS_DEV && hasLocalOverride) {
+  console.warn('[config] local override is ignored outside develop environment');
+}
+
+const effectiveLocalOverride: LocalConfigOverride = IS_DEV ? localConfigOverride : {};
+
+const effectiveApiBaseUrl = effectiveLocalOverride.API_CONFIG?.baseUrl ?? API_BASE_URLS[ENV];
+
+const resolveAssetCosBaseUrl = (): string => {
+  const localCosBaseUrl = effectiveLocalOverride.ASSET_CONFIG?.cosBaseUrl;
+  if (IS_DEV) {
+    if (localCosBaseUrl === undefined) {
+      throw new Error(
+        '[config] develop environment requires local ASSET_CONFIG.cosBaseUrl in utils/config.local.ts'
+      );
+    }
+    return localCosBaseUrl;
+  }
+  if (ENV === 'trial' || ENV === 'release') {
+    return ASSET_COS_BASE_URLS[ENV];
+  }
+  throw new Error(`[config] unsupported environment for ASSET_CONFIG: ${ENV}`);
+};
+
+const effectiveAssetCosBaseUrl = resolveAssetCosBaseUrl();
+const effectiveAssetAvatarPlaceholderPath =
+  effectiveLocalOverride.ASSET_CONFIG?.avatarPlaceholderPath ??
+  DEFAULT_ASSET_PATHS.avatarPlaceholderPath;
+const effectiveAssetDemoAvatarDirPath =
+  effectiveLocalOverride.ASSET_CONFIG?.demoAvatarDirPath ?? DEFAULT_ASSET_PATHS.demoAvatarDirPath;
+const effectiveAssetLoginBackgroundPath =
+  effectiveLocalOverride.ASSET_CONFIG?.loginBackgroundPath ??
+  DEFAULT_ASSET_PATHS.loginBackgroundPath;
+
 export const API_CONFIG: ApiConfig = {
   // Base URL for API requests
-  baseUrl: API_BASE_URLS[ENV],
+  baseUrl: effectiveApiBaseUrl,
 
   // API timeout (ms)
   timeout: 10000,
 
   // API version
   version: 'v1',
+};
+
+export const ASSET_CONFIG: AssetConfig = {
+  // COS/CDN base URL for remote assets
+  cosBaseUrl: effectiveAssetCosBaseUrl,
+
+  // Relative path for placeholder avatar image
+  avatarPlaceholderPath: effectiveAssetAvatarPlaceholderPath,
+
+  // Relative directory path for demo avatar images
+  demoAvatarDirPath: effectiveAssetDemoAvatarDirPath,
+
+  // Relative path for login page background image
+  loginBackgroundPath: effectiveAssetLoginBackgroundPath,
+
+  // Full URL for placeholder avatar image
+  avatarPlaceholderUrl: buildAssetUrl(
+    effectiveAssetCosBaseUrl,
+    effectiveAssetAvatarPlaceholderPath
+  ),
+
+  // Full URL for demo avatar directory
+  demoAvatarBaseUrl: buildAssetUrl(effectiveAssetCosBaseUrl, effectiveAssetDemoAvatarDirPath),
+
+  // Full URL for login page background image
+  loginBackgroundUrl: buildAssetUrl(effectiveAssetCosBaseUrl, effectiveAssetLoginBackgroundPath),
 };
 
 export interface MessageConfig {
@@ -213,18 +422,17 @@ export const VALIDATION_RULES: ValidationRules = {
 };
 
 export interface LoginConfig {
-  loginBackgroundUrl: string;
   loginBackgroundLoadTimeoutMs: number;
 }
 
 export const LOGIN_CONFIG: LoginConfig = {
-  loginBackgroundUrl: 'https://cortex.qiaoqiaoai.cn/login/bg.webp',
   loginBackgroundLoadTimeoutMs: 1000,
 };
 
 const config = {
   APP_CONFIG,
   API_CONFIG,
+  ASSET_CONFIG,
   LOGIN_CONFIG,
   MESSAGE_CONFIG,
   STORAGE_KEYS,

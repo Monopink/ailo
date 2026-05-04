@@ -1,11 +1,17 @@
 const generateBuildInfo = require('./steps/generate-build-info');
+const generateLocalConfigOverride = require('./steps/generate-local-config-override');
 const createNpmScriptStep = require('./steps/npm-script');
 const recordUploadHistory = require('./steps/record-upload-history');
 
 const HOOK_PIPELINES = {
-  compile: [generateBuildInfo, createNpmScriptStep('build:ts')],
-  preview: [generateBuildInfo, createNpmScriptStep('build:ts')],
-  upload: [generateBuildInfo, createNpmScriptStep('build:ts')],
+  compile: [generateBuildInfo, generateLocalConfigOverride, createNpmScriptStep('build:ts')],
+  preview: [generateBuildInfo, generateLocalConfigOverride, createNpmScriptStep('build:ts')],
+  upload: [
+    createNpmScriptStep('check:upload-config-safety'),
+    generateBuildInfo,
+    generateLocalConfigOverride,
+    createNpmScriptStep('build:ts'),
+  ],
 };
 
 function resolvePipeline(hook) {
@@ -22,6 +28,7 @@ function resolvePipeline(hook) {
 
 async function runHook(hook, ctx) {
   const pipeline = resolvePipeline(hook);
+  ctx.hook = hook;
   const hookStartedAtMs = Date.now();
   const hookTimeline = [];
   let hookError = null;

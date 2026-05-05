@@ -56,4 +56,5 @@ class ContactRequestFailureCode(StrEnum):
     """Stable failure codes for contact requests (contact_requests.failure_code)."""
 
     NO_TEMPLATE_AVAILABLE = "NO_TEMPLATE_AVAILABLE"
+    ALL_TEMPLATES_ALREADY_USED = "ALL_TEMPLATES_ALREADY_USED"
     MANUAL_PROVISION_REQUIRED = "MANUAL_PROVISION_REQUIRED"

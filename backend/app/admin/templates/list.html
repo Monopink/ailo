@@ -41,6 +41,14 @@
                             </div>
                         </div>
                     </div>
+                    {% if model.identity == "ai_template" %}
+                        <div class="card-body border-bottom">
+                            <div class="alert alert-info mb-0" role="alert">
+                                <strong>模板选择策略：</strong>先过滤不可用模板和该用户已使用模板（包含已删除联系人历史），再按「不可复用」和「可复用」分组，「不可复用」优先，组内按
+                                <code>priority</code> 从小到大选择；同优先级随机。
+                            </div>
+                        </div>
+                    {% endif %}
                     <div class="card-body border-bottom p-0">
                         <div class="d-flex m-3">
                             <div id="pageLength_container"></div>

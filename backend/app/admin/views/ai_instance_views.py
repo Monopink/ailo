@@ -33,6 +33,7 @@ from app.models.ai import AIInstanceDimension
 from app.models.ai.instance import AIInstance
 from app.models.ai.memory import AIInstanceMemory
 from app.models.ai.style import AIDimension, AIRelationship, AIStyleDimension
+from app.models.ai.template import AITemplate
 from app.models.profile import Profile
 from app.services.ai.instance_creation import (
     ManualAIInstanceCreateError,
@@ -240,6 +241,36 @@ class _RelationshipDisplayNameField(StringField):
             return "(Error)"
 
 
+class _TemplateDisplayNameField(StringField):
+    """Computed field to show template display_name for AIInstance."""
+
+    def __init__(
+        self,
+        name: str = "template_display_name",
+        label: str = "Template Display Name",
+    ) -> None:
+        super().__init__(name=name, label=label)
+        self.read_only = True
+        self.searchable = False
+        self.orderable = False
+
+    async def parse_obj(self, request: Request, obj: AIInstance) -> str | None:
+        try:
+            template_id = getattr(obj, "template_id", None)
+            if template_id is None:
+                return None
+
+            stmt = select(AITemplate.display_name).where(AITemplate.id == template_id)
+            display_name = (await request.state.session.execute(stmt)).scalar_one_or_none()
+            if display_name is None:
+                return None
+            if display_name == "":
+                return "(Empty)"
+            return str(display_name)
+        except Exception:
+            return "(Error)"
+
+
 class _DimensionDisplayNameField(StringField):
     """Computed field to show dimension display_name for AIInstanceDimension."""
 
@@ -276,6 +307,8 @@ class AIInstanceView(ModelView):
         "profile_nickname",
         "profile_gender",
         "profile_owner_type",
+        "template",
+        "template_display_name",
         "relationship",
         "relationship_display_name",
     ]
@@ -292,6 +325,8 @@ class AIInstanceView(ModelView):
         "profile_nickname",
         "profile_gender",
         "profile_owner_type",
+        "template",
+        "template_display_name",
         "relationship",
         "relationship_display_name",
     ]
@@ -425,6 +460,14 @@ class AIInstanceView(ModelView):
             help_text="Owning AI persona for source=persona; admin manual keeps this empty",
             required=False,
         ),
+        HasOne(
+            "template",
+            identity="ai_template",
+            label="Template",
+            help_text="Selected template relation for source=persona",
+            required=False,
+        ),
+        _TemplateDisplayNameField(),
         _ProfileRelatedStringField(
             "profile_nickname", profile_attr="nickname", label="Profile Nickname"
         ),

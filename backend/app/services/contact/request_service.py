@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, status
 from fastapi import status as http_status
-from sqlalchemy import BigInteger, cast, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.ai import ai_persona as ai_persona_crud
@@ -64,6 +64,7 @@ logger = get_logger(__name__)
 
 _RECOVERABLE_PENDING_FAILURE_CODES: set[str] = {
     ContactRequestFailureCode.NO_TEMPLATE_AVAILABLE.value,
+    ContactRequestFailureCode.ALL_TEMPLATES_ALREADY_USED.value,
     ContactRequestFailureCode.MANUAL_PROVISION_REQUIRED.value,
 }
 
@@ -384,6 +385,7 @@ async def _process_ai_contact_request(
         decision = await handle_ai_contact_request(
             db=db,
             request_id=contact_request.id,
+            user_id=user_id,
             from_qiao_id=user_qiao_id,
             to_qiao_id=contact_request.to_qiao_id,
             message=contact_request.message or "",
@@ -537,10 +539,13 @@ def _handle_ai_decline(contact_request: ContactRequest, decision: ContactRequest
     """
 
     if decision.reason == "WAIT_TEMPLATE" and decision.persona:
+        failure_code = decision.pending_failure_code
+        if not isinstance(failure_code, str):
+            failure_code = ContactRequestFailureCode.NO_TEMPLATE_AVAILABLE.value
         _mark_pending_failure(
             contact_request,
             persona=decision.persona,
-            reason=ContactRequestFailureCode.NO_TEMPLATE_AVAILABLE.value,
+            reason=failure_code,
         )
     else:
         contact_request.status = ContactRequestStatus.IGNORED
@@ -713,7 +718,7 @@ async def _check_ai_persona_duplicate(
             .where(
                 Contact.user_qiao_id == user_qiao_id,
                 Contact.contact_type == ContactType.AI,
-                cast(AIInstance.creation_metadata["persona_id"].astext, BigInteger) == persona.id,
+                AIInstance.persona_id == persona.id,
             )
             .order_by(Contact.id.desc())
             .limit(1)

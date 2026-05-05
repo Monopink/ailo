@@ -19,6 +19,10 @@ class AIInstanceBase(BaseSchema):
         None,
         description="Owning ai_personas.id for source=persona; NULL for admin_manual instances",
     )
+    template_id: int | None = Field(
+        None,
+        description="Selected ai_templates.id for source=persona; NULL for admin_manual instances",
+    )
     style_id: int = Field(..., description="Style ID")
     personality_id: int = Field(..., description="Personality ID")
     creation_metadata: JSONDict = Field(
@@ -54,6 +58,10 @@ class AIInstanceCreate(BaseModel):
     persona_id: int | None = Field(
         None,
         description="Owning ai_personas.id for source=persona; NULL for admin_manual instances",
+    )
+    template_id: int | None = Field(
+        None,
+        description="Selected ai_templates.id for source=persona; NULL for admin_manual instances",
     )
     style_id: int = Field(..., description="Style ID")
     personality_id: int = Field(..., description="Personality ID")
@@ -137,6 +145,10 @@ class AIInstanceListResponse(BaseSchema):
     user_qiao_id: str = Field(..., description="Owning user qiao_id")
     style_id: int = Field(..., description="Style ID")
     personality_id: int = Field(..., description="Personality ID")
+    template_id: int | None = Field(
+        None,
+        description="Selected ai_templates.id for source=persona; NULL for admin_manual instances",
+    )
     creation_metadata: JSONDict = Field(
         default_factory=dict, description="Snapshot of instance creation payload"
     )

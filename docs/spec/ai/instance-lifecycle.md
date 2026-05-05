@@ -59,6 +59,7 @@
 
 - 继承 persona 的 qiao_id（不生成新 qiao_id）
 - `source=persona` 时写入 `persona_id` 绑定 persona；username 展示统一来源于 persona.username
+- `source=persona` 时写入 `template_id` 绑定实例创建所使用的模板
 - `source=admin_manual` 时 `persona_id` 必须为 `NULL`；username 展示为空
 - 存储用户特定的状态（memory、relationship_counts 等）
 - 关联到 contacts 表（用户联系人）
@@ -87,7 +88,9 @@
   ↓
 查找可用 ai_templates (by type_id, status=1)
   ↓
-选择模板（优先不可复用）
+过滤当前用户已使用模板（包含已删除联系人历史）
+  ↓
+选择模板（优先不可复用，priority 小数优先，同优先级随机）
   ↓
 创建 ai_instances
   ↓
@@ -116,14 +119,18 @@
 
 输出：可用模板列表
 
-异常：如果列表为空，请求挂起，等待管理员创建模板
+过滤：排除当前用户历史已使用的 template_id（包含已删除联系人对应实例）
+
+异常：如果过滤后列表为空，请求挂起，等待管理员补充模板
 
 **步骤 3：选择模板**
 
 选择策略：
 
 - 优先选择 reusable = false 的模板
-- 如果都是 reusable = true，随机选择一个
+- 按 priority 从小到大排序
+- 同优先级随机选择一个
+- 不可复用模板无可选项时，再对 reusable = true 的模板应用同样规则
 
 输出：选中的 template 记录
 
@@ -252,6 +259,7 @@ blocked (2)
 **唯一性约束**：
 
 - 同一用户不能重复添加同一个 qiao_id
+- 同一用户不能重复使用同一个 template_id
 - contacts 表有唯一索引：(user_qiao_id, contact_qiao_id)
 
 **状态约束**：

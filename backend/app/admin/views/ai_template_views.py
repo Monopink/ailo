@@ -297,7 +297,7 @@ class AITemplateView(ModelView):
         IntegerField(
             "priority",
             label="Priority",
-            help_text="Selection priority (lower number chosen first)",
+            help_text=("选择优先级：数字越小越优先；同可复用分组内同优先级随机。"),
             required=True,
         ),
         IntegerEnumField(

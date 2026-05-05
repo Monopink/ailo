@@ -54,6 +54,7 @@ Worker 处理 contact_request 时，首先验证 AI 是否可用：
 3. **查找可用模板**：
    - 查询 ai_templates 表
    - 条件：type_id = persona.type_id AND status = 1
+   - 过滤：排除该用户已使用过的 template_id（包含已删除联系人对应的历史实例）
    - 应用模板选择策略（见下文）
 
 4. **判断结果**：
@@ -66,12 +67,12 @@ Worker 处理 contact_request 时，首先验证 AI 是否可用：
 
 1. **优先不可复用模板**：
    - 优先选择 is_reusable=0 的单次使用模板
-   - 按 priority DESC 排序（数字越大优先级越高）
+   - 按 priority ASC 排序（数字越小优先级越高）
    - 同优先级随机选择一个
    - 使用 `FOR UPDATE SKIP LOCKED` 防止并发冲突
 
 2. **回退到可复用模板**：
-   - 如果没有不可复用模板
+   - 如果过滤后没有不可复用模板
    - 对 is_reusable=1 的模板应用相同规则
 
 3. **返回选中的模板或 NULL**
@@ -81,17 +82,17 @@ Worker 处理 contact_request 时，首先验证 AI 是否可用：
 - 字段：`ai_templates.priority`
 - 类型：INTEGER
 - 默认值：1
-- 排序：DESC（降序）
+- 排序：ASC（升序）
 
 **示例**：
 
-假设有以下模板：
+假设有以下模板（且均未被该用户使用）：
 
-- 模板 A：priority=10, is_reusable=0
-- 模板 B：priority=10, is_reusable=0
+- 模板 A：priority=1, is_reusable=0
+- 模板 B：priority=1, is_reusable=0
 - 模板 C：priority=5, is_reusable=0
-- 模板 D：priority=10, is_reusable=1
-- 模板 E：priority=1, is_reusable=1
+- 模板 D：priority=1, is_reusable=1
+- 模板 E：priority=9, is_reusable=1
 
 选择顺序：
 
@@ -107,7 +108,6 @@ Worker 处理 contact_request 时，首先验证 AI 是否可用：
 1. **生成 Instance 记录**：
    - qiao_id = persona.qiao_id（继承）
    - persona_id = persona.id（绑定 persona；username 展示来源 persona.username）
-   - type_id = persona.type_id
    - template_id = 选中的模板 ID
    - user_id = 申请人的 user_id
    - status = 1（激活）
@@ -170,7 +170,7 @@ Worker 处理 contact_request 时，首先验证 AI 是否可用：
 
 ## 模板不足挂起机制
 
-当某个 AI 类型暂时没有可用模板时，请求不会被拒绝或失败，而是保持在 PENDING 状态并记录失败原因。
+当某个 AI 类型在当前请求下不可选中模板时（库存为空，或候选模板均已被该用户使用），请求不会被拒绝或失败，而是保持在 PENDING 状态并记录失败原因。
 
 ### 记录失败元数据
 
@@ -178,6 +178,7 @@ Worker 处理 contact_request 时，首先验证 AI 是否可用：
 
 - `failure_code` - 失败原因代码
   - `NO_TEMPLATE_AVAILABLE` - 无可用模板
+  - `ALL_TEMPLATES_ALREADY_USED` - 当前类型模板均已被该用户使用
   - `MANUAL_PROVISION_REQUIRED` - 需要人工介入
 - `failure_detail` - JSON 详情
   - 至少包含：ai_type_id、qiao_id、request_id

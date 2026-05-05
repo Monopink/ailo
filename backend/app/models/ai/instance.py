@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from app.models.ai.instance_dimension import AIInstanceDimension
     from app.models.ai.personality import AIPersonality
     from app.models.ai.style import AIRelationship, AIStyle
-    from app.models.ai.template import AIPersona
+    from app.models.ai.template import AIPersona, AITemplate
     from app.models.user import User
 
 
@@ -59,6 +59,11 @@ class AIInstance(SnowflakeQiaoModel):
         BigInteger,
         nullable=True,
         comment="Owning persona ID for source=persona; NULL for admin_manual instances",
+    )
+    template_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Selected ai_templates.id for source=persona; NULL for admin_manual instances",
     )
 
     user_id: Mapped[int] = mapped_column(
@@ -167,6 +172,13 @@ class AIInstance(SnowflakeQiaoModel):
         lazy="select",
         viewonly=True,
     )
+    template: Mapped["AITemplate | None"] = orm_relationship(
+        "AITemplate",
+        primaryjoin="AIInstance.template_id == AITemplate.id",
+        foreign_keys=[template_id],
+        lazy="select",
+        viewonly=True,
+    )
     instance_dimensions: Mapped[list["AIInstanceDimension"]] = orm_relationship(
         "AIInstanceDimension",
         primaryjoin="AIInstance.id == foreign(AIInstanceDimension.instance_id)",
@@ -199,8 +211,20 @@ class AIInstance(SnowflakeQiaoModel):
             "persona_id",
             postgresql_where=text("persona_id IS NOT NULL"),
         ),
+        Index(
+            "idx_ai_instances_template_id",
+            "template_id",
+            postgresql_where=text("template_id IS NOT NULL"),
+        ),
         Index("idx_ai_instances_style_id", "style_id"),
         Index("idx_ai_instances_personality_id", "personality_id"),
+        Index(
+            "uq_ai_instances_user_template",
+            "user_id",
+            "template_id",
+            unique=True,
+            postgresql_where=text("template_id IS NOT NULL"),
+        ),
     )
 
     def __admin_select2_repr__(self, request: Request) -> str:

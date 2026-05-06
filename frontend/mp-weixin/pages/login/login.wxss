@@ -141,18 +141,30 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  align-items: center;
+  align-items: baseline;
   row-gap: 6rpx;
 }
 
 .login-legal__checkbox {
   --td-checkbox-bg-color: transparent;
+  --td-checkbox-title-line-height: calc(var(--font-size-xs) * var(--line-height-base));
+  --td-checkbox-icon-size: calc(var(--font-size-xs) * var(--line-height-base));
+  --td-checkbox-vertical-padding: 0rpx;
 
+  display: inline-flex;
+  align-items: baseline;
   background: transparent;
+}
+
+.login-legal__checkbox-label {
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-base);
+  color: rgb(255 255 255 / 66%);
 }
 
 .login-legal__text,
 .login-legal__link {
+  display: inline-block;
   font-size: var(--font-size-xs);
   line-height: var(--line-height-base);
 }
@@ -192,7 +204,7 @@
   display: block;
   width: 100%;
   align-self: stretch;
-  font-size: 30rpx;
+  font-size: var(--font-size-xs);
   color: rgb(255 255 255 / 44%);
   line-height: var(--line-height-base);
   text-align: center;

@@ -51,6 +51,7 @@
             block="{{false}}"
             borderless="{{true}}"
             t-class="login-legal__checkbox"
+            t-class-label="login-legal__checkbox-label"
             bindchange="handlePrivacyChange">
             <text class="login-legal__text">我已阅读并同意</text>
           </t-checkbox>

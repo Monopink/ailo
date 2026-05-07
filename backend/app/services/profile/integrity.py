@@ -61,7 +61,7 @@ async def _ensure_profile_for_owner(
         owner_type=create_owner_type,
         commit=commit,
     )
-    logger.warning(
+    logger.debug(
         "profile_auto_created",
         owner_type=int(create_owner_type),
         owner_id=owner_id,

@@ -17,10 +17,16 @@ from decimal import Decimal
 from sqlalchemy import select
 
 from app.core.database import get_sessionmaker
-from app.enums import AIMessageBufferState
+from app.enums import (
+    AIMessageBufferState,
+    AlertDomain,
+    AlertEventType,
+    AlertSeverityLevel,
+)
 from app.models.ai.instance import AIMessageBuffer
 from app.services.ai.orchestrators.conversation_flow import process_conversation
 from app.services.ai.queries.instance_queries import get_instance_relationship_config
+from app.services.alerting.events import build_standard_alert_entities, emit_alert
 from app.services.message.processing.buffer import (
     _get_db_now_ms,
     finalize_buffer_if_locked,
@@ -31,6 +37,8 @@ from app.services.message.processing.sender import clear_conversation_pending_me
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+_ALERT_SCHEMA_VERSION = 1
+_SCANNER_WORKER_NAME = "buffer_scanner"
 
 
 # Scanner state
@@ -106,6 +114,26 @@ async def _scanner_loop() -> None:
             break
         except Exception as e:
             logger.error("scanner_loop_error", error=str(e), exc_info=True)
+            await emit_alert(
+                event_type=AlertEventType.BACKGROUND_WORKER_FAILURE,
+                domain=AlertDomain.BACKGROUND_WORKER,
+                severity_level=AlertSeverityLevel.ERROR,
+                dedupe_fields={
+                    "worker_name": _SCANNER_WORKER_NAME,
+                    "stage": "scanner_loop",
+                    "error_class": type(e).__name__,
+                    "error_code": "BACKGROUND_WORKER_FAILURE",
+                },
+                details={
+                    "schema_version": _ALERT_SCHEMA_VERSION,
+                    "stage": "scanner_loop",
+                    "worker_name": _SCANNER_WORKER_NAME,
+                    "error_code": "BACKGROUND_WORKER_FAILURE",
+                    "error_class": type(e).__name__,
+                    "error_message": str(e),
+                },
+                entities=build_standard_alert_entities(worker_name=_SCANNER_WORKER_NAME),
+            )
             await asyncio.sleep(_scan_interval)  # Continue despite errors
 
 
@@ -158,6 +186,26 @@ async def _scan_and_process() -> None:
 
         except Exception as e:
             logger.error("scan_and_process_error", error=str(e), exc_info=True)
+            await emit_alert(
+                event_type=AlertEventType.BACKGROUND_WORKER_FAILURE,
+                domain=AlertDomain.BACKGROUND_WORKER,
+                severity_level=AlertSeverityLevel.ERROR,
+                dedupe_fields={
+                    "worker_name": _SCANNER_WORKER_NAME,
+                    "stage": "scan_and_process",
+                    "error_class": type(e).__name__,
+                    "error_code": "BACKGROUND_WORKER_FAILURE",
+                },
+                details={
+                    "schema_version": _ALERT_SCHEMA_VERSION,
+                    "stage": "scan_and_process",
+                    "worker_name": _SCANNER_WORKER_NAME,
+                    "error_code": "BACKGROUND_WORKER_FAILURE",
+                    "error_class": type(e).__name__,
+                    "error_message": str(e),
+                },
+                entities=build_standard_alert_entities(worker_name=_SCANNER_WORKER_NAME),
+            )
 
 
 async def _process_conversation_async(
@@ -177,6 +225,7 @@ async def _process_conversation_async(
         user_qiao_id: User external ID
         instance_qiao_id: Instance external ID
     """
+    buffer_id: int | None = None
     try:
         session_factory = get_sessionmaker()
         async with session_factory() as db:
@@ -306,6 +355,35 @@ async def _process_conversation_async(
             user_qiao_id=user_qiao_id,
             instance_qiao_id=instance_qiao_id,
             exc_info=True,
+        )
+        await emit_alert(
+            event_type=AlertEventType.BACKGROUND_WORKER_FAILURE,
+            domain=AlertDomain.BACKGROUND_WORKER,
+            severity_level=AlertSeverityLevel.ERROR,
+            dedupe_fields={
+                "worker_name": _SCANNER_WORKER_NAME,
+                "stage": "process_conversation_async",
+                "instance_qiao_id": instance_qiao_id,
+                "error_class": type(e).__name__,
+                "error_code": "BACKGROUND_WORKER_FAILURE",
+            },
+            details={
+                "schema_version": _ALERT_SCHEMA_VERSION,
+                "stage": "process_conversation_async",
+                "worker_name": _SCANNER_WORKER_NAME,
+                "error_code": "BACKGROUND_WORKER_FAILURE",
+                "error_class": type(e).__name__,
+                "error_message": str(e),
+                "instance_qiao_id": instance_qiao_id,
+                "user_qiao_id": user_qiao_id,
+                "buffer_id": buffer_id,
+            },
+            entities=build_standard_alert_entities(
+                instance_qiao_id=instance_qiao_id,
+                user_qiao_id=user_qiao_id,
+                buffer_id=buffer_id,
+                worker_name=_SCANNER_WORKER_NAME,
+            ),
         )
 
 

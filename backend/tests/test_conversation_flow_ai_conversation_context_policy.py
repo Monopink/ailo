@@ -1,9 +1,11 @@
+from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
 
-from app.exceptions import MissingConfigurationError
+from app.enums import AlertEventType
+from app.exceptions import AIConversationError, MissingConfigurationError
 from app.services.ai.orchestrators import conversation_flow
 from app.type_defs import InstanceContext
 
@@ -117,3 +119,65 @@ async def test_process_conversation_impl_does_not_swallow_non_config_errors(
         )
 
     handle_error_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_process_conversation_emits_system_failure_alert_for_unexpected_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        conversation_flow,
+        "_process_conversation_impl",
+        AsyncMock(side_effect=RuntimeError("unexpected_boom")),
+    )
+    emit_alert_mock = AsyncMock(return_value=True)
+    monkeypatch.setattr(conversation_flow, "emit_alert", emit_alert_mock)
+
+    with pytest.raises(AIConversationError, match="Unexpected error in conversation processing"):
+        await conversation_flow.process_conversation(
+            db=cast(object, object()),
+            user_qiao_id="user_1",
+            instance_qiao_id="ai_1",
+            message_content="hello",
+            locked_buffer_id=100,
+            task_turn_version=7,
+        )
+
+    assert emit_alert_mock.await_count == 1
+    call_kwargs = emit_alert_mock.await_args.kwargs
+    assert call_kwargs["event_type"] == AlertEventType.AI_CONVERSATION_SYSTEM_FAILURE
+
+
+@pytest.mark.asyncio
+async def test_handle_context_config_error_keeps_main_flow_when_alert_emit_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commit_mock = AsyncMock()
+    db = SimpleNamespace(commit=commit_mock)
+    monkeypatch.setattr(conversation_flow, "_save_attempt_log", AsyncMock(return_value=1))
+    monkeypatch.setattr(conversation_flow, "clear_conversation_pending_messages", AsyncMock())
+    monkeypatch.setattr(conversation_flow, "finalize_buffer_if_locked", AsyncMock())
+    monkeypatch.setattr(
+        conversation_flow, "emit_alert", AsyncMock(side_effect=RuntimeError("boom"))
+    )
+
+    await conversation_flow._handle_ai_conversation_context_config_error(
+        db=cast(object, db),
+        context=cast(
+            InstanceContext,
+            {
+                "instance_id": 1,
+                "instance_qiao_id": "ai_1",
+                "user_id": 2,
+                "user_qiao_id": "user_1",
+                "timezone": "UTC",
+            },
+        ),
+        user_qiao_id="user_1",
+        instance_qiao_id="ai_1",
+        locked_buffer_id=123,
+        error=MissingConfigurationError("ai_conversation_context_max_messages"),
+        task_turn_version=9,
+    )
+
+    assert commit_mock.await_count == 1

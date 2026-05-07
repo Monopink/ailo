@@ -130,6 +130,11 @@ VALUES
 ('alerting_cleanup_enabled', 'true', 'true', 3, 'Enable alert_events cleanup worker', 'alerting', NULL),
 ('alerting_cleanup_interval_seconds', '3600', '3600', 2, 'Cleanup interval in seconds for alert_events (>=1)', 'alerting', NULL),
 ('alerting_default_retention_days', '30', '30', 2, 'Default retention days for alert_events (>=0)', 'alerting', NULL),
+('alerting_retention_days_debug', '7', '7', 2, 'Retention days for DEBUG (10) alert_events', 'alerting', NULL),
+('alerting_retention_days_info', '14', '14', 2, 'Retention days for INFO (20) alert_events', 'alerting', NULL),
+('alerting_retention_days_warning', '30', '30', 2, 'Retention days for WARNING (30) alert_events', 'alerting', NULL),
+('alerting_retention_days_error', '90', '90', 2, 'Retention days for ERROR (40) alert_events', 'alerting', NULL),
+('alerting_retention_days_critical', '180', '180', 2, 'Retention days for CRITICAL (50) alert_events', 'alerting', NULL),
 
 -- API rate limit configuration
 ('api_rate_limit_requests', '1000', '100', 2, 'API requests per window', 'api', NULL),

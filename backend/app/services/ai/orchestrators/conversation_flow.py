@@ -15,7 +15,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_sessionmaker
-from app.enums import CHAT_INFO_TEMPLATES, AIMessageBufferState, ChatInfoType, ContactType
+from app.enums import (
+    CHAT_INFO_TEMPLATES,
+    AIMessageBufferState,
+    AlertDomain,
+    AlertEventType,
+    AlertSeverityLevel,
+    ChatInfoType,
+    ContactType,
+)
 from app.exceptions import (
     AIConversationError,
     AIInstanceInactiveError,
@@ -50,6 +58,7 @@ from app.services.ai.utils.min_contract import (
     validate_l0_contract,
 )
 from app.services.ai.utils.normalization import normalize_memory_operations, normalize_score_payload
+from app.services.alerting.events import build_standard_alert_entities, emit_alert
 from app.services.llm import invoke_llm
 from app.services.llm.client import select_config_for_ai
 from app.services.llm.config import get_instance_llm_config
@@ -75,6 +84,16 @@ _AI_CONVERSATION_CONTEXT_MIN_MESSAGES = 1
 _AI_CONVERSATION_CONTEXT_MAX_MESSAGES = 200
 _AI_CONVERSATION_CONTEXT_MIN_WINDOW_DAYS = 1
 _AI_CONVERSATION_CONTEXT_MAX_WINDOW_DAYS = 90
+_ALERT_SCHEMA_VERSION = 1
+
+
+def _extract_config_key(error: Exception) -> str | None:
+    details = getattr(error, "details", None)
+    if isinstance(details, dict):
+        raw = details.get("config_key")
+        if isinstance(raw, str) and raw:
+            return raw
+    return None
 
 
 @dataclass(slots=True)
@@ -806,13 +825,47 @@ async def _handle_retry_config_error(
     config_name: str,
     provider_name: str,
     model_name: str | None,
+    task_turn_version: int | None,
 ) -> None:
+    config_key = _extract_config_key(error)
     logger.error(
         "min_contract_retry_config_invalid",
         error=str(error),
         user_qiao_id=user_qiao_id,
         instance_qiao_id=instance_qiao_id,
     )
+    with suppress(Exception):
+        await emit_alert(
+            event_type=AlertEventType.AI_CONVERSATION_RETRY_CONFIG_INVALID,
+            domain=AlertDomain.AI_CONVERSATION,
+            severity_level=AlertSeverityLevel.ERROR,
+            dedupe_fields={
+                "instance_qiao_id": instance_qiao_id,
+                "config_key": config_key or "unknown",
+                "error_code": "AI_CONVERSATION_RETRY_CONFIG_INVALID",
+            },
+            details={
+                "schema_version": _ALERT_SCHEMA_VERSION,
+                "stage": "llm_retry_config",
+                "error_code": "AI_CONVERSATION_RETRY_CONFIG_INVALID",
+                "error_class": type(error).__name__,
+                "error_message": str(error),
+                "config_key": config_key,
+                "instance_qiao_id": instance_qiao_id,
+                "user_qiao_id": user_qiao_id,
+                "buffer_id": locked_buffer_id,
+                "task_turn_version": task_turn_version,
+            },
+            entities=build_standard_alert_entities(
+                instance_id=context.get("instance_id")
+                if isinstance(context.get("instance_id"), int)
+                else None,
+                instance_qiao_id=instance_qiao_id,
+                user_id=context.get("user_id") if isinstance(context.get("user_id"), int) else None,
+                user_qiao_id=user_qiao_id,
+                buffer_id=locked_buffer_id,
+            ),
+        )
     messages_payload: list[JSONValue] = [dict(message) for message in messages]
     await _save_attempt_log(
         db=db,
@@ -866,14 +919,48 @@ async def _handle_ai_conversation_context_config_error(
     instance_qiao_id: str,
     locked_buffer_id: int | None,
     error: Exception,
+    task_turn_version: int | None,
 ) -> None:
     """Record AI context config failures and end the turn silently."""
+    config_key = _extract_config_key(error)
     logger.error(
         "ai_conversation_context_config_invalid",
         error=str(error),
         user_qiao_id=user_qiao_id,
         instance_qiao_id=instance_qiao_id,
     )
+    with suppress(Exception):
+        await emit_alert(
+            event_type=AlertEventType.AI_CONVERSATION_CONTEXT_CONFIG_INVALID,
+            domain=AlertDomain.AI_CONVERSATION,
+            severity_level=AlertSeverityLevel.ERROR,
+            dedupe_fields={
+                "instance_qiao_id": instance_qiao_id,
+                "config_key": config_key or "unknown",
+                "error_code": "AI_CONVERSATION_CONTEXT_CONFIG_INVALID",
+            },
+            details={
+                "schema_version": _ALERT_SCHEMA_VERSION,
+                "stage": "conversation_context_policy",
+                "error_code": "AI_CONVERSATION_CONTEXT_CONFIG_INVALID",
+                "error_class": type(error).__name__,
+                "error_message": str(error),
+                "config_key": config_key,
+                "instance_qiao_id": instance_qiao_id,
+                "user_qiao_id": user_qiao_id,
+                "buffer_id": locked_buffer_id,
+                "task_turn_version": task_turn_version,
+            },
+            entities=build_standard_alert_entities(
+                instance_id=context.get("instance_id")
+                if isinstance(context.get("instance_id"), int)
+                else None,
+                instance_qiao_id=instance_qiao_id,
+                user_id=context.get("user_id") if isinstance(context.get("user_id"), int) else None,
+                user_qiao_id=user_qiao_id,
+                buffer_id=locked_buffer_id,
+            ),
+        )
     await _save_attempt_log(
         db=db,
         context=context,
@@ -989,6 +1076,33 @@ async def process_conversation(
             user_qiao_id=user_qiao_id,
             instance_qiao_id=instance_qiao_id,
         )
+        with suppress(Exception):
+            await emit_alert(
+                event_type=AlertEventType.AI_CONVERSATION_SYSTEM_FAILURE,
+                domain=AlertDomain.AI_CONVERSATION,
+                severity_level=AlertSeverityLevel.ERROR,
+                dedupe_fields={
+                    "instance_qiao_id": instance_qiao_id,
+                    "error_class": type(exc).__name__,
+                    "error_code": "AI_CONVERSATION_SYSTEM_FAILURE",
+                },
+                details={
+                    "schema_version": _ALERT_SCHEMA_VERSION,
+                    "stage": "process_conversation_wrapper",
+                    "error_code": "AI_CONVERSATION_SYSTEM_FAILURE",
+                    "error_class": type(exc).__name__,
+                    "error_message": str(exc),
+                    "instance_qiao_id": instance_qiao_id,
+                    "user_qiao_id": user_qiao_id,
+                    "buffer_id": locked_buffer_id,
+                    "task_turn_version": task_turn_version,
+                },
+                entities=build_standard_alert_entities(
+                    instance_qiao_id=instance_qiao_id,
+                    user_qiao_id=user_qiao_id,
+                    buffer_id=locked_buffer_id,
+                ),
+            )
         raise AIConversationError(
             conversation_step="processing",
             reason="unexpected_error",
@@ -1105,6 +1219,7 @@ async def _process_conversation_impl(
             instance_qiao_id=instance_qiao_id,
             locked_buffer_id=locked_buffer_id,
             error=exc,
+            task_turn_version=task_turn_version,
         )
         return _build_ai_conversation_context_config_failure_result(locked_buffer_id)
 
@@ -1202,6 +1317,7 @@ async def _process_conversation_impl(
             config_name=config.name,
             provider_name=provider.name,
             model_name=config.model_name or provider.default_model,
+            task_turn_version=task_turn_version,
         )
         raise AIConversationError(
             conversation_step="system_config",

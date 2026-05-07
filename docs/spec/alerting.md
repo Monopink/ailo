@@ -14,6 +14,7 @@
 
 - 表：`alert_events` + `alert_event_entities`
 - 事件以追加写（audit-only）方式记录；去重冲突时不更新既有事件。
+- 关键业务告警统一通过告警模块入口写入，调用方不直接拼装持久化字段。
 
 ### 关键字段
 
@@ -21,12 +22,13 @@
 - `domain`：业务域（enum: `AlertDomain`，来源：`backend/app/enums/system.py`）。
 - `severity_level`：严重程度（enum: `AlertSeverityLevel`，与 Python logging level 对齐，允许：10/20/30/40/50）。
 - `dedupe_key`：去重键（可为空）；非空时参与去重。
-- `details`：JSONB 详情（可为空）；用于诊断与运营检索。
+- `details`：JSONB 详情（关键业务告警必填）；用于诊断与运营检索。
 
 ## 去重语义
 
 - 去重键为：`(event_type, dedupe_key)`。
 - `dedupe_key` 由产生方生成，用于表达“同一去重桶（bucket）”内只写入一条事件。
+- 关键业务告警的 `dedupe_key` 必须包含 UTC 日期桶（`YYYY-MM-DD`）。
 - `dedupe_key` 为空表示该事件不去重。
 - 去重冲突时写入行为为 `DO NOTHING`（不更新既有事件，保持审计语义）。
 
@@ -42,6 +44,7 @@
 
 - `entity_type`（enum: `AlertEntityType`）+ `entity_id`（string）
 - `entity_id` 统一承载 bigint/uuid/qiao_id，禁止在该字段内混入结构化 JSON。
+- 关键业务告警至少关联实例、用户与处理窗口实体（窗口存在时）。
 
 ## 清理机制
 
@@ -49,6 +52,7 @@
 
 - 清理条件：`alert_events.created_at < now() - retention_days`
 - 多进程场景下使用 PostgreSQL advisory lock，避免重复清理
+- retention_days 按 `severity_level` 分层配置读取。
 
 ### system_configs（全局）
 
@@ -57,3 +61,8 @@
 - `alerting_cleanup_enabled`（bool）
 - `alerting_cleanup_interval_seconds`（int）
 - `alerting_default_retention_days`（int）
+- `alerting_retention_days_debug`（int）
+- `alerting_retention_days_info`（int）
+- `alerting_retention_days_warning`（int）
+- `alerting_retention_days_error`（int）
+- `alerting_retention_days_critical`（int）

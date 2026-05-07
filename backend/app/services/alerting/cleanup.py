@@ -25,23 +25,61 @@ _ALERTING_CLEANUP_LOCK_KEY = 913_260_001
 _KEY_ENABLED = "alerting_cleanup_enabled"
 _KEY_INTERVAL_SECONDS = "alerting_cleanup_interval_seconds"
 _KEY_RETENTION_DAYS = "alerting_default_retention_days"
+_KEY_RETENTION_DAYS_DEBUG = "alerting_retention_days_debug"
+_KEY_RETENTION_DAYS_INFO = "alerting_retention_days_info"
+_KEY_RETENTION_DAYS_WARNING = "alerting_retention_days_warning"
+_KEY_RETENTION_DAYS_ERROR = "alerting_retention_days_error"
+_KEY_RETENTION_DAYS_CRITICAL = "alerting_retention_days_critical"
+
+
+def _validate_retention(*, key: str, value: int) -> int:
+    if value < 0:
+        raise ConfigurationError(
+            message=f"Configuration '{key}' must be >= 0.",
+            config_key=key,
+            details={"value": value},
+        )
+    return value
 
 
 async def _try_run_cleanup_once() -> None:
     session_factory = get_sessionmaker()
     async with session_factory() as db:
         enabled = await get_config_bool(db, _KEY_ENABLED, required=True)
-        retention_days = await get_config_int(db, _KEY_RETENTION_DAYS, required=True)
-
-        if retention_days < 0:
-            logger.error("alerting_cleanup_retention_invalid", retention_days=retention_days)
-            return
+        default_retention_days = _validate_retention(
+            key=_KEY_RETENTION_DAYS,
+            value=await get_config_int(db, _KEY_RETENTION_DAYS, required=True),
+        )
+        retention_days_by_severity = {
+            10: _validate_retention(
+                key=_KEY_RETENTION_DAYS_DEBUG,
+                value=await get_config_int(db, _KEY_RETENTION_DAYS_DEBUG, required=True),
+            ),
+            20: _validate_retention(
+                key=_KEY_RETENTION_DAYS_INFO,
+                value=await get_config_int(db, _KEY_RETENTION_DAYS_INFO, required=True),
+            ),
+            30: _validate_retention(
+                key=_KEY_RETENTION_DAYS_WARNING,
+                value=await get_config_int(db, _KEY_RETENTION_DAYS_WARNING, required=True),
+            ),
+            40: _validate_retention(
+                key=_KEY_RETENTION_DAYS_ERROR,
+                value=await get_config_int(db, _KEY_RETENTION_DAYS_ERROR, required=True),
+            ),
+            50: _validate_retention(
+                key=_KEY_RETENTION_DAYS_CRITICAL,
+                value=await get_config_int(db, _KEY_RETENTION_DAYS_CRITICAL, required=True),
+            ),
+        }
 
         if not enabled:
             logger.info("alerting_cleanup_disabled")
             return
 
-        if retention_days <= 0:
+        if default_retention_days <= 0 and not any(
+            v > 0 for v in retention_days_by_severity.values()
+        ):
             return
 
         acquired = bool(
@@ -55,12 +93,17 @@ async def _try_run_cleanup_once() -> None:
             return
 
         try:
-            deleted = await alert_events.cleanup_old(db, retention_days=retention_days)
+            deleted = await alert_events.cleanup_old_by_severity(
+                db,
+                retention_days_by_severity=retention_days_by_severity,
+                default_retention_days=default_retention_days,
+            )
             await db.commit()
             logger.info(
                 "alerting_cleanup_completed",
                 deleted=deleted,
-                retention_days=retention_days,
+                default_retention_days=default_retention_days,
+                retention_days_by_severity=retention_days_by_severity,
             )
         finally:
             try:

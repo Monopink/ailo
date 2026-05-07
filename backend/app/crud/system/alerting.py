@@ -6,10 +6,11 @@ import json
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.enums import AlertSeverityLevel
 from app.models.system.alerting import AlertEvent, AlertEventEntity
 from app.type_defs import JSONDict
 from app.utils.logging import get_logger
@@ -99,14 +100,60 @@ class CRUDAlertEvent:
         retention_days: int,
         batch_size: int = 2000,
     ) -> int:
-        """Delete old alert events (and their entity references) by created_at cutoff."""
-        if retention_days <= 0:
+        """Delete old alert events using one retention policy across all severities."""
+        severity_retention_days: dict[int, int] = {
+            int(AlertSeverityLevel.DEBUG): retention_days,
+            int(AlertSeverityLevel.INFO): retention_days,
+            int(AlertSeverityLevel.WARNING): retention_days,
+            int(AlertSeverityLevel.ERROR): retention_days,
+            int(AlertSeverityLevel.CRITICAL): retention_days,
+        }
+        return await self.cleanup_old_by_severity(
+            db,
+            retention_days_by_severity=severity_retention_days,
+            default_retention_days=retention_days,
+            batch_size=batch_size,
+        )
+
+    async def cleanup_old_by_severity(
+        self,
+        db: AsyncSession,
+        *,
+        retention_days_by_severity: dict[int, int],
+        default_retention_days: int,
+        batch_size: int = 2000,
+    ) -> int:
+        """Delete old alert events (and entity rows) using severity-level retention days."""
+        if default_retention_days <= 0 and not retention_days_by_severity:
             return 0
 
-        cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+        now = datetime.now(UTC)
+        severity_levels = (
+            int(AlertSeverityLevel.DEBUG),
+            int(AlertSeverityLevel.INFO),
+            int(AlertSeverityLevel.WARNING),
+            int(AlertSeverityLevel.ERROR),
+            int(AlertSeverityLevel.CRITICAL),
+        )
+        filter_clauses = []
+        for severity_level in severity_levels:
+            retention_days = retention_days_by_severity.get(severity_level, default_retention_days)
+            if retention_days <= 0:
+                continue
+            cutoff = now - timedelta(days=retention_days)
+            filter_clauses.append(
+                and_(
+                    AlertEvent.severity_level == severity_level,
+                    AlertEvent.created_at < cutoff,
+                )
+            )
+
+        if not filter_clauses:
+            return 0
+
         ids_result = await db.execute(
             select(AlertEvent.id)
-            .where(AlertEvent.created_at < cutoff)
+            .where(or_(*filter_clauses))
             .order_by(AlertEvent.created_at.asc())
             .limit(batch_size)
         )
@@ -119,7 +166,8 @@ class CRUDAlertEvent:
         deleted = int(result.rowcount or 0)
         logger.info(
             "alert_events_cleaned_up",
-            retention_days=retention_days,
+            retention_days_by_severity=retention_days_by_severity,
+            default_retention_days=default_retention_days,
             deleted=deleted,
             batch_size=batch_size,
         )

@@ -83,6 +83,7 @@
 - `Profile` 缺失允许降级：`self_profile` 置空并继续。
 - `ai_conversation_context_max_messages`、`ai_conversation_context_time_window_days` 缺失或非法时，本轮对话处理必须静默失败并结束 buffer。
 - 配置类静默失败必须记录错误日志、审计日志，并触发告警。
+- 配置类告警去重键必须包含 UTC 日期桶，并关联实例、用户、buffer 实体（buffer 有值时）。
 
 详见：[`prompt-building.md`](prompt-building.md)
 
@@ -139,6 +140,7 @@
 - 任何 L0 校验失败：进入重试；达到上限后静默失败并 finalize buffer 为 `COMPLETE`。
 - 配置类异常：静默结束本轮处理，不向用户返回错误提示；必须记录错误日志、审计日志并触发告警。
 - 非配置类异常：按系统故障路径处理并触发告警，不归类为配置异常。
+- 非配置类系统故障告警去重键必须包含 UTC 日期桶，并关联实例、用户、buffer 实体（buffer 有值时）。
 - 任何 L1 校验失败：仅跳过对应副作用字段，不阻断消息发送。
 - 任何 style/personality 配置契约不匹配：必须报错并终止处理。
 - 首条发送门槛未达成且发生抢占：不得推进会话副作用。

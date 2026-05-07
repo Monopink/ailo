@@ -64,12 +64,23 @@ class AlertDomain(StrEnum):
     """Alert domain used for routing and aggregation."""
 
     AI_MEMORY = "ai_memory"
+    AI_CONVERSATION = "ai_conversation"
+    MESSAGE_DISPATCH = "message_dispatch"
+    BACKGROUND_WORKER = "background_worker"
+    SYSTEM_CONFIG = "system_config"
+    SECURITY = "security"
 
 
 class AlertEventType(StrEnum):
     """Alert event type."""
 
     MEMORY_REFRESH_MISS_THRESHOLD_EXCEEDED = "MEMORY_REFRESH_MISS_THRESHOLD_EXCEEDED"
+    AI_CONVERSATION_CONTEXT_CONFIG_INVALID = "AI_CONVERSATION_CONTEXT_CONFIG_INVALID"
+    AI_CONVERSATION_RETRY_CONFIG_INVALID = "AI_CONVERSATION_RETRY_CONFIG_INVALID"
+    AI_CONVERSATION_SYSTEM_FAILURE = "AI_CONVERSATION_SYSTEM_FAILURE"
+    MESSAGE_DISPATCH_RETRY_EXHAUSTED = "MESSAGE_DISPATCH_RETRY_EXHAUSTED"
+    MESSAGE_DISPATCH_TASK_FAILED = "MESSAGE_DISPATCH_TASK_FAILED"
+    BACKGROUND_WORKER_FAILURE = "BACKGROUND_WORKER_FAILURE"
 
 
 class AlertEntityType(StrEnum):
@@ -77,3 +88,6 @@ class AlertEntityType(StrEnum):
 
     USER = "user"
     AI_INSTANCE = "ai_instance"
+    AI_MESSAGE_BUFFER = "ai_message_buffer"
+    MESSAGE_DISPATCH_OUTBOX = "message_dispatch_outbox"
+    BACKGROUND_WORKER = "background_worker"

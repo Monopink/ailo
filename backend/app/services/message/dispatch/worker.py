@@ -11,6 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_sessionmaker
 from app.enums import (
+    AlertDomain,
+    AlertEventType,
+    AlertSeverityLevel,
     MessageDeliveryStatus,
     MessageDispatchOutboxStatus,
     MessageDispatchOutboxType,
@@ -22,11 +25,14 @@ from app.models.message import (
     MessageEndpoint,
     MessageHistory,
 )
+from app.services.alerting.events import build_standard_alert_entities, emit_alert
 from app.services.message.providers.factory import create_timeline_endpoint_sender
 from app.utils.logging import get_logger
 from app.utils.snowflake import generate_snowflake_id
 
 logger = get_logger(__name__)
+_ALERT_SCHEMA_VERSION = 1
+_WORKER_NAME = "dispatch_outbox_worker"
 
 _IDLE_SCAN_INTERVAL_SECONDS = 1.0
 _BUSY_SCAN_INTERVAL_SECONDS = 0.2
@@ -90,6 +96,23 @@ async def _dispatch_outbox_loop() -> None:
             break
         except Exception:
             logger.exception("dispatch_outbox_worker_loop_error")
+            await emit_alert(
+                event_type=AlertEventType.BACKGROUND_WORKER_FAILURE,
+                domain=AlertDomain.BACKGROUND_WORKER,
+                severity_level=AlertSeverityLevel.ERROR,
+                dedupe_fields={
+                    "worker_name": _WORKER_NAME,
+                    "stage": "dispatch_outbox_loop",
+                    "error_code": "BACKGROUND_WORKER_FAILURE",
+                },
+                details={
+                    "schema_version": _ALERT_SCHEMA_VERSION,
+                    "stage": "dispatch_outbox_loop",
+                    "worker_name": _WORKER_NAME,
+                    "error_code": "BACKGROUND_WORKER_FAILURE",
+                },
+                entities=build_standard_alert_entities(worker_name=_WORKER_NAME),
+            )
             await asyncio.sleep(_IDLE_SCAN_INTERVAL_SECONDS)
 
 
@@ -178,13 +201,58 @@ async def _process_outbox_task(task_id: int) -> None:
                 task.last_error_detail = f"Unsupported outbox_type={task.outbox_type}"
                 db.add(task)
                 await db.commit()
+                await emit_alert(
+                    event_type=AlertEventType.MESSAGE_DISPATCH_TASK_FAILED,
+                    domain=AlertDomain.MESSAGE_DISPATCH,
+                    severity_level=AlertSeverityLevel.ERROR,
+                    dedupe_fields={
+                        "outbox_id": int(task.id),
+                        "error_code": "MESSAGE_DISPATCH_UNSUPPORTED_OUTBOX_TYPE",
+                    },
+                    details={
+                        "schema_version": _ALERT_SCHEMA_VERSION,
+                        "stage": "process_outbox_task",
+                        "error_code": "MESSAGE_DISPATCH_UNSUPPORTED_OUTBOX_TYPE",
+                        "outbox_id": int(task.id),
+                        "outbox_type": int(task.outbox_type),
+                        "msg_id_server": task.msg_id_server,
+                        "owner_user_id": int(task.owner_user_id),
+                    },
+                    entities=build_standard_alert_entities(
+                        user_id=int(task.owner_user_id),
+                        dispatch_outbox_id=int(task.id),
+                        worker_name=_WORKER_NAME,
+                    ),
+                )
                 return
 
             await _dispatch_timeline_task(db, task=task)
             await db.commit()
-        except Exception:
+        except Exception as exc:
             await db.rollback()
             logger.exception("dispatch_outbox_task_failed", outbox_id=task_id)
+            await emit_alert(
+                event_type=AlertEventType.MESSAGE_DISPATCH_TASK_FAILED,
+                domain=AlertDomain.MESSAGE_DISPATCH,
+                severity_level=AlertSeverityLevel.ERROR,
+                dedupe_fields={
+                    "outbox_id": task_id,
+                    "error_class": type(exc).__name__,
+                    "error_code": "MESSAGE_DISPATCH_TASK_FAILED",
+                },
+                details={
+                    "schema_version": _ALERT_SCHEMA_VERSION,
+                    "stage": "process_outbox_task",
+                    "error_code": "MESSAGE_DISPATCH_TASK_FAILED",
+                    "error_class": type(exc).__name__,
+                    "error_message": str(exc),
+                    "outbox_id": task_id,
+                },
+                entities=build_standard_alert_entities(
+                    dispatch_outbox_id=task_id,
+                    worker_name=_WORKER_NAME,
+                ),
+            )
 
 
 async def _dispatch_timeline_task(db: AsyncSession, *, task: MessageDispatchOutbox) -> None:
@@ -302,6 +370,32 @@ async def _dispatch_timeline_task(db: AsyncSession, *, task: MessageDispatchOutb
     if retry_count >= _MAX_RETRY_ATTEMPTS:
         task.status = MessageDispatchOutboxStatus.FAILED
         task.next_retry_at = None
+        await emit_alert(
+            event_type=AlertEventType.MESSAGE_DISPATCH_RETRY_EXHAUSTED,
+            domain=AlertDomain.MESSAGE_DISPATCH,
+            severity_level=AlertSeverityLevel.ERROR,
+            dedupe_fields={
+                "outbox_id": int(task.id),
+                "error_code": first_error_code or "DISPATCH_FAILED",
+            },
+            details={
+                "schema_version": _ALERT_SCHEMA_VERSION,
+                "stage": "dispatch_timeline_task",
+                "error_code": "MESSAGE_DISPATCH_RETRY_EXHAUSTED",
+                "last_error_code": first_error_code,
+                "last_error_detail": first_error_detail,
+                "outbox_id": int(task.id),
+                "msg_id_server": task.msg_id_server,
+                "owner_user_id": int(task.owner_user_id),
+                "attempt_count": retry_count,
+                "max_retry_attempts": _MAX_RETRY_ATTEMPTS,
+            },
+            entities=build_standard_alert_entities(
+                user_id=int(task.owner_user_id),
+                dispatch_outbox_id=int(task.id),
+                worker_name=_WORKER_NAME,
+            ),
+        )
     else:
         retry_count += 1
         task.attempt_count = retry_count

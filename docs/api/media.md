@@ -20,7 +20,7 @@
 - `file` (必填): 经过裁剪压缩的头像文件 (WebP)。
 - `file_type` (必填): 文件类型，当前仅支持 `1` (avatar)。
 - `mime_type` (必填): MIME 类型，例如 `image/webp`。
-- `file_size` (必填): 文件大小（字节），用于配额与快速校验。
+- `file_size` (必填): 文件大小（字节），用于配额与快速校验；头像上传上限为 1MB。
 - `original_name` (可选): 原始文件名，便于审计。
 - `file_hash` (可选): 文件 SHA-256（小写 hex），用于加速去重（未提供时后端自动计算）。
 
@@ -73,7 +73,7 @@ curl -X POST "https://api.example.com/api/v1/media/upload" \
 ```json
 {
   "error_code": 23010007,
-  "message": "文件大小超过限制，头像最大 2MB",
+  "message": "文件大小超过限制，头像最大 1MB",
   "request_id": "req_20260215_a3"
 }
 ```
@@ -169,7 +169,7 @@ MIME 类型不支持 (415):
 - `file` (必填): 原始图片文件。
 - `file_type` (必填): 固定为 `1`（avatar）。
 - `mime_type` (必填): 客户端文件 MIME 类型。
-- `file_size` (必填): 文件大小（字节）。
+- `file_size` (必填): 文件大小（字节）；头像上传上限为 1MB。
 - `original_name` (可选): 原始文件名。
 - `crop_x` (可选): 裁切区域左上角 X（像素）。
 - `crop_y` (可选): 裁切区域左上角 Y（像素）。

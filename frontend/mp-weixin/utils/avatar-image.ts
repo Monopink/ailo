@@ -4,6 +4,7 @@ import { getLogger } from './logger';
 const logger = getLogger('AvatarImage');
 
 export const AVATAR_OUTPUT_SIZE = 512;
+const AVATAR_DEFAULT_QUALITY = 0.85;
 
 export interface SquareCropSourceRect {
   sourceX: number;
@@ -16,6 +17,11 @@ interface CanvasExportOptions {
   cropSourceRect: SquareCropSourceRect;
   canvas2dSelector: string;
   legacyCanvasId: string;
+  quality?: number;
+}
+
+interface AvatarExportQualityOptions {
+  quality?: number;
 }
 
 export function getAvatarImageInfo(
@@ -46,6 +52,7 @@ export async function exportCenteredSquareAvatar(options: {
   imagePath: string;
   canvas2dSelector: string;
   legacyCanvasId: string;
+  quality?: number;
 }): Promise<string> {
   const imageInfo = await getAvatarImageInfo(options.imagePath);
   const cropSourceRect = resolveCenteredSquareCropSourceRect(imageInfo);
@@ -54,10 +61,12 @@ export async function exportCenteredSquareAvatar(options: {
     cropSourceRect,
     canvas2dSelector: options.canvas2dSelector,
     legacyCanvasId: options.legacyCanvasId,
+    quality: options.quality,
   });
 }
 
 export async function exportSquareAvatar(options: CanvasExportOptions): Promise<string> {
+  const quality = resolveAvatarExportQuality({ quality: options.quality });
   try {
     const canvas = await getCanvasNode(options.canvas2dSelector);
     const context = canvas.getContext('2d');
@@ -86,12 +95,12 @@ export async function exportSquareAvatar(options: CanvasExportOptions): Promise<
       AVATAR_OUTPUT_SIZE
     );
 
-    return await exportCanvasToTempFile2D(canvas);
+    return await exportCanvasToTempFile2D(canvas, quality);
   } catch (error) {
     logger.warn('Canvas 2D export failed, fallback to legacy canvas', {
       error: serializeError(error),
     });
-    return await exportSquareAvatarWithLegacyCanvas(options);
+    return await exportSquareAvatarWithLegacyCanvas(options, quality);
   }
 }
 
@@ -134,7 +143,10 @@ function loadCanvasImage(
   });
 }
 
-function exportCanvasToTempFile2D(canvas: WechatMiniprogram.Canvas): Promise<string> {
+function exportCanvasToTempFile2D(
+  canvas: WechatMiniprogram.Canvas,
+  quality: number
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const exportOptions = {
       canvas: canvas as unknown as WechatMiniprogram.IAnyObject,
@@ -143,7 +155,7 @@ function exportCanvasToTempFile2D(canvas: WechatMiniprogram.Canvas): Promise<str
       destWidth: AVATAR_OUTPUT_SIZE,
       destHeight: AVATAR_OUTPUT_SIZE,
       fileType: 'webp',
-      quality: 0.85,
+      quality,
       success: (res: WechatMiniprogram.CanvasToTempFilePathSuccessCallbackResult) =>
         resolve(res.tempFilePath),
       fail: reject,
@@ -152,7 +164,10 @@ function exportCanvasToTempFile2D(canvas: WechatMiniprogram.Canvas): Promise<str
   });
 }
 
-function exportSquareAvatarWithLegacyCanvas(options: CanvasExportOptions): Promise<string> {
+function exportSquareAvatarWithLegacyCanvas(
+  options: CanvasExportOptions,
+  quality: number
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const ctx = wx.createCanvasContext(options.legacyCanvasId);
     ctx.drawImage(
@@ -174,7 +189,7 @@ function exportSquareAvatarWithLegacyCanvas(options: CanvasExportOptions): Promi
         destWidth: AVATAR_OUTPUT_SIZE,
         destHeight: AVATAR_OUTPUT_SIZE,
         fileType: 'webp',
-        quality: 0.85,
+        quality,
         success: (res: WechatMiniprogram.CanvasToTempFilePathSuccessCallbackResult) =>
           resolve(res.tempFilePath),
         fail: reject,
@@ -182,6 +197,14 @@ function exportSquareAvatarWithLegacyCanvas(options: CanvasExportOptions): Promi
       void wx.canvasToTempFilePath(exportOptions, undefined);
     });
   });
+}
+
+function resolveAvatarExportQuality(options: AvatarExportQualityOptions): number {
+  const rawQuality = options.quality;
+  if (typeof rawQuality !== 'number' || !Number.isFinite(rawQuality)) {
+    return AVATAR_DEFAULT_QUALITY;
+  }
+  return Math.max(0, Math.min(1, rawQuality));
 }
 
 function serializeError(error: unknown): string {

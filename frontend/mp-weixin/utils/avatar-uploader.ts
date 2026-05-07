@@ -14,6 +14,8 @@ const AVATAR_MIME_TYPE = 'image/webp';
 const HTTP_TMP_PREFIX = /^https?:\/\/tmp\//i;
 const AVATAR_EXPORT_CANVAS_2D_SELECTOR = '#avatarExportCanvas2d';
 const AVATAR_EXPORT_CANVAS_LEGACY_ID = 'avatarExportCanvasLegacy';
+const AVATAR_MAX_UPLOAD_BYTES = 1024 * 1024;
+const AVATAR_REENCODE_QUALITY_STEPS = [0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5];
 
 interface PreparedAvatarResult {
   tempFilePath: string;
@@ -241,7 +243,7 @@ const mapApiErrorMessage = (error: ApiError): string => {
     case 401:
       return '登录已失效，请重新登录';
     case 413:
-      return '图片过大（最大2MB）';
+      return '图片过大（最大1MB）';
     case 415:
       return '图片格式不支持';
     case 429:
@@ -339,7 +341,8 @@ const finalizePreparedAvatarFile = async (
   tempFilePath: string,
   sourceType?: string
 ): Promise<PreparedAvatarResult | null> => {
-  const fileSize = await resolveFileSize(tempFilePath);
+  const limitedFile = await ensureAvatarUploadWithinLimit(tempFilePath);
+  const fileSize = limitedFile.fileSize;
   if (fileSize === null) {
     logger.error('Avatar file size check failed', { filePath: tempFilePath });
     void wx.showToast({
@@ -350,10 +353,87 @@ const finalizePreparedAvatarFile = async (
   }
 
   return {
-    tempFilePath,
+    tempFilePath: limitedFile.filePath,
     fileSize,
     sourceType,
   };
+};
+
+const ensureAvatarUploadWithinLimit = async (
+  tempFilePath: string
+): Promise<{ filePath: string; fileSize: number | null }> => {
+  const originalSize = await resolveFileSize(tempFilePath);
+  if (originalSize === null) {
+    return { filePath: tempFilePath, fileSize: null };
+  }
+  if (originalSize === 0 || originalSize <= AVATAR_MAX_UPLOAD_BYTES) {
+    return { filePath: tempFilePath, fileSize: originalSize };
+  }
+
+  logger.info('[avatar] file too large, start auto-reencode', {
+    originalSize,
+    maxUploadBytes: AVATAR_MAX_UPLOAD_BYTES,
+  });
+
+  const result = await tryReencodeAvatarToLimit({
+    qualityIndex: 0,
+    bestPath: tempFilePath,
+    bestSize: originalSize,
+  });
+  if (result.fileSize > AVATAR_MAX_UPLOAD_BYTES) {
+    logger.warn('[avatar] auto-reencode still exceeds upload limit', {
+      originalSize,
+      bestSize: result.fileSize,
+      maxUploadBytes: AVATAR_MAX_UPLOAD_BYTES,
+    });
+  }
+  return result;
+};
+
+const tryReencodeAvatarToLimit = async (params: {
+  qualityIndex: number;
+  bestPath: string;
+  bestSize: number;
+}): Promise<{ filePath: string; fileSize: number }> => {
+  const { qualityIndex, bestPath, bestSize } = params;
+  if (qualityIndex >= AVATAR_REENCODE_QUALITY_STEPS.length) {
+    return { filePath: bestPath, fileSize: bestSize };
+  }
+
+  const quality = AVATAR_REENCODE_QUALITY_STEPS[qualityIndex];
+  const reencodedPath = await exportCenteredSquareAvatar({
+    imagePath: bestPath,
+    canvas2dSelector: AVATAR_EXPORT_CANVAS_2D_SELECTOR,
+    legacyCanvasId: AVATAR_EXPORT_CANVAS_LEGACY_ID,
+    quality,
+  });
+  const reencodedSize = await resolveFileSize(reencodedPath);
+  if (reencodedSize === null) {
+    return await tryReencodeAvatarToLimit({
+      qualityIndex: qualityIndex + 1,
+      bestPath,
+      bestSize,
+    });
+  }
+  if (reencodedSize === 0) {
+    return { filePath: reencodedPath, fileSize: 0 };
+  }
+  const nextBest =
+    reencodedSize < bestSize
+      ? { bestPath: reencodedPath, bestSize: reencodedSize }
+      : { bestPath, bestSize };
+  if (reencodedSize <= AVATAR_MAX_UPLOAD_BYTES) {
+    logger.info('[avatar] auto-reencode reached upload limit', {
+      quality,
+      fileSize: reencodedSize,
+    });
+    return { filePath: reencodedPath, fileSize: reencodedSize };
+  }
+  return await tryReencodeAvatarToLimit({
+    qualityIndex: qualityIndex + 1,
+    bestPath: nextBest.bestPath,
+    bestSize: nextBest.bestSize,
+  });
 };
 
 const selectAndCropAvatarFromTempFile = async (

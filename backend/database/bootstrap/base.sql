@@ -213,7 +213,7 @@ VALUES
 ('square_rate_limit_window_seconds', '10', '10', 2, 'Square refresh window in seconds', 'discovery_square', NULL),
 
 -- Media upload configuration
-('avatar_max_size_mb', '2', '2', 2, 'Maximum avatar file size in MB', 'media', NULL),
+('avatar_max_size_mb', '1', '1', 2, 'Maximum avatar file size in MB', 'media', NULL),
 ('avatar_allowed_formats', '["image/jpeg","image/png","image/webp"]', 'image/jpeg', 1, 'Allowed avatar MIME types', 'media', NULL),
 
 -- Media upload quota configuration (✅ MVP P0)

@@ -41,6 +41,10 @@ const cropState = {
   centerY: 0,
   size: 1,
 };
+const AVATAR_OUTPUT_SIZE = 512;
+const AVATAR_OUTPUT_MIME = 'image/webp';
+const AVATAR_MAX_UPLOAD_BYTES = 1024 * 1024;
+const AVATAR_WEBP_QUALITY_STEPS = [0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5];
 
 function setStatus(message, isError = false) {
   statusText.textContent = message;
@@ -265,6 +269,77 @@ async function parseResponseJson(resp) {
   }
 }
 
+function buildOutputFileName(originalName) {
+  const rawName = typeof originalName === 'string' ? originalName.trim() : '';
+  const baseName = rawName.replace(/\.[^.]+$/, '');
+  const resolvedBaseName = baseName || 'avatar';
+  return `${resolvedBaseName}.webp`;
+}
+
+function encodeCanvasToBlob(canvas, mimeType, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob);
+          return;
+        }
+        reject(new Error('Image encoding failed.'));
+      },
+      mimeType,
+      quality
+    );
+  });
+}
+
+async function buildAvatarUploadFile(sourceFile) {
+  if (!sourceImage.src || imageNaturalWidth <= 0 || imageNaturalHeight <= 0) {
+    throw new Error('Please load an image first.');
+  }
+
+  const cropRect = getCropRectFromState();
+  const canvas = document.createElement('canvas');
+  canvas.width = AVATAR_OUTPUT_SIZE;
+  canvas.height = AVATAR_OUTPUT_SIZE;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('Canvas context unavailable.');
+  }
+
+  ctx.drawImage(
+    sourceImage,
+    cropRect.x,
+    cropRect.y,
+    cropRect.size,
+    cropRect.size,
+    0,
+    0,
+    AVATAR_OUTPUT_SIZE,
+    AVATAR_OUTPUT_SIZE
+  );
+
+  let bestBlob = null;
+  for (const quality of AVATAR_WEBP_QUALITY_STEPS) {
+    const encodedBlob = await encodeCanvasToBlob(canvas, AVATAR_OUTPUT_MIME, quality);
+    if (!bestBlob || encodedBlob.size < bestBlob.size) {
+      bestBlob = encodedBlob;
+    }
+    if (encodedBlob.size <= AVATAR_MAX_UPLOAD_BYTES) {
+      return {
+        blob: encodedBlob,
+        name: buildOutputFileName(sourceFile.name),
+      };
+    }
+  }
+
+  if (bestBlob) {
+    const sizeKb = Math.ceil(bestBlob.size / 1024);
+    throw new Error(`Processed avatar is ${sizeKb}KB and exceeds 1MB limit.`);
+  }
+  throw new Error('Image encoding failed.');
+}
+
 async function uploadAvatar(event) {
   event.preventDefault();
   const file = avatarFile.files && avatarFile.files[0];
@@ -289,12 +364,13 @@ async function uploadAvatar(event) {
     async () => {
       setStatus('Uploading...');
       try {
+        const uploadFile = await buildAvatarUploadFile(file);
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', uploadFile.blob, uploadFile.name);
         formData.append('file_type', '1');
-        formData.append('mime_type', file.type || 'image/webp');
-        formData.append('file_size', String(file.size));
-        formData.append('original_name', file.name);
+        formData.append('mime_type', uploadFile.blob.type || AVATAR_OUTPUT_MIME);
+        formData.append('file_size', String(uploadFile.blob.size));
+        formData.append('original_name', uploadFile.name);
         const cropRect = getCropRectFromState();
         formData.append('crop_x', String(Math.round(cropRect.x)));
         formData.append('crop_y', String(Math.round(cropRect.y)));

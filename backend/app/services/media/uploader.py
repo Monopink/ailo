@@ -161,9 +161,10 @@ async def upload_via_proxy_for_actor(
             headers={"Retry-After": str(retry_after or 60)},
         )
 
-    max_size_bytes = await _get_max_size_bytes(db, rule.max_size_key)
+    max_size_mb = await get_config_int(db, rule.max_size_key)
+    max_size_bytes = max_size_mb * 1024 * 1024
     if actual_size > max_size_bytes:
-        raise HTTPException(status_code=413, detail="文件大小超过限制（2MB）")
+        raise HTTPException(status_code=413, detail=f"文件大小超过限制（{max_size_mb}MB）")
 
     allowed_mimes = await _get_allowed_mimes(db, rule.allowed_mimes_key)
     if mime_type.lower() not in allowed_mimes:
@@ -267,8 +268,3 @@ async def upload_via_proxy_for_actor(
 async def _get_allowed_mimes(db: AsyncSession, config_key: str) -> list[str]:
     allowed_items = await get_config_str_list(db, config_key)
     return [item.strip().lower() for item in allowed_items if item.strip()]
-
-
-async def _get_max_size_bytes(db: AsyncSession, config_key: str) -> int:
-    size_mb = await get_config_int(db, config_key)
-    return size_mb * 1024 * 1024

@@ -35,6 +35,7 @@ from .views import (
     ai_instance_view,
     ai_message_buffer_view,
     ai_message_buffer_wake_event_view,
+    ai_persona_batch_create_view,
     ai_persona_view,
     ai_personality_placeholder_view,
     ai_personality_view,
@@ -216,6 +217,7 @@ def _register_dropdowns(admin_instance: AdminWithNext) -> None:
         always_open=False,
     )
     admin_instance.add_view(ai_config_group)
+    admin_instance.add_view(ai_persona_batch_create_view)
 
     ai_runtime_group = DropDown(
         "AI Runtime",

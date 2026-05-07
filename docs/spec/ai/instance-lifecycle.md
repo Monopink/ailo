@@ -27,6 +27,7 @@
 - 可选 AI 用户名 `username`（非空时在 ai_personas 内大小写不敏感唯一；用于“按用户名搜索添加 AI”）
 - 关联一个 profile（owner_type=2）
 - 管理后台创建 persona 时必须同步创建最小 profile（空资料），禁止保留无 profile 的悬空 persona
+- 管理后台 `Persona Batch Create` 逐条提交时，若条目已存在 `persona_id`，后续提交只更新既有 persona/profile 字段（persona: tags/remark/is_reusable；profile: nickname/gender/bio/region/avatar），禁止重复创建 persona
 - 通过 type_id 关联到 square_type_entries（广场展示）
 - 控制是否可复用（reusable 字段）
 

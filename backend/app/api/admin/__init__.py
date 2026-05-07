@@ -11,6 +11,7 @@ from app.api.deps import verify_admin_session
 from .ai_dimension import dimension_router
 from .ai_instance import ai_instance_router
 from .ai_memory import memory_router
+from .ai_persona_batch import persona_batch_router
 from .ai_personality import personality_router
 from .ai_style import style_router
 from .ai_template import template_router
@@ -34,6 +35,7 @@ admin_api_router.include_router(llm_router, prefix="/llm", tags=["Admin LLM Mana
 admin_api_router.include_router(ai_instance_router, prefix="/ai", tags=["Admin AI Instance"])
 admin_api_router.include_router(personality_router, prefix="/ai", tags=["Admin AI Personality"])
 admin_api_router.include_router(template_router, prefix="/ai", tags=["Admin AI Template"])
+admin_api_router.include_router(persona_batch_router, prefix="/ai", tags=["Admin AI Persona Batch"])
 admin_api_router.include_router(style_router, prefix="/ai", tags=["Admin AI Style"])
 admin_api_router.include_router(dimension_router, prefix="/ai", tags=["Admin AI Dimension"])
 admin_api_router.include_router(memory_router, prefix="/ai", tags=["Admin AI Memory"])

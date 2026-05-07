@@ -5,10 +5,12 @@ This module contains Starlette-Admin views for AI instance configuration and per
 
 from collections.abc import MutableMapping, Sequence
 from typing import Any, ClassVar, cast
+from urllib.parse import urlencode
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
+from starlette.responses import RedirectResponse, Response
 from starlette_admin import (
     DateTimeField,
     HasOne,
@@ -19,9 +21,9 @@ from starlette_admin import (
     TextAreaField,
 )
 from starlette_admin._types import RequestAction
-from starlette_admin.actions import link_row_action
+from starlette_admin.actions import action, link_row_action, row_action
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin.exceptions import FormValidationError
+from starlette_admin.exceptions import ActionFailed, FormValidationError
 from starlette_admin.fields import BaseField, RelationField
 
 from app.admin.views.base import IntegerEnumField
@@ -38,6 +40,11 @@ from app.models.ai.style import AIDimension, AIStyleDimension
 from app.models.ai.template import AIPersona, AITemplate
 from app.models.base import generate_qiao_id
 from app.models.profile import Profile
+from app.services.admin.persona_batch_import_store import (
+    PersonaBatchImportSelectionLimitError,
+    PersonaBatchImportStoreError,
+    create_persona_batch_import_token,
+)
 from app.services.ai.response_schema import validate_style_personality_contract
 from app.services.profile.avatar import get_avatar_url
 from app.services.profile.integrity import ensure_persona_profile
@@ -583,7 +590,14 @@ class AIPersonaView(ModelView):
         DateTimeField("created_at", label="Created At", help_text="Creation timestamp"),
         DateTimeField("updated_at", label="Updated At", help_text="Last update timestamp"),
     ]
-    row_actions: ClassVar[list[str]] = ["view", "profile", "edit"]
+    row_actions: ClassVar[list[str]] = ["view", "profile", "edit", "batch_edit"]
+
+    def is_active(self, request: Request) -> bool:
+        """Keep Personas menu active for persona list and batch-create pages."""
+        if request.path_params.get("identity", None) == self.identity:
+            return True
+        path = request.scope["path"]
+        return f"/{self.identity}/batch-create" in path
 
     @link_row_action(
         name="profile",
@@ -593,6 +607,81 @@ class AIPersonaView(ModelView):
     def profile_detail_action(self, _request: Request, pk: int | str) -> str:
         """Open owner profile detail page."""
         return f"/admin-api/profile/owner-link/ai_persona/{pk}"
+
+    @row_action(
+        name="batch_edit",
+        text="批量编辑",
+        icon_class="fa fa-layer-group",
+        custom_response=True,
+    )
+    async def batch_edit_row_action(self, request: Request, pk: Any) -> Response:
+        """Import one persona and redirect to batch-edit page."""
+        admin_user = request.session.get("admin_user") if hasattr(request, "session") else None
+        admin_id = admin_user.get("id") if isinstance(admin_user, dict) else None
+        if not isinstance(admin_id, int) or admin_id <= 0:
+            raise ActionFailed("Authentication required")
+        try:
+            persona_id = int(pk)
+        except (TypeError, ValueError) as exc:
+            raise ActionFailed("Invalid persona id") from exc
+        if persona_id <= 0:
+            raise ActionFailed("Invalid persona id")
+
+        try:
+            token = await create_persona_batch_import_token(
+                admin_id=admin_id,
+                persona_ids=[persona_id],
+            )
+        except PersonaBatchImportStoreError as exc:
+            raise ActionFailed(str(exc)) from exc
+
+        base_url = str(request.url_for("admin:ai_persona_batch_create"))
+        query = urlencode({"mode": "edit", "import_token": token})
+        return RedirectResponse(url=f"{base_url}?{query}", status_code=303)
+
+    @action(
+        name="import_to_batch_edit",
+        text="批量编辑",
+        confirmation="将选中条目导入批量编辑页面？",
+        submit_btn_text="导入并前往",
+        submit_btn_class="btn-primary",
+        icon_class="fa fa-pen",
+        custom_response=True,
+    )
+    async def import_to_batch_edit_action(self, request: Request, pks: list[Any]) -> Response:
+        """Import selected personas into batch-create edit queue."""
+        admin_user = request.session.get("admin_user") if hasattr(request, "session") else None
+        admin_id = admin_user.get("id") if isinstance(admin_user, dict) else None
+        if not isinstance(admin_id, int) or admin_id <= 0:
+            raise ActionFailed("Authentication required")
+
+        normalized_ids: list[int] = []
+        seen: set[int] = set()
+        for raw_pk in pks:
+            try:
+                persona_id = int(raw_pk)
+            except (TypeError, ValueError):
+                continue
+            if persona_id <= 0 or persona_id in seen:
+                continue
+            seen.add(persona_id)
+            normalized_ids.append(persona_id)
+        if not normalized_ids:
+            raise ActionFailed("No valid persona selected")
+
+        try:
+            token = await create_persona_batch_import_token(
+                admin_id=admin_id,
+                persona_ids=normalized_ids,
+            )
+        except PersonaBatchImportSelectionLimitError as exc:
+            raise ActionFailed(str(exc)) from exc
+        except PersonaBatchImportStoreError as exc:
+            raise ActionFailed(str(exc)) from exc
+
+        base_url = str(request.url_for("admin:ai_persona_batch_create"))
+        query = urlencode({"mode": "edit", "import_token": token})
+        return RedirectResponse(url=f"{base_url}?{query}", status_code=303)
 
     async def before_create(self, request: Request, _data: FormData, obj: AIPersona) -> None:
         """Ensure ai_type is set before creating a persona."""
@@ -838,7 +927,7 @@ ai_template_memory_view = AITemplateMemoryView(
 
 ai_persona_view = AIPersonaView(
     AIPersona,
-    name="AI Persona Inventory",
+    name="AI Personas",
     label="Personas",
     icon="fa fa-user-robot",
     identity="ai_persona",

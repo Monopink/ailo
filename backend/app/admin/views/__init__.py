@@ -20,6 +20,7 @@ from .ai_instance_views import (
     ai_instance_view,
 )
 from .ai_log_views import AI_LOG_VIEWS, ai_request_log_view
+from .ai_persona_batch_create_view import ai_persona_batch_create_view
 
 # Import views from different modules
 from .ai_personality_views import (
@@ -187,6 +188,7 @@ __all__ = [
     # Individual AI views
     "ai_personality_view",
     "ai_personality_placeholder_view",
+    "ai_persona_batch_create_view",
     "ai_instance_view",
     "ai_instance_dimension_view",
     "ai_instance_memory_view",

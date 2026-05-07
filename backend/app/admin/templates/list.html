@@ -27,6 +27,18 @@
 
                                 {% include "actions.html" %}
 
+                                {% if model.identity == "ai_persona" %}
+                                    <a href="{{ url_for(__name__ ~ ':ai_persona_batch_create') }}"
+                                       class="btn btn-outline-primary btn-block ms-2">
+                                        <i class="fa-solid fa-layer-group me-2"></i>
+                                        {% if get_locale().startswith("en") %}
+                                            Batch Create
+                                        {% else %}
+                                            批量创建
+                                        {% endif %}
+                                    </a>
+                                {% endif %}
+
                                 {% if model.can_create(request) %}
                                     <a href="{{ url_for(__name__ ~ ':create', identity=model.identity) }}"
                                        class="btn btn-primary btn-block ms-2">
@@ -167,7 +179,7 @@
     <script type="text/javascript"
             src="{{ url_for(__name__ ~ ':statics', path='js/alerts.js').include_query_params(v=1) }}"></script>
     <script type="text/javascript"
-            src="{{ url_for(__name__ ~ ':statics', path='js/actions.js').include_query_params(v=1) }}"></script>
+            src="{{ url_for(__name__ ~ ':statics', path='js/actions.js').include_query_params(v=2) }}"></script>
     <script type="text/javascript"
             src="{{ url_for(__name__ ~ ':statics', path='js/list.js').include_query_params(v=2) }}"></script>
     <script type="text/javascript">

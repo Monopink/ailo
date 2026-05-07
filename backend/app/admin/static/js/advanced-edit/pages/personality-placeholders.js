@@ -443,7 +443,7 @@ export const personalityPlaceholderMethods = {
           display_name: '',
           description: '',
           example_value: '',
-          is_required: false,
+          is_required: true,
         })
       );
     });
@@ -473,7 +473,7 @@ export const personalityPlaceholderMethods = {
         if (typeof document.queryCommandSupported === 'function' && document.queryCommandSupported('insertText')) {
           usedExec = document.execCommand('insertText', false, placeholder);
         }
-      } catch (_) {
+      } catch {
         /* ignore */
       }
       if (!usedExec) {
@@ -490,7 +490,7 @@ export const personalityPlaceholderMethods = {
           this.state.manualUndoOps.push({ start: pos, len: placeholder.length, text: placeholder });
         }
       }
-    } catch (e) {
+    } catch {
       // Graceful fallback
       const pos = editor.selectionStart || editor.value.length;
       editor.value = editor.value.slice(0, pos) + placeholder + editor.value.slice(pos);

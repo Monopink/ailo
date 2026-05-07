@@ -1,0 +1,301 @@
+{% extends "layout.html" %}
+
+{% block title %}<title>Persona 批量创建</title>{% endblock %}
+
+{% block head_css %}
+<link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/select2.min.css') }}">
+<style>
+  .avatar-drop-zone {
+    border: 1px dashed var(--tblr-border-color, var(--bs-border-color));
+    border-radius: 10px;
+    min-height: 72px;
+    padding: 0.375rem 0.5rem;
+    width: 100%;
+    overflow: hidden;
+    background: var(--tblr-bg-surface-secondary, #f4f6fa);
+    transition: border-color 120ms ease, background-color 120ms ease;
+  }
+
+  .avatar-drop-zone.is-dragover {
+    border-color: var(--tblr-primary, #206bc4);
+    background: color-mix(in srgb, var(--tblr-primary, #206bc4) 8%, transparent);
+  }
+
+  .avatar-preview {
+    width: 48px;
+    height: 48px;
+    display: block;
+    border-radius: 50%;
+    border: 1px solid var(--tblr-border-color, var(--bs-border-color));
+    object-fit: cover;
+  }
+
+  .avatar-preview-wrap {
+    flex: 0 0 48px;
+    min-width: 48px;
+  }
+
+  .avatar-content-wrap {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .persona-batch-table {
+    width: 100%;
+    min-width: 2648px;
+    table-layout: fixed;
+  }
+
+  .persona-batch-table th,
+  .persona-batch-table td {
+    vertical-align: top;
+  }
+
+  .avatar-hint {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 84px;
+    border-radius: 9999px;
+    padding: 0.25rem 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    border: 1px solid transparent;
+  }
+
+  .status-pill-draft {
+    color: #374151;
+    background: #f3f4f6;
+    border-color: #d1d5db;
+  }
+
+  .status-pill-submitting {
+    color: #fff;
+    background: #1d4ed8;
+    border-color: #1e40af;
+  }
+
+  .status-pill-success {
+    color: #fff;
+    background: #15803d;
+    border-color: #166534;
+  }
+
+  .status-pill-failed {
+    color: #fff;
+    background: #b91c1c;
+    border-color: #991b1b;
+  }
+
+  .persona-batch-table th.operation-col,
+  .persona-batch-table td.operation-col {
+    position: sticky;
+    right: 0;
+    z-index: 3;
+    background: var(--tblr-bg-surface, var(--bs-body-bg, #fff));
+    box-shadow: -1px 0 0 var(--tblr-border-color, var(--bs-border-color));
+  }
+
+  .persona-batch-table thead th.operation-col {
+    z-index: 4;
+  }
+
+  .row-tags-editor {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    min-height: 38px;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--tblr-border-color, var(--bs-border-color));
+    border-radius: var(--tblr-border-radius, 4px);
+    background: var(--tblr-bg-surface, var(--bs-body-bg, #fff));
+  }
+
+  .row-tags-editor:focus-within {
+    border-color: #206bc4;
+    box-shadow: 0 0 0 0.2rem rgba(32, 107, 196, 0.15);
+  }
+
+  .row-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    max-width: 100%;
+    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid #c9d8f0;
+    background: #edf4ff;
+    color: #1f3b67;
+    font-size: 0.75rem;
+    line-height: 1.2;
+  }
+
+  .row-tag-chip-text {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .row-tag-remove-btn {
+    border: none;
+    background: transparent;
+    color: inherit;
+    line-height: 1;
+    padding: 0;
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+
+  .row-tags-input {
+    border: none;
+    outline: none;
+    min-width: 90px;
+    flex: 1 1 90px;
+    padding: 0;
+    background: transparent;
+  }
+
+  .row-tags-empty {
+    color: #6b7280;
+    font-size: 0.75rem;
+  }
+</style>
+{% endblock %}
+
+{% block header %}
+<div class="d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="mb-0">Persona 批量创建</h1>
+    <div class="text-muted mt-1">先批量生成条目，再逐条提交队列。</div>
+  </div>
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{{ url_for(__name__ ~ ':index') }}">管理后台</a></li>
+    <li class="breadcrumb-item"><a href="{{ url_for(__name__ ~ ':list', identity='ai_persona') }}">AI 人设</a></li>
+    <li class="breadcrumb-item active">批量创建</li>
+  </ol>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="card mb-3">
+    <div class="card-header">
+      <h3 class="card-title mb-0">生成草稿条目</h3>
+    </div>
+    <div class="card-body">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label" for="typeSelect">AI 类型</label>
+        <select id="typeSelect" class="form-select" data-placeholder="搜索 AI 类型"></select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="batchGender">性别</label>
+        <select id="batchGender" class="form-select">
+          <option value="">未设置</option>
+          <option value="1">男</option>
+          <option value="2">女</option>
+          <option value="3">其他</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="batchIsReusable">复用性</label>
+        <select id="batchIsReusable" class="form-select">
+          <option value="1">可复用</option>
+          <option value="0">单次使用</option>
+        </select>
+      </div>
+      <div class="col-md-1">
+        <label class="form-label" for="batchCount">数量</label>
+        <input id="batchCount" type="number" class="form-control" min="1" max="100" value="1">
+      </div>
+      <div class="col-md-3 d-flex gap-2">
+        <button id="addRowsBtn" class="btn btn-primary" type="button">添加草稿条目</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h3 class="card-title mb-0">条目队列</h3>
+      <div id="queueActions" class="btn-list ms-auto justify-content-end">
+        <button id="submitDraftBtn" class="btn btn-primary" type="button">提交</button>
+        <button id="retryFailedBtn" class="btn btn-outline-warning" type="button">重试</button>
+        <button id="submitAllBtn" class="btn btn-outline-primary" type="button">提交和重试</button>
+        <button id="removeSuccessBtn" class="btn btn-outline-secondary" type="button">移除成功条目</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div id="queueSummary" class="small text-muted"></div>
+        <div id="queueStatusMessage" class="small text-muted"></div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-vcenter persona-batch-table">
+          <colgroup>
+            <col style="width: 48px;">
+            <col style="width: 110px;">
+            <col style="width: 220px;">
+            <col style="width: 360px;">
+            <col style="width: 180px;">
+            <col style="width: 120px;">
+            <col style="width: 300px;">
+            <col style="width: 160px;">
+            <col style="width: 300px;">
+            <col style="width: 300px;">
+            <col style="width: 120px;">
+            <col style="width: 240px;">
+            <col style="width: 170px;">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>状态</th>
+              <th>AI 类型</th>
+              <th>头像</th>
+              <th>昵称</th>
+              <th>性别</th>
+              <th>个性签名</th>
+              <th>地区</th>
+              <th>预设标签</th>
+              <th>预设描述</th>
+              <th>复用性</th>
+              <th>错误信息</th>
+              <th class="w-1 operation-col">操作</th>
+            </tr>
+          </thead>
+          <tbody id="queueRowsBody">
+            <tr>
+              <td colspan="13" class="text-center text-muted">暂无条目。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+window.ailoPersonaBatchCreateConfig = {
+  submitRowUrl: "/admin-api/ai/persona-batch/submit-row",
+  aiTypeListUrl: "/qiao-dash/api/ai_type?limit=1000",
+  importRowsUrl: "/admin-api/ai/persona-batch/import-rows/consume",
+  initialImportToken: {{ request.query_params.get("import_token", "") | tojson | safe }},
+  initialMode: {{ request.query_params.get("mode", "") | tojson | safe }},
+};
+</script>
+<script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/vendor/select2.min.js') }}"></script>
+<script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/components/search-select.js') }}"></script>
+<script type="module" src="{{ url_for(__name__ ~ ':statics', path='js/persona-batch-create/page.js') }}"></script>
+{% endblock %}

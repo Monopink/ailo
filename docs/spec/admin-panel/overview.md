@@ -46,6 +46,7 @@
   - 操作流程固定为：搜索并选择用户 -> 配置权益操作 -> 数量确认（当前可用/结果可用）-> 提交并查看语义化结果
 - 分数算法测试（关系算法输入输出验证）
 - AI Advanced Edit（personality/style 高级配置编辑）
+- Persona Batch Create（按 AI Type 批量生成 persona 队列，支持批量编辑导入并逐条提交 persona/profile 字段）
 - Profile Avatar Advanced Edit（profile 头像上传、裁切与覆盖）
 
 其中 Chat Console 详见 [chat-console.md](chat-console.md)。

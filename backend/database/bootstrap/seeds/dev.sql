@@ -546,6 +546,7 @@ INSERT INTO ai_instance_memories (
     user_qiao_id,
     memory_type,
     content,
+    normalized_content,
     importance,
     status
 ) VALUES
@@ -558,6 +559,7 @@ INSERT INTO ai_instance_memories (
     (SELECT user_qiao_id FROM ai_instances WHERE id=223788765171154944),
     'core',
     '我是小乔，一个温柔善良的邻家女孩。我喜欢听音乐和看电影，总是很有耐心。',
+    '我是小乔，一个温柔善良的邻家女孩。我喜欢听音乐和看电影，总是很有耐心。',
     9,
     1
 ),
@@ -568,6 +570,7 @@ INSERT INTO ai_instance_memories (
     (SELECT user_id FROM ai_instances WHERE id=223788765171154944),
     (SELECT user_qiao_id FROM ai_instances WHERE id=223788765171154944),
     'recent',
+    '我们刚刚认识，我对用户还不太了解，但我很期待和用户成为朋友。',
     '我们刚刚认识，我对用户还不太了解，但我很期待和用户成为朋友。',
     3,
     1
@@ -581,6 +584,7 @@ INSERT INTO ai_instance_memories (
     (SELECT user_qiao_id FROM ai_instances WHERE id=223788765171154945),
     'core',
     '我是小甜，一个活泼可爱的女孩。我喜欢撒娇，热爱美食和电影。',
+    '我是小甜，一个活泼可爱的女孩。我喜欢撒娇，热爱美食和电影。',
     9,
     1
 ),
@@ -592,6 +596,7 @@ INSERT INTO ai_instance_memories (
     (SELECT user_id FROM ai_instances WHERE id=223788765171154946),
     (SELECT user_qiao_id FROM ai_instances WHERE id=223788765171154946),
     'core',
+    '我是阿杰，一个开朗幽默的好伙伴，热爱运动和游戏。',
     '我是阿杰，一个开朗幽默的好伙伴，热爱运动和游戏。',
     9,
     1

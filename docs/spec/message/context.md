@@ -5,7 +5,7 @@
 - ai_conversation_items 只存储消息内容，不管理状态
 - 通过 is_excluded_from_context = 1 标记攻击消息
 - 上下文查询时自动排除攻击消息
-- converter 层负责格式转换和消息合并
+- 构建层负责格式转换和消息合并
 
 ## ai_conversation_items 表
 
@@ -13,7 +13,7 @@
 
 ### 消息存储格式
 
-ai_conversation_items 使用扁平字段存储（message_type/text_content/media_url/media_metadata），转换为 LLM 请求格式由 converter 在构建阶段完成，详见 `../ai/prompt-building.md` 与 `backend/app/services/ai/context/converter.py`。
+ai_conversation_items 使用扁平字段存储（message_type/text_content/media_url/media_metadata），转换为 LLM 请求格式由 `backend/app/services/ai/conversation_prompt.py` 在构建阶段完成，详见 `../ai/prompt-building.md`。
 
 ## 上下文查询
 
@@ -23,9 +23,9 @@ ai_conversation_items 使用扁平字段存储（message_type/text_content/media
 
 ### 查询策略
 
-- 最近 N 条 - 默认查询最近 20 条消息
+- 最近 N 条 - 由 `ai_conversation_context_max_messages` 控制
 - Token 限制 - 根据 LLM 上下文窗口动态裁剪
-- 时间窗口 - 可选：只查询最近 N 天的消息
+- 时间窗口 - 由 `ai_conversation_context_time_window_days` 控制的 UTC 滑动窗口
 
 ### 排除攻击消息
 
@@ -51,7 +51,7 @@ ai_conversation_items 使用扁平字段存储（message_type/text_content/media
 - 本年 → `MM-DD(X天前) HH:MM` - 示例：`11-18(五天前) 17:19`
 - 去年及更早 → `YYYY-MM-DD HH:MM` - 示例：`2023-12-25 10:00`
 
-**实现位置**：`backend/app/services/ai/context/converter.py`
+**实现位置**：`backend/app/services/ai/conversation_prompt.py`
 
 **示例**：
 
@@ -76,11 +76,11 @@ ai_conversation_items 使用扁平字段存储（message_type/text_content/media
 }
 ```
 
-## Converter 层消息合并
+## Prompt 构建层消息合并
 
 ### 设计原理
 
-LLM 要求连续同 role 的消息必须合并，converter 层负责此逻辑。
+LLM 要求连续同 role 的消息必须合并，Prompt 构建层负责此逻辑。
 
 ### 合并规则
 
@@ -155,19 +155,19 @@ LLM 请求的元数据（llm_config_id、response_id、token 使用量等）存�
 2. 超过限制时停止添加更早的消息
 3. 保留 system prompt 的 token 预算
 
-**实现位置**：`backend/app/services/ai/context/builder.py`
+**实现位置**：`backend/app/services/ai/conversation_prompt.py`
 
 ### 时间窗口
 
-可选配置：只查询最近 N 天的消息。
+按配置查询最近 N 天消息（UTC 滑动窗口）。
 
-从 system_configs 获取 `ai_context_time_window_days`（默认 30 天）。
+从 system_configs 获取 `ai_conversation_context_time_window_days`，配置缺失或非法时本轮处理静默结束。
 
 ### 消息数量限制
 
-默认查询最近 20 条消息，可通过配置调整。
+查询数量由配置统一控制。
 
-从 system_configs 获取 `ai_context_max_messages`（默认 20）。
+从 system_configs 获取 `ai_conversation_context_max_messages`，配置缺失或非法时本轮处理静默结束。
 
 ## 消息写入时机
 

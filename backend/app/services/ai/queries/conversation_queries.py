@@ -23,21 +23,23 @@ async def get_conversation_contexts(
     instance_qiao_id: str,
     user_qiao_id: str,
     limit: int | None = None,
+    context_window_start: datetime | None = None,
 ) -> list[dict[str, Any]]:
     """
     Return conversation items (excluding flagged content) ordered for prompt building.
     """
     try:
+        conditions = [
+            AIConversationItem.user_qiao_id == user_qiao_id,
+            AIConversationItem.instance_qiao_id == instance_qiao_id,
+            AIConversationItem.is_excluded_from_context == ConversationItemContextStatus.INCLUDED,
+        ]
+        if context_window_start is not None:
+            conditions.append(AIConversationItem.created_at >= context_window_start)
+
         query = (
             select(AIConversationItem)
-            .where(
-                and_(
-                    AIConversationItem.user_qiao_id == user_qiao_id,
-                    AIConversationItem.instance_qiao_id == instance_qiao_id,
-                    AIConversationItem.is_excluded_from_context
-                    == ConversationItemContextStatus.INCLUDED,
-                )
-            )
+            .where(and_(*conditions))
             .order_by(desc(AIConversationItem.created_at), desc(AIConversationItem.id))
         )
 

@@ -283,6 +283,15 @@ async def _process_conversation_async(
                 )
                 return
 
+            if bool(conversation_result.get("silent_failed")):
+                logger.info(
+                    "ai_processing_silent_failed",
+                    buffer_id=buffer_id,
+                    user_qiao_id=user_qiao_id,
+                    instance_qiao_id=instance_qiao_id,
+                )
+                return
+
             logger.info(
                 "ai_processing_completed",
                 buffer_id=buffer_id,

@@ -9,7 +9,7 @@ After updating configs through CRUD, call SystemConfigService.reload_cache() to 
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TypedDict
 
 from sqlalchemy import select
@@ -30,9 +30,16 @@ NumericConfigValue = str | int | float
 class _ConfigCacheState(TypedDict):
     cache: dict[str, ConfigValue]
     loaded: bool
+    last_version_check_at: datetime | None
 
 
-_config_state: _ConfigCacheState = {"cache": {}, "loaded": False}
+_CACHE_VERSION_CHECK_INTERVAL = timedelta(seconds=5)
+
+_config_state: _ConfigCacheState = {
+    "cache": {},
+    "loaded": False,
+    "last_version_check_at": None,
+}
 
 
 def _ensure_numeric_config_value(value: ConfigValue, key: str) -> NumericConfigValue:
@@ -112,6 +119,8 @@ class SystemConfigService:
         """Get configuration value by key."""
         if not _config_state["loaded"]:
             await SystemConfigService._load_cache(db)
+        else:
+            await SystemConfigService._maybe_reload_cache_if_stale(db)
 
         if key in _config_state["cache"]:
             return _config_state["cache"][key]
@@ -231,6 +240,8 @@ class SystemConfigService:
         """Get all configuration values."""
         if not _config_state["loaded"]:
             await SystemConfigService._load_cache(db)
+        else:
+            await SystemConfigService._maybe_reload_cache_if_stale(db)
         return _config_state["cache"].copy()
 
     @staticmethod
@@ -282,10 +293,27 @@ class SystemConfigService:
         await SystemConfigService._load_cache(db)
 
     @staticmethod
+    async def _maybe_reload_cache_if_stale(db: AsyncSession) -> None:
+        """Reload cache periodically to guarantee eventual consistency across instances."""
+        now = datetime.now(UTC)
+        last_check = _config_state["last_version_check_at"]
+        if last_check is not None and now - last_check < _CACHE_VERSION_CHECK_INTERVAL:
+            return
+
+        try:
+            await SystemConfigService._load_cache(db)
+        except Exception as exc:
+            logger.warning("system_configs_periodic_reload_failed", error=str(exc), exc_info=True)
+        else:
+            logger.info("system_configs_cache_periodic_reloaded")
+
+    @staticmethod
     async def _load_cache(db: AsyncSession) -> None:
         """Load all configurations into cache."""
         try:
-            result = await db.execute(select(SystemConfig))
+            result = await db.execute(
+                select(SystemConfig).execution_options(populate_existing=True)
+            )
             configs = result.scalars().all()
 
             cache = _config_state["cache"]
@@ -300,6 +328,7 @@ class SystemConfigService:
                 cache[config.config_key] = value
 
             _config_state["loaded"] = True
+            _config_state["last_version_check_at"] = datetime.now(UTC)
             logger.info("system_configs_cache_loaded", count=len(cache))
         except Exception as exc:
             logger.error("system_configs_cache_load_error", error=str(exc), exc_info=True)

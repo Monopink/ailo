@@ -196,8 +196,9 @@ messages = [
 - user_qiao_id = 当前用户
 - instance_qiao_id = 当前实例
 - is_excluded_from_context = 0（排除攻击消息）
+- created_at >= `now - ai_conversation_context_time_window_days * 24h`（UTC 滑动窗口）
 - 按 created_at 排序
-- 限制数量（默认最近 20 条）
+- 限制数量（`ai_conversation_context_max_messages`）
 
 ### 消息格式
 
@@ -228,7 +229,13 @@ ai_conversation_items 采用扁平字段存储（message_type / text_content / m
 
 实现位置：`backend/app/services/ai/conversation_prompt.py`（`build_conversation_context`）
 
-配置来源：system_configs.ai_context_max_messages（默认 20）
+配置来源：`system_configs.ai_conversation_context_max_messages`
+
+配置约束：
+
+- `ai_conversation_context_max_messages` 与 `ai_conversation_context_time_window_days` 必须存在且合法
+- 配置缺失或非法时，本轮对话按静默失败收敛
+- 配置缺失或非法时必须记录错误日志、审计日志并触发告警
 
 ## 攻击消息处理
 

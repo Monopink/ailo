@@ -8,7 +8,7 @@ coordinating all AI service components with clear error handling.
 import asyncio
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -16,7 +16,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_sessionmaker
 from app.enums import CHAT_INFO_TEMPLATES, AIMessageBufferState, ChatInfoType, ContactType
-from app.exceptions import AIConversationError, AIInstanceInactiveError, AIInstanceNotFoundError
+from app.exceptions import (
+    AIConversationError,
+    AIInstanceInactiveError,
+    AIInstanceNotFoundError,
+    ConfigurationError,
+    MissingConfigurationError,
+)
 from app.exceptions.llm import JSONSchemaNotSupportedError
 from app.models.ai.instance import AIInstance, AIMessageBuffer
 from app.models.contact import Contact
@@ -63,6 +69,13 @@ logger = get_logger(__name__)
 _MIN_CONTRACT_RETRY_ENABLED_KEY = "ai_llm_min_contract_retry_enabled"
 _MIN_CONTRACT_RETRY_MAX_ATTEMPTS_KEY = "ai_llm_min_contract_retry_max_attempts"
 _MIN_CONTRACT_RETRY_BACKOFF_MS_KEY = "ai_llm_min_contract_retry_backoff_ms"
+_AI_CONVERSATION_CONTEXT_MAX_MESSAGES_KEY = "ai_conversation_context_max_messages"
+_AI_CONVERSATION_CONTEXT_TIME_WINDOW_DAYS_KEY = "ai_conversation_context_time_window_days"
+
+_AI_CONVERSATION_CONTEXT_MIN_MESSAGES = 1
+_AI_CONVERSATION_CONTEXT_MAX_MESSAGES = 200
+_AI_CONVERSATION_CONTEXT_MIN_WINDOW_DAYS = 1
+_AI_CONVERSATION_CONTEXT_MAX_WINDOW_DAYS = 90
 
 
 @dataclass(slots=True)
@@ -83,6 +96,11 @@ class AttemptExecutionResult:
     last_error: str | None = None
 
 
+def _build_ai_conversation_context_window_start(*, window_days: int) -> datetime:
+    """Build the UTC cutoff timestamp for AI conversation context."""
+    return datetime.now(UTC) - timedelta(days=window_days)
+
+
 async def _load_min_contract_retry_config(db: AsyncSession) -> tuple[bool, int, int]:
     enabled_raw = await get_config(db, key=_MIN_CONTRACT_RETRY_ENABLED_KEY, required=True)
     if not isinstance(enabled_raw, bool):
@@ -100,6 +118,44 @@ async def _load_min_contract_retry_config(db: AsyncSession) -> tuple[bool, int, 
         return False, 1, 0
 
     return True, max_attempts, backoff_ms
+
+
+async def _load_ai_conversation_context_policy(db: AsyncSession) -> tuple[int, datetime]:
+    """Load and validate AI context query policy from system configs."""
+    max_messages = await get_config_int(
+        db, key=_AI_CONVERSATION_CONTEXT_MAX_MESSAGES_KEY, required=True
+    )
+    window_days = await get_config_int(
+        db, key=_AI_CONVERSATION_CONTEXT_TIME_WINDOW_DAYS_KEY, required=True
+    )
+
+    if not (
+        _AI_CONVERSATION_CONTEXT_MIN_MESSAGES
+        <= max_messages
+        <= _AI_CONVERSATION_CONTEXT_MAX_MESSAGES
+    ):
+        raise ValueError(f"{_AI_CONVERSATION_CONTEXT_MAX_MESSAGES_KEY} must be between 1 and 200")
+    if not (
+        _AI_CONVERSATION_CONTEXT_MIN_WINDOW_DAYS
+        <= window_days
+        <= _AI_CONVERSATION_CONTEXT_MAX_WINDOW_DAYS
+    ):
+        raise ValueError(
+            f"{_AI_CONVERSATION_CONTEXT_TIME_WINDOW_DAYS_KEY} must be between 1 and 90"
+        )
+
+    return max_messages, _build_ai_conversation_context_window_start(window_days=window_days)
+
+
+def _build_ai_conversation_context_config_failure_result(
+    locked_buffer_id: int | None,
+) -> JSONDict:
+    """Build a silent failure response for AI context config errors."""
+    return {
+        "success": True,
+        "buffer_id": locked_buffer_id,
+        "silent_failed": True,
+    }
 
 
 # Exception classes moved to exceptions/business.py for consistency
@@ -803,6 +859,57 @@ async def _handle_retry_config_error(
     await db.commit()
 
 
+async def _handle_ai_conversation_context_config_error(
+    *,
+    db: AsyncSession,
+    context: InstanceContext,
+    user_qiao_id: str,
+    instance_qiao_id: str,
+    locked_buffer_id: int | None,
+    error: Exception,
+) -> None:
+    """Record AI context config failures and end the turn silently."""
+    logger.error(
+        "ai_conversation_context_config_invalid",
+        error=str(error),
+        user_qiao_id=user_qiao_id,
+        instance_qiao_id=instance_qiao_id,
+    )
+    await _save_attempt_log(
+        db=db,
+        context=context,
+        user_qiao_id=user_qiao_id,
+        llm_result={
+            "success": False,
+            "error": str(error),
+            "usage": None,
+            "model": None,
+            "response_time": 0,
+            "request_payload": {"error": "ai_conversation_context_config_invalid"},
+            "config_used": {"id": None, "name": None, "provider_name": None, "model": None},
+        },
+        buffer_id=locked_buffer_id,
+        attempt_diag=_build_attempt_diag(
+            attempt_index=1,
+            attempt_total=1,
+            failure_code="CONFIG_ERROR",
+            failure_detail=str(error),
+            l0_ok=False,
+            l1_score_kept=False,
+            l1_memory_kept=False,
+            preempted=False,
+        ),
+    )
+    if locked_buffer_id is not None:
+        await clear_conversation_pending_messages(db, user_qiao_id, instance_qiao_id)
+        await finalize_buffer_if_locked(
+            db,
+            locked_buffer_id,
+            target_state=AIMessageBufferState.COMPLETE,
+        )
+    await db.commit()
+
+
 async def _resolve_terminal_attempt_result(
     *,
     db: AsyncSession,
@@ -989,6 +1096,19 @@ async def _process_conversation_impl(
             message="Instance context resolution failed unexpectedly",
         )
 
+    try:
+        max_context_length, context_window_start = await _load_ai_conversation_context_policy(db)
+    except (ConfigurationError, MissingConfigurationError, TypeError, ValueError) as exc:
+        await _handle_ai_conversation_context_config_error(
+            db=db,
+            context=context,
+            user_qiao_id=user_qiao_id,
+            instance_qiao_id=instance_qiao_id,
+            locked_buffer_id=locked_buffer_id,
+            error=exc,
+        )
+        return _build_ai_conversation_context_config_failure_result(locked_buffer_id)
+
     relationship_scores = await get_relationship_scores(db, context["instance_id"])
     relationship_type = await determine_relationship_type(db, context, relationship_scores)
     system_prompt = await build_system_prompt(db, context, relationship_type, user_qiao_id)
@@ -996,8 +1116,9 @@ async def _process_conversation_impl(
         db,
         instance_qiao_id,
         user_qiao_id,
-        max_context_length=None,
+        max_context_length=max_context_length,
         instance_timezone=context.get("timezone"),
+        context_window_start=context_window_start,
     )
 
     user_text = message_content if message_content else _blocks_to_text(message_blocks or [])

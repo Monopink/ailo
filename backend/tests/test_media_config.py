@@ -1,5 +1,4 @@
 import pytest
-import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.system import system_configs

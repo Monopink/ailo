@@ -120,6 +120,8 @@ VALUES
 ('ai_conversation_archive_max_count', '50', '50', 2, 'Archive AI conversation items when count exceeds this limit', 'ai_conversation', NULL),
 ('ai_conversation_archive_min_count', '10', '10', 2, 'Minimum AI conversation items to keep; do not archive if below this count', 'ai_conversation', NULL),
 ('ai_conversation_archive_threshold', '80', '80', 2, 'Trigger immediate archive when AI conversation items exceed this threshold', 'ai_conversation', NULL),
+('ai_conversation_context_max_messages', '20', '20', 2, 'AI conversation context message limit', 'ai_conversation', NULL),
+('ai_conversation_context_time_window_days', '30', '30', 2, 'AI conversation context time window in days', 'ai_conversation', NULL),
 ('ai_llm_min_contract_retry_enabled', 'true', 'true', 3, 'Enable minimal-contract retry for AI LLM responses', 'ai_conversation', NULL),
 ('ai_llm_min_contract_retry_max_attempts', '3', '3', 2, 'Maximum attempts for minimal-contract retry (>=1)', 'ai_conversation', NULL),
 ('ai_llm_min_contract_retry_backoff_ms', '300', '300', 2, 'Fixed backoff interval in milliseconds for minimal-contract retry (>=0)', 'ai_conversation', NULL),

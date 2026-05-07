@@ -524,6 +524,7 @@ async def build_conversation_context(
     user_qiao_id: str,
     max_context_length: int | None = None,
     instance_timezone: str | None = None,
+    context_window_start: datetime | None = None,
 ) -> list[dict[str, Any]]:
     """
     Build conversation context from AI contexts table.
@@ -543,7 +544,11 @@ async def build_conversation_context(
     try:
         # Get conversation contexts; when max_context_length is None, include all
         contexts = await get_conversation_contexts(
-            db, instance_qiao_id, user_qiao_id, max_context_length
+            db,
+            instance_qiao_id,
+            user_qiao_id,
+            max_context_length,
+            context_window_start,
         )
 
         if not contexts:

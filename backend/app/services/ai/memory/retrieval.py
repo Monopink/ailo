@@ -2,125 +2,174 @@
 
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ai.memory import AIInstanceMemory
-from app.services.ai.memory.config import get_memory_limits
+from app.services.ai.memory.config import get_memory_budget_tokens, get_memory_limits
+from app.services.ai.memory.memory_policy_service import (
+    compute_recent_utility,
+    estimate_memory_tokens,
+)
 from app.type_defs import InstanceContext
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-MIN_IMPORTANCE = 1
-RECENT_LIFETIME_MULTIPLIER = 10
-FUZZY_CLEAR_THRESHOLD = 0.75
-FUZZY_MODERATE_THRESHOLD = 0.5
-FUZZY_LIGHT_THRESHOLD = 0.25
 
 
 async def build_memory_prompt(db: AsyncSession, context: InstanceContext) -> str:
     """Fetch memories for an instance and format them for the system prompt."""
 
     limits = await get_memory_limits(db, context)
+    budget_tokens = await get_memory_budget_tokens(db, context)
+    hard_limit_tokens = math.floor(float(budget_tokens) * 1.15)
+
     user_qiao_id = context["user_qiao_id"]
     instance_qiao_id = context["instance_qiao_id"]
     now = datetime.now(UTC)
 
-    core_memories = await _fetch_memories(
+    core_candidates = await _fetch_core_candidates(
         db,
         user_qiao_id=user_qiao_id,
         instance_qiao_id=instance_qiao_id,
-        memory_type="core",
-        limit=limits.get("core", 0),
-        now=now,
     )
-    recent_memories = await _fetch_memories(
+    recent_candidates = await _fetch_recent_candidates(
         db,
         user_qiao_id=user_qiao_id,
         instance_qiao_id=instance_qiao_id,
-        memory_type="recent",
-        limit=limits.get("recent", 0),
-        now=now,
+    )
+
+    selected_core: list[AIInstanceMemory] = []
+    selected_recent: list[AIInstanceMemory] = []
+    token_total = 0
+    soft_budget_exceeded = False
+
+    for memory in core_candidates:
+        if len(selected_core) >= int(limits.get("core", 0)):
+            break
+        estimate = estimate_memory_tokens(memory.content)
+        if token_total + estimate > hard_limit_tokens and selected_core:
+            soft_budget_exceeded = True
+            break
+        selected_core.append(memory)
+        token_total += estimate
+
+    if core_candidates and not selected_core:
+        selected_core.append(core_candidates[0])
+        token_total += estimate_memory_tokens(core_candidates[0].content)
+
+    ordered_recent = sorted(
+        recent_candidates,
+        key=lambda item: (
+            compute_recent_utility(item, now),
+            int(item.importance),
+            int(item.source_strength),
+            int(item.reinforce_count),
+            item.updated_at or item.created_at or now,
+            int(item.id),
+        ),
+        reverse=True,
+    )
+
+    for memory in ordered_recent:
+        if len(selected_recent) >= int(limits.get("recent", 0)):
+            break
+        estimate = estimate_memory_tokens(memory.content)
+        if token_total + estimate > hard_limit_tokens:
+            soft_budget_exceeded = True
+            continue
+        selected_recent.append(memory)
+        token_total += estimate
+
+    if soft_budget_exceeded:
+        logger.info(
+            "memory_soft_budget_exceed_count",
+            instance_qiao_id=instance_qiao_id,
+            hard_limit_tokens=hard_limit_tokens,
+            used_tokens=token_total,
+        )
+
+    logger.info(
+        "memory_prompt_tokens",
+        instance_qiao_id=instance_qiao_id,
+        prompt_tokens=token_total,
+        budget_tokens=budget_tokens,
+        hard_limit_tokens=hard_limit_tokens,
     )
 
     lines: list[str] = []
-    if core_memories:
+    if selected_core:
         lines.append("## 关于用户的记忆\n")
         lines.append(
             "规则：每条记忆都包含 id；refresh_ids 只能从“近期记忆”的 id 中选择（每轮 1-2 条）；"
             "id 仅用于内部操作，不得在对用户消息中提及。"
         )
         lines.append("核心记忆：")
-        for mem in core_memories:
+        for mem in selected_core:
             lines.append(f"- [id:{mem.id}] {mem.content}")
         lines.append("")
 
-    if recent_memories:
+    if selected_recent:
         if not lines:
             lines.append("## 关于用户的记忆\n")
             lines.append(
                 "规则：每条记忆都包含 id；refresh_ids 只能从“近期记忆”的 id 中选择（每轮 1-2 条）；"
                 "id 仅用于内部操作，不得在对用户消息中提及。"
             )
-        lines.append("近期记忆（按确定性排序）：")
-        for mem in recent_memories:
-            label = _fuzzy_label(mem, now)
-            lines.append(f"- {label} [id:{mem.id}] {mem.content}")
-        lines.append("")
-        lines.append(
-            '注意：对于标记为"较模糊"及以上的记忆，在对话中可以用"我记得"、"好像"等词自然表达不确定性。'
-        )
+        lines.append("近期记忆：")
+        for mem in selected_recent:
+            lines.append(f"- [id:{mem.id}] {mem.content}")
 
     return "\n".join(lines).strip()
 
 
-async def _fetch_memories(
+async def _fetch_core_candidates(
     db: AsyncSession,
     *,
     user_qiao_id: str,
     instance_qiao_id: str,
-    memory_type: str,
-    limit: int,
-    now: datetime,
 ) -> list[AIInstanceMemory]:
-    if limit <= 0:
-        return []
-
     stmt = (
         select(AIInstanceMemory)
         .where(
             AIInstanceMemory.user_qiao_id == user_qiao_id,
             AIInstanceMemory.instance_qiao_id == instance_qiao_id,
             AIInstanceMemory.status == 1,
-            AIInstanceMemory.memory_type == memory_type,
+            AIInstanceMemory.memory_type == "core",
         )
-        .order_by(AIInstanceMemory.importance.desc(), AIInstanceMemory.created_at.desc())
-        .limit(limit)
+        .order_by(
+            AIInstanceMemory.source_strength.desc(),
+            AIInstanceMemory.importance.desc(),
+            AIInstanceMemory.reinforce_count.desc(),
+            AIInstanceMemory.updated_at.desc(),
+            AIInstanceMemory.id.desc(),
+        )
     )
-
-    if memory_type == "recent":
-        stmt = stmt.where(
-            AIInstanceMemory.expires_at.is_(None) | (AIInstanceMemory.expires_at > now),
-        )
-
     result = await db.execute(stmt)
     return list(result.scalars().all())
 
 
-def _fuzzy_label(memory: AIInstanceMemory, now: datetime) -> str:
-    base_time = memory.refreshed_at or memory.created_at or now
-    lifetime_days = max(int(memory.importance), MIN_IMPORTANCE) * RECENT_LIFETIME_MULTIPLIER
-    elapsed_days = (now - base_time).total_seconds() / 86400
-    remaining = max(lifetime_days - elapsed_days, 0)
-    ratio = remaining / lifetime_days if lifetime_days > 0 else 0
-
-    if ratio >= FUZZY_CLEAR_THRESHOLD:
-        return "[清晰]"
-    if ratio >= FUZZY_MODERATE_THRESHOLD:
-        return "[较模糊]"
-    if ratio >= FUZZY_LIGHT_THRESHOLD:
-        return "[很模糊]"
-    return "[极模糊]"
+async def _fetch_recent_candidates(
+    db: AsyncSession,
+    *,
+    user_qiao_id: str,
+    instance_qiao_id: str,
+) -> list[AIInstanceMemory]:
+    stmt = (
+        select(AIInstanceMemory)
+        .where(
+            AIInstanceMemory.user_qiao_id == user_qiao_id,
+            AIInstanceMemory.instance_qiao_id == instance_qiao_id,
+            AIInstanceMemory.status == 1,
+            AIInstanceMemory.memory_type == "recent",
+        )
+        .order_by(
+            AIInstanceMemory.updated_at.desc(),
+            AIInstanceMemory.id.desc(),
+        )
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())

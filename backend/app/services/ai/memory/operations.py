@@ -4,20 +4,27 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.ai.memory import AIInstanceMemory
+from app.models.ai.instance import AIInstance
 from app.type_defs import InstanceContext, JSONDict, JSONValue
 from app.utils.logging import get_logger
+
+from .memory_policy_service import (
+    ORIGIN_LLM,
+    archive_recent_over_limit,
+    lock_instance_for_memory_write,
+    refresh_recent_memories_with_policy,
+    remove_memory_by_content_with_policy,
+    update_memory_by_content_with_policy,
+    upsert_memory_with_policy,
+)
 
 logger = get_logger(__name__)
 
 MIN_IMPORTANCE = 1
 MAX_IMPORTANCE = 10
-RECENT_LIFETIME_MULTIPLIER = 10
 
 
 @dataclass(frozen=True)
@@ -86,32 +93,36 @@ async def process_memory_operations(
         )
 
     instance_id = context["instance_id"]
-    instance_qiao_id = context["instance_qiao_id"]
-    user_id = context["user_id"]
-    user_qiao_id = context["user_qiao_id"]
 
     try:
+        instance = await lock_instance_for_memory_write(db, instance_id)
+
         await _apply_remove(db, instance_id, _coerce_str_list(operations.get("remove")))
-        await _apply_update(db, instance_id, _coerce_json_dict_list(operations.get("update")))
+        await _apply_update(
+            db,
+            instance,
+            _coerce_json_dict_list(operations.get("update")),
+            source_message_id=source_message_id,
+        )
         refresh_exec = await _apply_refresh_ids(
-            db, instance_id, _coerce_int_list(operations.get("refresh_ids"))
+            db,
+            instance_id,
+            _coerce_int_list(operations.get("refresh_ids")),
         )
         await _apply_add(
             db,
-            user_id=user_id,
-            user_qiao_id=user_qiao_id,
-            instance_id=instance_id,
-            instance_qiao_id=instance_qiao_id,
-            payloads=_coerce_json_dict_list(operations.get("add")),
+            instance,
+            _coerce_json_dict_list(operations.get("add")),
             source_message_id=source_message_id,
         )
+        await archive_recent_over_limit(db, instance=instance, trigger="llm_memory_operations")
         await db.flush()
         return MemoryOperationsExecution(refresh=refresh_exec)
     except Exception as exc:
         logger.error(
             "memory_operations_failed",
             error=str(exc),
-            instance_qiao_id=instance_qiao_id,
+            instance_qiao_id=context.get("instance_qiao_id"),
             operations=operations,
             exc_info=True,
         )
@@ -125,22 +136,26 @@ async def _apply_remove(db: AsyncSession, instance_id: int, items: Sequence[str]
     for content in items:
         if not isinstance(content, str) or not content:
             continue
-        memory = await _get_memory_by_content(db, instance_id, content, active_only=True)
-        if not memory:
+        removed = await remove_memory_by_content_with_policy(
+            db,
+            instance_id=instance_id,
+            content=content,
+            origin=ORIGIN_LLM,
+        )
+        if not removed:
             logger.warning(
-                "memory_remove_target_not_found",
+                "memory_remove_target_not_found_or_blocked",
                 content=content,
                 instance_id=instance_id,
             )
-            continue
-        memory.status = 2
-        memory.updated_at = datetime.now(UTC)
 
 
 async def _apply_update(
     db: AsyncSession,
-    instance_id: int,
+    instance: AIInstance,
     items: Sequence[JSONDict] | None,
+    *,
+    source_message_id: int | None,
 ) -> None:
     if not isinstance(items, list):
         return
@@ -152,22 +167,29 @@ async def _apply_update(
         new_content = payload.get("new_content")
         if not isinstance(old_content, str) or not isinstance(new_content, str):
             continue
-        memory = await _get_memory_by_content(db, instance_id, old_content, active_only=True)
-        if not memory:
+
+        new_importance_raw = payload.get("new_importance")
+        new_importance: int | None = None
+        if isinstance(new_importance_raw, int | float) and not isinstance(new_importance_raw, bool):
+            casted = int(new_importance_raw)
+            if MIN_IMPORTANCE <= casted <= MAX_IMPORTANCE:
+                new_importance = casted
+
+        updated = await update_memory_by_content_with_policy(
+            db,
+            instance=instance,
+            old_content=old_content,
+            new_content=new_content,
+            new_importance=new_importance,
+            origin=ORIGIN_LLM,
+            source_message_id=source_message_id,
+        )
+        if not updated:
             logger.warning(
-                "memory_update_target_not_found",
+                "memory_update_target_not_found_or_blocked",
                 content=old_content,
-                instance_id=instance_id,
+                instance_id=instance.id,
             )
-            continue
-        memory.content = new_content
-        new_importance = payload.get("new_importance")
-        if (
-            isinstance(new_importance, int | float)
-            and MIN_IMPORTANCE <= int(new_importance) <= MAX_IMPORTANCE
-        ):
-            memory.importance = int(new_importance)
-        _reset_expiration(memory, last_refresh=memory.refreshed_at or memory.created_at)
 
 
 async def _apply_refresh_ids(
@@ -186,33 +208,11 @@ async def _apply_refresh_ids(
         )
 
     attempted_ids = [item for item in items if not isinstance(item, bool) and isinstance(item, int)]
-    hit_ids: list[int] = []
-    miss_ids: list[int] = []
-
-    for memory_id in items:
-        if isinstance(memory_id, bool) or not isinstance(memory_id, int):
-            continue
-        memory = await _get_memory_by_id(
-            db,
-            instance_id=instance_id,
-            memory_id=memory_id,
-            active_only=True,
-            recent_only=True,
-        )
-        if not memory:
-            logger.warning(
-                "memory_refresh_id_target_not_found",
-                memory_id=memory_id,
-                instance_id=instance_id,
-            )
-            miss_ids.append(memory_id)
-            continue
-
-        now = datetime.now(UTC)
-        memory.refreshed_at = now
-        _reset_expiration(memory, last_refresh=now)
-        hit_ids.append(memory_id)
-
+    hit_ids, miss_ids = await refresh_recent_memories_with_policy(
+        db,
+        instance_id=instance_id,
+        memory_ids=attempted_ids,
+    )
     total = len(attempted_ids)
     miss = len(miss_ids)
     miss_ratio_bp = int(miss * 10000 / total) if total > 0 else 0
@@ -228,12 +228,9 @@ async def _apply_refresh_ids(
 
 async def _apply_add(
     db: AsyncSession,
-    *,
-    user_id: int,
-    user_qiao_id: str,
-    instance_id: int,
-    instance_qiao_id: str,
+    instance: AIInstance,
     payloads: Sequence[JSONDict] | None,
+    *,
     source_message_id: int | None,
 ) -> None:
     if not isinstance(payloads, list):
@@ -249,89 +246,23 @@ async def _apply_add(
             continue
         if not isinstance(content, str) or not content:
             continue
-        if not isinstance(importance, int | float):
-            continue
-        importance_int = int(importance)
-        if importance_int < MIN_IMPORTANCE or importance_int > MAX_IMPORTANCE:
+        if not isinstance(importance, int | float) or isinstance(importance, bool):
             continue
 
-        memory = await _get_memory_by_content(db, instance_id, content, active_only=False)
-        now = datetime.now(UTC)
-        if memory:
-            memory.memory_type = memory_type
-            memory.importance = importance_int
-            memory.refreshed_at = None
-            memory.status = 1
-            memory.source_message_id = source_message_id
-            memory.updated_at = now
-            memory.created_at = now
-            _reset_expiration(memory, last_refresh=memory.created_at)
-            logger.info(
-                "memory_reactivated",
-                content=content,
-                instance_id=instance_id,
-            )
-            continue
-
-        new_memory = AIInstanceMemory(
-            instance_id=instance_id,
-            instance_qiao_id=instance_qiao_id,
-            user_id=user_id,
-            user_qiao_id=user_qiao_id,
+        memory, downgraded = await upsert_memory_with_policy(
+            db,
+            instance=instance,
             memory_type=memory_type,
             content=content,
-            importance=importance_int,
-            status=1,
+            importance=int(importance),
+            origin=ORIGIN_LLM,
             source_message_id=source_message_id,
         )
-        _reset_expiration(new_memory, last_refresh=None)
-        db.add(new_memory)
-
-
-async def _get_memory_by_content(
-    db: AsyncSession,
-    instance_id: int,
-    content: str,
-    *,
-    active_only: bool,
-) -> AIInstanceMemory | None:
-    stmt = select(AIInstanceMemory).where(
-        AIInstanceMemory.instance_id == instance_id,
-        AIInstanceMemory.content == content,
-    )
-    if active_only:
-        stmt = stmt.where(AIInstanceMemory.status == 1)
-    stmt = stmt.limit(1)
-    result = await db.execute(stmt)
-    return result.scalar_one_or_none()
-
-
-async def _get_memory_by_id(
-    db: AsyncSession,
-    *,
-    instance_id: int,
-    memory_id: int,
-    active_only: bool,
-    recent_only: bool,
-) -> AIInstanceMemory | None:
-    stmt = select(AIInstanceMemory).where(
-        AIInstanceMemory.instance_id == instance_id,
-        AIInstanceMemory.id == memory_id,
-    )
-    if active_only:
-        stmt = stmt.where(AIInstanceMemory.status == 1)
-    if recent_only:
-        stmt = stmt.where(AIInstanceMemory.memory_type == "recent")
-    stmt = stmt.limit(1)
-    result = await db.execute(stmt)
-    return result.scalar_one_or_none()
-
-
-def _reset_expiration(memory: AIInstanceMemory, *, last_refresh: datetime | None) -> None:
-    if memory.memory_type == "core":
-        memory.expires_at = None
-        return
-
-    base_time = last_refresh or datetime.now(UTC)
-    lifetime_days = max(int(memory.importance), MIN_IMPORTANCE) * RECENT_LIFETIME_MULTIPLIER
-    memory.expires_at = base_time + timedelta(days=lifetime_days)
+        if memory is None:
+            continue
+        if downgraded and memory_type == "core":
+            logger.info(
+                "memory_core_to_recent_downgraded",
+                instance_id=instance.id,
+                memory_id=memory.id,
+            )

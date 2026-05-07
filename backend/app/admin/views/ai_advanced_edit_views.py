@@ -6,7 +6,7 @@ import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.exceptions import HTTPException
@@ -59,7 +59,16 @@ class InstanceAdvancedEditView(CustomView):
             memories_stmt = (
                 select(AIInstanceMemory)
                 .where(AIInstanceMemory.instance_id == instance_id)
-                .order_by(AIInstanceMemory.importance.desc(), AIInstanceMemory.created_at.desc())
+                .order_by(
+                    AIInstanceMemory.status.asc(),
+                    case((AIInstanceMemory.memory_type == "core", 0), else_=1),
+                    AIInstanceMemory.source_strength.desc(),
+                    AIInstanceMemory.importance.desc(),
+                    AIInstanceMemory.reinforce_count.desc(),
+                    AIInstanceMemory.updated_at.desc(),
+                    AIInstanceMemory.created_at.desc(),
+                    AIInstanceMemory.id.desc(),
+                )
             )
             memories_result = await db.execute(memories_stmt)
             memories = memories_result.scalars().all()
@@ -70,6 +79,14 @@ class InstanceAdvancedEditView(CustomView):
                     "content": m.content,
                     "importance": m.importance,
                     "status": m.status,
+                    "normalized_content": m.normalized_content,
+                    "reinforce_count": m.reinforce_count,
+                    "last_reinforced_at": (
+                        m.last_reinforced_at.isoformat() if m.last_reinforced_at else None
+                    ),
+                    "source_strength": m.source_strength,
+                    "fact_key": m.fact_key,
+                    "conflict_flag": m.conflict_flag,
                     "refreshed_at": m.refreshed_at.isoformat() if m.refreshed_at else None,
                     "expires_at": m.expires_at.isoformat() if m.expires_at else None,
                     "source_message_id": (

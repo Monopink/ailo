@@ -123,6 +123,8 @@
 - `memory_operations`、`score` 为会话副作用，独立执行并独立提交。
 - `should_reply=true` 时，会话副作用受首条发送门槛控制。
 - `should_reply=false` 时，不受首条发送门槛控制，但执行前必须再次通过抢占校验。
+- `memory_operations` 写入统一走 `memory_policy_service`，并在写入链路内完成 `recent` 归档治理。
+- 会话副作用中的记忆检索阶段保持只读，不在检索阶段修改记忆状态。
 - 仅在响应包含合法 `score` 时执行关系计算。
 - 单项副作用失败仅结束该项副作用处理并记录日志。
 - 会话副作用链路允许产生业务告警事件（best-effort，见 [`../alerting.md`](../alerting.md)），失败仅记录 ERROR，不影响消息发送与其他副作用提交。

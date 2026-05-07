@@ -1,69 +1,151 @@
 # 记忆系统
 
-本规范记录 AI 记忆系统的长期约束，用于指导模型交互与后端实现。
+本规范定义 AI 实例记忆的当前有效行为。
 
 ## 数据模型
 
 - 模板记忆：`ai_template_memories`
 - 实例记忆：`ai_instance_memories`
 
-模板表用于静态种子数据，实例创建时按 `display_order` 拷贝到 `ai_instance_memories`，并补全 user/instance 字段。运行期的所有记忆都存放在实例表中。 `ai_instance_memories` 强制使用唯一的（instance_id，content）对，这样重复的文本就不会出现在同一个 instance 中。
-实例创建入口通过 `copy_template_memories_to_instance` helper 以 `display_order` 顺序落库模板记忆。模板记忆复制异常时，实例创建事务回滚。
+实例记忆字段约束：
 
-## 记忆类型与寿命
+- `memory_type`：`core` / `recent`
+- `status`：`1`（active）/ `2`（archived）
+- `normalized_content`：标准化内容，用于去重
+- `source_strength`：来源强度（1-5）
+- `fact_key`：规则命中的事实键（可空）
+- `reinforce_count` / `last_reinforced_at`：强化信息
 
-| 类型   | 用途                         | 过期规则 |
-|--------|------------------------------|---------|
-| core   | 用户长期事实、身份、关系等    | 永久保留，`expires_at = NULL` |
-| recent | 临时状态、短期计划、上下文等  | `expires_at = (refreshed_at ?? created_at) + importance × 10 天` |
+唯一约束：
 
-`importance ∈ [1, 10]`。AI 可通过 refresh 操作写入 `refreshed_at` 来重置 recent 记忆的寿命。
+- active 集合唯一：`(instance_id, normalized_content) WHERE status=1`
 
-## 配置与数量限制
+归档记录（`status=2`）允许多版本并存，用于审计追溯。
 
-数量限制仅在检索阶段生效；写入阶段按原样写入。
+## 类型与治理目标
 
-```
-ai_instances.request_params.memory_limits
-    ↓（缺失/非法：记录 WARNING 并使用下一来源）
-llm_configs.extra_params.memory_limits
-    ↓
-硬上限（固定值）：core=30，recent=50
-```
+- `core`：长期稳定事实与长期偏好
+- `recent`：短期上下文与阶段性信息
 
-模板/运行期超过上限只会在读取时被裁剪。
+治理原则：
 
-## 检索与 Prompt
+- `core` 只做读取限量，不做自动归档
+- `recent` 在写入阶段执行遗忘治理与归档
+- 读取阶段保持只读
 
-检索在 system prompt 构建阶段执行，替换 `{{memory}}` 占位符：
+## 配置
 
-1. 读取 core/recent 限制。
-2. 查询 `ai_instance_memories`，过滤 `user_qiao_id`、`instance_qiao_id`、`status=1`；recent 额外要求 `expires_at > NOW()`。
-3. 以 `importance desc, created_at desc` 排序，并在 core/recent 维度分别 `LIMIT`。
-4. recent 记忆根据剩余寿命比例贴标签：
-   - ≥75%：`[清晰]`
-   - 50%-75%：`[较模糊]`
-   - 25%-50%：`[很模糊]`
-   - <25%：`[极模糊]`
-5. 输出 Markdown，引导 AI 在“较模糊”及以上标签时使用“我记得”“好像”等措辞。
+优先级：
 
-检索过程只读数据库，不会在此阶段修改 `status` 或其他字段。
+1. `ai_instances.request_params`
+2. `llm_configs.extra_params`
+3. 默认值
 
-## 记忆操作协议
+有效配置项：
 
-LLM 响应中的 `memory_operations` 为对象，操作顺序固定：remove → update → refresh_ids → add。
+- `memory_limits.core`（默认 `30`）
+- `memory_limits.recent`（默认 `50`）
+- `memory_budget_tokens`（默认 `700`）
 
-- **remove**：字符串数组；命中后将记录 `status` 置为 2。
-- **update**：对象数组（`old_content`、`new_content`、可选 `new_importance`）；原地修改，保留 `created_at`、`source_message_id`、`refreshed_at`。
-- **refresh_ids**：字符串数组（digits-only，服务端归一化为 int 列表）；
-  - 仅允许刷新 recent 记忆（`memory_type='recent'`）。
-  - 命中后仅更新 `refreshed_at`，触发器重算 `expires_at`。
-- **add**：对象数组（`memory_type`、`content`、`importance`）；新建 `status=1` 记录，由触发器写入 `expires_at`。
+预算软超比例固定为 `15%`，硬上限为 `floor(memory_budget_tokens * 1.15)`。
 
-若某项未匹配到记录，记录 WARNING 便于分析，但整体流程继续执行。
+## 统一写入策略
 
-## Prompt 与 Schema 约束
+所有实例记忆写入入口统一经过 `memory_policy_service`：
 
-- system prompt 必须说明两类记忆的用途、重要性范围，并限制 `refresh_ids` 数量（每轮 1-2 条）。
-- system prompt 必须在“近期记忆（recent）”中展示可用于 refresh 的记忆 id，并约束 `refresh_ids` 只能从候选 id 中选择。
-- JSON Schema 强制包含 `should_update_memory`（bool）与 `memory_operations`（对象，可为空），并按上述结构定义四类操作。
+- LLM `memory_operations`
+- 模板记忆复制到实例
+- Admin 实例记忆创建/更新
+
+写入流程在单事务内执行，实例行先加锁（`FOR UPDATE`）。
+
+固定执行链路：
+
+1. 文本标准化
+2. 去重候选判定
+3. `fact_key` 判定
+4. 冲突裁决
+5. 写入/合并
+6. `recent` 归档治理
+7. 审计与指标
+
+## 去重与冲突
+
+### 文本去重
+
+- 精确去重：`normalized_content` 相同即合并
+- 近似去重：仅用于 `recent` 候选筛选，使用 `pg_trgm similarity >= 0.90`
+
+近似去重只提供候选，不直接决定冲突覆盖。
+
+### `fact_key` 冲突治理
+
+`fact_key` 仅对固定槽位生成：
+
+- `profile.residence_city`
+- `profile.occupation`
+- `relationship.partner_status`
+- `preference.long_term`
+
+无 `fact_key` 的记录不做自动冲突覆盖。
+
+## 来源强度与权限
+
+来源强度枚举：
+
+- `5`：管理员显式写入
+- `4`：结构化资料字段写入
+- `3`：用户直接陈述（规则确认）
+- `2`：模板复制或模型推断
+- `1`：无来源标记
+
+覆盖规则：
+
+- 低来源强度不能覆盖高来源强度
+- 同强度仅在 `fact_key` 相同且冲突可判定时覆盖
+- LLM 来源（1-3）不能删除 `core`
+
+## 读取与 Prompt
+
+读取在 prompt 构建阶段执行，不修改数据库状态。
+
+装载顺序：
+
+1. 按 `core` 排序装载
+2. 再按 `recent` 排序装载
+
+排序规则：
+
+- `core`：`source_strength desc -> importance desc -> reinforce_count desc -> updated_at desc -> id desc`
+- `recent`：按 `utility_recent` 降序，再按 `importance/source_strength/reinforce_count/updated_at/id` 作为次序
+
+预算控制：
+
+- 先满足 `memory_limits` 数量保护
+- 同时受 `memory_budget_tokens` 硬上限约束
+
+## LLM 操作协议
+
+`memory_operations` 操作顺序固定：`remove -> update -> refresh_ids -> add`。
+
+- `remove`：按内容归档匹配记忆
+- `update`：按旧内容定位后应用策略更新
+- `refresh_ids`：仅作用于 `recent` active 记忆，受冷却时间限制
+- `add`：新建或合并写入，由统一策略服务判定落入 `core` 或 `recent`
+
+## 可观测性
+
+关键指标：
+
+- `memory_dedup_merge_count`
+- `memory_conflict_detect_count`
+- `memory_conflict_override_count`
+- `memory_recent_archived_count`
+- `memory_prompt_tokens`
+- `memory_soft_budget_exceed_count`
+
+关键审计事件：
+
+- 冲突覆盖
+- `core -> recent` 降级
+- 归档触发（含入口）

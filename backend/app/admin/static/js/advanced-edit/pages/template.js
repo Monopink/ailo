@@ -19,13 +19,66 @@ function requireNumericId(value, name) {
   return strValue;
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 const templateId = requireNumericId(config.templateId, 'templateId');
 
 function confirmAction(options) {
   return dialogs.confirm(options);
 }
 
-function buildTemplatePayload(formElement) {
+function renderTemplateMemoryRow(memory) {
+  const isPendingDelete = memory._archivedPending === true;
+  const badgeClass = memory.memory_type === 'core' ? 'primary' : 'secondary';
+  const deleteBtnClass = isPendingDelete ? 'btn-danger' : 'btn-outline-danger';
+  const pendingHint = isPendingDelete
+    ? '<div class="text-danger small mt-2"><i class="fas fa-trash me-1"></i>Pending delete (applies on Save)</div>'
+    : '';
+
+  return `
+    <div class="list-group-item ${isPendingDelete ? 'border-danger' : ''}" data-memory-id="${escapeHtml(memory.id)}">
+      <div class="d-flex justify-content-between align-items-start">
+        <div class="flex-grow-1">
+          <div class="d-flex align-items-center mb-2">
+            <span class="badge bg-${badgeClass} me-2">${escapeHtml(memory.memory_type)}</span>
+            <span class="badge bg-info me-2">Importance: ${escapeHtml(memory.importance)}</span>
+            <span class="badge bg-light text-dark">Order: ${escapeHtml(memory.display_order)}</span>
+          </div>
+          <p class="mb-0">${escapeHtml(memory.content)}</p>
+          ${pendingHint}
+        </div>
+        <div class="btn-group ms-3">
+          <button
+            type="button"
+            class="btn btn-outline-primary"
+            data-memory-action="edit"
+            data-memory-id="${escapeHtml(memory.id)}"
+          >
+            <i class="fas fa-edit"></i> Edit
+          </button>
+          <button
+            type="button"
+            class="btn ${deleteBtnClass}"
+            data-memory-action="toggle-archive"
+            data-memory-id="${escapeHtml(memory.id)}"
+            aria-pressed="${isPendingDelete ? 'true' : 'false'}"
+          >
+            <i class="fas fa-trash"></i> Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function buildTemplatePayload(formElement, memoryController) {
   const formData = new FormData(formElement);
 
   const variables = {};
@@ -59,6 +112,7 @@ function buildTemplatePayload(formElement) {
     payload: {
       prompt_variables: variables,
       position_mapping_config: positionMappingConfig,
+      memory_changes: memoryController.buildChanges(),
     },
     missingParamMessages,
   };
@@ -91,10 +145,10 @@ function bindCancel(snapshotGuard) {
   });
 }
 
-function bindSubmit(mainForm, snapshotGuard) {
+function bindSubmit(mainForm, snapshotGuard, memoryController) {
   mainForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const { payload, missingParamMessages } = buildTemplatePayload(event.target);
+    const { payload, missingParamMessages } = buildTemplatePayload(event.target, memoryController);
     const action =
       event.submitter && event.submitter.dataset && event.submitter.dataset.action
         ? event.submitter.dataset.action
@@ -146,10 +200,54 @@ function bindSubmit(mainForm, snapshotGuard) {
   });
 }
 
-const memoriesData = config.memories || [];
+function bindMemoryActions(memoryController) {
+  document.getElementById('btn-open-memory-modal')?.addEventListener('click', () => {
+    memoryController.openMemoryModal();
+  });
+
+  document.getElementById('btn-save-memory')?.addEventListener('click', () => {
+    memoryController.saveMemory();
+  });
+
+  document.getElementById('memories-list')?.addEventListener('click', (event) => {
+    const rawTarget = event.target;
+    const targetElement =
+      rawTarget && typeof rawTarget === 'object'
+        ? rawTarget.nodeType === 1
+          ? rawTarget
+          : rawTarget.parentElement
+        : null;
+    const button = targetElement?.closest('button[data-memory-action][data-memory-id]');
+    if (!button) {
+      return;
+    }
+    const memoryId = button.dataset.memoryId;
+    if (!memoryId) {
+      return;
+    }
+    const action = button.dataset.memoryAction;
+    if (action === 'edit') {
+      memoryController.editMemory(memoryId);
+      return;
+    }
+    if (action === 'toggle-archive') {
+      memoryController.toggleArchive(memoryId);
+    }
+  });
+}
+
 const memoryController = createMemoryController({
-  memoriesData,
-  confirmAction,
+  initialMemories: config.memories || [],
+  comparableFields: ['memory_type', 'importance', 'display_order', 'content'],
+  renderMemoryRow: renderTemplateMemoryRow,
+  emptyListHtml:
+    '<div class="alert alert-info"><i class="fas fa-info-circle me-2"></i>No memories defined for this template. Click "Add Memory" to create one.</div>',
+  parseFormPayload: (formData) => ({
+    memory_type: formData.get('memory_type'),
+    importance: parseInt(formData.get('importance'), 10),
+    display_order: parseInt(formData.get('display_order'), 10),
+    content: (formData.get('content') || '').toString(),
+  }),
   fillEditForm: (memory) => {
     document.getElementById('memory-id').value = memory.id;
     document.getElementById('memory-type').value = memory.memory_type;
@@ -157,30 +255,17 @@ const memoryController = createMemoryController({
     document.getElementById('memory-order').value = memory.display_order;
     document.getElementById('memory-content').value = memory.content;
   },
-  onCreateFormReady: () => {
-    document.getElementById('memory-id').value = '';
-  },
-  buildSaveRequest: ({ formData, isEdit, memoryId }) => ({
-    url: isEdit ? `/admin-api/ai/template-memory/${memoryId}/update` : '/admin-api/ai/template-memory/create',
-    method: isEdit ? 'PUT' : 'POST',
-    payload: {
-      template_id: templateId,
-      memory_type: formData.get('memory_type'),
-      importance: parseInt(formData.get('importance'), 10),
-      display_order: parseInt(formData.get('display_order'), 10),
-      content: formData.get('content'),
-    },
-  }),
-  buildDeleteRequest: (memoryId) => ({
-    url: `/admin-api/ai/template-memory/${memoryId}/delete`,
-    method: 'DELETE',
-  }),
-  deleteConfirm: {
-    title: '确认删除记忆',
-    message: '确定删除这条模板记忆吗？此操作不可恢复。',
-    confirmText: '删除',
-    cancelText: '取消',
-    confirmButtonClass: 'btn btn-danger',
+  confirmRemoveNew: async (memory) => {
+    if (!memory._isNew) {
+      return true;
+    }
+    return confirmAction({
+      title: '确认删除未保存记忆',
+      message: '该记忆尚未保存到数据库，确认立即从当前页面移除吗？',
+      confirmText: '删除',
+      cancelText: '取消',
+      confirmButtonClass: 'btn btn-danger',
+    });
   },
 });
 
@@ -190,13 +275,13 @@ function init() {
     return;
   }
   bindAlgorithmVisibility();
+  memoryController.init();
   const snapshotGuard = createSnapshotGuard({
-    buildPayload: () => buildTemplatePayload(mainForm).payload,
+    buildPayload: () => buildTemplatePayload(mainForm, memoryController).payload,
   });
   bindCancel(snapshotGuard);
-  bindSubmit(mainForm, snapshotGuard);
-  memoryController.init();
-  memoryController.exposeGlobals();
+  bindSubmit(mainForm, snapshotGuard, memoryController);
+  bindMemoryActions(memoryController);
 }
 
 init();

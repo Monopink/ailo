@@ -6,7 +6,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ai import AIInstance
-from app.models.ai.memory import AIInstanceMemory, AITemplateMemory
+from app.models.ai.memory import AITemplateMemory
+from app.services.ai.memory.memory_policy_service import (
+    ORIGIN_TEMPLATE,
+    archive_recent_over_limit,
+    lock_instance_for_memory_write,
+    upsert_memory_with_policy,
+)
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -35,19 +41,24 @@ async def copy_template_memories_to_instance(
             )
             return 0
 
+        locked_instance = await lock_instance_for_memory_write(db, instance.id)
+
         for template_memory in template_memories:
-            memory = AIInstanceMemory(
-                instance_id=instance.id,
-                instance_qiao_id=instance.qiao_id,
-                user_id=instance.user_id,
-                user_qiao_id=instance.user_qiao_id,
+            await upsert_memory_with_policy(
+                db,
+                instance=locked_instance,
                 memory_type=template_memory.memory_type,
                 content=template_memory.content,
                 importance=template_memory.importance,
-                status=1,
+                origin=ORIGIN_TEMPLATE,
+                source_message_id=None,
             )
-            db.add(memory)
 
+        await archive_recent_over_limit(
+            db,
+            instance=locked_instance,
+            trigger="template_copy",
+        )
         await db.flush()
 
         logger.debug(

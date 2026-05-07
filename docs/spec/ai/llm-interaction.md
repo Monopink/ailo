@@ -153,7 +153,8 @@ LLM 响应的字段语义、处理顺序和跨模块归属见本文档的“系�
 
 - 类型：object
 - 语义：记忆操作容器（`remove` / `update` / `refresh_ids` / `add`）
-- 处理归属：见 [memory-system.md](memory-system.md#记忆操作协议)
+- 处理归属：见 [memory-system.md](memory-system.md)
+- 执行入口：统一由 `memory_policy_service` 执行策略写入与写时归档治理
 
 ### score
 
@@ -185,8 +186,10 @@ LLM 响应的字段语义、处理顺序和跨模块归属见本文档的“系�
 - 操作顺序固定：`remove -> update -> refresh_ids -> add`
 - refresh 匹配键：`memory_id`（仅允许刷新 recent 记忆）
 - `refresh_ids`：
-  - 类型：`string[]`（digits-only；服务端归一化为 int 列表用于执行与统计）
-  - 数量：每轮 1-2 条（超出部分截断）
+  - 输入类型：`string[] | int[]`（字符串仅接受 digits-only）
+  - 执行类型：服务端归一化为去重后的 `int[]`
+  - 数量：每轮最多 2 条（超出部分截断）
 - 单项未命中：记录 WARNING，流程继续
+- 低来源强度的自动副作用不能删除 `core` 记忆，命中后记录拦截日志并继续流程
 
-详细数据行为统一维护在 [memory-system.md](memory-system.md#记忆操作协议)。
+详细数据行为统一维护在 [memory-system.md](memory-system.md)。

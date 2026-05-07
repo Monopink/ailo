@@ -19,13 +19,121 @@ function requireNumericId(value, name) {
   return strValue;
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 const instanceId = requireNumericId(config.instanceId, 'instanceId');
 
 function confirmAction(options) {
   return dialogs.confirm(options);
 }
 
-function buildInstancePayload(formElement) {
+function renderInstanceMemoryRow(memory, { canToggleArchive }) {
+  const status = Number(memory.status || 1);
+  const isNew = memory._isNew === true;
+  const canArchive = canToggleArchive(memory);
+  const isPendingArchive = memory._archivedPending === true;
+
+  const typeBadgeClass = memory.memory_type === 'core' ? 'primary' : 'secondary';
+  const statusBadgeClass = isPendingArchive ? 'danger' : status === 1 ? 'success' : 'warning';
+  const statusText = isPendingArchive ? 'Pending Archive' : status === 1 ? 'Active' : 'Archived';
+
+  const archiveBtnClass = isNew ? 'btn-outline-danger' : isPendingArchive ? 'btn-warning' : 'btn-outline-warning';
+  const archiveBtnIcon = isNew ? 'fa-trash' : 'fa-archive';
+  const archiveBtnText = isNew ? 'Delete' : 'Archive';
+  const archiveDisabled = !canArchive ? 'disabled' : '';
+  const editDisabled = status === 1 ? '' : 'disabled';
+  const pendingHint = isPendingArchive
+    ? '<div class="text-danger small mt-2"><i class="fas fa-archive me-1"></i>Pending archive (applies on Save)</div>'
+    : '';
+
+  return `
+    <div class="list-group-item ${isPendingArchive ? 'border-danger' : ''}" data-memory-id="${escapeHtml(memory.id)}">
+      <div class="d-flex justify-content-between align-items-start">
+        <div class="flex-grow-1">
+          <div class="d-flex align-items-center mb-2 flex-wrap gap-1">
+            <span class="badge bg-${typeBadgeClass}">${escapeHtml(memory.memory_type)}</span>
+            <span class="badge bg-info">Importance: ${escapeHtml(memory.importance)}</span>
+            <span class="badge bg-dark">Source: S${escapeHtml(memory.source_strength)}</span>
+            <span class="badge bg-secondary">Reinforce: ${escapeHtml(memory.reinforce_count)}</span>
+            <span class="badge bg-${statusBadgeClass}">${statusText}</span>
+            ${
+              memory.fact_key
+                ? `<span class="badge bg-light text-dark">Fact: ${escapeHtml(memory.fact_key)}</span>`
+                : ''
+            }
+            ${memory.conflict_flag ? '<span class="badge bg-danger">Conflict Marked</span>' : ''}
+            ${
+              memory.expires_at
+                ? `<span class="badge bg-light text-dark">Expires: <span class="datetime-display" data-datetime="${escapeHtml(
+                    memory.expires_at
+                  )}">${escapeHtml(memory.expires_at)}</span></span>`
+                : ''
+            }
+          </div>
+          <p class="mb-1">${escapeHtml(memory.content)}</p>
+          <small class="text-muted">
+            Created: <span class="datetime-display" data-datetime="${escapeHtml(memory.created_at || '')}">${escapeHtml(
+              memory.created_at || 'N/A'
+            )}</span>
+            ${
+              memory.last_reinforced_at
+                ? ` | Last Reinforced: <span class="datetime-display" data-datetime="${escapeHtml(
+                    memory.last_reinforced_at
+                  )}">${escapeHtml(memory.last_reinforced_at)}</span>`
+                : ''
+            }
+            ${
+              memory.refreshed_at
+                ? ` | Refreshed: <span class="datetime-display" data-datetime="${escapeHtml(
+                    memory.refreshed_at
+                  )}">${escapeHtml(memory.refreshed_at)}</span>`
+                : ''
+            }
+            ${memory.source_message_id ? ` | Source MSG: ${escapeHtml(memory.source_message_id)}` : ''}
+            ${
+              memory.normalized_content
+                ? ` | Normalized: ${escapeHtml(memory.normalized_content.slice(0, 80))}${
+                    memory.normalized_content.length > 80 ? '...' : ''
+                  }`
+                : ''
+            }
+          </small>
+          ${pendingHint}
+        </div>
+        <div class="btn-group ms-3">
+          <button
+            type="button"
+            class="btn btn-outline-primary"
+            data-memory-action="edit"
+            data-memory-id="${escapeHtml(memory.id)}"
+            ${editDisabled}
+          >
+            <i class="fas fa-edit"></i> Edit
+          </button>
+          <button
+            type="button"
+            class="btn ${archiveBtnClass}"
+            data-memory-action="toggle-archive"
+            data-memory-id="${escapeHtml(memory.id)}"
+            aria-pressed="${isPendingArchive ? 'true' : 'false'}"
+            ${archiveDisabled}
+          >
+            <i class="fas ${archiveBtnIcon}"></i> ${archiveBtnText}
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function buildInstancePayload(formElement, memoryController) {
   const formData = new FormData(formElement);
 
   const variables = {};
@@ -91,6 +199,7 @@ function buildInstancePayload(formElement) {
       dimensions,
       positions,
       relationship_id: relationshipId,
+      memory_changes: memoryController.buildChanges(),
     },
     missingParamMessages,
   };
@@ -160,10 +269,10 @@ function bindCancel(snapshotGuard) {
   });
 }
 
-function bindSubmit(mainForm, snapshotGuard) {
+function bindSubmit(mainForm, snapshotGuard, memoryController) {
   mainForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const { payload, missingParamMessages } = buildInstancePayload(event.target);
+    const { payload, missingParamMessages } = buildInstancePayload(event.target, memoryController);
     const action =
       event.submitter && event.submitter.dataset && event.submitter.dataset.action
         ? event.submitter.dataset.action
@@ -298,49 +407,86 @@ function bindGenerateRelationship() {
   });
 }
 
-const memoriesData = config.memories || [];
+function bindMemoryActions(memoryController) {
+  document.getElementById('btn-open-memory-modal')?.addEventListener('click', () => {
+    memoryController.openMemoryModal();
+  });
+
+  document.getElementById('btn-save-memory')?.addEventListener('click', () => {
+    memoryController.saveMemory();
+  });
+
+  document.getElementById('memories-list')?.addEventListener('click', (event) => {
+    const rawTarget = event.target;
+    const targetElement =
+      rawTarget && typeof rawTarget === 'object'
+        ? rawTarget.nodeType === 1
+          ? rawTarget
+          : rawTarget.parentElement
+        : null;
+    const button = targetElement?.closest('button[data-memory-action][data-memory-id]');
+    if (!button) {
+      return;
+    }
+    const memoryId = button.dataset.memoryId;
+    if (!memoryId) {
+      return;
+    }
+    const action = button.dataset.memoryAction;
+    if (action === 'edit') {
+      memoryController.editMemory(memoryId);
+      return;
+    }
+    if (action === 'toggle-archive') {
+      memoryController.toggleArchive(memoryId);
+    }
+  });
+}
+
+function bindPreviewPanelClose() {
+  document.getElementById('btn-close-gen-preview')?.addEventListener('click', () => {
+    const panel = document.getElementById('genPreviewPanel');
+    if (panel) {
+      panel.style.display = 'none';
+    }
+  });
+}
+
 const memoryController = createMemoryController({
-  memoriesData,
-  confirmAction,
+  initialMemories: config.memories || [],
+  comparableFields: ['memory_type', 'importance', 'content', 'source_message_id'],
+  renderMemoryRow: renderInstanceMemoryRow,
+  emptyListHtml:
+    '<div class="alert alert-info"><i class="fas fa-info-circle me-2"></i>No memories for this instance. Click "Add Memory" to create one.</div>',
+  parseFormPayload: (formData) => {
+    const sourceMsgRaw = (formData.get('source_message_id') || '').toString().trim();
+    return {
+      memory_type: formData.get('memory_type'),
+      importance: parseInt(formData.get('importance'), 10),
+      content: (formData.get('content') || '').toString(),
+      source_message_id: /^\d+$/.test(sourceMsgRaw) ? sourceMsgRaw : null,
+      status: 1,
+    };
+  },
   fillEditForm: (memory) => {
     document.getElementById('memory-id').value = memory.id;
     document.getElementById('memory-type').value = memory.memory_type;
     document.getElementById('memory-importance').value = memory.importance;
-    document.getElementById('memory-status').value = memory.status;
     document.getElementById('memory-source-msg').value = memory.source_message_id || '';
     document.getElementById('memory-content').value = memory.content;
   },
-  onCreateFormReady: () => {
-    document.getElementById('memory-id').value = '';
-  },
-  buildSaveRequest: ({ formData, isEdit, memoryId }) => {
-    const payload = {
-      instance_id: instanceId,
-      memory_type: formData.get('memory_type'),
-      importance: parseInt(formData.get('importance'), 10),
-      status: parseInt(formData.get('status'), 10),
-      content: formData.get('content'),
-    };
-    const sourceMsgId = formData.get('source_message_id');
-    if (sourceMsgId) {
-      payload.source_message_id = String(sourceMsgId).trim();
+  canToggleArchive: (memory) => Number(memory.status || 1) === 1,
+  confirmRemoveNew: async (memory) => {
+    if (!memory._isNew) {
+      return true;
     }
-    return {
-      url: isEdit ? `/admin-api/ai/instance-memory/${memoryId}/update` : '/admin-api/ai/instance-memory/create',
-      method: isEdit ? 'PUT' : 'POST',
-      payload,
-    };
-  },
-  buildDeleteRequest: (memoryId) => ({
-    url: `/admin-api/ai/instance-memory/${memoryId}/delete`,
-    method: 'DELETE',
-  }),
-  deleteConfirm: {
-    title: '确认删除记忆',
-    message: '确定删除这条实例记忆吗？此操作不可恢复。',
-    confirmText: '删除',
-    cancelText: '取消',
-    confirmButtonClass: 'btn btn-danger',
+    return confirmAction({
+      title: '确认删除未保存记忆',
+      message: '该记忆尚未保存到数据库，确认立即从当前页面移除吗？',
+      confirmText: '删除',
+      cancelText: '取消',
+      confirmButtonClass: 'btn btn-danger',
+    });
   },
 });
 
@@ -350,14 +496,15 @@ function init() {
     return;
   }
   bindAlgorithmVisibility();
+  memoryController.init();
   const snapshotGuard = createSnapshotGuard({
-    buildPayload: () => buildInstancePayload(mainForm).payload,
+    buildPayload: () => buildInstancePayload(mainForm, memoryController).payload,
   });
   bindCancel(snapshotGuard);
-  bindSubmit(mainForm, snapshotGuard);
+  bindSubmit(mainForm, snapshotGuard, memoryController);
   bindGenerateRelationship();
-  memoryController.init();
-  memoryController.exposeGlobals();
+  bindPreviewPanelClose();
+  bindMemoryActions(memoryController);
 }
 
 init();

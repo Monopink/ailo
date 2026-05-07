@@ -859,10 +859,41 @@ class AIInstanceMemoryView(ModelView):
             help_text="可选：来源会话条目",
             required=False,
         ),
+        IntegerField(
+            "source_strength",
+            label="Source Strength",
+            help_text="来源强度（1-5）",
+            required=True,
+        ),
+        StringField(
+            "fact_key",
+            label="Fact Key",
+            help_text="规则命中事实键",
+            required=False,
+        ),
+        IntegerField(
+            "reinforce_count",
+            label="Reinforce Count",
+            help_text="强化计数",
+            required=True,
+        ),
+        DateTimeField("last_reinforced_at", label="Last Reinforced At"),
+        IntegerField(
+            "conflict_flag",
+            label="Conflict Flag",
+            help_text="冲突覆盖标记",
+            required=False,
+        ),
         TextAreaField(
             "content",
             label="Content",
             help_text="记忆内容",
+            required=True,
+        ),
+        TextAreaField(
+            "normalized_content",
+            label="Normalized Content",
+            help_text="标准化内容（去重键）",
             required=True,
         ),
         DateTimeField("refreshed_at", label="Refreshed At"),
@@ -870,6 +901,18 @@ class AIInstanceMemoryView(ModelView):
         DateTimeField("created_at", label="Created At"),
         DateTimeField("updated_at", label="Updated At"),
     ]
+
+    def can_create(self, _request: Request) -> bool:
+        """Disable direct writes to enforce unified memory policy gateway."""
+        return False
+
+    def can_edit(self, _request: Request) -> bool:
+        """Disable direct writes to enforce unified memory policy gateway."""
+        return False
+
+    def can_delete(self, _request: Request) -> bool:
+        """Disable direct writes to enforce unified memory policy gateway."""
+        return False
 
     async def before_create(
         self,

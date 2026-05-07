@@ -10,7 +10,7 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import and_, select
+from sqlalchemy import and_, case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -484,7 +484,15 @@ async def get_instance_snapshot(
                 AIInstanceMemory.status == 1,
             )
         )
-        .order_by(AIInstanceMemory.importance.desc(), AIInstanceMemory.created_at.desc())
+        .order_by(
+            case((AIInstanceMemory.memory_type == "core", 0), else_=1),
+            AIInstanceMemory.source_strength.desc(),
+            AIInstanceMemory.importance.desc(),
+            AIInstanceMemory.reinforce_count.desc(),
+            AIInstanceMemory.updated_at.desc(),
+            AIInstanceMemory.created_at.desc(),
+            AIInstanceMemory.id.desc(),
+        )
         .limit(MEMORY_SNAPSHOT_LIMIT)
     )
     memory_rows = list(memory_rows_result.scalars().all())

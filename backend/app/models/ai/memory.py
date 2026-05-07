@@ -85,12 +85,47 @@ class AIInstanceMemory(SnowflakeModel):
         comment="Memory type enum (see app.enums.MemoryType)",
     )
     content: Mapped[str] = mapped_column(Text, nullable=False, comment="Memory description")
+    normalized_content: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        server_default=text("''"),
+        comment="Normalized content used for deduplication",
+    )
     importance: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=5,
         server_default=text("5"),
         comment="Importance 1-10, determines lifetime",
+    )
+    reinforce_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+        comment="Reinforcement count for merged/recalled memories",
+    )
+    last_reinforced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Last reinforcement timestamp",
+    )
+    source_strength: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default=text("1"),
+        comment="Source strength rank (1-5)",
+    )
+    fact_key: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+        comment="Rule-based fact key for conservative conflict handling",
+    )
+    conflict_flag: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Conflict resolution marker",
     )
     refreshed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, comment="Last refresh timestamp"
@@ -125,6 +160,9 @@ class AIInstanceMemory(SnowflakeModel):
         CheckConstraint(
             "importance BETWEEN 1 AND 10", name="ck_instance_memories_importance_range"
         ),
+        CheckConstraint(
+            "source_strength BETWEEN 1 AND 5", name="ck_instance_memories_source_strength_range"
+        ),
         CheckConstraint("status IN (1,2)", name="ck_instance_memories_status"),
         Index("idx_ai_instance_memories_session", "user_qiao_id", "instance_qiao_id", "status"),
         Index("idx_ai_instance_memories_instance_id", "instance_id"),
@@ -140,5 +178,29 @@ class AIInstanceMemory(SnowflakeModel):
             "source_message_id",
             postgresql_where=text("source_message_id IS NOT NULL"),
         ),
-        Index("uq_ai_instance_memory_content", "instance_id", "content", unique=True),
+        Index(
+            "idx_ai_instance_memories_fact_key_active",
+            "instance_id",
+            "fact_key",
+            postgresql_where=text("status = 1 AND fact_key IS NOT NULL"),
+        ),
+        Index(
+            "idx_ai_instance_memories_norm_active",
+            "instance_id",
+            "normalized_content",
+            postgresql_where=text("status = 1"),
+        ),
+        Index(
+            "idx_ai_instance_memories_norm_trgm",
+            "normalized_content",
+            postgresql_using="gin",
+            postgresql_ops={"normalized_content": "gin_trgm_ops"},
+        ),
+        Index(
+            "uq_ai_instance_memory_active_norm",
+            "instance_id",
+            "normalized_content",
+            unique=True,
+            postgresql_where=text("status = 1"),
+        ),
     )

@@ -50,7 +50,12 @@ async def get_by_instance(db: AsyncSession, instance_id: int) -> list[InstanceDi
 
 
 async def update_dimension(
-    db: AsyncSession, instance_id: int, dimension_id: int, update_data: JSONDict
+    db: AsyncSession,
+    instance_id: int,
+    dimension_id: int,
+    update_data: JSONDict,
+    *,
+    commit: bool = True,
 ) -> bool:
     """Update a single dimension."""
     try:
@@ -71,7 +76,10 @@ async def update_dimension(
         for key, value in update_data.items():
             setattr(dimension, key, value)
 
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
     except Exception as e:
         logger.error(
             "update_dimension_failed",
@@ -98,7 +106,11 @@ class DimensionPayload:
 
 
 async def update_dimensions_batch(
-    db: AsyncSession, instance_id: int, dimensions_data: list[JSONDict]
+    db: AsyncSession,
+    instance_id: int,
+    dimensions_data: list[JSONDict],
+    *,
+    commit: bool = True,
 ) -> dict[str, int]:
     """Batch update/create instance dimensions.
 
@@ -110,6 +122,7 @@ async def update_dimensions_batch(
             - score: int
             - position_mapping_algorithm: int
             - position_mapping_params: dict (optional)
+        commit: Whether to commit transaction immediately.
 
     Returns:
         {"updated": int, "created": int}
@@ -232,7 +245,10 @@ async def update_dimensions_batch(
         await db.rollback()
         raise
     else:
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
         logger.info(
             "dimensions_batch_updated",
             instance_id=instance_id,

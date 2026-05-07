@@ -13,12 +13,20 @@ from app.core.database import get_db
 from app.models.ai.instance import AIInstance
 from app.models.ai.memory import AIInstanceMemory, AITemplateMemory
 from app.models.ai.template import AITemplate
+from app.services.ai.memory.memory_policy_service import (
+    ORIGIN_ADMIN,
+    archive_recent_over_limit,
+    lock_instance_for_memory_write,
+    remove_memory_by_id_with_policy,
+    upsert_memory_with_policy,
+)
 from app.type_defs import JSONDict
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 memory_router = APIRouter()
+MEMORY_STATUS_ARCHIVED = 2
 
 # Type alias for dependency injection
 DbSession = Annotated[AsyncSession, Depends(get_db)]
@@ -192,19 +200,19 @@ async def create_instance_memory(data: InstanceMemoryCreateSchema, db: DbSession
     if not instance:
         raise HTTPException(status_code=404, detail="Instance not found")
 
-    # Create memory with auto-filled user info
-    memory = AIInstanceMemory(
-        instance_id=data.instance_id,
-        instance_qiao_id=instance.qiao_id,
-        user_id=instance.user_id,
-        user_qiao_id=instance.user_qiao_id,
+    locked_instance = await lock_instance_for_memory_write(db, data.instance_id)
+    memory, downgraded = await upsert_memory_with_policy(
+        db,
+        instance=locked_instance,
         memory_type=data.memory_type,
         content=data.content,
         importance=data.importance,
+        origin=ORIGIN_ADMIN,
         source_message_id=data.source_message_id,
-        status=1,  # Active by default
     )
-    db.add(memory)
+    if memory is None:
+        raise HTTPException(status_code=400, detail="Invalid memory payload")
+    await archive_recent_over_limit(db, instance=locked_instance, trigger="admin_create")
     await db.commit()
     await db.refresh(memory)
 
@@ -213,6 +221,7 @@ async def create_instance_memory(data: InstanceMemoryCreateSchema, db: DbSession
         instance_id=data.instance_id,
         memory_id=memory.id,
         memory_type=data.memory_type,
+        downgraded=downgraded,
     )
 
     return {
@@ -233,13 +242,43 @@ async def update_instance_memory(
     if not memory:
         raise HTTPException(status_code=404, detail="Memory not found")
 
+    locked_instance = await lock_instance_for_memory_write(db, memory.instance_id)
+
     # Update fields
     update_fields = data.model_dump(exclude_unset=True)
     if not update_fields:
         raise HTTPException(status_code=400, detail="No data to update")
 
-    for field, value in update_fields.items():
-        setattr(memory, field, value)
+    if update_fields.get("status") == MEMORY_STATUS_ARCHIVED:
+        removed = await remove_memory_by_id_with_policy(
+            db,
+            instance_id=locked_instance.id,
+            memory_id=memory.id,
+            origin=ORIGIN_ADMIN,
+        )
+        if not removed:
+            raise HTTPException(status_code=400, detail="Memory cannot be archived")
+    else:
+        target_memory_type = update_fields.get("memory_type", memory.memory_type)
+        target_content = update_fields.get("content", memory.content)
+        target_importance = int(update_fields.get("importance", memory.importance))
+        target_source_message_id = update_fields.get("source_message_id", memory.source_message_id)
+
+        memory.status = 2
+
+        upserted, _ = await upsert_memory_with_policy(
+            db,
+            instance=locked_instance,
+            memory_type=target_memory_type,
+            content=target_content,
+            importance=target_importance,
+            origin=ORIGIN_ADMIN,
+            source_message_id=target_source_message_id,
+        )
+        if upserted is None:
+            raise HTTPException(status_code=400, detail="Memory update rejected by policy")
+
+    await archive_recent_over_limit(db, instance=locked_instance, trigger="admin_update")
 
     await db.commit()
 
@@ -254,21 +293,30 @@ async def update_instance_memory(
 
 @memory_router.delete("/instance-memory/{memory_id}/delete")
 async def delete_instance_memory(memory_id: int, db: DbSession) -> JSONDict:
-    """Delete an instance memory."""
+    """Archive an instance memory."""
     stmt = select(AIInstanceMemory).where(AIInstanceMemory.id == memory_id)
     result = await db.execute(stmt)
     memory = result.scalar_one_or_none()
     if not memory:
         raise HTTPException(status_code=404, detail="Memory not found")
 
-    instance_id = memory.instance_id
-    await db.delete(memory)
+    locked_instance = await lock_instance_for_memory_write(db, memory.instance_id)
+    removed = await remove_memory_by_id_with_policy(
+        db,
+        instance_id=locked_instance.id,
+        memory_id=memory.id,
+        origin=ORIGIN_ADMIN,
+    )
+    if not removed:
+        raise HTTPException(status_code=400, detail="Memory cannot be archived")
+
+    await archive_recent_over_limit(db, instance=locked_instance, trigger="admin_delete")
     await db.commit()
 
     logger.info(
-        "instance_memory_deleted",
+        "instance_memory_archived",
         memory_id=memory_id,
-        instance_id=instance_id,
+        instance_id=locked_instance.id,
     )
 
-    return {"success": True, "message": "Memory deleted successfully"}
+    return {"success": True, "message": "Memory archived successfully"}

@@ -27,7 +27,6 @@ from app.exceptions.llm import JSONSchemaNotSupportedError
 from app.models.ai.instance import AIInstance, AIMessageBuffer
 from app.models.contact import Contact
 from app.models.llm import LLMConfig, LLMProvider
-from app.services.ai.context_archiving import archive_old_contexts
 from app.services.ai.conversation_prompt import build_conversation_context, build_system_prompt
 from app.services.ai.memory import process_memory_operations
 from app.services.ai.orchestrators.llm_response_handler import process_llm_response
@@ -1293,9 +1292,6 @@ async def _process_conversation_impl(
             user_message_item_id,
             persist=False,
         )
-
-    # Archive old contexts if needed (per user-instance conversation)
-    await archive_old_contexts(db, user_qiao_id, instance_qiao_id)
 
     logger.info(
         "conversation_processing_completed",

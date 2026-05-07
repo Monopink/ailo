@@ -5,12 +5,11 @@ This module provides complex transaction operations that involve multiple
 database operations and require atomicity.
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 
-from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.ai import AIConversationItem, AIConversationItemArchive, AIRequestLog
+from app.models.ai import AIRequestLog
 from app.type_defs import InstanceContext
 from app.utils.logging import get_logger
 
@@ -140,133 +139,6 @@ async def save_ai_request_log(
         )
         # Don't raise - logging failure shouldn't break the conversation
         return None
-
-
-async def archive_contexts_transaction(
-    db: AsyncSession, contexts_to_archive: Sequence[AIConversationItem], instance_qiao_id: str
-) -> int:
-    """
-    Archive contexts in a transaction.
-
-    Args:
-        db: Database session
-        contexts_to_archive: List of context objects to archive
-        instance_qiao_id: Instance's qiao_id
-
-    Returns:
-        Number of contexts archived
-    """
-    try:
-        archived_count = 0
-
-        for context in contexts_to_archive:
-            try:
-                # Create archive entry
-                archive_entry = AIConversationItemArchive(
-                    instance_qiao_id=context.instance_qiao_id,
-                    user_qiao_id=context.user_qiao_id,
-                    role=context.role,
-                    message_type=context.message_type,
-                    text_content=context.text_content,
-                    media_url=context.media_url,
-                    media_metadata=context.media_metadata,
-                    buffer_id=context.buffer_id,
-                    is_excluded_from_context=int(context.is_excluded_from_context or 0),
-                    created_at=context.created_at,
-                    archived_at=func.now(),
-                )
-
-                db.add(archive_entry)
-
-                # Delete from main table
-                await db.delete(context)
-                archived_count += 1
-
-            except Exception as e:
-                logger.error(
-                    "single_context_archive_failed",
-                    error=str(e),
-                    conversation_item_id=context.id,
-                    instance_qiao_id=instance_qiao_id,
-                )
-                continue
-
-        await db.flush()
-
-        logger.info(
-            "contexts_archived_in_transaction",
-            instance_qiao_id=instance_qiao_id,
-            archived_count=archived_count,
-            total_requested=len(contexts_to_archive),
-        )
-
-    except Exception as exc:
-        logger.error(
-            "context_archiving_transaction_failed",
-            error=str(exc),
-            instance_qiao_id=instance_qiao_id,
-            contexts_count=len(contexts_to_archive),
-        )
-        return 0
-    else:
-        return archived_count
-
-
-async def archive_all_conversation_items(
-    db: AsyncSession, user_qiao_id: str, instance_qiao_id: str
-) -> int:
-    """
-    Archive all conversation items for a user-instance pair.
-
-    Args:
-        db: Database session
-        user_qiao_id: User's qiao_id
-        instance_qiao_id: Instance's qiao_id
-
-    Returns:
-        Number of items archived
-    """
-    try:
-        result = await db.execute(
-            select(AIConversationItem).where(
-                and_(
-                    AIConversationItem.user_qiao_id == user_qiao_id,
-                    AIConversationItem.instance_qiao_id == instance_qiao_id,
-                )
-            )
-        )
-        items = list(result.scalars().all())
-
-        if not items:
-            logger.info(
-                "no_conversation_items_to_archive",
-                user_qiao_id=user_qiao_id,
-                instance_qiao_id=instance_qiao_id,
-            )
-            return 0
-
-        archived_count = await archive_contexts_transaction(db, items, instance_qiao_id)
-        await db.commit()
-
-        logger.info(
-            "all_conversation_items_archived",
-            user_qiao_id=user_qiao_id,
-            instance_qiao_id=instance_qiao_id,
-            archived_count=archived_count,
-        )
-
-    except Exception as exc:
-        await db.rollback()
-        logger.error(
-            "archive_all_conversation_items_failed",
-            error=str(exc),
-            user_qiao_id=user_qiao_id,
-            instance_qiao_id=instance_qiao_id,
-            exc_info=True,
-        )
-        raise
-    else:
-        return archived_count
 
 
 def _coerce_response_payload(ai_response: object) -> dict[str, object]:

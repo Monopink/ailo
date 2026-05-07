@@ -1,0 +1,12 @@
+[Unit]
+Description=Ailo Conversation Items Archive
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/ailo-prod/ailo
+ExecStart=/usr/bin/docker exec backend python -m app.services.ai.conversation_archive_job
+TimeoutStartSec=900
+Nice=10

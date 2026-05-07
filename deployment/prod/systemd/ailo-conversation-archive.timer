@@ -1,0 +1,10 @@
+[Unit]
+Description=Ailo Conversation Items Archive Timer
+
+[Timer]
+OnCalendar=*-*-* *:*/5:00
+Persistent=true
+Unit=ailo-conversation-archive.service
+
+[Install]
+WantedBy=timers.target

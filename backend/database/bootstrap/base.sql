@@ -115,11 +115,11 @@ VALUES
 ('message_buffer_typing_end_wait_ms', '3000', '3000', 2, 'Short wait time in milliseconds after typing ends', 'messaging', NULL),
 ('message_buffer_no_typing_wait_ms', '8000', '8000', 2, 'Wait time in milliseconds for clients without typing support', 'messaging', NULL),
 
--- AI conversation archive configurations (values in seconds unless otherwise noted)
-('ai_conversation_archive_time_days', '7', '7', 2, 'Archive AI conversation items older than this many days', 'ai_conversation', NULL),
-('ai_conversation_archive_max_count', '50', '50', 2, 'Archive AI conversation items when count exceeds this limit', 'ai_conversation', NULL),
-('ai_conversation_archive_min_count', '10', '10', 2, 'Minimum AI conversation items to keep; do not archive if below this count', 'ai_conversation', NULL),
-('ai_conversation_archive_threshold', '80', '80', 2, 'Trigger immediate archive when AI conversation items exceed this threshold', 'ai_conversation', NULL),
+-- AI conversation archive configurations
+('ai_conversation_archive_enabled', 'true', 'true', 3, 'Enable AI conversation items archive job', 'ai_conversation', NULL),
+('ai_conversation_archive_retention_days', '14', '14', 2, 'Archive AI conversation items older than this many days', 'ai_conversation', NULL),
+('ai_conversation_archive_keep_recent_count', '200', '200', 2, 'Per conversation, keep this many recent items in hot table', 'ai_conversation', NULL),
+('ai_conversation_archive_batch_size', '1000', '1000', 2, 'Maximum items archived per archive job round', 'ai_conversation', NULL),
 ('ai_conversation_context_max_messages', '20', '20', 2, 'AI conversation context message limit', 'ai_conversation', NULL),
 ('ai_conversation_context_time_window_days', '30', '30', 2, 'AI conversation context time window in days', 'ai_conversation', NULL),
 ('ai_llm_min_contract_retry_enabled', 'true', 'true', 3, 'Enable minimal-contract retry for AI LLM responses', 'ai_conversation', NULL),

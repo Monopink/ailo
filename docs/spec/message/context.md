@@ -15,6 +15,14 @@
 
 ai_conversation_items 使用扁平字段存储（message_type/text_content/media_url/media_metadata），转换为 LLM 请求格式由 `backend/app/services/ai/conversation_prompt.py` 在构建阶段完成，详见 `../ai/prompt-building.md`。
 
+### 会话归档
+
+- `ai_conversation_items` 作为上下文热表使用。
+- `ai_conversation_items_archive` 存储历史消息用于审计。
+- 归档任务由后台维护任务定时触发，不在实时对话请求内执行。
+- 上下文构建只查询 `ai_conversation_items`，不回查归档表。
+- 归档规则参数由 `system_configs` 提供：`ai_conversation_archive_enabled`、`ai_conversation_archive_retention_days`、`ai_conversation_archive_keep_recent_count`、`ai_conversation_archive_batch_size`。
+
 ## 上下文查询
 
 ### 基本查询

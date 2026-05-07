@@ -10,7 +10,6 @@ from .conversation_queries import (
     get_conversation_contexts,
     get_conversation_history,
     get_conversation_item_by_id,
-    get_items_for_archiving,
 )
 
 # Instance-related query functions
@@ -58,7 +57,6 @@ __all__ = [
     "get_conversation_contexts",
     "get_conversation_history",
     "get_conversation_item_by_id",
-    "get_items_for_archiving",
     # Profile queries
     "get_user_profile",
     "get_instance_profile",

@@ -5,7 +5,7 @@ Provides read-only helpers for retrieving buffered conversation history
 stored in ai_conversation_items.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import and_, desc, select
@@ -150,65 +150,6 @@ async def get_conversation_item_by_id(db: AsyncSession, item_id: int) -> dict[st
     except Exception as exc:
         logger.error("conversation_item_by_id_query_failed", error=str(exc), item_id=item_id)
         return None
-
-
-async def get_items_for_archiving(
-    db: AsyncSession,
-    instance_qiao_id: str,
-    user_qiao_id: str,
-    max_age_seconds: int = 604800,
-    max_count: int = 100,
-    archive_threshold: int | None = None,
-) -> tuple[list[AIConversationItem], int]:
-    """
-    Determine which conversation items should be archived to cold storage.
-    """
-    try:
-        cutoff = datetime.now(UTC) - timedelta(seconds=max_age_seconds)
-
-        result = await db.execute(
-            select(AIConversationItem)
-            .where(
-                and_(
-                    AIConversationItem.instance_qiao_id == instance_qiao_id,
-                    AIConversationItem.user_qiao_id == user_qiao_id,
-                )
-            )
-            .order_by(desc(AIConversationItem.created_at), desc(AIConversationItem.id))
-        )
-
-        items = list(result.scalars().all())
-        to_archive: list[AIConversationItem] = []
-
-        for item in items:
-            if item.created_at < cutoff:
-                to_archive.append(item)
-
-        overflow_enabled = archive_threshold is None or len(items) >= archive_threshold
-        if overflow_enabled and len(items) > max_count:
-            excess = items[max_count:]
-            for item in excess:
-                if item not in to_archive:
-                    to_archive.append(item)
-
-        logger.debug(
-            "conversation_items_for_archiving_identified",
-            instance_qiao_id=instance_qiao_id,
-            user_qiao_id=user_qiao_id,
-            total_items=len(items),
-            to_archive=len(to_archive),
-        )
-
-        return to_archive, len(items)
-
-    except Exception as exc:
-        logger.error(
-            "conversation_item_archiving_query_failed",
-            error=str(exc),
-            instance_qiao_id=instance_qiao_id,
-            user_qiao_id=user_qiao_id,
-        )
-        return [], 0
 
 
 def _serialize_item(item: AIConversationItem) -> dict[str, Any]:

@@ -38,7 +38,7 @@
         </view>
 
         <!-- Info Message -->
-        <view wx:if="{{item.isInfoMessage}}" class="chat-info-msg">
+        <view wx:if="{{item.isInfoMessage}}" class="chat-info-msg" id="msg-{{item.msg_id}}">
           {{item.infoContent}}
         </view>
 

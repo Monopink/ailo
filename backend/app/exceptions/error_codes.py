@@ -48,11 +48,6 @@ SERVICE_MODULE_REGISTRY: tuple[tuple[str, ServiceModuleCode], ...] = (
     ("/api/v1/discovery", ServiceModuleCode(service=22, module=1, name="discovery")),
     ("/api/v1/media", ServiceModuleCode(service=23, module=1, name="media")),
     ("/api/v1/messages", ServiceModuleCode(service=24, module=1, name="messages")),
-    ("/api/v1/lc-im", ServiceModuleCode(service=24, module=2, name="message_access")),
-    (
-        "/api/v1/leancloud",
-        ServiceModuleCode(service=24, module=4, name="message_ingress"),
-    ),
     (
         "/api/v1/pages",
         ServiceModuleCode(service=26, module=2, name="pages"),

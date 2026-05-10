@@ -6,7 +6,6 @@
 
 - WebSocket 只负责传输与路由（transport only），不承载业务逻辑
 - 所有业务处理复用统一消息管线：验证/解密 → buffer → context → LLM → 响应处理 → 发送
-- 与 LeanCloud Provider 并存（详见 `leancloud.md`）
 
 分层职责：
 
@@ -26,7 +25,7 @@
 
 - 所有业务鉴权使用 JWT。
 - HTTP API 使用 `Authorization: Bearer <token>`。
-- 浏览器 WebSocket 无法自定义 `Authorization` Header，因此浏览器场景使用首帧 `auth` 消息提交 token（裸 JWT，不带 `Bearer ` 前缀），字段名为 `access_token`。
+- 浏览器 WebSocket 无法自定义 `Authorization` Header，因此客户端先通过 `POST /api/v1/messages/ws-session` 获取短时 `ws_ticket`，再使用首帧 `auth` 提交 `ws_ticket` 与 `device_id`。
 
 ---
 
@@ -35,8 +34,8 @@
 - 客户端必须提供稳定 `device_id`（UUID，设备/安装级）。
 - WebSocket 连接建立并完成 `auth` 后，服务端按 (user_id, device_id) upsert Presence endpoint（`message_endpoints`）并得到 `endpoint_id`。
 - WebSocket endpoint 属于 DEVICE 粒度（`endpoint_scope=DEVICE`，`target_key=device_id`）。
+- 服务端在 endpoint 上记录连接归属实例（`owner_instance_id`）与归属租约（`owner_lease_expires_at`），并在 `auth/ping` 续租。
 - **服务端内部路由/投递目标以 `endpoint_id` 为准**（或至少以 (user_id, device_id) 为路由键）；禁止仅用 `device_id` 作为内部路由键，避免多账号复用同一 device_id 时串线。
-- WebSocket 的 endpoint upsert/续租与 LeanCloud Presence 共用同一后端 Presence 领域服务（内部统一，入口不强行统一）。
 
 Presence endpoint 的活跃状态由 lease 管理（见下文“Lease”）。
 
@@ -54,16 +53,6 @@ Presence endpoint 的活跃状态由 lease 管理（见下文“Lease”）。
 固定值：
 
 - TTL：90 秒（协议固定值）
-
-2) Registration lease（长）
-
-- 用于第三方通道 installation/register 绑定
-
-固定值：
-
-- TTL：365 天（协议固定值）
-
----
 
 ## 幂等与去重
 

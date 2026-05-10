@@ -153,9 +153,7 @@ WebSocket `error` 帧（`type=error`）使用同一字段：
 | 22 | 01 | discovery | /api/v1/discovery | active |
 | 23 | 01 | media | /api/v1/media | active |
 | 24 | 01 | messages | /api/v1/messages | active |
-| 24 | 02 | message_access | /api/v1/lc-im | active |
 | 24 | 03 | ws_messages | /ws/messages | active |
-| 24 | 04 | message_ingress | /api/v1/leancloud | active |
 | 26 | 01 | system | /api/v1/system | active |
 | 26 | 02 | pages | /api/v1/pages | active |
 | 80 | 01 | admin_api | /admin-api | optional |

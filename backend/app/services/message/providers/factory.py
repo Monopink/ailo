@@ -2,26 +2,51 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums import MessageTransportProvider
 
-from .base import MessageProvider, TimelineEndpointSender
-from .leancloud import LeanCloudTimelineSender, create_leancloud_provider
+from .base import TimelineEndpointSender
 from .websocket import WebSocketTimelineSender
 
-PROVIDER_TYPE_LEANCLOUD = "leancloud"
 PROVIDER_TYPE_WEBSOCKET = "websocket"
-DEFAULT_PROVIDER_TYPE = PROVIDER_TYPE_LEANCLOUD
+DEFAULT_PROVIDER_TYPE = PROVIDER_TYPE_WEBSOCKET
+
+_PROVIDER_TYPE_REGISTRY: dict[str, MessageTransportProvider] = {}
+_TIMELINE_SENDER_REGISTRY: dict[
+    MessageTransportProvider,
+    Callable[[AsyncSession], TimelineEndpointSender],
+] = {}
+
+
+def register_transport_provider_type(
+    provider_type: str,
+    provider: MessageTransportProvider,
+) -> None:
+    """Register string provider type mapping."""
+    normalized = provider_type.strip().lower()
+    if normalized == "":
+        raise ValueError("Provider type must not be empty")
+    _PROVIDER_TYPE_REGISTRY[normalized] = provider
+
+
+def register_timeline_endpoint_sender(
+    *,
+    provider: MessageTransportProvider,
+    factory: Callable[[AsyncSession], TimelineEndpointSender],
+) -> None:
+    """Register endpoint-level timeline sender factory."""
+    _TIMELINE_SENDER_REGISTRY[provider] = factory
 
 
 def resolve_transport_provider(provider_type: str) -> MessageTransportProvider:
     """Resolve provider type string to transport provider enum."""
     normalized = provider_type.strip().lower()
-    if normalized == PROVIDER_TYPE_LEANCLOUD:
-        return MessageTransportProvider.LEANCLOUD
-    if normalized == PROVIDER_TYPE_WEBSOCKET:
-        return MessageTransportProvider.WEBSOCKET
+    provider = _PROVIDER_TYPE_REGISTRY.get(normalized)
+    if provider is not None:
+        return provider
     raise ValueError(f"Unsupported provider type: {provider_type}")
 
 
@@ -30,28 +55,20 @@ def get_default_transport_provider() -> MessageTransportProvider:
     return resolve_transport_provider(DEFAULT_PROVIDER_TYPE)
 
 
-def create_message_provider(db: AsyncSession, provider_type: str | None = None) -> MessageProvider:
-    """Create lifecycle-capable message provider instance."""
-    selected = provider_type if provider_type is not None else DEFAULT_PROVIDER_TYPE
-    normalized = selected.strip().lower()
-    if normalized == PROVIDER_TYPE_LEANCLOUD:
-        return create_leancloud_provider(db)
-    raise ValueError(f"Unsupported provider type: {selected}")
-
-
-def get_default_provider(db: AsyncSession) -> MessageProvider:
-    """Get default lifecycle provider from configuration."""
-    return create_message_provider(db)
-
-
 def create_timeline_endpoint_sender(
     db: AsyncSession,
     *,
     provider: MessageTransportProvider,
 ) -> TimelineEndpointSender:
     """Create endpoint sender by transport provider enum."""
-    if provider == MessageTransportProvider.WEBSOCKET:
-        return WebSocketTimelineSender()
-    if provider == MessageTransportProvider.LEANCLOUD:
-        return LeanCloudTimelineSender(db)
-    raise ValueError(f"Unsupported provider enum: {provider}")
+    factory = _TIMELINE_SENDER_REGISTRY.get(provider)
+    if factory is None:
+        raise ValueError(f"No timeline sender registered for provider={provider.name}")
+    return factory(db)
+
+
+register_transport_provider_type(PROVIDER_TYPE_WEBSOCKET, MessageTransportProvider.WEBSOCKET)
+register_timeline_endpoint_sender(
+    provider=MessageTransportProvider.WEBSOCKET,
+    factory=lambda _db: WebSocketTimelineSender(),
+)

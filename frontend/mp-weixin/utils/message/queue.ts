@@ -7,13 +7,13 @@ const logger = getLogger('MessageQueue');
 
 interface QueueMessage {
   payload: BusinessMessagePayload;
-  imConvId: string;
+  sessionHint: string;
   status?: 'pending' | 'sent' | 'failed';
   retryCount?: number;
 }
 
 interface MessageProvider {
-  sendMessage(message: BusinessMessagePayload, imConvId: string): Promise<AdapterSendResult>;
+  sendMessage(message: BusinessMessagePayload, sessionHint: string): Promise<AdapterSendResult>;
 }
 
 export class MessageQueue {
@@ -83,7 +83,7 @@ export class MessageQueue {
   private sendMessage(message: QueueMessage): Promise<void> {
     const messageId = message.payload.msg_id;
     logger.debug('Sending message', { messageId });
-    return this.provider.sendMessage(message.payload, message.imConvId).then(() => {
+    return this.provider.sendMessage(message.payload, message.sessionHint).then(() => {
       message.status = 'sent';
       logger.info('Message sent', { messageId });
     });

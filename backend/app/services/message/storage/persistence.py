@@ -158,7 +158,7 @@ async def _store_message_internal(
     """
     msg_id_server_value = msg_id_server or f"msg_{generate_snowflake_id()}"
 
-    # Normalize optional client timestamp (LeanCloud sends epoch milliseconds)
+    # Normalize optional client timestamp (epoch milliseconds in client payloads)
     normalized_client_sent_time = _normalize_client_sent_time(client_sent_at)
     normalized_sent_at = _normalize_client_sent_time(sent_at)
     if normalized_sent_at is None:

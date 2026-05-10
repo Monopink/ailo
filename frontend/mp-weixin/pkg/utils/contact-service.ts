@@ -56,16 +56,16 @@ const mergeAvatarDisplayMode = (
   return existing?.avatar_display_mode;
 };
 
-async function resolveAuthoritativeImConvId(): Promise<string> {
-  let authoritativeImConvId = await conversationStore.getImConvId();
-  if (!isNonEmptyString(authoritativeImConvId)) {
+async function resolveAuthoritativeSessionHint(): Promise<string> {
+  let authoritativeSessionHint = await conversationStore.getSessionHint();
+  if (!isNonEmptyString(authoritativeSessionHint)) {
     const refreshed = await conversationStore.refresh();
-    authoritativeImConvId = refreshed.session.im_conv_id;
+    authoritativeSessionHint = refreshed.session.session_hint;
   }
-  if (!isNonEmptyString(authoritativeImConvId)) {
-    throw new Error('IM_CONVERSATION_ID_MISSING');
+  if (!isNonEmptyString(authoritativeSessionHint)) {
+    throw new Error('MESSAGE_SESSION_HINT_MISSING');
   }
-  return authoritativeImConvId;
+  return authoritativeSessionHint;
 }
 
 const mergeContactProfile = (
@@ -88,7 +88,6 @@ const mergeStoredContact = (
   ...incoming,
   conversation_id: incoming.conversation_id,
   contact_qiao_id: incoming.contact_qiao_id ?? existing?.contact_qiao_id,
-  im_conv_id: incoming.im_conv_id ?? existing?.im_conv_id,
   // Respect explicit null/empty values from API responses.
   alias: mergeNullableContactField(existing, incoming, 'alias'),
   remark: mergeNullableContactField(existing, incoming, 'remark'),
@@ -104,7 +103,7 @@ export interface ChatContactViewModel {
   convId: string;
   contactQiaoId: string;
   contactType: 1 | 2 | 3 | null;
-  imConvId: string;
+  sessionHint: string;
   displayName: string;
   displayAvatar: string;
   profile: ContactProfile;
@@ -163,7 +162,7 @@ export async function getChatContactViewModel(convId: string): Promise<ChatConta
     throw new Error('CONTACT_QIAO_ID_MISSING');
   }
 
-  const imConvId = await resolveAuthoritativeImConvId();
+  const sessionHint = await resolveAuthoritativeSessionHint();
   const displayName = firstNonEmptyString(source.alias ?? '', profile.nickname ?? '') ?? '';
   const displayAvatar = getAvatarUrl(
     firstNonEmptyString(source.avatar_url ?? '', profile.avatar_url ?? '') ?? ''
@@ -175,7 +174,7 @@ export async function getChatContactViewModel(convId: string): Promise<ChatConta
     convId,
     contactQiaoId: source.contact_qiao_id,
     contactType: typeof source.contact_type === 'number' ? source.contact_type : null,
-    imConvId,
+    sessionHint,
     displayName,
     displayAvatar,
     profile,

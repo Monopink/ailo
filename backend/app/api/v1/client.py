@@ -27,7 +27,7 @@ from app.services.review_scope_build_cycle import (
     load_mp_weixin_review_cycle_config,
 )
 from app.services.security import SecurityRequestContext, enforce_attack_scan, is_ip_blocked
-from app.services.security.rate_limiter import check_rate_limit
+from app.services.security.rate_limiter import check_rate_limits_atomic
 from app.utils.client_ip import ClientIPResolutionError, get_client_ip
 from app.utils.logging import get_logger
 from app.utils.snowflake import generate_snowflake_id
@@ -47,6 +47,20 @@ RUNTIME_EVENT_NAME_WHITELIST: frozenset[str] = frozenset(
         "runtime_session_tick",
         "official_account_follow_attempt",
         "official_account_follow_fallback_shown",
+        "message_connect_failed",
+        "message_connect_recovered",
+        "message_send_failed",
+        "ws_auth_failed",
+        "ws_ack_timeout",
+    }
+)
+MESSAGE_RUNTIME_EVENT_NAMES: frozenset[str] = frozenset(
+    {
+        "message_connect_failed",
+        "message_connect_recovered",
+        "message_send_failed",
+        "ws_auth_failed",
+        "ws_ack_timeout",
     }
 )
 UAFetchStatusValue = int
@@ -368,13 +382,8 @@ async def _is_security_rate_limited(
     group: str,
     identifiers: tuple[str, ...],
 ) -> bool:
-    for identifier in identifiers:
-        if identifier == "":
-            continue
-        allowed, _error_code, _retry_after = await check_rate_limit(identifier, group, db)
-        if not allowed:
-            return True
-    return False
+    allowed, _error_code, _retry_after = await check_rate_limits_atomic(identifiers, group, db)
+    return not allowed
 
 
 @router.get("/health", response_model=ClientHealthResponse)
@@ -597,6 +606,8 @@ async def report_runtime_observation(  # noqa: PLR0911
             )
             if tick_dedup_result.scalar_one_or_none() is not None:
                 return RuntimeObservationResponse(accepted=False, event_id=0)
+        elif event_name in MESSAGE_RUNTIME_EVENT_NAMES:
+            pass
         else:
             day_dedup_result = await db.execute(
                 text(

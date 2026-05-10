@@ -186,7 +186,7 @@
 
 构建新联系人消息，通过消息系统发送
 
-详见：[../message/leancloud.md](../message/leancloud.md)
+详见：[../message/websocket.md](../message/websocket.md)
 
 ## Profile 查询逻辑
 

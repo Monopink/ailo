@@ -6,12 +6,12 @@
 
 ## 协议范围
 
-- `typing` 为跨 Provider 的统一语义事件，传输层编码由 Provider 决定。
+- `typing` 为统一语义事件，用户消息通道统一通过 WebSocket 传输。
 - 客户端上报（统一语义）：`typing_start` / `typing_end`
 - 服务端下发（统一语义）：`typing_start` / `typing_end`
 - 上报字段要求：
   - 必须携带 `conversation_id`
-  - 必须携带开始/结束状态（WS 为 `typing_state`；LeanCloud 为 `message_type=2/3`）
+  - 必须携带开始/结束状态（`typing_state=start|end`）
   - `from_qiao_id/to_qiao_id` 由服务端按鉴权身份与会话关系推导
 - 相关协议字段定义见：
   - `docs/api/websocket-messages.md`
@@ -25,7 +25,6 @@
 ### Provider 编码
 
 - WebSocket：发送 `type=typing` 帧，字段 `typing_state=start|end`
-- LeanCloud：发送 TypedMessage，字段 `message_type=2|3`（TYPING_START / TYPING_END），并以 `transient=true` 发送
 
 ### typing_start（带 1 秒 buffer）
 
@@ -83,7 +82,6 @@
 - `typing_start/typing_end` 为 realtime best-effort 事件
 - 服务端按活跃 endpoint 的 `provider` 扇出 typing
 - WebSocket endpoint：下发 `event_type=typing`
-- LeanCloud endpoint：下发 `message_type=2|3`，并以 `transient=true` 发送
 - typing 扇出异常仅记录日志，不中断 timeline 消息发送流程
 - 服务端不保证一定下发 `typing_end`
 - 客户端必须依赖“对方 TEXT + 30 秒超时”完成兜底收敛

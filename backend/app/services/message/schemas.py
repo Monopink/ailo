@@ -87,13 +87,13 @@ class BaseMessageEvent(BaseModel):
 
 
 class InboundMessageEvent(BaseMessageEvent):
-    """Inbound event from transport layer (LeanCloud webhook or WebSocket)."""
+    """Inbound event from transport layer."""
 
     event_type: Literal["inbound_message"] = Field(default="inbound_message", frozen=True)
     msg_id_client: str = Field(..., description="Client-generated ID for deduplication")
     msg_id_provider_inbound: str | None = Field(
         default=None,
-        description="Provider message ID (LeanCloud msgId); null for websocket inbound",
+        description="Provider message ID; null for websocket inbound",
     )
     inbound_provider: MessageTransportProvider = Field(
         ...,

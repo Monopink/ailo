@@ -1,1 +1,5 @@
-<text wx:if="{{icon}}" class="ui-gender-badge ui-gender-badge--{{gender}} theme-scope">{{icon}}</text>
+<t-icon
+  wx:if="{{iconName}}"
+  class="ui-gender-badge ui-gender-badge--{{gender}} theme-scope"
+  name="{{iconName}}"
+  size="var(--font-size-lg)" />

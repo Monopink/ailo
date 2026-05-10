@@ -1,4 +1,5 @@
 import os
+import socket
 from functools import lru_cache
 from ipaddress import ip_network
 from pathlib import Path
@@ -70,11 +71,6 @@ class Settings(BaseSettings):
     CLIENT_IP_HEADER: str = "X-Client-IP"
     TRUSTED_PROXY_CIDRS: list[str] = Field(default_factory=list)
 
-    # LeanCloud settings (sensitive keys via env)
-    LEANCLOUD_MASTER_KEY: str
-    LEANCLOUD_IM_APP_ID: str
-    LEANCLOUD_IM_APP_KEY: str
-
     # WeChat Mini Program settings
     WECHAT_APP_ID: str
     WECHAT_APP_SECRET: str
@@ -82,6 +78,11 @@ class Settings(BaseSettings):
     # Snowflake ID settings
     SNOWFLAKE_DATACENTER_ID: int
     SNOWFLAKE_MACHINE_ID: int
+
+    # Message delivery runtime settings
+    MESSAGE_INSTANCE_ID: str | None = None
+    MESSAGE_OWNER_LEASE_TTL_SECONDS: int = 90
+    MESSAGE_WS_SESSION_TICKET_TTL_SECONDS: int = Field(default=120, ge=1)
 
     # Admin settings
     ADMIN_SECRET_KEY: str  # For session middleware
@@ -130,6 +131,15 @@ class Settings(BaseSettings):
     def is_staging(self) -> bool:
         """Check if running in staging environment."""
         return self.ENVIRONMENT.lower() in ("staging", "test")
+
+    @property
+    def message_instance_id(self) -> str:
+        """Return stable instance ID for websocket ownership routing."""
+        if isinstance(self.MESSAGE_INSTANCE_ID, str):
+            normalized = self.MESSAGE_INSTANCE_ID.strip()
+            if normalized:
+                return normalized
+        return socket.gethostname().strip() or "unknown_instance"
 
     @field_validator("TRUSTED_PROXY_CIDRS", mode="before")
     @classmethod

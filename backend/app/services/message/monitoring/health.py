@@ -1,160 +1,45 @@
-"""
-Message service health check.
-
-Provides provider-agnostic health check functionality for the message service.
-"""
+"""Message service health check for websocket-only runtime."""
 
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.message.providers.leancloud import create_leancloud_provider
-from app.services.message.providers.leancloud.config import get_leancloud_runtime_config
-from app.services.system_config import get_config
-from app.utils.logging import get_logger
-
-logger = get_logger(__name__)
+from app.enums import MessageTransportProvider
+from app.models.message import MessageEndpoint
+from app.services.message.websocket.manager import ws_manager
 
 
 async def check_message_service_health(db: AsyncSession) -> dict[str, Any]:
-    """
-    Check message service health (provider-agnostic).
-
-    This function checks the health of the currently configured message service provider.
-    It returns a standardized health status that can be used for monitoring and alerting.
-
-    Args:
-        db: Database session for configuration access
-
-    Returns:
-        Dictionary containing:
-        - healthy (bool): True if service is healthy
-        - provider (str): Provider name (e.g., "leancloud")
-        - error (str|None): Error message if unhealthy
-        - checked_at (int): Timestamp in milliseconds
-
-    Example:
-        >>> health = await check_message_service_health(db)
-        >>> if not health["healthy"]:
-        ...     logger.error("Message service unhealthy", error=health["error"])
-    """
-    try:
-        # Get current provider (currently only LeanCloud is implemented)
-        # In the future, this could be configurable via system_configs
-        provider = create_leancloud_provider(db)
-
-        # Check health
-        is_healthy, error_msg = await provider.check_health()
-
-        result = {
-            "healthy": is_healthy,
-            "provider": "leancloud",
-            "error": error_msg,
-            "checked_at": int(datetime.now(UTC).timestamp() * 1000),
-        }
-
-        if is_healthy:
-            logger.debug("message_service_health_check_passed", provider="leancloud")
-        else:
-            logger.warning(
-                "message_service_health_check_failed", provider="leancloud", error=error_msg
+    """Return websocket transport health snapshot."""
+    now = datetime.now(UTC)
+    active_endpoint_count_result = await db.execute(
+        select(func.count(MessageEndpoint.id)).where(
+            and_(
+                MessageEndpoint.provider == MessageTransportProvider.WEBSOCKET,
+                or_(
+                    MessageEndpoint.lease_expires_at.is_(None),
+                    MessageEndpoint.lease_expires_at > now,
+                ),
             )
-
-        return result
-
-    except Exception as e:
-        error_msg = f"Health check failed: {e!s}"
-        logger.error(
-            "message_service_health_check_error",
-            error=str(e),
-            error_type=type(e).__name__,
-            exc_info=True,
         )
+    )
+    active_endpoint_count = int(active_endpoint_count_result.scalar_one() or 0)
+    live_connection_count = ws_manager.connection_count()
 
-        return {
-            "healthy": False,
-            "provider": "unknown",
-            "error": error_msg,
-            "checked_at": int(datetime.now(UTC).timestamp() * 1000),
-        }
+    return {
+        "healthy": True,
+        "provider": "websocket",
+        "error": None,
+        "checked_at": int(now.timestamp() * 1000),
+        "details": {
+            "active_endpoint_count": active_endpoint_count,
+            "live_connection_count": live_connection_count,
+        },
+    }
 
 
 async def get_message_service_status(db: AsyncSession) -> dict[str, Any]:
-    """
-    Get comprehensive message service status.
-
-    This function provides more detailed status information than check_message_service_health,
-    including configuration status and service initialization status.
-
-    Args:
-        db: Database session for configuration access
-
-    Returns:
-        Dictionary containing:
-        - healthy (bool): Overall health status
-        - provider (str): Provider name
-        - error (str|None): Error message if any
-        - checked_at (int): Timestamp in milliseconds
-        - details (dict): Additional status details
-            - config_complete (bool): Whether configuration is complete
-            - service_initialized (bool): Whether service is initialized
-            - api_accessible (bool): Whether API is accessible
-
-    Example:
-        >>> status = await get_message_service_status(db)
-        >>> if not status["details"]["config_complete"]:
-        ...     logger.error("Message service configuration incomplete")
-    """
-    try:
-        # Check configuration completeness
-        leancloud_config = await get_leancloud_runtime_config(db, required=False)
-        config_complete = bool(
-            leancloud_config.app_id and leancloud_config.master_key and leancloud_config.base_url
-        )
-
-        # Check service initialization
-        conversation_id = await get_config(
-            db, key="leancloud_im_service_conversation_id", required=False
-        )
-        service_initialized = bool(isinstance(conversation_id, str) and conversation_id.strip())
-
-        # Check API accessibility
-        health_result = await check_message_service_health(db)
-        api_accessible = health_result["healthy"]
-
-        # Determine overall health
-        overall_healthy = config_complete and service_initialized and api_accessible
-
-        return {
-            "healthy": overall_healthy,
-            "provider": "leancloud",
-            "error": health_result["error"] if not overall_healthy else None,
-            "checked_at": health_result["checked_at"],
-            "details": {
-                "config_complete": config_complete,
-                "service_initialized": service_initialized,
-                "api_accessible": api_accessible,
-            },
-        }
-
-    except Exception as e:
-        error_msg = f"Status check failed: {e!s}"
-        logger.error(
-            "message_service_status_check_error",
-            error=str(e),
-            error_type=type(e).__name__,
-            exc_info=True,
-        )
-
-        return {
-            "healthy": False,
-            "provider": "unknown",
-            "error": error_msg,
-            "checked_at": int(datetime.now(UTC).timestamp() * 1000),
-            "details": {
-                "config_complete": False,
-                "service_initialized": False,
-                "api_accessible": False,
-            },
-        }
+    """Alias for admin/status consumers."""
+    return await check_message_service_health(db)

@@ -3,15 +3,6 @@
 This module imports all message-related Pydantic schemas.
 """
 
-# Message schemas
-from .leancloud import (
-    LeanCloudBootstrapConfig,
-    LeanCloudBootstrapPresence,
-    LeanCloudBootstrapRequest,
-    LeanCloudBootstrapResponse,
-    LeanCloudBootstrapSignature,
-)
-
 # Media schemas
 from .media import (
     MediaFileBase,
@@ -36,15 +27,16 @@ from .offline import (
     OfflineMessageItem,
     OfflineMessagesResponse,
 )
+from .ws_session import (
+    MessageWSPresencePayload,
+    MessageWSSessionAuth,
+    MessageWSSessionBootstrapResponse,
+    MessageWSSessionPayload,
+    MessageWSSessionTicketRequest,
+)
 
 # Export all message schemas
 __all__ = [
-    # Message session
-    "LeanCloudBootstrapRequest",
-    "LeanCloudBootstrapResponse",
-    "LeanCloudBootstrapConfig",
-    "LeanCloudBootstrapPresence",
-    "LeanCloudBootstrapSignature",
     # Media
     "MediaFileBase",
     "MediaFileUpload",
@@ -63,4 +55,10 @@ __all__ = [
     "OfflineMessageAckResponse",
     "OfflineMessageItem",
     "OfflineMessagesResponse",
+    # WebSocket session bootstrap
+    "MessageWSSessionTicketRequest",
+    "MessageWSSessionAuth",
+    "MessageWSSessionPayload",
+    "MessageWSPresencePayload",
+    "MessageWSSessionBootstrapResponse",
 ]

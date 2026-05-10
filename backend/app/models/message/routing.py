@@ -114,7 +114,7 @@ class MessageEndpoint(SnowflakeModel):
     target_key: Mapped[str] = mapped_column(
         String(256),
         nullable=False,
-        comment="Deliver target identifier (websocket=device_id; leancloud=client_id)",
+        comment="Deliver target identifier (websocket=device_id)",
     )
 
     client_kind: Mapped[int | None] = mapped_column(
@@ -125,6 +125,16 @@ class MessageEndpoint(SnowflakeModel):
 
     lease_expires_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True, comment="Endpoint lease expiry time"
+    )
+    owner_instance_id: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+        comment="Current owner instance ID for websocket connection routing",
+    )
+    owner_lease_expires_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=True,
+        comment="Owner instance lease expiry time",
     )
 
     last_seen_at: Mapped[datetime | None] = mapped_column(
@@ -159,6 +169,8 @@ class MessageEndpoint(SnowflakeModel):
         Index("idx_message_endpoints_provider", "provider"),
         Index("idx_message_endpoints_scope", "endpoint_scope"),
         Index("idx_message_endpoints_lease_expires_at", "lease_expires_at"),
+        Index("idx_message_endpoints_owner_instance_id", "owner_instance_id"),
+        Index("idx_message_endpoints_owner_lease_expires_at", "owner_lease_expires_at"),
         Index(
             "uq_message_endpoints_provider_user_device_scope",
             "provider",

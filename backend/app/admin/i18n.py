@@ -11,24 +11,6 @@ _PLURAL_IES_SUFFIX_LEN = 3
 _MIN_PLURAL_IES_WORD_LEN = 3
 _MIN_PLURAL_S_WORD_LEN = 1
 
-_LEANCLOUD_CALLBACK_HINT = (
-    "Configure this URL in LeanCloud console: Developer Center > IM > Settings > "
-    "Service Account Callback"
-)
-_WEBHOOK_REGEN_NOTICE = (
-    "Regenerating the token will invalidate the current webhook URL. "
-    "You must update the URL in LeanCloud console immediately."
-)
-_SYSTEM_CONVERSATION_REGEN_WARNING = (
-    "WARNING: This will create a new system conversation and invalidate the old one!\n\n"
-    "You should update any references to the old conversation ID.\n\nContinue?"
-)
-_WEBHOOK_REGEN_WARNING = (
-    "WARNING: This will invalidate the current webhook URL!\n\n"
-    "You MUST update the webhook URL in LeanCloud console immediately after "
-    "regeneration.\n\nContinue?"
-)
-
 _ADMIN_TEXT_MAP: dict[str, tuple[str, str]] = {
     "Users": ("用户", "Users"),
     "Messages": ("消息", "Messages"),
@@ -46,28 +28,11 @@ _ADMIN_TEXT_MAP: dict[str, tuple[str, str]] = {
     "System Settings": ("系统设置", "System Settings"),
     "Operation Settings": ("运营设置", "Operation Settings"),
     "System Management": ("系统管理", "System Management"),
-    "LeanCloud System": ("LeanCloud 系统", "LeanCloud System"),
-    "System Conversation ID": ("系统会话 ID", "System Conversation ID"),
     "App ID": ("App ID", "App ID"),
     "Master Key": ("Master Key", "Master Key"),
     "Base URL": ("基础 URL", "Base URL"),
     "Configuration Status": ("配置状态", "Configuration Status"),
-    "Regenerate Conversation": ("重新生成会话", "Regenerate Conversation"),
-    "Webhook Management": ("Webhook 管理", "Webhook Management"),
-    "Webhook URL": ("Webhook URL", "Webhook URL"),
-    "Token Status": ("Token 状态", "Token Status"),
-    "Token generated": ("Token 已生成", "Token generated"),
-    "Token not generated": ("Token 未生成", "Token not generated"),
     "characters": ("字符", "characters"),
-    _LEANCLOUD_CALLBACK_HINT: (
-        "请在 LeanCloud 控制台配置此 URL：开发者中心 > 即时通讯 > 设置 > 服务号消息回调",
-        _LEANCLOUD_CALLBACK_HINT,
-    ),
-    _WEBHOOK_REGEN_NOTICE: (
-        "重新生成 Token 会使当前 webhook URL 失效。你必须立即在 LeanCloud 控制台更新 URL。",
-        _WEBHOOK_REGEN_NOTICE,
-    ),
-    "Regenerate Token": ("重新生成 Token", "Regenerate Token"),
     "Warning:": ("警告：", "Warning:"),
     "The following configuration keys are not displayed in the UI:": (
         "以下配置键未在页面中显示：",
@@ -108,37 +73,8 @@ _ADMIN_TEXT_MAP: dict[str, tuple[str, str]] = {
         "重新加载 CDN 配置会清空所有 worker 缓存。\n\n是否立即应用最新域名？",
         "Reload CDN config will clear caches on all workers.\n\nApply the latest domain now?",
     ),
-    "Conversation ID copied!": ("会话 ID 已复制！", "Conversation ID copied!"),
-    "Failed to copy": ("复制失败", "Failed to copy"),
-    _SYSTEM_CONVERSATION_REGEN_WARNING: (
-        "警告：这会创建新的系统会话并使旧会话失效！\n\n"
-        "你应更新所有旧会话 ID 的引用。\n\n是否继续？",
-        _SYSTEM_CONVERSATION_REGEN_WARNING,
-    ),
-    "System conversation regenerated successfully!": (
-        "系统会话重新生成成功！",
-        "System conversation regenerated successfully!",
-    ),
-    "New ID": ("新 ID", "New ID"),
     "Failed:": ("失败：", "Failed:"),
-    "Failed to regenerate conversation": ("重新生成会话失败", "Failed to regenerate conversation"),
-    "Webhook URL copied to clipboard!": (
-        "Webhook URL 已复制到剪贴板！",
-        "Webhook URL copied to clipboard!",
-    ),
-    "Failed to copy URL": ("复制 URL 失败", "Failed to copy URL"),
-    _WEBHOOK_REGEN_WARNING: (
-        "警告：这会使当前 webhook URL 失效！\n\n"
-        "重新生成后你必须立即在 LeanCloud 控制台更新 webhook URL。\n\n是否继续？",
-        _WEBHOOK_REGEN_WARNING,
-    ),
-    "Token regenerated successfully!": ("Token 重新生成成功！", "Token regenerated successfully!"),
-    "New webhook URL has been loaded.": (
-        "新的 webhook URL 已加载。",
-        "New webhook URL has been loaded.",
-    ),
     "Unknown error": ("未知错误", "Unknown error"),
-    "Failed to regenerate token": ("重新生成 Token 失败", "Failed to regenerate token"),
     "Permission denied": ("无权限", "Permission denied"),
     "Admin user not found in session": (
         "会话中未找到管理员用户",
@@ -406,7 +342,6 @@ _CONFIG_GROUP_TEXT_MAP: dict[str, tuple[str, str]] = {
     "auth": ("认证", "Auth"),
     "api": ("接口", "API"),
     "messaging": ("消息", "Messaging"),
-    "im_leancloud": ("即时通讯 LeanCloud", "IM LeanCloud"),
     "admin_auth": ("管理员认证", "Admin Auth"),
     "auth_password": ("密码认证", "Password Auth"),
     "username": ("用户名", "Username"),

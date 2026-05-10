@@ -19,14 +19,9 @@ from app.admin.i18n import (
 from app.crud.system import system_configs
 from app.enums import AdminRole, ConfigShape
 from app.services.media.config import refresh_media_base_url
-from app.services.message.providers.leancloud.config import get_leancloud_config_status
-from app.services.message.providers.leancloud.url_builder import (
-    build_leancloud_webhook_url,
-)
 from app.services.storage.factory import reload_storage_backend
 from app.services.system_config import (
     SystemConfigService,
-    get_config,
     get_configs_by_group_with_scope,
 )
 from app.services.system_settings_validation import validate_operation_config_updates
@@ -119,32 +114,7 @@ class SystemSettingsView(CustomView):
                     editable_config_keys.add(config_key)
                     editable_configs[config_key] = config
 
-            show_system_management = "operation" not in self._scopes
-            webhook_url = None
-            webhook_token = None
-            conversation_id = None
-            leancloud_status = {
-                "configured": False,
-                "has_app_id": False,
-                "has_master_key": False,
-                "has_base_url": False,
-            }
-            if show_system_management:
-                webhook_token = await get_config(
-                    db, key="leancloud_im_webhook_token", required=False
-                )
-                api_base_url = await get_config(db, key="api_base_url", required=False)
-                conversation_id = await get_config(
-                    db, key="leancloud_im_service_conversation_id", required=False
-                )
-                leancloud_status = await get_leancloud_config_status(db)
-                if webhook_token and api_base_url:
-                    webhook_url = build_leancloud_webhook_url(
-                        api_base_url=str(api_base_url),
-                        webhook_token=str(webhook_token),
-                    )
-
-            context = {
+            context: dict[str, Any] = {
                 "request": request,
                 "success": None,
                 "error": None,
@@ -152,14 +122,8 @@ class SystemSettingsView(CustomView):
                 "config_groups": config_groups,
                 "missing_configs": [],
                 "page_title": self._build_page_title(),
-                "show_system_management": show_system_management,
                 "config_section_title": self._build_config_section_title(),
                 "can_write_invitation_policy": self._can_write_invitation_policy(request),
-                "webhook_url": webhook_url,
-                "webhook_token": webhook_token,
-                "token_length": len(webhook_token) if webhook_token else 0,
-                "conversation_id": conversation_id,
-                "leancloud_config": leancloud_status,
                 "field_errors": {},
             }
 
@@ -362,26 +326,6 @@ class SystemSettingsView(CustomView):
                 config_groups = await get_configs_by_group_with_scope(db, scopes=self._scopes)
                 self._localize_config_groups(config_groups)
                 context["config_groups"] = config_groups
-                if context["show_system_management"]:
-                    webhook_token = await get_config(
-                        db, key="leancloud_im_webhook_token", required=False
-                    )
-                    api_base_url = await get_config(db, key="api_base_url", required=False)
-                    conversation_id = await get_config(
-                        db, key="leancloud_im_service_conversation_id", required=False
-                    )
-                    leancloud_status = await get_leancloud_config_status(db)
-                    webhook_url = None
-                    if webhook_token and api_base_url:
-                        webhook_url = build_leancloud_webhook_url(
-                            api_base_url=str(api_base_url),
-                            webhook_token=str(webhook_token),
-                        )
-                    context["webhook_url"] = webhook_url
-                    context["webhook_token"] = webhook_token
-                    context["token_length"] = len(webhook_token) if webhook_token else 0
-                    context["conversation_id"] = conversation_id
-                    context["leancloud_config"] = leancloud_status
 
             return templates.TemplateResponse(self._template_name(), context)
 
@@ -395,19 +339,8 @@ class SystemSettingsView(CustomView):
                 "config_groups": {},
                 "missing_configs": [],
                 "page_title": self._build_page_title(),
-                "show_system_management": "operation" not in self._scopes,
                 "config_section_title": self._build_config_section_title(),
                 "can_write_invitation_policy": self._can_write_invitation_policy(request),
-                "webhook_url": None,
-                "webhook_token": None,
-                "token_length": 0,
-                "conversation_id": None,
                 "field_errors": {},
-                "leancloud_config": {
-                    "configured": False,
-                    "has_app_id": False,
-                    "has_master_key": False,
-                    "has_base_url": False,
-                },
             }
             return templates.TemplateResponse(self._template_name(), context)

@@ -17,25 +17,24 @@ export interface BusinessMessagePayload {
   data?: Record<string, unknown> | null;
 }
 
-export type MessageSignature = {
-  signature: string;
-  timestamp: number;
-  nonce: string;
+export type MessageAuthPayload = {
+  wsTicket: string;
+  issuedAtMs: number;
+  deviceId: string;
 };
 
-export type LeanCloudConnectConfig = {
-  app_id: string;
-  app_key: string;
+export type MessageConnectConfig = {
+  provider: string;
   server_url: string;
   config_version: string;
-  im_conv_id: string;
+  session_hint: string;
 };
 
 export type AdapterMessageStatus = (typeof MESSAGE_STATUS)[keyof typeof MESSAGE_STATUS];
 
 export interface AdapterSendResult extends BusinessMessagePayload {
-  lc_msg_id: string;
-  lc_timestamp: number;
+  provider_msg_id: string;
+  provider_timestamp_ms: number;
 }
 
 export interface AdapterMessage extends AdapterSendResult {
@@ -53,17 +52,13 @@ export type AdapterTypingPayload = {
 export type ConnectionState = 'connected' | 'connecting' | 'disconnected' | 'suspending';
 
 export interface MessageAdapter {
-  connect(
-    userId: string,
-    signature: MessageSignature,
-    config: LeanCloudConnectConfig
-  ): Promise<void>;
+  connect(userId: string, auth: MessageAuthPayload, config: MessageConnectConfig): Promise<void>;
   disconnect(): Promise<void>;
-  sendMessage(message: BusinessMessagePayload, imConvId: string): Promise<AdapterSendResult>;
+  sendMessage(message: BusinessMessagePayload, sessionHint: string): Promise<AdapterSendResult>;
   onMessage(handler: (message: AdapterMessage) => void): void;
   onTyping(handler: (payload: AdapterTypingPayload) => void): void;
   onError(handler: (error: Error) => void): void;
   onConnectionChange(handler: (state: ConnectionState) => void): void;
-  invalidateConversation?(imConvId?: string | null): void;
+  invalidateConversation?(sessionHint?: string | null): void;
   isConnected(): boolean;
 }

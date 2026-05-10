@@ -30,7 +30,6 @@ SET config_value = CASE
     updated_at = NOW()
 FROM (
     VALUES
-        ('leancloud_im_server_url', 'https://ktrhvz9t.lc-cn-n1-shared.com'),
         ('api_base_url', ''),
         ('media_public_base_url', ''),
         ('api_rate_limit_requests', '100'),

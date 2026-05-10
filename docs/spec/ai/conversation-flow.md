@@ -12,7 +12,7 @@
 - 关系计算：[`relationship-system.md`](relationship-system.md)
 - 业务告警：[`../alerting.md`](../alerting.md)
 - 消息发送：[`message-sending.md`](message-sending.md)
-- Provider 传递：[`../message/leancloud.md`](../message/leancloud.md)、[`../message/websocket.md`](../message/websocket.md)
+- Provider 传递：[`../message/websocket.md`](../message/websocket.md)
 - 失败投递：[`../message/failure-handling.md`](../message/failure-handling.md)
 
 ## 主流程
@@ -35,11 +35,11 @@
 
 ### 阶段 1：消息接收
 
-- 入口为统一入站消息事件（由 Provider 适配产生），支持 LeanCloud Webhook 与 WebSocket。
+- 入口为统一入站消息事件（由 WebSocket Provider 适配产生）。
 - 必须完成 token 校验、消息格式校验、解密（如启用）。
 - 验证失败必须终止流程，消息不得进入上下文与缓冲。
 
-详见：[`../message/leancloud.md`](../message/leancloud.md)、[`../message/websocket.md`](../message/websocket.md)
+详见：[`../message/websocket.md`](../message/websocket.md)
 
 ### 阶段 2：安全检测
 

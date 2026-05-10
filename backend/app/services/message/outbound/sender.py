@@ -3,30 +3,35 @@
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
+from datetime import UTC, datetime
 
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.contact import contact as contact_crud
 from app.crud.message import notification_push_history as notification_crud
-from app.enums import MessageType
+from app.crud.user import user as user_crud
+from app.enums import MessageDeliveryStatus, MessageTransportProvider, MessageType
+from app.models.message import MessageEndpoint
 from app.schemas.message import NotificationActionData
+from app.services.message.dispatch.delivery_records import upsert_delivery
 from app.services.message.dispatch.outbox import enqueue_timeline_fanout
 from app.services.message.dispatch.realtime import fanout_typing_event
-from app.services.message.providers.factory import get_default_provider
 from app.services.message.schemas import EventMetadata, OutboundMessageEvent
 from app.services.message.security.encryption import encrypt_for_transport
 from app.services.message.storage.persistence import store_message as store_message_to_db
+from app.services.message.websocket.manager import ws_manager
 from app.type_defs import JSONDict, JSONValue
 from app.utils.logging import get_logger
 from app.utils.snowflake import generate_snowflake_id
 
-if TYPE_CHECKING:
-    from app.services.message.providers.base import MessageResult
-
 logger = get_logger(__name__)
 
 _TIMELINE_MESSAGE_TYPES = {MessageType.TEXT, MessageType.CHAT_INFO}
+
+
+def _now_utc() -> datetime:
+    return datetime.now(UTC)
 
 
 def _extract_notification_type(extra_fields: JSONDict | None) -> int | None:
@@ -45,53 +50,6 @@ def _build_event_metadata(
         action=action,
         notification_type=_extract_notification_type(extra_fields),
     )
-
-
-async def _send_message_internal(
-    db: AsyncSession,
-    *,
-    from_qiao_id: str,
-    to_qiao_id: str,
-    conv_id: str,
-    content: str,
-    message_type: int,
-    sent_at_ms: int,
-    action: JSONDict | None = None,
-    extra_fields: JSONDict | None = None,
-    msg_id: str | None = None,
-) -> tuple[MessageResult, JSONDict]:
-    """Send immediately via default provider (used for non-timeline events)."""
-    if not isinstance(msg_id, str) or not msg_id:
-        raise ValueError("msg_id is required for outbound provider send.")
-
-    provider = get_default_provider(db)
-    encrypted_content, encryption_meta = encrypt_for_transport(content)
-    merged_extra_fields = dict(extra_fields or {})
-    merged_extra_fields.update(encryption_meta)
-    merged_extra_fields["sent_time"] = sent_at_ms
-
-    if from_qiao_id == "system":
-        result = await provider.send_message_as_system(
-            to_qiao_id=to_qiao_id,
-            conv_id=conv_id,
-            content=encrypted_content,
-            message_type=message_type,
-            action=action,
-            extra_fields=merged_extra_fields,
-            msg_id=msg_id,
-        )
-    else:
-        result = await provider.send_message(
-            from_qiao_id=from_qiao_id,
-            to_qiao_id=to_qiao_id,
-            conv_id=conv_id,
-            content=encrypted_content,
-            message_type=message_type,
-            extra_fields=merged_extra_fields,
-            msg_id=msg_id,
-        )
-
-    return result, encryption_meta
 
 
 async def fanout_realtime_typing_best_effort(
@@ -211,12 +169,70 @@ async def send_notification(
     notification_type: int,
     action_data: NotificationActionData,
 ) -> None:
-    """Send notification (not part of timeline outbox dispatch)."""
+    """Send notification event through websocket delivery command chain."""
+
+    msg_id_server = f"msg_{generate_snowflake_id()}"
+    sent_at_ms = int(time.time() * 1000)
+    content, _ = encrypt_for_transport(action_data.data.message)
+    notification_message: dict[str, JSONValue] = {
+        "msg_id_server": msg_id_server,
+        "msg_id_client": None,
+        "conversation_id": "",
+        "from_qiao_id": "system",
+        "to_qiao_id": to_qiao_id,
+        "content": content,
+        "message_type": int(MessageType.NOTIFICATION),
+        "client_sent_time_ms": None,
+        "sent_time_ms": sent_at_ms,
+        "metadata": {
+            "action": action_data.action.model_dump(mode="json"),
+            "notification_type": notification_type,
+            "data": action_data.data.model_dump(mode="json"),
+        },
+    }
+
+    owner_user = await user_crud.get_by_qiao_id(db, qiao_id=to_qiao_id)
+    owner_user_id = int(owner_user.id) if owner_user is not None else None
+
+    if owner_user_id is None:
+        notification = await notification_crud.create_notification(
+            db,
+            to_qiao_id=to_qiao_id,
+            notification_type=notification_type,
+            action_data=action_data.model_dump(mode="json"),
+            msg_id_server=msg_id_server,
+            planned_endpoint_count=0,
+        )
+        await notification_crud.mark_as_failed(
+            db,
+            notification_id=notification.id,
+            error_message="Recipient user not found",
+        )
+        logger.error("notification_send_failed_user_not_found", to_qiao_id=to_qiao_id)
+        return
+
+    now = _now_utc()
+    endpoints_result = await db.execute(
+        select(MessageEndpoint).where(
+            and_(
+                MessageEndpoint.user_id == owner_user_id,
+                MessageEndpoint.provider == MessageTransportProvider.WEBSOCKET,
+                or_(
+                    MessageEndpoint.lease_expires_at.is_(None),
+                    MessageEndpoint.lease_expires_at > now,
+                ),
+            )
+        )
+    )
+    endpoints = list(endpoints_result.scalars().all())
+
     notification = await notification_crud.create_notification(
         db,
         to_qiao_id=to_qiao_id,
         notification_type=notification_type,
         action_data=action_data.model_dump(mode="json"),
+        msg_id_server=msg_id_server,
+        planned_endpoint_count=len(endpoints),
     )
 
     logger.info(
@@ -224,41 +240,93 @@ async def send_notification(
         notification_id=notification.id,
         to_qiao_id=to_qiao_id,
         notification_type=notification_type,
+        planned_endpoint_count=len(endpoints),
     )
 
-    msg_id_server = f"msg_{generate_snowflake_id()}"
-    sent_at_ms = int(time.time() * 1000)
-
-    notification_payload: dict[str, JSONValue] = {
-        "notification_type": notification_type,
-        "data": action_data.data.model_dump(mode="json"),
-    }
-    fallback_content = action_data.data.message
-
-    result, _ = await _send_message_internal(
-        db=db,
-        from_qiao_id="system",
-        to_qiao_id=to_qiao_id,
-        conv_id="",
-        content=fallback_content,
-        message_type=MessageType.NOTIFICATION,
-        sent_at_ms=sent_at_ms,
-        action=action_data.action.model_dump(mode="json"),
-        extra_fields=notification_payload,
-        msg_id=msg_id_server,
-    )
-
-    if not result.success:
+    if not endpoints:
         await notification_crud.mark_as_failed(
             db,
             notification_id=notification.id,
-            error_message=result.error_message or "Unknown error",
+            error_message="No active websocket endpoint",
         )
         logger.error(
             "notification_send_failed",
             notification_id=notification.id,
             to_qiao_id=to_qiao_id,
-            error=result.error_message,
+            error="No active websocket endpoint",
+        )
+        return
+
+    frame_base = {
+        "type": "event",
+        "payload": {
+            "event_type": "message",
+            "message": notification_message,
+        },
+    }
+    send_failed_count = 0
+    for endpoint in endpoints:
+        frame = {**frame_base, "ws_frame_id": f"evt_notify_{msg_id_server}_{endpoint.id}"}
+        try:
+            ok = await ws_manager.send_json(int(endpoint.id), frame)
+            if not ok:
+                await ws_manager.unregister(int(endpoint.id))
+                send_failed_count += 1
+                await upsert_delivery(
+                    db,
+                    msg_id_server=msg_id_server,
+                    endpoint=endpoint,
+                    status=MessageDeliveryStatus.FAILED,
+                    provider_msg_id=None,
+                    failed_reason_code="WS_SEND_FAILED",
+                    failed_detail="WebSocket endpoint send failed",
+                )
+                continue
+
+            await upsert_delivery(
+                db,
+                msg_id_server=msg_id_server,
+                endpoint=endpoint,
+                status=MessageDeliveryStatus.DISPATCHED,
+                provider_msg_id=msg_id_server,
+                failed_reason_code=None,
+                failed_detail=None,
+            )
+        except Exception:
+            send_failed_count += 1
+            await upsert_delivery(
+                db,
+                msg_id_server=msg_id_server,
+                endpoint=endpoint,
+                status=MessageDeliveryStatus.FAILED,
+                provider_msg_id=None,
+                failed_reason_code="WS_SEND_FAILED",
+                failed_detail="WebSocket endpoint send failed",
+            )
+            logger.exception(
+                "notification_delivery_send_failed",
+                notification_id=notification.id,
+                endpoint_id=int(endpoint.id),
+            )
+
+    await db.commit()
+    await notification_crud.refresh_delivery_progress(
+        db,
+        notification_id=int(notification.id),
+        msg_id_server=msg_id_server,
+    )
+
+    if send_failed_count >= len(endpoints):
+        await notification_crud.mark_as_failed(
+            db,
+            notification_id=notification.id,
+            error_message="No active websocket endpoint delivery succeeded",
+        )
+        logger.error(
+            "notification_send_failed",
+            notification_id=notification.id,
+            to_qiao_id=to_qiao_id,
+            endpoint_count=len(endpoints),
         )
         return
 
@@ -268,4 +336,6 @@ async def send_notification(
         to_qiao_id=to_qiao_id,
         notification_type=notification_type,
         msg_id=msg_id_server,
+        endpoint_count=len(endpoints),
+        send_failed_count=send_failed_count,
     )

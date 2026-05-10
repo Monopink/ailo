@@ -22,10 +22,10 @@ declare global {
       tags?: string[];
     }
 
-    interface MessageSignature {
-      signature: string;
-      timestamp: number;
-      nonce: string;
+    interface MessageAuthPayload {
+      wsTicket: string;
+      issuedAtMs: number;
+      deviceId: string;
     }
 
     interface MessagePayload {
@@ -40,20 +40,25 @@ declare global {
       supports_typing: boolean;
       sent_time: number;
       status?: number;
+      failure_category?: string | null;
+      failure_reason?: string | null;
+      retryable?: boolean | null;
       action?: Record<string, unknown> | string | null;
       notification_type?: number | string | null;
       data?: Record<string, unknown> | null;
-      lc_msg_id?: string;
-      lc_timestamp?: number;
+      provider_msg_id?: string;
+      provider_timestamp_ms?: number;
     }
 
     interface TypingEvent {
       conv_id: string;
       from_qiao_id: QiaoID;
       to_qiao_id: QiaoID;
-      typing: boolean;
-      timestamp: number;
+      isTyping: boolean;
+      sent_time: number;
     }
+
+    type MessageConnectionState = 'connected' | 'connecting' | 'disconnected' | 'suspending';
 
     interface ConversationSummary {
       convId: string;
@@ -66,21 +71,21 @@ declare global {
     interface MessageAdapter {
       connect(
         userId: QiaoID,
-        signature: MessageSignature,
+        auth: MessageAuthPayload,
         config: {
-          app_id: string;
-          app_key: string;
+          provider: string;
           server_url: string;
           config_version: string;
-          im_conv_id: string;
+          session_hint: string;
         }
       ): Promise<void>;
       disconnect(): Promise<void>;
-      sendMessage(convId: string, message: Partial<MessagePayload>): Promise<MessagePayload>;
-      sendTyping(convId: string, typing: boolean): Promise<void>;
+      sendMessage(message: MessagePayload, sessionHint: string): Promise<MessagePayload>;
       onMessage(handler: (message: MessagePayload) => void): void;
       onTyping(handler: (payload: TypingEvent) => void): void;
       onError(handler: (error: unknown) => void): void;
+      onConnectionChange(handler: (state: MessageConnectionState) => void): void;
+      invalidateConversation?(sessionHint?: string | null): void;
       isConnected(): boolean;
     }
 

@@ -5,7 +5,7 @@
 - **语言**: TypeScript 5.3+
 - **运行时**: 微信小程序 (ES2020)
 - **UI组件库**: TDesign MiniProgram
-- **即时通讯**: Leancloud IM SDK
+- **即时通讯**: WebSocket 消息通道
 - **代码检查**: ESLint + @typescript-eslint + eslint-plugin-wxml
 - **代码格式化**: Prettier (TS/JS/JSON/WXSS)
 - **类型定义**: miniprogram-api-typings
@@ -22,7 +22,6 @@
 ### API 与数据
 - [API文档](../../docs/api/)
 - [数据字典](../../docs/data-dict/)
-- [Leancloud IM 文档](../../docs/references/leancloud-docs/)
 - [微信小程序官方文档](https://developers.weixin.qq.com/miniprogram/dev/framework/)
 
 ## 架构约束
@@ -66,16 +65,14 @@ frontend/mp-weixin/
 └── app.json            # 应用配置
 ```
 
-### Leancloud 集成规则
+### 消息通道集成规则
 
-- IM 客户端在 `app.ts` 中初始化
-- 全局使用唯一系统对话 ID
-- Leancloud 仅用于消息传输
+- WebSocket 客户端在 `app.ts` 中初始化
 - 消息发送: `utils/message/service.ts`
 - 消息接收: `app.ts` 监听，分发到各页面
 - 消息重试: 队列机制 (`utils/message/queue.ts`)
 - 会话状态: 本地存储 (`utils/message/conversation-store.ts`)
-- 禁止在 Leancloud 中存储业务逻辑
+- 禁止在消息通道中存储业务逻辑
 
 ## 编程规范
 

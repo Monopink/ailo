@@ -50,7 +50,7 @@
 
         <view class="contact-info__name-row">
           <text class="contact-info__name">{{displayName}}</text>
-          <gender-badge wx:if="{{contact.gender}}" gender="{{contact.gender}}" />
+          <gender-badge wx:if="{{contact.profile && contact.profile.gender}}" gender="{{contact.profile.gender}}" />
         </view>
 
         <text wx:if="{{usernameDisplay !== ''}}" class="contact-info__qiao-id">敲敲号：{{usernameDisplay}}</text>

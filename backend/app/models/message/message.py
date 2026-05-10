@@ -108,7 +108,7 @@ class MessageHistory(ImmutableSnowflakeModel):
     inbound_device_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         nullable=True,
-        comment="Inbound device_id (websocket only); leancloud inbound typically null",
+        comment="Inbound device_id (websocket inbound only)",
     )
 
     message_metadata: Mapped[JSONDict | None] = mapped_column(

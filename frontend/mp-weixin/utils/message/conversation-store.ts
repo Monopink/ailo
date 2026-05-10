@@ -5,21 +5,21 @@ import { bootstrapMessageSession } from '../message-signature';
 
 const logger = getLogger('ConversationStore');
 const STORAGE_KEY = 'message_session_state';
+const WS_TICKET_REFRESH_SKEW_MS = 15_000;
 
 type MessageSessionState = {
   config_version: string;
   session: {
     client_id: string;
-    app_id: string;
-    app_key: string;
+    provider: string;
     server_url: string;
-    im_conv_id: string;
-    signature: {
-      algorithm: string;
+    session_hint: string;
+    auth: {
+      scheme: string;
       version: string;
-      value: string;
-      timestamp: number;
-      nonce: string;
+      ws_ticket: string;
+      issued_at_ms: number;
+      device_id: string;
       expires_in_ms: number;
     };
   };
@@ -50,11 +50,10 @@ class ConversationStore {
         stored !== null &&
         stored !== undefined &&
         isNonEmptyString(stored.config_version) &&
-        isNonEmptyString(stored.session.im_conv_id) &&
-        isNonEmptyString(stored.session.app_id) &&
-        isNonEmptyString(stored.session.app_key) &&
+        isNonEmptyString(stored.session.session_hint) &&
+        isNonEmptyString(stored.session.provider) &&
         isNonEmptyString(stored.session.server_url) &&
-        isNonEmptyString(stored.session.signature.value)
+        isNonEmptyString(stored.session.auth.ws_ticket)
       ) {
         this.state = stored;
       }
@@ -127,41 +126,74 @@ class ConversationStore {
     return this.state;
   }
 
-  async getImConvId(): Promise<string> {
+  async getSessionHint(): Promise<string> {
     const state = await this.getState();
     if (state === null) {
       return '';
     }
-    return state.session.im_conv_id;
+    return state.session.session_hint;
   }
 
   async getConnectPayload(): Promise<{
     userId: string;
-    appId: string;
-    appKey: string;
+    provider: string;
     serverUrl: string;
-    imConvId: string;
-    signature: {
-      signature: string;
-      timestamp: number;
-      nonce: string;
+    sessionHint: string;
+    auth: {
+      wsTicket: string;
+      issuedAtMs: number;
+      deviceId: string;
     };
     configVersion: string;
   }> {
-    const state = await this.refresh();
+    const state = await this.resolveStateForConnect();
     return {
       userId: state.session.client_id,
-      appId: state.session.app_id,
-      appKey: state.session.app_key,
+      provider: state.session.provider,
       serverUrl: state.session.server_url,
-      imConvId: state.session.im_conv_id,
-      signature: {
-        signature: state.session.signature.value,
-        timestamp: state.session.signature.timestamp,
-        nonce: state.session.signature.nonce,
+      sessionHint: state.session.session_hint,
+      auth: {
+        wsTicket: state.session.auth.ws_ticket,
+        issuedAtMs: state.session.auth.issued_at_ms,
+        deviceId: state.session.auth.device_id,
       },
       configVersion: state.config_version,
     };
+  }
+
+  private shouldRefreshTicket(state: MessageSessionState, nowMs: number): boolean {
+    const auth = state.session.auth;
+    if (!isNonEmptyString(auth.ws_ticket)) {
+      return true;
+    }
+    if (!Number.isFinite(auth.issued_at_ms) || !Number.isFinite(auth.expires_in_ms)) {
+      return true;
+    }
+    const expiresAtMs = auth.issued_at_ms + auth.expires_in_ms;
+    const refreshAtMs = expiresAtMs - WS_TICKET_REFRESH_SKEW_MS;
+    return nowMs >= refreshAtMs;
+  }
+
+  private async resolveStateForConnect(): Promise<MessageSessionState> {
+    const nowMs = Date.now();
+    const current = this.state;
+    if (current !== null && !this.shouldRefreshTicket(current, nowMs)) {
+      return current;
+    }
+
+    try {
+      return await this.refresh();
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      if (current !== null && !this.shouldRefreshTicket(current, nowMs)) {
+        logger.warn('Message session refresh failed, fallback to cached ticket', {
+          errorMessage: err.message,
+          config_version: current.config_version,
+        });
+        return current;
+      }
+      throw err;
+    }
   }
 
   async refresh(): Promise<MessageSessionState> {
@@ -182,7 +214,7 @@ class ConversationStore {
       this.notify(nextState);
       logger.info('Message session refreshed', {
         config_version: response.config_version,
-        im_conv_id: response.session.im_conv_id,
+        session_hint: response.session.session_hint,
         client_id: response.session.client_id,
       });
       return nextState;

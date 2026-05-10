@@ -1046,108 +1046,6 @@ function setupQuickNav() {
   }
 }
 
-async function postJson(url, method) {
-  const response = await fetch(url, { method });
-  let data = null;
-  try {
-    data = await response.json();
-  } catch {
-    data = null;
-  }
-  return { ok: response.ok, data };
-}
-
-function setupSystemManagementActions(config, i18n) {
-  const conversationId = config.conversationId || '';
-  const webhookUrl = config.webhookUrl || '';
-  const api = config.api || {};
-
-  document.querySelectorAll('[data-system-action]').forEach((button) => {
-    button.addEventListener('click', async () => {
-      const action = button.getAttribute('data-system-action');
-      if (action === 'copy-conversation-id') {
-        try {
-          await navigator.clipboard.writeText(conversationId);
-          window.alert(t(i18n, 'conversationIdCopied', 'Conversation ID copied!'));
-        } catch {
-          window.alert(t(i18n, 'copyFailed', 'Failed to copy'));
-        }
-        return;
-      }
-
-      if (action === 'copy-webhook-url') {
-        try {
-          await navigator.clipboard.writeText(webhookUrl);
-          window.alert(t(i18n, 'webhookCopied', 'Webhook URL copied to clipboard!'));
-        } catch {
-          window.alert(t(i18n, 'copyUrlFailed', 'Failed to copy URL'));
-        }
-        return;
-      }
-
-      if (action === 'regenerate-conversation') {
-        const confirmed = window.confirm(
-          t(
-            i18n,
-            'confirmRegenerateConversation',
-            'WARNING: This will create a new system conversation and invalidate the old one.\n\nContinue?'
-          )
-        );
-        if (!confirmed) {
-          return;
-        }
-        try {
-          const result = await postJson(api.refreshConversation, 'POST');
-          if (result.ok && result.data && result.data.success) {
-            window.alert(
-              `✓ ${t(i18n, 'sysConversationRegenerated', 'System conversation regenerated successfully!')}\n\n${t(
-                i18n,
-                'newId',
-                'New ID'
-              )}: ${result.data.conversation_id}`
-            );
-            window.location.reload();
-            return;
-          }
-          const detail = result.data && result.data.error ? result.data.error : '';
-          window.alert(`✗ ${t(i18n, 'failedPrefix', 'Failed:')} ${detail}`);
-        } catch {
-          window.alert(`✗ ${t(i18n, 'regenerateConversationFailed', 'Failed to regenerate conversation')}`);
-        }
-        return;
-      }
-
-      if (action === 'regenerate-webhook-token') {
-        const confirmed = window.confirm(
-          t(i18n, 'confirmRegenerateToken', 'WARNING: This will invalidate the current webhook URL.\n\nContinue?')
-        );
-        if (!confirmed) {
-          return;
-        }
-        try {
-          const result = await postJson(api.regenerateWebhookToken, 'POST');
-          if (result.ok && result.data && result.data.success) {
-            window.alert(
-              `✓ ${t(i18n, 'tokenRegenerated', 'Token regenerated successfully!')}\n\n${
-                result.data.warning || ''
-              }\n\n${t(i18n, 'newWebhookLoaded', 'New webhook URL has been loaded.')}`
-            );
-            window.location.reload();
-            return;
-          }
-          const detail =
-            result.data && (result.data.error || result.data.detail)
-              ? result.data.error || result.data.detail
-              : t(i18n, 'unknownError', 'Unknown error');
-          window.alert(`✗ ${t(i18n, 'failedPrefix', 'Failed:')} ${detail}`);
-        } catch {
-          window.alert(`✗ ${t(i18n, 'regenerateTokenFailed', 'Failed to regenerate token')}`);
-        }
-      }
-    });
-  });
-}
-
 export function initSystemSettingsPage(config = {}) {
   const i18n = config.i18n || {};
 
@@ -1159,8 +1057,4 @@ export function initSystemSettingsPage(config = {}) {
     setupArrayEditor(editor, i18n);
   });
   focusFirstFieldError();
-
-  if (config.pageMode === 'system') {
-    setupSystemManagementActions(config, i18n);
-  }
 }

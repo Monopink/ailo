@@ -24,11 +24,18 @@ async def upsert_websocket_presence_endpoint(
     user_qiao_id: str,
     device_id: UUID,
     lease_ttl_seconds: int,
+    owner_instance_id: str,
+    owner_lease_ttl_seconds: int,
     client_kind: int | None = None,
 ) -> MessageEndpoint:
     """Create or renew WebSocket DEVICE-scope presence endpoint."""
     if lease_ttl_seconds <= 0:
         raise ValueError("lease_ttl_seconds must be positive")
+    if owner_lease_ttl_seconds <= 0:
+        raise ValueError("owner_lease_ttl_seconds must be positive")
+    normalized_owner_instance_id = owner_instance_id.strip()
+    if normalized_owner_instance_id == "":
+        raise ValueError("owner_instance_id must not be empty")
 
     return await _upsert_presence_endpoint(
         db,
@@ -39,34 +46,8 @@ async def upsert_websocket_presence_endpoint(
         target_key=str(device_id),
         device_id=device_id,
         lease_expires_at=_now_utc() + timedelta(seconds=lease_ttl_seconds),
-        client_kind=client_kind,
-    )
-
-
-async def upsert_leancloud_presence_endpoint(
-    db: AsyncSession,
-    *,
-    user_id: int,
-    user_qiao_id: str,
-    client_id: str,
-    lease_ttl_days: int,
-    client_kind: int | None = None,
-) -> MessageEndpoint:
-    """Create or renew LeanCloud USER-scope presence endpoint."""
-    if lease_ttl_days <= 0:
-        raise ValueError("lease_ttl_days must be positive")
-    if not client_id:
-        raise ValueError("client_id is required for LeanCloud presence")
-
-    return await _upsert_presence_endpoint(
-        db,
-        user_id=user_id,
-        user_qiao_id=user_qiao_id,
-        provider=MessageTransportProvider.LEANCLOUD,
-        endpoint_scope=MessageEndpointScope.USER,
-        target_key=client_id,
-        device_id=None,
-        lease_expires_at=_now_utc() + timedelta(days=lease_ttl_days),
+        owner_instance_id=normalized_owner_instance_id,
+        owner_lease_expires_at=_now_utc() + timedelta(seconds=owner_lease_ttl_seconds),
         client_kind=client_kind,
     )
 
@@ -81,6 +62,8 @@ async def _upsert_presence_endpoint(
     target_key: str,
     device_id: UUID | None,
     lease_expires_at: datetime,
+    owner_instance_id: str,
+    owner_lease_expires_at: datetime,
     client_kind: int | None,
 ) -> MessageEndpoint:
     now = _now_utc()
@@ -103,6 +86,8 @@ async def _upsert_presence_endpoint(
             device_id=device_id,
             client_kind=client_kind,
             lease_expires_at=lease_expires_at,
+            owner_instance_id=owner_instance_id,
+            owner_lease_expires_at=owner_lease_expires_at,
             now=now,
         )
         db.add(existing)
@@ -120,6 +105,8 @@ async def _upsert_presence_endpoint(
                 target_key=target_key,
                 client_kind=client_kind,
                 lease_expires_at=lease_expires_at,
+                owner_instance_id=owner_instance_id,
+                owner_lease_expires_at=owner_lease_expires_at,
                 last_seen_at=now,
             )
             db.add(endpoint)
@@ -148,6 +135,8 @@ async def _upsert_presence_endpoint(
         device_id=device_id,
         client_kind=client_kind,
         lease_expires_at=lease_expires_at,
+        owner_instance_id=owner_instance_id,
+        owner_lease_expires_at=owner_lease_expires_at,
         now=now,
     )
     db.add(endpoint_after_conflict)
@@ -188,6 +177,8 @@ def _apply_presence_update(
     device_id: UUID | None,
     client_kind: int | None,
     lease_expires_at: datetime,
+    owner_instance_id: str,
+    owner_lease_expires_at: datetime,
     now: datetime,
 ) -> None:
     endpoint.user_qiao_id = user_qiao_id
@@ -197,10 +188,11 @@ def _apply_presence_update(
     endpoint.device_id = device_id
     endpoint.client_kind = client_kind
     endpoint.lease_expires_at = lease_expires_at
+    endpoint.owner_instance_id = owner_instance_id
+    endpoint.owner_lease_expires_at = owner_lease_expires_at
     endpoint.last_seen_at = now
 
 
 __all__ = [
-    "upsert_leancloud_presence_endpoint",
     "upsert_websocket_presence_endpoint",
 ]

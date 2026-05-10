@@ -95,8 +95,19 @@ page {
   pointer-events: none;
 }
 
-/* Timestamp & Info Message */
-.chat-timestamp,
+/* Timestamp */
+.chat-timestamp {
+  align-self: center;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-placeholder);
+  line-height: var(--line-height-base);
+  text-align: center;
+  background-color: var(--color-bg-white);
+  border-radius: var(--radius-sm);
+}
+
+/* Info Message */
 .chat-info-msg {
   align-self: center;
   padding: var(--space-xs) var(--space-sm);
@@ -104,6 +115,8 @@ page {
   color: var(--color-text-placeholder);
   line-height: var(--line-height-base);
   text-align: center;
+  background-color: var(--color-bg-white);
+  border-radius: var(--radius-sm);
 }
 
 /* Message Row */
@@ -114,6 +127,10 @@ page {
 }
 
 .msg-row + .msg-row {
+  margin-top: var(--space-md);
+}
+
+.chat-info-msg + .msg-row {
   margin-top: var(--space-md);
 }
 
@@ -144,6 +161,7 @@ page {
   display: flex;
   align-items: center;
   justify-content: center;
+  align-self: center;
   width: var(--icon-sm);
   height: var(--icon-sm);
   color: var(--color-error);

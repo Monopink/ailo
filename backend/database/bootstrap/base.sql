@@ -97,11 +97,6 @@ VALUES
 ('default_nickname_suffix_length', '6', '6', 2, 'Random uppercase suffix length for system-generated profile nickname (>=1)', 'profile', NULL),
 ('username_reserved_words', '["admin","root","system","support","operator","moderator","service","official","help","security","qiaoqiaoai"]', 'admin', 1, 'Reserved usernames (lowercase), JSON array', 'username', NULL),
 
--- LeanCloud IM configurations
-('leancloud_im_server_url', 'https://zcuk19lc.lc-cn-n1-shared.com', '', 1, 'LeanCloud IM server URL', 'im_leancloud', NULL),
-('leancloud_im_service_conversation_id', '', '', 1, 'LeanCloud IM system conversation ID for message routing', 'im_leancloud', NULL),
-('leancloud_im_webhook_token', '', '', 1, 'LeanCloud IM webhook security token (24-character URL-safe string)', 'im_leancloud', NULL),
-
 -- API configurations
 ('api_base_url', 'http://localhost:8000', 'http://localhost:8000', 1, 'Base URL for API (e.g., https://example.com)', 'api', NULL),
 
@@ -234,7 +229,6 @@ ON CONFLICT (config_key) DO NOTHING;
 UPDATE system_configs
 SET config_scope = 'security'
 WHERE config_key IN (
-    'leancloud_im_webhook_token',
     'admin_auth_whitelist',
     'sms_whitelist'
 );

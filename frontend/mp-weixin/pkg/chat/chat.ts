@@ -14,7 +14,12 @@ import {
   type ChatHeaderViewModel,
   type ChatPageService,
 } from '../services/pages/chat-service';
-import { MESSAGE_STATUS, MESSAGE_TYPE, type MessageType } from '../../utils/constants/message';
+import {
+  MESSAGE_FAILURE_CATEGORY,
+  MESSAGE_STATUS,
+  MESSAGE_TYPE,
+  type MessageType,
+} from '../../utils/constants/message';
 import {
   addMessage,
   getConversationReadState,
@@ -26,7 +31,10 @@ import {
 import typingManager from '../utils/typing-manager';
 import conversationStore from '../../utils/message/conversation-store';
 import conversationPresenceStore from '../../utils/message/conversation-presence-store';
-import messageStateStore, { MessageStoreState } from '../utils/message/message-state-store';
+import messageStateStore, {
+  MessageStoreState,
+  type UpdateMessageStatusOptions,
+} from '../utils/message/message-state-store';
 import type { MessageViewModel } from '../utils/message/message-view-model';
 import { isNonEmptyString, firstNonEmptyString } from '../../utils/guards';
 import { normalizeError } from '../../utils/errors';
@@ -59,7 +67,7 @@ interface ChatPageData {
   navbarTitle: string;
   contactAvatar: string;
   contactQiaoId: string;
-  imConvId: string;
+  sessionHint: string;
   userAvatar: string;
   isAiContact: boolean;
   messages: ChatMessage[];
@@ -95,6 +103,8 @@ interface ChatPageCustom {
   errorSubscription: (() => void) | null;
   _sendRetried: boolean;
   _retryRefreshed: boolean;
+  _retryQueue: string[];
+  _retryQueueRunning: boolean;
   applyScreenModel(screenModel: ScreenModel): void;
   applyChatHeaderPatch(patch: Partial<ChatHeaderViewModel>): void;
   handleAuthInvalid(): Promise<void>;
@@ -112,7 +122,6 @@ interface ChatPageCustom {
   showErrorMessage(error: unknown): Promise<void>;
   refreshContactInfo(convId: string): Promise<void>;
   refreshConversationChannel(): Promise<string>;
-  handleInfoMessageAction(message: ChatMessage): void;
   loadMessages(): Promise<void>;
   onInputChange(event: InputEvent): void;
   onInputFocus(): void;
@@ -142,7 +151,12 @@ interface ChatPageCustom {
   onAvatarTap(event: WechatMiniprogram.BaseEvent): void;
   onNavbarTitleClick(): void;
   onRetryMessage(event: WechatMiniprogram.BaseEvent): Promise<void>;
-  updateMessageStatus(messageId: string, status: MessageStatus): void;
+  retryFailedMessageById(msgIdValue: string): Promise<boolean>;
+  updateMessageStatus(
+    messageId: string,
+    status: MessageStatus,
+    options?: UpdateMessageStatusOptions
+  ): void;
   onSendButtonTap(): Promise<void>;
   onEmojiButtonTap(): void;
   onEmojiSelect(event: WechatMiniprogram.BaseEvent): void;
@@ -166,6 +180,7 @@ interface ChatPageCustom {
   _initialScrollHandled: boolean;
   _persistViewStateTimer: number | null;
   _pendingMessageState: MessageStoreState | null;
+  _forceScrollOnNextMessageUpdate: boolean;
   _keyboardHeightChangeHandler: ((res: { height: number }) => void) | null;
   _rpxPerPx: number;
   _safeAreaInsetBottomRpx: number;
@@ -278,6 +293,16 @@ const resolveFirstUnreadMessageId = (
   return firstUnread?.msg_id ?? null;
 };
 
+const resolveLatestInfoMessageId = (messages: ChatMessage[]): string | null => {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (message.isInfoMessage && isNonEmptyString(message.msg_id)) {
+      return message.msg_id;
+    }
+  }
+  return null;
+};
+
 const buildPageLayoutScreenModelPayload = (screenModel: ScreenModel): Record<string, unknown> => ({
   'pageLayoutData.screenModel': screenModel,
 });
@@ -297,7 +322,7 @@ Page<ChatPageData, ChatPageCustom>({
     navbarTitle: '',
     contactAvatar: '',
     contactQiaoId: '',
-    imConvId: '',
+    sessionHint: '',
     userAvatar: '',
     isAiContact: false,
     messages: [] as ChatMessage[],
@@ -356,10 +381,13 @@ Page<ChatPageData, ChatPageCustom>({
   errorSubscription: null,
   _sendRetried: false,
   _retryRefreshed: false,
+  _retryQueue: [],
+  _retryQueueRunning: false,
   _pendingViewRestore: false,
   _initialScrollHandled: false,
   _persistViewStateTimer: null,
   _pendingMessageState: null,
+  _forceScrollOnNextMessageUpdate: false,
   _keyboardHeightChangeHandler: null,
   _rpxPerPx: 1,
   _safeAreaInsetBottomRpx: 0,
@@ -467,8 +495,8 @@ Page<ChatPageData, ChatPageCustom>({
     if (patch.isAiContact !== undefined) {
       payload.isAiContact = patch.isAiContact;
     }
-    if (patch.imConvId !== undefined) {
-      payload.imConvId = patch.imConvId;
+    if (patch.sessionHint !== undefined) {
+      payload.sessionHint = patch.sessionHint;
     }
     if (Object.keys(payload).length > 0) {
       this.setData(payload);
@@ -540,8 +568,25 @@ Page<ChatPageData, ChatPageCustom>({
       this._pendingMessageState = state;
       return;
     }
+    const latestInfoMessageId = resolveLatestInfoMessageId(state.messages);
+    const previousLatestInfoMessageId = resolveLatestInfoMessageId(this.data.messages);
+    const hasNewInfoMessage =
+      isNonEmptyString(latestInfoMessageId) && latestInfoMessageId !== previousLatestInfoMessageId;
+    if (hasNewInfoMessage) {
+      this.updateMessagesState(state.messages, {
+        extraData: { isAtBottom: true },
+      });
+      wx.nextTick(() => {
+        this.scrollToBottom(false);
+      });
+      return;
+    }
     const hasMessages = state.messages.length > 0;
-    const shouldScroll = this.data.isAtBottom && hasMessages;
+    const forceScroll = this._forceScrollOnNextMessageUpdate;
+    if (forceScroll) {
+      this._forceScrollOnNextMessageUpdate = false;
+    }
+    const shouldScroll = (this.data.isAtBottom || forceScroll) && hasMessages;
     if (shouldScroll) {
       const nextAnchorKey = this.data.scrollAnchorKey + 1;
       const shouldDisableAnimation = !this._initialScrollHandled;
@@ -793,12 +838,12 @@ Page<ChatPageData, ChatPageCustom>({
       navbarTitle: contactName,
       contactAvatar: viewModel.displayAvatar,
       contactQiaoId: viewModel.contactQiaoId,
-      imConvId: viewModel.imConvId,
+      sessionHint: viewModel.sessionHint,
     });
   },
 
   async refreshConversationChannel() {
-    const previousImConvId = this.data.imConvId;
+    const previousSessionHint = this.data.sessionHint;
     let messageService: Ailo.MessageService | null = null;
 
     try {
@@ -811,31 +856,31 @@ Page<ChatPageData, ChatPageCustom>({
     }
 
     if (messageService !== null && typeof messageService.invalidateConversation === 'function') {
-      await messageService.invalidateConversation(previousImConvId);
+      await messageService.invalidateConversation(previousSessionHint);
     }
 
     await this.refreshContactInfo(this.data.convId);
-    let nextImConvId = this.data.imConvId;
+    let nextSessionHint = this.data.sessionHint;
 
     try {
       const refreshedState = await conversationStore.refresh();
-      if (isNonEmptyString(refreshedState.session.im_conv_id)) {
-        nextImConvId = refreshedState.session.im_conv_id;
+      if (isNonEmptyString(refreshedState.session.session_hint)) {
+        nextSessionHint = refreshedState.session.session_hint;
       }
     } catch (error: unknown) {
       const err = normalizeError(error);
       logger.error('Failed to refresh conversation store', { error: err.message });
     }
 
-    this.setData({ imConvId: nextImConvId });
+    this.setData({ sessionHint: nextSessionHint });
 
     logger.info('Conversation channel refreshed', {
       convId: this.data.convId,
-      oldImConvId: previousImConvId,
-      imConvId: nextImConvId,
+      oldSessionHint: previousSessionHint,
+      sessionHint: nextSessionHint,
     });
 
-    return nextImConvId;
+    return nextSessionHint;
   },
 
   async refreshUserAvatar(forceRefresh = false) {
@@ -852,17 +897,6 @@ Page<ChatPageData, ChatPageCustom>({
       logger.warn('Load profile for avatar failed', {
         error: error instanceof Error ? error.message : String(error),
       });
-    }
-  },
-
-  handleInfoMessageAction(message: ChatMessage) {
-    const action = message.action as { type?: string; target_msg_id?: string } | null;
-    if (action === null) {
-      return;
-    }
-
-    if (action.type === 'mark_message_failed' && isNonEmptyString(action.target_msg_id)) {
-      this.updateMessageStatus(action.target_msg_id, MESSAGE_STATUS.FAILED);
     }
   },
 
@@ -905,10 +939,10 @@ Page<ChatPageData, ChatPageCustom>({
       this.handleMessageServiceError(error);
     });
     this.unsubscribeConversationStore = conversationStore.subscribe((state) => {
-      if (state === null || !isNonEmptyString(state.session.im_conv_id)) {
+      if (state === null || !isNonEmptyString(state.session.session_hint)) {
         return;
       }
-      this.setData({ imConvId: state.session.im_conv_id });
+      this.setData({ sessionHint: state.session.session_hint });
     });
 
     try {
@@ -1233,6 +1267,39 @@ Page<ChatPageData, ChatPageCustom>({
     if (failedMessage?.status !== MESSAGE_STATUS.FAILED) {
       return;
     }
+    if (!this._retryQueue.includes(msgIdValue)) {
+      this._retryQueue.push(msgIdValue);
+    }
+    if (this._retryQueueRunning) {
+      return;
+    }
+    this._retryQueueRunning = true;
+    try {
+      const processNextRetry = async (): Promise<void> => {
+        const nextMsgId = this._retryQueue.shift();
+        if (!isNonEmptyString(nextMsgId)) {
+          return;
+        }
+        const success = await this.retryFailedMessageById(nextMsgId);
+        if (!success) {
+          this._retryQueue = [];
+          return;
+        }
+        if (this._retryQueue.length > 0) {
+          await processNextRetry();
+        }
+      };
+      await processNextRetry();
+    } finally {
+      this._retryQueueRunning = false;
+    }
+  },
+
+  async retryFailedMessageById(msgIdValue: string): Promise<boolean> {
+    const failedMessage = this.data.messages.find((msg) => msg.msg_id === msgIdValue);
+    if (failedMessage?.status !== MESSAGE_STATUS.FAILED) {
+      return true;
+    }
 
     conversationPresenceStore.clearTyping(this.data.convId);
     typingManager.forceStopTyping(this.data.convId);
@@ -1260,6 +1327,9 @@ Page<ChatPageData, ChatPageCustom>({
         msg_id_client: newClientMsgId,
         sent_time: Date.now(),
         status: MESSAGE_STATUS.SENDING,
+        failure_category: null,
+        failure_reason: null,
+        retryable: null,
       };
 
       await messageStateStore.addOptimisticMessage(newMessage);
@@ -1280,6 +1350,7 @@ Page<ChatPageData, ChatPageCustom>({
         old_msg_id: msgIdValue,
         new_msg_id: newClientMsgId,
       });
+      return true;
     } catch (error: unknown) {
       const err = normalizeError(error);
       logger.error('Failed to retry message', { msg_id: msgIdValue, error: err.message });
@@ -1292,14 +1363,19 @@ Page<ChatPageData, ChatPageCustom>({
           newClientMsgId
         );
         if (retried === true) {
-          return;
+          return true;
         }
       }
 
       if (isNonEmptyString(newClientMsgId)) {
-        messageStateStore.updateMessageStatus(newClientMsgId, MESSAGE_STATUS.FAILED);
+        messageStateStore.updateMessageStatus(newClientMsgId, MESSAGE_STATUS.FAILED, {
+          failureCategory: MESSAGE_FAILURE_CATEGORY.TRANSPORT_FAILED,
+          failureReason: err.message,
+          retryable: true,
+        });
       }
       await this.showErrorMessage(err);
+      return false;
     }
   },
 
@@ -1316,13 +1392,16 @@ Page<ChatPageData, ChatPageCustom>({
     this._retryRefreshed = true;
     logger.info('Retry failed due to conversation not found, refreshing contact info', {
       convId: this.data.convId,
-      oldImConvId: this.data.imConvId,
+      oldSessionHint: this.data.sessionHint,
     });
 
     try {
-      const refreshedImConvId = await this.refreshConversationChannel();
-      const nextImConvId = firstNonEmptyString(refreshedImConvId, this.data.imConvId) ?? '';
-      logger.info('Contact info refreshed for retry, retrying send', { newImConvId: nextImConvId });
+      const refreshedSessionHint = await this.refreshConversationChannel();
+      const nextSessionHint =
+        firstNonEmptyString(refreshedSessionHint, this.data.sessionHint) ?? '';
+      logger.info('Contact info refreshed for retry, retrying send', {
+        newSessionHint: nextSessionHint,
+      });
 
       const userInfo = await getUserInfo();
       if (!isNonEmptyString(userInfo?.qiao_id)) {
@@ -1359,8 +1438,12 @@ Page<ChatPageData, ChatPageCustom>({
     showToast(friendly);
   },
 
-  updateMessageStatus(messageId: string, status: MessageStatus) {
-    messageStateStore.updateMessageStatus(messageId, status);
+  updateMessageStatus(
+    messageId: string,
+    status: MessageStatus,
+    options: UpdateMessageStatusOptions = {}
+  ) {
+    messageStateStore.updateMessageStatus(messageId, status, options);
   },
 
   async validateSendPreconditions(content: string): Promise<boolean> {
@@ -1372,13 +1455,13 @@ Page<ChatPageData, ChatPageCustom>({
       return false;
     }
 
-    const currentImConvId = await conversationStore.getImConvId();
+    const currentSessionHint = await conversationStore.getSessionHint();
     const hasContactQiaoId = isNonEmptyString(this.data.contactQiaoId);
-    const hasCurrentImConvId = isNonEmptyString(currentImConvId);
-    if (!hasContactQiaoId || !hasCurrentImConvId) {
+    const hasCurrentSessionHint = isNonEmptyString(currentSessionHint);
+    if (!hasContactQiaoId || !hasCurrentSessionHint) {
       logger.error('Missing contact info', {
         contactQiaoId: this.data.contactQiaoId,
-        imConvId: this.data.imConvId,
+        sessionHint: this.data.sessionHint,
       });
       await this.showErrorMessage('CONVERSATION_NOT_FOUND');
       return false;
@@ -1443,13 +1526,14 @@ Page<ChatPageData, ChatPageCustom>({
     this._sendRetried = true;
     logger.info('Conversation not found, refreshing contact info and retrying', {
       convId: this.data.convId,
-      oldImConvId: this.data.imConvId,
+      oldSessionHint: this.data.sessionHint,
     });
 
     try {
-      const refreshedImConvId = await this.refreshConversationChannel();
-      const nextImConvId = firstNonEmptyString(refreshedImConvId, this.data.imConvId) ?? '';
-      logger.info('Contact info refreshed, retrying send', { newImConvId: nextImConvId });
+      const refreshedSessionHint = await this.refreshConversationChannel();
+      const nextSessionHint =
+        firstNonEmptyString(refreshedSessionHint, this.data.sessionHint) ?? '';
+      logger.info('Contact info refreshed, retrying send', { newSessionHint: nextSessionHint });
 
       const userInfo = await getUserInfo();
       if (!isNonEmptyString(userInfo?.qiao_id)) {
@@ -1494,10 +1578,12 @@ Page<ChatPageData, ChatPageCustom>({
       }
 
       clientMsgId = buildClientMessageId();
+      this._forceScrollOnNextMessageUpdate = true;
       await this.appendOptimisticTextMessage(clientMsgId, userInfo.qiao_id, content);
       messageService = await ensureMessageService();
       await this.sendTextMessage(messageService, clientMsgId, userInfo.qiao_id, content);
     } catch (error: unknown) {
+      this._forceScrollOnNextMessageUpdate = false;
       const err = normalizeError(error);
       logger.error('Failed to send message', { error: err.message });
 
@@ -1513,7 +1599,11 @@ Page<ChatPageData, ChatPageCustom>({
       }
 
       if (isNonEmptyString(clientMsgId)) {
-        messageStateStore.updateMessageStatus(clientMsgId, MESSAGE_STATUS.FAILED);
+        messageStateStore.updateMessageStatus(clientMsgId, MESSAGE_STATUS.FAILED, {
+          failureCategory: MESSAGE_FAILURE_CATEGORY.TRANSPORT_FAILED,
+          failureReason: err.message,
+          retryable: true,
+        });
       }
       await this.showErrorMessage(err);
     }

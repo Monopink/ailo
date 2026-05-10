@@ -15,10 +15,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.config import get_settings
 from app.core.database import get_sessionmaker
 from app.crud.contact import contact as contact_crud
 from app.crud.user import user as user_crud
-from app.crud.user import user_token as token_crud
 from app.enums import DetectionSource
 from app.exceptions.error_codes import build_error_code
 from app.models.message import MessageDevice, MessageEndpoint, MessageHistory
@@ -33,6 +33,7 @@ from app.services.message.providers.websocket import (
     parse_typing_payload,
 )
 from app.services.message.websocket.manager import ws_manager
+from app.services.message.websocket.session_ticket import verify_ws_session_ticket
 from app.services.security import SecurityRequestContext, enforce_attack_scan, is_ip_blocked
 from app.utils.logging import get_logger
 
@@ -93,25 +94,19 @@ async def _send_error(ws: WebSocket, *, ws_frame_id: str, status_code: int, deta
     )
 
 
-async def _authenticate_access_token(db: AsyncSession, *, access_token: str) -> User | None:
-    user_token = await token_crud.get_by_access_token(db, token=access_token)
-    if not user_token:
-        return None
-    if user_token.status != 1 or user_token.access_revoked_at is not None:
-        return None
-    if user_token.access_expires_at < _now_utc():
+async def _authenticate_ws_ticket(db: AsyncSession, *, ws_ticket: str) -> tuple[User, UUID] | None:
+    claims = verify_ws_session_ticket(ws_ticket)
+    if claims is None:
         return None
 
-    user = await user_crud.get_by_qiao_id(db, qiao_id=user_token.user_qiao_id)
+    user = await user_crud.get_by_qiao_id(db, qiao_id=claims.user_qiao_id)
     if not user:
+        return None
+    if int(user.id) != claims.user_id:
         return None
     if not await user_crud.is_active(user):
         return None
-
-    user_token.last_activity_at = _now_utc()
-    db.add(user_token)
-    await db.flush()
-    return user
+    return user, claims.device_id
 
 
 async def _close_ws_with_error(
@@ -187,12 +182,15 @@ async def _upsert_presence_endpoint(
     device_id: UUID,
     lease_ttl_seconds: int,
 ) -> MessageEndpoint:
+    settings = get_settings()
     return await upsert_websocket_presence_endpoint(
         db,
         user_id=user_id,
         user_qiao_id=user_qiao_id,
         device_id=device_id,
         lease_ttl_seconds=lease_ttl_seconds,
+        owner_instance_id=settings.message_instance_id,
+        owner_lease_ttl_seconds=settings.MESSAGE_OWNER_LEASE_TTL_SECONDS,
     )
 
 
@@ -203,10 +201,11 @@ async def _handle_auth(  # noqa: PLR0911
     ws_frame_id: str,
     payload: dict[str, object],
 ) -> _WSContext | None:
-    access_token = payload.get("access_token")
+    ws_ticket = payload.get("ws_ticket")
     device_id = payload.get("device_id")
 
-    if not isinstance(access_token, str) or not access_token:
+    if not isinstance(ws_ticket, str) or not ws_ticket:
+        logger.warning("ws_auth_rejected_missing_ticket", ws_frame_id=ws_frame_id)
         await _close_ws_with_error(
             ws,
             ws_frame_id=ws_frame_id,
@@ -217,6 +216,7 @@ async def _handle_auth(  # noqa: PLR0911
         return None
 
     if not isinstance(device_id, str) or not device_id:
+        logger.warning("ws_auth_rejected_missing_device_id", ws_frame_id=ws_frame_id)
         await _close_ws_with_error(
             ws,
             ws_frame_id=ws_frame_id,
@@ -229,6 +229,11 @@ async def _handle_auth(  # noqa: PLR0911
     try:
         device_uuid = UUID(device_id)
     except ValueError:
+        logger.warning(
+            "ws_auth_rejected_invalid_device_id",
+            ws_frame_id=ws_frame_id,
+            device_id=device_id,
+        )
         await _close_ws_with_error(
             ws,
             ws_frame_id=ws_frame_id,
@@ -241,6 +246,11 @@ async def _handle_auth(  # noqa: PLR0911
     async with session_factory() as db:
         client_ip = _extract_ws_client_ip(ws)
         if client_ip and await is_ip_blocked(db, client_ip):
+            logger.warning(
+                "ws_auth_rejected_ip_blocked",
+                ws_frame_id=ws_frame_id,
+                client_ip=client_ip,
+            )
             await _close_ws_with_error(
                 ws,
                 ws_frame_id=ws_frame_id,
@@ -262,13 +272,19 @@ async def _handle_auth(  # noqa: PLR0911
                 user_qiao_id=None,
             ),
             fields={
-                "access_token": access_token,
+                "ws_ticket": ws_ticket,
                 "device_id": device_id,
                 "user_agent": ws.headers.get("user-agent", ""),
             },
             extra_evidence={"layer": "ws_messages"},
         )
         if match is not None:
+            logger.warning(
+                "ws_auth_rejected_attack_detected",
+                ws_frame_id=ws_frame_id,
+                client_ip=client_ip,
+                rule_code=match.rule_code,
+            )
             await _close_ws_with_error(
                 ws,
                 ws_frame_id=ws_frame_id,
@@ -278,8 +294,30 @@ async def _handle_auth(  # noqa: PLR0911
             )
             return None
 
-        user = await _authenticate_access_token(db, access_token=access_token)
-        if not user:
+        auth_result = await _authenticate_ws_ticket(db, ws_ticket=ws_ticket)
+        if auth_result is None:
+            logger.warning(
+                "ws_auth_rejected_ticket_invalid",
+                ws_frame_id=ws_frame_id,
+                client_ip=client_ip,
+            )
+            await _close_ws_with_error(
+                ws,
+                ws_frame_id=ws_frame_id,
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="登录失效",
+                close_code=1008,
+            )
+            return None
+        user, ticket_device_id = auth_result
+        if ticket_device_id != device_uuid:
+            logger.warning(
+                "ws_auth_rejected_device_mismatch",
+                ws_frame_id=ws_frame_id,
+                ticket_device_id=str(ticket_device_id),
+                requested_device_id=str(device_uuid),
+                user_id=int(user.id),
+            )
             await _close_ws_with_error(
                 ws,
                 ws_frame_id=ws_frame_id,
@@ -330,6 +368,7 @@ async def _handle_ping(
 ) -> None:
     async with session_factory() as db:
         lease_ttl_seconds = WS_PRESENCE_LEASE_TTL_SECONDS
+        settings = get_settings()
 
         endpoint = await upsert_websocket_presence_endpoint(
             db,
@@ -337,6 +376,8 @@ async def _handle_ping(
             user_qiao_id=ctx.user_qiao_id,
             device_id=ctx.device_uuid,
             lease_ttl_seconds=lease_ttl_seconds,
+            owner_instance_id=settings.message_instance_id,
+            owner_lease_ttl_seconds=settings.MESSAGE_OWNER_LEASE_TTL_SECONDS,
         )
         ctx.endpoint_id = int(endpoint.id)
         await db.commit()
@@ -591,6 +632,14 @@ async def ws_messages(ws: WebSocket) -> None:
 
     except WebSocketDisconnect:
         pass
+    except Exception as exc:
+        logger.error(
+            "ws_messages_loop_failed",
+            error=str(exc),
+            endpoint_id=ctx.endpoint_id if ctx is not None else None,
+            user_id=ctx.user_id if ctx is not None else None,
+            exc_info=True,
+        )
     finally:
         if ctx is not None:
             await ws_manager.unregister(ctx.endpoint_id)

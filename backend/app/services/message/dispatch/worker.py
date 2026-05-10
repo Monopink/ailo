@@ -6,7 +6,6 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import and_, or_, select, update
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_sessionmaker
@@ -20,15 +19,14 @@ from app.enums import (
     MessageTransportProvider,
 )
 from app.models.message import (
-    MessageDelivery,
     MessageDispatchOutbox,
     MessageEndpoint,
     MessageHistory,
 )
 from app.services.alerting.events import build_standard_alert_entities, emit_alert
+from app.services.message.dispatch.delivery_records import get_delivery, upsert_delivery
 from app.services.message.providers.factory import create_timeline_endpoint_sender
 from app.utils.logging import get_logger
-from app.utils.snowflake import generate_snowflake_id
 
 logger = get_logger(__name__)
 _ALERT_SCHEMA_VERSION = 1
@@ -276,6 +274,7 @@ async def _dispatch_timeline_task(db: AsyncSession, *, task: MessageDispatchOutb
         select(MessageEndpoint).where(
             and_(
                 MessageEndpoint.user_id == task.owner_user_id,
+                MessageEndpoint.provider == MessageTransportProvider.WEBSOCKET,
                 or_(
                     MessageEndpoint.lease_expires_at.is_(None),
                     MessageEndpoint.lease_expires_at > now,
@@ -298,7 +297,7 @@ async def _dispatch_timeline_task(db: AsyncSession, *, task: MessageDispatchOutb
     failed_count = 0
 
     for endpoint in endpoints:
-        existing = await _get_delivery(
+        existing = await get_delivery(
             db,
             msg_id_server=message.msg_id_server,
             endpoint_id=endpoint.id,
@@ -307,50 +306,50 @@ async def _dispatch_timeline_task(db: AsyncSession, *, task: MessageDispatchOutb
             continue
 
         try:
-            provider = MessageTransportProvider(int(endpoint.provider))
-        except ValueError:
+            sender = create_timeline_endpoint_sender(
+                db,
+                provider=MessageTransportProvider.WEBSOCKET,
+            )
+            result = await sender.send_to_endpoint(endpoint=endpoint, message=message)
+            if result.success:
+                await upsert_delivery(
+                    db,
+                    msg_id_server=message.msg_id_server,
+                    endpoint=endpoint,
+                    status=MessageDeliveryStatus.DISPATCHED,
+                    provider_msg_id=result.msg_id_provider,
+                    failed_reason_code=None,
+                    failed_detail=None,
+                )
+                continue
+
             failed_count += 1
-            first_error_code = first_error_code or "UNSUPPORTED_PROVIDER"
-            first_error_detail = first_error_detail or f"Unsupported provider={endpoint.provider}"
-            await _upsert_delivery(
+            if first_error_code is None:
+                first_error_code = result.error_code or "DISPATCH_FAILED"
+                first_error_detail = result.error_message
+            await upsert_delivery(
+                db,
+                msg_id_server=message.msg_id_server,
+                endpoint=endpoint,
+                status=MessageDeliveryStatus.FAILED,
+                provider_msg_id=result.msg_id_provider,
+                failed_reason_code=result.error_code or "DISPATCH_FAILED",
+                failed_detail=result.error_message,
+            )
+        except Exception as exc:
+            failed_count += 1
+            if first_error_code is None:
+                first_error_code = "MESSAGE_DISPATCH_TASK_FAILED"
+                first_error_detail = str(exc)
+            await upsert_delivery(
                 db,
                 msg_id_server=message.msg_id_server,
                 endpoint=endpoint,
                 status=MessageDeliveryStatus.FAILED,
                 provider_msg_id=None,
-                failed_reason_code="UNSUPPORTED_PROVIDER",
-                failed_detail=f"Unsupported provider={endpoint.provider}",
+                failed_reason_code="MESSAGE_DISPATCH_TASK_FAILED",
+                failed_detail=str(exc),
             )
-            continue
-
-        sender = create_timeline_endpoint_sender(db, provider=provider)
-        result = await sender.send_to_endpoint(endpoint=endpoint, message=message)
-
-        if result.success:
-            await _upsert_delivery(
-                db,
-                msg_id_server=message.msg_id_server,
-                endpoint=endpoint,
-                status=MessageDeliveryStatus.DISPATCHED,
-                provider_msg_id=result.msg_id_provider,
-                failed_reason_code=None,
-                failed_detail=None,
-            )
-            continue
-
-        failed_count += 1
-        if first_error_code is None:
-            first_error_code = result.error_code or "DISPATCH_FAILED"
-            first_error_detail = result.error_message
-        await _upsert_delivery(
-            db,
-            msg_id_server=message.msg_id_server,
-            endpoint=endpoint,
-            status=MessageDeliveryStatus.FAILED,
-            provider_msg_id=result.msg_id_provider,
-            failed_reason_code=result.error_code or "DISPATCH_FAILED",
-            failed_detail=result.error_message,
-        )
 
     if failed_count == 0:
         task.status = MessageDispatchOutboxStatus.DONE
@@ -404,64 +403,3 @@ async def _dispatch_timeline_task(db: AsyncSession, *, task: MessageDispatchOutb
         task.next_retry_at = now + timedelta(seconds=delay_seconds)
 
     db.add(task)
-
-
-async def _get_delivery(
-    db: AsyncSession,
-    *,
-    msg_id_server: str,
-    endpoint_id: int,
-) -> MessageDelivery | None:
-    result = await db.execute(
-        select(MessageDelivery).where(
-            MessageDelivery.msg_id_server == msg_id_server,
-            MessageDelivery.endpoint_id == endpoint_id,
-        )
-    )
-    return result.scalar_one_or_none()
-
-
-async def _upsert_delivery(
-    db: AsyncSession,
-    *,
-    msg_id_server: str,
-    endpoint: MessageEndpoint,
-    status: MessageDeliveryStatus,
-    provider_msg_id: str | None,
-    failed_reason_code: str | None,
-    failed_detail: str | None,
-) -> None:
-    now = _now_utc()
-    try:
-        async with db.begin_nested():
-            db.add(
-                MessageDelivery(
-                    id=generate_snowflake_id(),
-                    msg_id_server=msg_id_server,
-                    endpoint_id=endpoint.id,
-                    provider=endpoint.provider,
-                    target_key=endpoint.target_key,
-                    provider_msg_id=provider_msg_id,
-                    status=status,
-                    dispatched_at=now if status == MessageDeliveryStatus.DISPATCHED else None,
-                    failed_reason_code=failed_reason_code,
-                    failed_detail=failed_detail,
-                )
-            )
-            await db.flush()
-            return
-    except IntegrityError:
-        pass
-
-    existing = await _get_delivery(db, msg_id_server=msg_id_server, endpoint_id=endpoint.id)
-    if existing is None:
-        return
-    existing.provider = endpoint.provider
-    existing.target_key = endpoint.target_key
-    existing.provider_msg_id = provider_msg_id
-    existing.status = status
-    existing.dispatched_at = now if status == MessageDeliveryStatus.DISPATCHED else None
-    existing.failed_reason_code = failed_reason_code
-    existing.failed_detail = failed_detail
-    db.add(existing)
-    await db.flush()

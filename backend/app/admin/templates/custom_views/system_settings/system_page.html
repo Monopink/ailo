@@ -27,86 +27,6 @@
     <div class="row">
       <div class="col-12">
         {% include "custom_views/system_settings/partials/alerts.html" %}
-
-        {% if show_system_management %}
-        <div class="row mb-4">
-          <div class="col-12">
-            <h2 class="mb-3">{{ admin_text("System Management") }}</h2>
-          </div>
-
-          <div class="col-md-6">
-            <div class="card">
-              <div class="card-header">
-                <h3 class="card-title">{{ admin_text("LeanCloud System") }}</h3>
-              </div>
-              <div class="card-body">
-                <div class="mb-3">
-                  <label class="form-label">{{ admin_text("System Conversation ID") }}</label>
-                  <div class="input-group">
-                    <input type="text" class="form-control" value="{{ conversation_id or '' }}" readonly>
-                    <button class="btn btn-icon" type="button" data-system-action="copy-conversation-id" title="{{ admin_text('Copy') }}">
-                      <i class="fa fa-copy"></i>
-                    </button>
-                  </div>
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">{{ admin_text("Configuration Status") }}</label>
-                  <div>
-                    {% if leancloud_config.has_app_id %}✓{% else %}✗{% endif %} {{ admin_text("App ID") }}<br>
-                    {% if leancloud_config.has_master_key %}✓{% else %}✗{% endif %} {{ admin_text("Master Key") }}<br>
-                    {% if leancloud_config.has_base_url %}✓{% else %}✗{% endif %} {{ admin_text("Base URL") }}<br>
-                    {% if conversation_id %}✓{% else %}✗{% endif %} {{ admin_text("Conversation") }}
-                  </div>
-                </div>
-                <div>
-                  <button class="btn btn-warning" type="button" data-system-action="regenerate-conversation">
-                    <i class="fa fa-refresh me-1"></i>{{ admin_text("Regenerate Conversation") }}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="col-md-6">
-            <div class="card">
-              <div class="card-header">
-                <h3 class="card-title">{{ admin_text("Webhook Management") }}</h3>
-              </div>
-              <div class="card-body">
-                <div class="mb-3">
-                  <label class="form-label">{{ admin_text("Webhook URL") }}</label>
-                  <div class="input-group">
-                    <input type="text" class="form-control" value="{{ webhook_url or '' }}" readonly>
-                    <button class="btn btn-icon" type="button" data-system-action="copy-webhook-url" title="{{ admin_text('Copy') }}">
-                      <i class="fa fa-copy"></i>
-                    </button>
-                  </div>
-                  <small class="form-text text-muted">
-                    {{ admin_text("Configure this URL in LeanCloud console: Developer Center > IM > Settings > Service Account Callback") }}
-                  </small>
-                </div>
-                <div class="mb-3">
-                  <label class="form-label">{{ admin_text("Token Status") }}</label>
-                  <div>
-                    {% if webhook_token %}
-                    ✓ {{ admin_text("Token generated") }} ({{ token_length }} {{ admin_text("characters") }})
-                    {% else %}
-                    ✗ {{ admin_text("Token not generated") }}
-                    {% endif %}
-                  </div>
-                </div>
-                <div class="text-muted small mb-3">
-                  <i class="fa fa-info-circle me-1"></i>
-                  <em>{{ admin_text("Regenerating the token will invalidate the current webhook URL. You must update the URL in LeanCloud console immediately.") }}</em>
-                </div>
-                <button class="btn btn-warning" type="button" data-system-action="regenerate-webhook-token">
-                  <i class="fa fa-refresh me-1"></i>{{ admin_text("Regenerate Token") }}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        {% endif %}
       </div>
     </div>
 
@@ -119,13 +39,6 @@
 {% block script %}
 <script>
 window.ailoSystemSettingsPageConfig = {
-  pageMode: "system",
-  conversationId: {{ (conversation_id or "") | tojson | safe }},
-  webhookUrl: {{ (webhook_url or "") | tojson | safe }},
-  api: {
-    refreshConversation: "/admin-api/system/leancloud/refresh-conversation",
-    regenerateWebhookToken: "/admin-api/system/regenerate-webhook-token",
-  },
   i18n: {
     noChanges: {{ admin_text("No changes to save. All modification fields are empty.") | tojson | safe }},
     changeConfirmTitle: {{ admin_text("You are about to modify the following configuration(s):") | tojson | safe }},
@@ -143,19 +56,7 @@ window.ailoSystemSettingsPageConfig = {
     noChangeOption: {{ admin_text("-- No Change --") | tojson | safe }},
     selectOption: {{ admin_text("-- Select --") | tojson | safe }},
     failedPrefix: {{ admin_text("Failed:") | tojson | safe }},
-    sysConversationRegenerated: {{ admin_text("System conversation regenerated successfully!") | tojson | safe }},
-    newId: {{ admin_text("New ID") | tojson | safe }},
-    regenerateConversationFailed: {{ admin_text("Failed to regenerate conversation") | tojson | safe }},
-    tokenRegenerated: {{ admin_text("Token regenerated successfully!") | tojson | safe }},
-    newWebhookLoaded: {{ admin_text("New webhook URL has been loaded.") | tojson | safe }},
     unknownError: {{ admin_text("Unknown error") | tojson | safe }},
-    regenerateTokenFailed: {{ admin_text("Failed to regenerate token") | tojson | safe }},
-    conversationIdCopied: {{ admin_text("Conversation ID copied!") | tojson | safe }},
-    copyFailed: {{ admin_text("Failed to copy") | tojson | safe }},
-    webhookCopied: {{ admin_text("Webhook URL copied to clipboard!") | tojson | safe }},
-    copyUrlFailed: {{ admin_text("Failed to copy URL") | tojson | safe }},
-    confirmRegenerateConversation: {{ admin_text("WARNING: This will create a new system conversation and invalidate the old one!\n\nYou should update any references to the old conversation ID.\n\nContinue?") | tojson | safe }},
-    confirmRegenerateToken: {{ admin_text("WARNING: This will invalidate the current webhook URL!\n\nYou MUST update the webhook URL in LeanCloud console immediately after regeneration.\n\nContinue?") | tojson | safe }},
   }
 };
 </script>

@@ -12,12 +12,6 @@ from starlette_admin import CustomView
 
 from app.enums import ContactRequestStatus
 from app.models.contact import ContactRequest
-from app.services.message.monitoring.health import get_message_service_status
-from app.services.message.providers.leancloud.config import get_leancloud_config_status
-from app.services.message.providers.leancloud.url_builder import (
-    build_leancloud_webhook_url,
-)
-from app.services.system_config import get_config
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -44,18 +38,6 @@ class DashboardView(CustomView):
             # Get database session
             db = request.state.session
 
-            # Read initial data from database
-            webhook_token = await get_config(db, key="leancloud_im_webhook_token", required=False)
-            api_base_url = await get_config(db, key="api_base_url", required=False)
-            conversation_id = await get_config(
-                db, key="leancloud_im_service_conversation_id", required=False
-            )
-
-            leancloud_config = await get_leancloud_config_status(db)
-
-            # Check message service health
-            health_status = await get_message_service_status(db)
-
             # Get pending contact requests statistics
             window_start = datetime.now(UTC) - timedelta(hours=24)
             pending_total_stmt = select(func.count(ContactRequest.id)).where(
@@ -78,22 +60,8 @@ class DashboardView(CustomView):
             last24h_success = (await db.execute(success_stmt)).scalar_one() or 0
             last24h_failed = (await db.execute(failure_stmt)).scalar_one() or 0
 
-            # Construct webhook URL
-            webhook_url = None
-            if webhook_token and api_base_url:
-                webhook_url = build_leancloud_webhook_url(
-                    api_base_url=str(api_base_url),
-                    webhook_token=str(webhook_token),
-                )
-
             context = {
                 "request": request,
-                "webhook_url": webhook_url,
-                "webhook_token": webhook_token,
-                "token_length": len(webhook_token) if webhook_token else 0,
-                "conversation_id": conversation_id,
-                "leancloud_config": leancloud_config,
-                "message_service_health": health_status,
                 "pending_contact_requests": {
                     "pending_total": pending_total,
                     "last24h_success": last24h_success,

@@ -1,5 +1,5 @@
 import type { MessageAdapter } from './adapter-types';
-import leancloudAdapter from './leancloud';
+import websocketAdapter from './websocket';
 import { getLogger } from '../logger';
 import { isDefined } from '../guards';
 
@@ -13,7 +13,7 @@ export function registerMessageAdapter(adapter: MessageAdapter): void {
 
 export function getMessageAdapter(): MessageAdapter {
   if (!isDefined(currentAdapter)) {
-    currentAdapter = leancloudAdapter;
+    currentAdapter = websocketAdapter;
   }
   return currentAdapter;
 }

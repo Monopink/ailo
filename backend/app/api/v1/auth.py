@@ -4,7 +4,6 @@ This module provides authentication-related endpoints including:
 - SMS verification code sending
 - User registration
 - User login (SMS-based)
-- Message client signature generation for LeanCloud IM authentication
 """
 
 import hashlib
@@ -329,7 +328,7 @@ def _cleanup_expired_codes() -> None:
     """Clean up expired verification codes from memory.
 
     This function should be called before storing new codes to prevent memory leaks.
-    In production, Redis TTL should be used instead.
+    In production, a shared TTL-capable storage should be used instead.
     """
     now = datetime.now(UTC)
     expired_phones = [
@@ -346,7 +345,7 @@ def _cleanup_expired_operation_tokens() -> None:
     """Clean up expired operation tokens from memory.
 
     This function should be called before storing new tokens to prevent memory leaks.
-    In production, Redis TTL should be used instead.
+    In production, a shared TTL-capable storage should be used instead.
     """
     now = datetime.now(UTC)
     expired_tokens = [
@@ -873,7 +872,7 @@ async def send_sms_code(
     code = _generate_numeric_code(digits)
 
     # 4. Store code in memory with expiration (for MVP)
-    # In production, use Redis with TTL instead
+    # In production, use shared TTL-capable storage instead
     expires_at = datetime.now(UTC) + timedelta(seconds=ttl_seconds)
     _verification_codes[normalized_phone] = (code, expires_at)
     _cleanup_expired_codes()  # Clean up expired codes

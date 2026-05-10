@@ -99,6 +99,7 @@ class NotificationTarget(StrEnum):
 class NotificationStatus(IntEnum):
     """Notification push status."""
 
+    PENDING = 0
     SENT = 1
     FAILED = 2
 

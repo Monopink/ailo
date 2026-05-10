@@ -21,6 +21,14 @@ export const MESSAGE_STATUS = {
 
 export type MessageStatus = (typeof MESSAGE_STATUS)[keyof typeof MESSAGE_STATUS];
 
+export const MESSAGE_FAILURE_CATEGORY = {
+  BUSINESS_REJECTED: 'business_rejected',
+  TRANSPORT_FAILED: 'transport_failed',
+} as const;
+
+export type MessageFailureCategory =
+  (typeof MESSAGE_FAILURE_CATEGORY)[keyof typeof MESSAGE_FAILURE_CATEGORY];
+
 /**
  * Message type enum - MUST match backend
  * @readonly

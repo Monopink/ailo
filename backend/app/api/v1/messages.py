@@ -1,11 +1,13 @@
 """Offline message endpoints."""
 
 from datetime import UTC, datetime
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.message.offline import (
@@ -13,12 +15,67 @@ from app.schemas.message.offline import (
     OfflineMessageAckResponse,
     OfflineMessagesResponse,
 )
+from app.schemas.message.ws_session import (
+    MessageWSPresencePayload,
+    MessageWSSessionAuth,
+    MessageWSSessionBootstrapResponse,
+    MessageWSSessionPayload,
+    MessageWSSessionTicketRequest,
+)
 from app.services.message.offline import ack_offline_message, fetch_offline_messages
+from app.services.message.websocket import issue_ws_session_ticket
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/messages", tags=["Messages"])
+
+
+@router.post("/ws-session", response_model=MessageWSSessionBootstrapResponse)
+async def issue_ws_session(
+    payload: MessageWSSessionTicketRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+) -> MessageWSSessionBootstrapResponse:
+    """Issue a short-lived websocket session ticket for realtime auth."""
+    try:
+        device_uuid = UUID(payload.device_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="参数错误") from exc
+
+    settings = get_settings()
+    ttl_seconds = settings.MESSAGE_WS_SESSION_TICKET_TTL_SECONDS
+    ws_ticket, claims = issue_ws_session_ticket(
+        user=current_user,
+        device_id=device_uuid,
+        ttl_seconds=ttl_seconds,
+    )
+    expires_in_ms = max(claims.expires_at_ms - claims.issued_at_ms, 0)
+    base_url = str(request.base_url).rstrip("/")
+    config_version = f"ws:{current_user.qiao_id}:{device_uuid}:{claims.issued_at_ms}"
+
+    return MessageWSSessionBootstrapResponse(
+        config_version=config_version,
+        session=MessageWSSessionPayload(
+            client_id=str(current_user.qiao_id),
+            provider="websocket",
+            server_url=base_url,
+            session_hint="__ws__",
+            auth=MessageWSSessionAuth(
+                scheme="ws_ticket",
+                version="1",
+                ws_ticket=ws_ticket,
+                issued_at_ms=claims.issued_at_ms,
+                device_id=str(device_uuid),
+                expires_in_ms=expires_in_ms,
+            ),
+        ),
+        presence=MessageWSPresencePayload(
+            endpoint_id=0,
+            lease_ttl_days=0,
+            lease_expires_at_ms=0,
+        ),
+    )
 
 
 @router.get("/offline", response_model=OfflineMessagesResponse)

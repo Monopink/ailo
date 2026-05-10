@@ -1,7 +1,6 @@
 # Cloud Services
 openai==2.0.0
 volcengine-python-sdk[ark]==4.0.7
-# leancloud==3.0.2  # Commented out - using REST API only
 
 # Web Framework
 fastapi==0.115.14
@@ -32,9 +31,6 @@ Pillow==12.2.0
 
 # Utilities
 structlog==25.4.0
-
-# Cache and Session Store
-redis==6.4.0
 
 # JWT and Authentication
 PyJWT==2.10.1

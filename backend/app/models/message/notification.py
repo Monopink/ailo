@@ -38,8 +38,27 @@ class NotificationPushHistory(SnowflakeModel):
         JSONB, nullable=False, comment="Action and data objects (JSON)"
     )
 
+    msg_id_server: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, comment="Notification transport message ID"
+    )
+
     status: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=NotificationStatus.SENT, comment="Status: 1=sent, 2=failed"
+        Integer,
+        nullable=False,
+        default=NotificationStatus.PENDING,
+        comment="Status: 0=pending, 1=sent, 2=failed",
+    )
+
+    planned_endpoint_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, comment="Planned websocket endpoint delivery count"
+    )
+
+    completed_endpoint_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, comment="Completed websocket endpoint delivery count"
+    )
+
+    succeeded_endpoint_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, comment="Succeeded websocket endpoint delivery count"
     )
 
     error_message: Mapped[str | None] = mapped_column(
@@ -67,4 +86,7 @@ class NotificationPushHistory(SnowflakeModel):
         uselist=False,
     )
 
-    __table_args__ = (Index("idx_notification_push_created_at", "created_at"),)
+    __table_args__ = (
+        Index("idx_notification_push_created_at", "created_at"),
+        Index("idx_notification_push_msg_id_server", "msg_id_server"),
+    )

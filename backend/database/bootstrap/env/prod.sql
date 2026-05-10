@@ -28,7 +28,6 @@ SET config_value = CASE
     updated_at = NOW()
 FROM (
     VALUES
-        ('leancloud_im_server_url', 'https://chat.qiaoqiaoai.cn'),
         ('api_base_url', 'https://synapse.qiaoqiaoai.cn'),
         ('media_public_base_url', 'https://cortex.qiaoqiaoai.cn'),
         ('api_rate_limit_requests', '100'),

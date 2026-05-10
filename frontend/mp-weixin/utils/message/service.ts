@@ -6,7 +6,7 @@
 import { getLogger } from '../logger';
 import { addMessage, getUserInfo } from '../storage';
 import type { StoredMessage } from '../storage';
-import { MESSAGE_STATUS, MESSAGE_TYPE } from '../constants/message';
+import { MESSAGE_FAILURE_CATEGORY, MESSAGE_STATUS, MESSAGE_TYPE } from '../constants/message';
 import type { MessageType } from '../constants/message';
 import conversationStore from './conversation-store';
 import type {
@@ -16,7 +16,7 @@ import type {
   BusinessMessagePayload,
   ConnectionState,
   MessageAdapter,
-  MessageSignature,
+  MessageAuthPayload,
 } from './adapter-types';
 import { getMessageAdapter } from './provider';
 import './conversation-presence-store';
@@ -25,6 +25,7 @@ import unreadStore from './unread-store';
 import { isDefined, isNonEmptyString } from '../guards';
 import { ackOfflineMessages, fetchOfflineMessages } from './offline';
 import type { OfflineMessage } from '../schemas-core';
+import { reportRuntimeObservation } from '../runtime-segment';
 
 const logger = getLogger('MessageService');
 
@@ -34,6 +35,17 @@ const RECONNECT_BASE_DELAY = 1000;
 const RECONNECT_MAX_DELAY = 30000;
 const RECONNECT_BACKOFF = 2;
 const RECONNECT_JITTER = 0.2;
+const SEND_TOTAL_TIMEOUT_MS = 3000;
+const SEND_CONNECT_WAIT_TIMEOUT_MS = 900;
+const SEND_RETRY_DELAYS_MS = [300, 700] as const;
+const RETRYABLE_SEND_ERRORS = new Set<string>([
+  'MESSAGE_SERVICE_DISCONNECTED',
+  'WS_DISCONNECTED',
+  'WS_ACK_TIMEOUT',
+  'WS_OPEN_TIMEOUT',
+  'WS_CLOSED_BEFORE_OPEN',
+  'MESSAGE_CONNECT_TIMEOUT',
+]);
 
 const createBusinessMessage = (
   base: MessageData,
@@ -76,11 +88,12 @@ const requireIncomingServerMsgId = (message: AdapterMessage): string => {
 const resolveIncomingClientMsgId = (message: AdapterMessage): string | null =>
   isNonEmptyString(message.msg_id_client) ? message.msg_id_client : null;
 
-const resolveIncomingLeanCloudMeta = (
+const resolveIncomingAdapterMeta = (
   message: AdapterMessage
-): { lcMsgId: string | undefined; lcTimestamp: number | undefined } => ({
-  lcMsgId: typeof message.lc_msg_id === 'string' ? message.lc_msg_id : undefined,
-  lcTimestamp: typeof message.lc_timestamp === 'number' ? message.lc_timestamp : undefined,
+): { providerMsgId: string | undefined; providerTimestampMs: number | undefined } => ({
+  providerMsgId: typeof message.provider_msg_id === 'string' ? message.provider_msg_id : undefined,
+  providerTimestampMs:
+    typeof message.provider_timestamp_ms === 'number' ? message.provider_timestamp_ms : undefined,
 });
 
 const normalizeError = (error: unknown): Error => {
@@ -95,6 +108,36 @@ const normalizeError = (error: unknown): Error => {
   } catch {
     return new Error('Unknown error');
   }
+};
+
+const getActivePagePath = (): string => {
+  const pages = getCurrentPages();
+  if (!Array.isArray(pages) || pages.length === 0) {
+    return '/app';
+  }
+  const current = pages[pages.length - 1] as { route?: unknown };
+  const route = typeof current.route === 'string' ? current.route.trim() : '';
+  if (route === '') {
+    return '/app';
+  }
+  return route.startsWith('/') ? route : `/${route}`;
+};
+
+const reportMessageRuntimeObservation = (
+  eventName:
+    | 'message_connect_failed'
+    | 'message_connect_recovered'
+    | 'message_send_failed'
+    | 'ws_auth_failed'
+    | 'ws_ack_timeout',
+  payload: Record<string, unknown>
+): void => {
+  void reportRuntimeObservation({
+    eventName,
+    pagePath: getActivePagePath(),
+    entrySource: 'message_service',
+    eventPayload: payload,
+  });
 };
 
 type BusinessMessage = StoredMessage &
@@ -118,6 +161,7 @@ export class MessageService {
   private offlineSyncPromise: Promise<void> | null = null;
   private offlineSyncReady = false;
   private pendingAck: { message: StoredMessage; sentTime: number; msgId: string } | null = null;
+  private lastConnectFailureReportedAtMs = 0;
 
   constructor(adapter: MessageAdapter = getMessageAdapter()) {
     this.adapter = adapter;
@@ -141,6 +185,32 @@ export class MessageService {
     messageEventBus.emitConnection(nextState);
   }
 
+  private reportConnectFailure(error: Error, phase: string): void {
+    const nowMs = Date.now();
+    if (nowMs - this.lastConnectFailureReportedAtMs < 2000) {
+      return;
+    }
+    this.lastConnectFailureReportedAtMs = nowMs;
+    reportMessageRuntimeObservation('message_connect_failed', {
+      error_code: error.message,
+      error_message: error.message,
+      phase,
+      connection_state: this.connectionState,
+      reconnect_attempt: this.reconnectAttempt,
+      occurred_at_ms: nowMs,
+    });
+    if (error.message === 'WS_AUTH_FAILED') {
+      reportMessageRuntimeObservation('ws_auth_failed', {
+        error_code: error.message,
+        error_message: error.message,
+        phase,
+        connection_state: this.connectionState,
+        reconnect_attempt: this.reconnectAttempt,
+        occurred_at_ms: nowMs,
+      });
+    }
+  }
+
   private clearReconnectTimer(): void {
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
@@ -154,6 +224,45 @@ export class MessageService {
     const cappedDelay = Math.min(baseDelay, RECONNECT_MAX_DELAY);
     const jitter = 1 + (Math.random() * 2 - 1) * RECONNECT_JITTER;
     return Math.max(0, Math.round(cappedDelay * jitter));
+  }
+
+  private async sleep(delayMs: number): Promise<void> {
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, delayMs);
+    });
+  }
+
+  private isRetryableSendError(error: Error): boolean {
+    if (RETRYABLE_SEND_ERRORS.has(error.message)) {
+      return true;
+    }
+    const lower = error.message.toLowerCase();
+    return (
+      lower.includes('timeout') ||
+      lower.includes('network') ||
+      lower.includes('socket') ||
+      lower.includes('connect')
+    );
+  }
+
+  private async ensureConnectedForSend(deadlineMs: number): Promise<void> {
+    if (this.adapter.isConnected()) {
+      return;
+    }
+    const remaining = deadlineMs - Date.now();
+    if (remaining <= 0) {
+      throw new Error('MESSAGE_CONNECT_TIMEOUT');
+    }
+    const waitTimeout = Math.min(SEND_CONNECT_WAIT_TIMEOUT_MS, remaining);
+    await Promise.race([
+      this.ensureConnected(),
+      this.sleep(waitTimeout).then(() => {
+        throw new Error('MESSAGE_CONNECT_TIMEOUT');
+      }),
+    ]);
+    if (!this.adapter.isConnected()) {
+      throw new Error('MESSAGE_SERVICE_DISCONNECTED');
+    }
   }
 
   private scheduleReconnect(): void {
@@ -177,9 +286,17 @@ export class MessageService {
 
   private handleAdapterConnectionState(state: ConnectionState): void {
     if (state === 'connected') {
+      const previousState = this.connectionState;
       this.reconnectAttempt = 0;
       this.clearReconnectTimer();
       this.setConnectionState('connected');
+      if (previousState !== 'connected') {
+        reportMessageRuntimeObservation('message_connect_recovered', {
+          previous_state: previousState,
+          connection_state: 'connected',
+          occurred_at_ms: Date.now(),
+        });
+      }
       void this.startOfflineSync().catch((error) => {
         const err = normalizeError(error);
         logger.warn('Offline message sync failed after reconnect', { error: err.message });
@@ -188,9 +305,21 @@ export class MessageService {
     }
 
     if (state === 'disconnected') {
+      const previousState = this.connectionState;
       this.connectedConfigVersion = null;
       this.setConnectionState('disconnected');
       this.offlineSyncReady = false;
+      if (previousState !== 'disconnected') {
+        reportMessageRuntimeObservation('message_connect_failed', {
+          error_code: 'WS_DISCONNECTED',
+          error_message: 'WS_DISCONNECTED',
+          phase: 'adapter_connection_change',
+          previous_state: previousState,
+          connection_state: 'disconnected',
+          reconnect_attempt: this.reconnectAttempt,
+          occurred_at_ms: Date.now(),
+        });
+      }
       this.scheduleReconnect();
     }
   }
@@ -207,7 +336,28 @@ export class MessageService {
     if (!isNonEmptyString(userId)) {
       throw new Error('User info not found or invalid');
     }
-    const connectPayload = await conversationStore.getConnectPayload();
+    let connectPayload: {
+      userId: string;
+      provider: string;
+      serverUrl: string;
+      sessionHint: string;
+      auth: {
+        wsTicket: string;
+        issuedAtMs: number;
+        deviceId: string;
+      };
+      configVersion: string;
+    };
+    try {
+      connectPayload = await conversationStore.getConnectPayload();
+    } catch (error) {
+      const err = normalizeError(error);
+      this.connectedConfigVersion = null;
+      this.setConnectionState('disconnected');
+      this.reportConnectFailure(err, 'load_connect_payload');
+      this.scheduleReconnect();
+      throw err;
+    }
     if (connectPayload.userId !== userId) {
       throw new Error('MESSAGE_SESSION_USER_MISMATCH');
     }
@@ -229,12 +379,11 @@ export class MessageService {
 
     this.setConnectionState('connecting');
     this.connectPromise = (async () => {
-      await this.adapter.connect(userId, connectPayload.signature as MessageSignature, {
-        app_id: connectPayload.appId,
-        app_key: connectPayload.appKey,
+      await this.adapter.connect(userId, connectPayload.auth as MessageAuthPayload, {
+        provider: connectPayload.provider,
         server_url: connectPayload.serverUrl,
         config_version: connectPayload.configVersion,
-        im_conv_id: connectPayload.imConvId,
+        session_hint: connectPayload.sessionHint,
       });
       this.connectedConfigVersion = connectPayload.configVersion;
       this.reconnectAttempt = 0;
@@ -245,6 +394,7 @@ export class MessageService {
         const err = normalizeError(error);
         this.connectedConfigVersion = null;
         this.setConnectionState('disconnected');
+        this.reportConnectFailure(err, 'ensure_connected');
         this.scheduleReconnect();
         throw err;
       })
@@ -301,6 +451,9 @@ export class MessageService {
       } catch (error) {
         const err = normalizeError(error);
         logger.warn('Message service connect failed on init', { error: err.message });
+        this.setConnectionState('disconnected');
+        this.reportConnectFailure(err, 'initialize');
+        this.scheduleReconnect();
       }
       try {
         await this.startOfflineSync();
@@ -341,16 +494,13 @@ export class MessageService {
     await this.persistMessage(messageData.conv_id, message);
 
     try {
-      if (!this.adapter.isConnected()) {
-        throw new Error('MESSAGE_SERVICE_DISCONNECTED');
-      }
-      const sentMessage = await this.sendViaAdapter(message);
+      const sentMessage = await this.sendWithRetry(messageData, message, msgId);
       const sentPayload: BusinessMessage = {
         ...message,
         status: MESSAGE_STATUS.SENT,
         adapter_metadata: {
-          msg_id: sentMessage.lc_msg_id,
-          timestamp: sentMessage.lc_timestamp,
+          provider_msg_id: sentMessage.provider_msg_id,
+          provider_timestamp_ms: sentMessage.provider_timestamp_ms,
         },
       };
 
@@ -366,24 +516,94 @@ export class MessageService {
       return sentPayload;
     } catch (error) {
       const err = normalizeError(error);
-      const failedPayload: BusinessMessage = {
-        ...message,
-        status: MESSAGE_STATUS.FAILED,
-        error_reason: err.message,
-      };
-
-      await this.persistMessage(messageData.conv_id, failedPayload);
-      messageEventBus.emitMessage(failedPayload);
-
-      logger.error('Send message via adapter failed', {
-        msg_id: msgId,
-        conv_id: messageData.conv_id,
-        message_type: message.message_type,
-        error: err.message,
+      await this.handleSendFailure({
+        err,
+        message,
+        msgId,
+        convId: messageData.conv_id,
       });
-
       throw err;
     }
+  }
+
+  private async sendWithRetry(
+    messageData: MessageData,
+    message: BusinessMessage,
+    msgId: string
+  ): Promise<AdapterSendResult> {
+    const deadlineMs = Date.now() + SEND_TOTAL_TIMEOUT_MS;
+    const trySend = async (attempt: number): Promise<AdapterSendResult> => {
+      try {
+        await this.ensureConnectedForSend(deadlineMs);
+        return await this.sendViaAdapter(message);
+      } catch (error) {
+        const err = normalizeError(error);
+        const retryDelay =
+          attempt < SEND_RETRY_DELAYS_MS.length ? SEND_RETRY_DELAYS_MS[attempt] : null;
+        const shouldRetry =
+          retryDelay !== null &&
+          this.isRetryableSendError(err) &&
+          Date.now() + retryDelay < deadlineMs;
+        logger.warn('Send message attempt failed', {
+          msg_id: msgId,
+          conv_id: messageData.conv_id,
+          attempt: attempt + 1,
+          retry_delay_ms: retryDelay,
+          should_retry: shouldRetry,
+          error: err.message,
+        });
+        if (!shouldRetry) {
+          throw err;
+        }
+        await this.sleep(retryDelay);
+        return await trySend(attempt + 1);
+      }
+    };
+    return await trySend(0);
+  }
+
+  private async handleSendFailure(options: {
+    err: Error;
+    message: BusinessMessage;
+    msgId: string;
+    convId: string;
+  }): Promise<void> {
+    const { err, message, msgId, convId } = options;
+    if (err.message === 'WS_ACK_TIMEOUT') {
+      reportMessageRuntimeObservation('ws_ack_timeout', {
+        error_code: err.message,
+        error_message: err.message,
+        connection_state: this.connectionState,
+        occurred_at_ms: Date.now(),
+      });
+    }
+
+    const failedPayload: BusinessMessage = {
+      ...message,
+      status: MESSAGE_STATUS.FAILED,
+      failure_category: MESSAGE_FAILURE_CATEGORY.TRANSPORT_FAILED,
+      error_reason: err.message,
+      failure_reason: err.message,
+      retryable: true,
+    };
+    await this.persistMessage(convId, failedPayload);
+    messageEventBus.emitMessage(failedPayload);
+
+    logger.error('Send message via adapter failed', {
+      msg_id: msgId,
+      conv_id: convId,
+      message_type: message.message_type,
+      error: err.message,
+    });
+    reportMessageRuntimeObservation('message_send_failed', {
+      error_code: err.message,
+      error_message: err.message,
+      connection_state: this.connectionState,
+      conv_id: convId,
+      msg_id: msgId,
+      message_type: message.message_type,
+      occurred_at_ms: Date.now(),
+    });
   }
 
   private async sendViaAdapter(
@@ -391,10 +611,10 @@ export class MessageService {
     options: { allowRetry?: boolean } = { allowRetry: true }
   ): Promise<AdapterSendResult> {
     const allowRetry = options.allowRetry !== false;
-    const imConvId = await conversationStore.getImConvId();
+    const sessionHint = await conversationStore.getSessionHint();
 
     try {
-      return await this.adapter.sendMessage(message, imConvId);
+      return await this.adapter.sendMessage(message, sessionHint);
     } catch (error) {
       const err = normalizeError(error);
       if (err.message === 'CONVERSATION_NOT_FOUND' && allowRetry) {
@@ -406,9 +626,9 @@ export class MessageService {
     }
   }
 
-  async invalidateConversation(imConvId?: string | null): Promise<void> {
+  async invalidateConversation(sessionHint?: string | null): Promise<void> {
     if (typeof this.adapter.invalidateConversation === 'function') {
-      await Promise.resolve(this.adapter.invalidateConversation(imConvId));
+      await Promise.resolve(this.adapter.invalidateConversation(sessionHint));
     }
   }
 
@@ -424,7 +644,7 @@ export class MessageService {
     const normalizedConvId = typeof message.conv_id === 'string' ? message.conv_id : '';
     const normalizedMsgIdServer = requireIncomingServerMsgId(message);
     const normalizedMsgIdClient = resolveIncomingClientMsgId(message);
-    const { lcMsgId, lcTimestamp } = resolveIncomingLeanCloudMeta(message);
+    const { providerMsgId, providerTimestampMs } = resolveIncomingAdapterMeta(message);
 
     const storedMessage: StoredMessage = {
       ...message,
@@ -452,8 +672,8 @@ export class MessageService {
       action: storedMessage.action ?? null,
       notification_type: storedMessage.notification_type ?? null,
       data: storedMessage.data ?? null,
-      lc_msg_id: lcMsgId,
-      lc_timestamp: lcTimestamp,
+      provider_msg_id: providerMsgId,
+      provider_timestamp_ms: providerTimestampMs,
     };
 
     return {
@@ -734,13 +954,23 @@ export class MessageService {
   }
 
   handleError(error: Error): void {
-    logger.error('Message service error', { error });
+    const err = normalizeError(error);
+    logger.error('Message service error', { error: err.message });
+    if (err.message === 'WS_ACK_TIMEOUT') {
+      reportMessageRuntimeObservation('ws_ack_timeout', {
+        error_code: err.message,
+        error_message: err.message,
+        connection_state: this.connectionState,
+        occurred_at_ms: Date.now(),
+      });
+    }
+    this.reportConnectFailure(err, 'adapter_error');
 
     const app = getApp<AppInstance>();
     if (typeof app.onMessageError === 'function') {
-      app.onMessageError(error);
+      app.onMessageError(err);
     }
-    messageEventBus.emitError(error);
+    messageEventBus.emitError(err);
   }
 
   async disconnect(): Promise<void> {

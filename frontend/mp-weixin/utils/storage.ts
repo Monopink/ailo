@@ -517,6 +517,32 @@ export async function updateMessage(
   }
 }
 
+export async function patchMessageByIdentity(
+  convId: string,
+  messageId: string,
+  updates: Partial<StoredMessage>
+): Promise<boolean> {
+  const messages = await getMessages(convId);
+  const index = messages.findIndex((message) => {
+    if (message.msg_id === messageId) {
+      return true;
+    }
+    return (
+      (isNonEmptyString(message.msg_id_client) && message.msg_id_client === messageId) ||
+      (isNonEmptyString(message.msg_id_server) && message.msg_id_server === messageId)
+    );
+  });
+  if (index === -1) {
+    return false;
+  }
+  messages[index] = ensureStoredMessage({
+    ...messages[index],
+    ...updates,
+  });
+  await saveMessages(convId, ensureStoredMessages(messages));
+  return true;
+}
+
 export async function removeMessage(convId: string, msgId: string): Promise<void> {
   const messages = await getMessages(convId);
   const nextMessages = messages.filter((message) => message.msg_id !== msgId);
@@ -765,6 +791,7 @@ export default {
   getMessages,
   addMessage,
   updateMessage,
+  patchMessageByIdentity,
   clearMessages,
   saveContacts,
   extractContactsFromPayload,

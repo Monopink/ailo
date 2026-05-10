@@ -32,7 +32,6 @@ FROM (
     VALUES
         ('api_base_url', 'http://localhost:8000'),
         ('media_public_base_url', ''),
-        ('leancloud_im_server_url', 'https://zcuk19lc.lc-cn-n1-shared.com'),
         ('admin_auth_whitelist', '127.0.0.1,::1')
 ) AS v(config_key, config_value_text)
 WHERE sc.config_key = v.config_key;

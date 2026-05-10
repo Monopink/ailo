@@ -4,7 +4,7 @@ from datetime import datetime
 
 from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import ImmutableSnowflakeModel
 
@@ -40,6 +40,7 @@ class ClientRuntimeObservation(ImmutableSnowflakeModel):
     event_payload_digest: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     request_id: Mapped[str] = mapped_column(String(128), nullable=False, default="")
     occurred_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    user = relationship("User", foreign_keys=[user_id], lazy="raise", viewonly=True)
 
     __table_args__ = (
         CheckConstraint(

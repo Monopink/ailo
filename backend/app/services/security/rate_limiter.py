@@ -88,6 +88,62 @@ RATE_LIMIT_WHITELIST_KEYS: dict[str, str | None] = {
 }
 
 
+async def _load_rate_limit_group_settings(
+    group: str,
+    db: AsyncSession,
+) -> tuple[int, float, set[str]]:
+    if group not in RATE_LIMIT_REQUEST_KEYS or group not in RATE_LIMIT_WINDOW_KEYS:
+        raise ValueError(f"Unsupported rate limit group: {group}")
+
+    request_key = RATE_LIMIT_REQUEST_KEYS[group]
+    window_key, multiplier = RATE_LIMIT_WINDOW_KEYS[group]
+    requests = await get_config_int(db, key=request_key)
+    base_window = await get_config_int(db, key=window_key)
+    window = float(base_window * multiplier)
+
+    whitelist_key = RATE_LIMIT_WHITELIST_KEYS.get(group)
+    whitelist: set[str] = set()
+    if whitelist_key:
+        whitelist_value = await get_config(db, key=whitelist_key, required=False)
+        if isinstance(whitelist_value, str):
+            whitelist_str = whitelist_value.strip()
+        elif whitelist_value is None:
+            whitelist_str = ""
+        else:
+            whitelist_str = str(whitelist_value).strip()
+        if whitelist_str:
+            whitelist = {item.strip() for item in whitelist_str.split(",") if item.strip() != ""}
+    return requests, window, whitelist
+
+
+def _check_single_cache_key_limit(
+    *,
+    cache_key: str,
+    now: float,
+    window: float,
+    requests: int,
+) -> tuple[bool, int | None, int]:
+    if cache_key not in _rate_limit_cache:
+        _ensure_rate_limit_cache_capacity(now)
+        _rate_limit_cache[cache_key] = deque()
+
+    while _rate_limit_cache[cache_key] and _rate_limit_cache[cache_key][0] < now - window:
+        _rate_limit_cache[cache_key].popleft()
+
+    current_count = len(_rate_limit_cache[cache_key])
+    if current_count >= requests:
+        oldest_request = _rate_limit_cache[cache_key][0]
+        retry_after = int(window - (now - oldest_request)) + 1
+        return False, retry_after, current_count
+
+    return True, None, current_count
+
+
+def _record_cache_key_hit(cache_key: str, *, now: float) -> int:
+    _rate_limit_cache[cache_key].append(now)
+    return len(_rate_limit_cache[cache_key])
+
+
 def _maybe_cleanup_rate_limit_cache(now: float) -> None:
     """Run periodic cleanup on the hot path without a background scheduler."""
     if (
@@ -134,73 +190,97 @@ async def check_rate_limit(
     Returns:
         (is_allowed, error_code, retry_after_seconds)
     """
-    if group not in RATE_LIMIT_REQUEST_KEYS or group not in RATE_LIMIT_WINDOW_KEYS:
-        raise ValueError(f"Unsupported rate limit group: {group}")
+    requests, window, whitelist = await _load_rate_limit_group_settings(group, db)
 
-    request_key = RATE_LIMIT_REQUEST_KEYS[group]
-    window_key, multiplier = RATE_LIMIT_WINDOW_KEYS[group]
-
-    requests = await get_config_int(db, key=request_key)
-    base_window = await get_config_int(db, key=window_key)
-    window = base_window * multiplier
-
-    # Check whitelist
-    whitelist_key = RATE_LIMIT_WHITELIST_KEYS.get(group)
-    whitelist_str = ""
-    if whitelist_key:
-        whitelist_value = await get_config(db, key=whitelist_key, required=False)
-        if isinstance(whitelist_value, str):
-            whitelist_str = whitelist_value.strip()
-        elif whitelist_value is not None:
-            whitelist_str = str(whitelist_value).strip()
-
-    if whitelist_str:
-        whitelist = [ip.strip() for ip in whitelist_str.split(",")]
-        if identifier in whitelist:
-            logger.debug("rate_limit_whitelist_allowed", identifier=identifier, group=group)
-            return True, None, None
+    if identifier in whitelist:
+        logger.debug("rate_limit_whitelist_allowed", identifier=identifier, group=group)
+        return True, None, None
 
     # Check rate limit
     cache_key = f"{group}:{identifier}"
     now = time.time()
     _maybe_cleanup_rate_limit_cache(now)
-
-    # Initialize cache for this key if not exists
-    if cache_key not in _rate_limit_cache:
-        _ensure_rate_limit_cache_capacity(now)
-        _rate_limit_cache[cache_key] = deque()
-
-    # Remove old requests outside the window
-    while _rate_limit_cache[cache_key] and _rate_limit_cache[cache_key][0] < now - window:
-        _rate_limit_cache[cache_key].popleft()
-
-    # Check if limit exceeded
-    if len(_rate_limit_cache[cache_key]) >= requests:
-        # Calculate retry_after
-        oldest_request = _rate_limit_cache[cache_key][0]
-        retry_after = int(window - (now - oldest_request)) + 1
-
+    allowed, retry_after, current_count = _check_single_cache_key_limit(
+        cache_key=cache_key,
+        now=now,
+        window=window,
+        requests=requests,
+    )
+    if not allowed:
         logger.warning(
             "rate_limit_exceeded",
             identifier=identifier,
             group=group,
-            requests_count=len(_rate_limit_cache[cache_key]),
+            requests_count=current_count,
             retry_after=retry_after,
         )
 
         error_code = f"RATE_LIMIT_EXCEEDED_{group.upper()}"
         return False, error_code, retry_after
 
-    # Record this request
-    _rate_limit_cache[cache_key].append(now)
+    requests_count = _record_cache_key_hit(cache_key, now=now)
 
     logger.debug(
         "rate_limit_allowed",
         identifier=identifier,
         group=group,
-        requests_count=len(_rate_limit_cache[cache_key]),
+        requests_count=requests_count,
         limit=requests,
     )
+
+    return True, None, None
+
+
+async def check_rate_limits_atomic(
+    identifiers: tuple[str, ...],
+    group: str,
+    db: AsyncSession,
+) -> tuple[bool, str | None, int | None]:
+    """Check multiple identifiers atomically and only record if all pass."""
+    normalized_identifiers = tuple(
+        dict.fromkeys(identifier for identifier in identifiers if identifier)
+    )
+    if len(normalized_identifiers) == 0:
+        return True, None, None
+
+    requests, window, whitelist = await _load_rate_limit_group_settings(group, db)
+    now = time.time()
+    _maybe_cleanup_rate_limit_cache(now)
+
+    pending_cache_keys: list[tuple[str, str]] = []
+    for identifier in normalized_identifiers:
+        if identifier in whitelist:
+            logger.debug("rate_limit_whitelist_allowed", identifier=identifier, group=group)
+            continue
+
+        cache_key = f"{group}:{identifier}"
+        allowed, retry_after, current_count = _check_single_cache_key_limit(
+            cache_key=cache_key,
+            now=now,
+            window=window,
+            requests=requests,
+        )
+        if not allowed:
+            logger.warning(
+                "rate_limit_exceeded",
+                identifier=identifier,
+                group=group,
+                requests_count=current_count,
+                retry_after=retry_after,
+            )
+            error_code = f"RATE_LIMIT_EXCEEDED_{group.upper()}"
+            return False, error_code, retry_after
+        pending_cache_keys.append((identifier, cache_key))
+
+    for identifier, cache_key in pending_cache_keys:
+        requests_count = _record_cache_key_hit(cache_key, now=now)
+        logger.debug(
+            "rate_limit_allowed",
+            identifier=identifier,
+            group=group,
+            requests_count=requests_count,
+            limit=requests,
+        )
 
     return True, None, None
 

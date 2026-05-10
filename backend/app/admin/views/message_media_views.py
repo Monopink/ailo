@@ -624,7 +624,7 @@ class MessageEndpointView(ModelView):
             StringField(
                 "target_key",
                 label="Target Key",
-                help_text="websocket=device_id; leancloud=installation id",
+                help_text="websocket=device_id",
             ),
             StringField(
                 "client_kind",

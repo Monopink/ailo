@@ -64,10 +64,3 @@ export const LOG_LEVEL: LogLevel = IS_PROD ? 'NONE' : 'DEBUG';
  * - trial/release: false (disable all debug tools)
  */
 export const ENABLE_DEBUG_TOOLS: boolean = IS_DEV;
-
-/**
- * Enable LeanCloud SDK debug logging
- * - development: false (disable to reduce log noise)
- * - production: false (always disabled)
- */
-export const ENABLE_LEANCLOUD_DEBUG: boolean = false;

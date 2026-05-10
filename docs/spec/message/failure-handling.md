@@ -53,7 +53,7 @@
 1. 创建出站消息事实：写入 `message_history`
 2. 写入 `message_dispatch_outbox`（同事务提交）
 3. Worker 读取 outbox，计算目标 endpoints
-4. 调用 provider sender 发送（WebSocket sender / LeanCloud sender），并写/更新 `message_deliveries`
+4. 调用 provider sender 发送，并写/更新 `message_deliveries`
 5. 根据执行结果更新 outbox 状态（done 或 pending/failed）
 
 对于首条 assistant 文本：

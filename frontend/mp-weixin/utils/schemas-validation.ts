@@ -250,7 +250,6 @@ export const StoredContactSchema = z.object({
   conversation_id: z.string(),
   contact_type: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   contact_qiao_id: z.string().optional(),
-  im_conv_id: z.string().optional(),
   alias: z.string().optional().nullable(),
   remark: z.string().optional().nullable(),
   avatar_url: z.string().optional().nullable(),
@@ -283,6 +282,9 @@ export const StoredMessageSchema = z.object({
   supports_typing: z.boolean().optional(),
   sent_time: z.number().optional(),
   status: MessageStatusSchema.optional(),
+  failure_category: z.string().optional().nullable(),
+  failure_reason: z.string().optional().nullable(),
+  retryable: z.boolean().optional().nullable(),
   action: z
     .union([z.string(), z.record(z.string(), z.unknown())])
     .optional()
@@ -363,16 +365,15 @@ export const MessageSessionBootstrapSchema = z.object({
   config_version: z.string().min(1),
   session: z.object({
     client_id: z.string().min(1),
-    app_id: z.string().min(1),
-    app_key: z.string().min(1),
+    provider: z.string().min(1),
     server_url: z.string().min(1),
-    im_conv_id: z.string().min(1),
-    signature: z.object({
-      algorithm: z.string().min(1),
+    session_hint: z.string().min(1),
+    auth: z.object({
+      scheme: z.string().min(1),
       version: z.string().min(1),
-      value: z.string().min(1),
-      timestamp: z.number().int(),
-      nonce: z.string().min(1),
+      ws_ticket: z.string().min(1),
+      issued_at_ms: z.number().int(),
+      device_id: z.string().min(1),
       expires_in_ms: z.number().int().nonnegative(),
     }),
   }),

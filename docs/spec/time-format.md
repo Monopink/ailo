@@ -38,7 +38,7 @@
 - `client_sent_time_ms` - 客户端发送时间
 - `server_time_ms` - 服务器当前时间
 - `time_ms` - 事件时间
-- `timestamp` - LeanCloud 协议时间戳
+- `timestamp` - 协议时间戳
 
 **示例值**：
 ```json

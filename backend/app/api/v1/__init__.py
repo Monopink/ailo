@@ -12,13 +12,11 @@ from app.api.v1.contacts import router as contacts_router
 from app.api.v1.discovery import router as discovery_router
 from app.api.v1.growth import growth_router, redeem_router
 from app.api.v1.invitations import router as invitations_router
-from app.api.v1.leancloud import router as leancloud_router
 from app.api.v1.media import router as media_router
 from app.api.v1.messages import router as messages_router
 from app.api.v1.pages import router as pages_router
 from app.api.v1.public_invitations import router as public_invitations_router
 from app.api.v1.users import router as users_router
-from app.api.v1.webhook import router as webhook_router
 
 # Create main v1 router
 v1_router = APIRouter()
@@ -26,7 +24,6 @@ v1_router = APIRouter()
 # Register API routers
 v1_router.include_router(auth_router)
 v1_router.include_router(client_router)
-v1_router.include_router(webhook_router)
 v1_router.include_router(contacts_router)
 v1_router.include_router(
     contact_requests_router, prefix="/contact-requests", tags=["Contact Requests"]
@@ -39,6 +36,5 @@ v1_router.include_router(public_invitations_router)
 v1_router.include_router(invitations_router)
 v1_router.include_router(growth_router)
 v1_router.include_router(redeem_router)
-v1_router.include_router(leancloud_router)
 v1_router.include_router(media_router)
 v1_router.include_router(messages_router)

@@ -207,7 +207,7 @@
 **流程**：
 
 1. **接收消息**：
-   - 通过 LeanCloud IM SDK 接收
+   - 通过 WebSocket 消息通道接收
    - message_type = 9
 
 2. **解析内容**：
@@ -248,7 +248,7 @@
 **流程**：
 
 1. **接收消息**：
-   - 通过 LeanCloud IM SDK 接收
+   - 通过 WebSocket 消息通道接收
    - message_type = 4
    - 包含 conversation_id
 

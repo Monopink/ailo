@@ -6,7 +6,14 @@ from typing import Any
 
 from sqlalchemy import select
 from starlette.requests import Request
-from starlette_admin import DateTimeField, EnumField, IntegerField, JSONField, StringField
+from starlette_admin import (
+    DateTimeField,
+    EnumField,
+    HasOne,
+    IntegerField,
+    JSONField,
+    StringField,
+)
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 
@@ -420,6 +427,7 @@ class ClientRuntimeObservationView(ModelView):
         StringField(
             "session_id", label="Session ID", help_text="Client runtime session identifier"
         ),
+        HasOne("user", identity="user", label="User", required=False),
         StringField("user_id", label="User ID", help_text="Bound user id when available"),
         StringField("user_agent", label="User Agent", help_text="Runtime user-agent snapshot"),
         StringField("event_name", label="Event Name", help_text="Runtime event name"),

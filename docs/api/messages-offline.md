@@ -21,7 +21,7 @@
 
 | 参数 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| device_id | string | 是 | 设备/安装级 UUID（与 LeanCloud client_id 无关） |
+| device_id | string | 是 | 设备/安装级 UUID |
 | limit | integer | 否 | 单次返回条数（默认 100，上限 100，服务端会裁剪） |
 | cursor | string | 否 | 分页游标（服务端返回） |
 

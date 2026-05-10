@@ -16,7 +16,7 @@ export interface ChatHeaderViewModel {
   contactAvatar: string;
   contactQiaoId: string;
   isAiContact: boolean;
-  imConvId: string;
+  sessionHint: string;
 }
 
 export interface ChatBootstrapResult {
@@ -45,7 +45,7 @@ export class ChatPageService extends BasePageService {
           contactAvatar: '',
           contactQiaoId: '',
           isAiContact: false,
-          imConvId: '',
+          sessionHint: '',
         },
       };
     }
@@ -80,7 +80,7 @@ export class ChatPageService extends BasePageService {
         nicknameFromProfile,
         storedContact?.contact_qiao_id ?? ''
       ) ?? '';
-    const imConvId = typeof storedContact?.im_conv_id === 'string' ? storedContact.im_conv_id : '';
+    const sessionHint = '';
     const isAiContact = storedContact?.contact_type === 2;
     const avatarSource =
       firstNonEmptyString(
@@ -98,7 +98,7 @@ export class ChatPageService extends BasePageService {
         contactQiaoId:
           typeof storedContact?.contact_qiao_id === 'string' ? storedContact.contact_qiao_id : '',
         isAiContact,
-        imConvId,
+        sessionHint,
       },
     };
   }
@@ -128,7 +128,7 @@ export class ChatPageService extends BasePageService {
           contactAvatar: viewModel.displayAvatar,
           contactQiaoId: viewModel.contactQiaoId,
           isAiContact: viewModel.contactType === 2,
-          imConvId: viewModel.imConvId,
+          sessionHint: viewModel.sessionHint,
         },
         authInvalid: false,
       };

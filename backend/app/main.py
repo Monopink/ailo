@@ -36,9 +36,12 @@ from app.services.message.dispatch.worker import (
     start_dispatch_outbox_worker,
     stop_dispatch_outbox_worker,
 )
+from app.services.message.monitoring.alerting import (
+    start_message_ws_alerting_worker,
+    stop_message_ws_alerting_worker,
+)
 from app.services.message.processing import reset_open_conversation_windows
 from app.services.message.processing.scanner import start_buffer_scanner, stop_buffer_scanner
-from app.services.message.providers.leancloud import create_leancloud_provider
 from app.services.system_config import get_config_int
 from app.services.wechat.client import WeChatAPIError, WeChatClient
 from app.utils.logging import configure_logging, get_logger
@@ -212,18 +215,6 @@ def _create_lifespan(
                 api_window_seconds=api_window_seconds,
             )
 
-            logger.info("initializing_message_service")
-            try:
-                async with session_factory() as db:
-                    provider = create_leancloud_provider(db)
-                    success = await provider.initialize_service()
-                    if success:
-                        logger.info("message_service_initialized")
-                    else:
-                        logger.warning("message_service_initialization_failed")
-            except Exception as exc:  # pragma: no cover - logging only
-                logger.error("message_service_initialization_error", error=str(exc), exc_info=True)
-
             try:
                 start_contact_request_worker(app)
             except Exception as exc:  # pragma: no cover - logging only
@@ -231,6 +222,7 @@ def _create_lifespan(
 
             await start_buffer_scanner()
             await start_dispatch_outbox_worker()
+            start_message_ws_alerting_worker(app)
             start_media_cleanup_worker(app)
             start_alerting_cleanup_worker(app)
 
@@ -245,6 +237,7 @@ def _create_lifespan(
             try:
                 await stop_buffer_scanner()
                 await stop_dispatch_outbox_worker()
+                await stop_message_ws_alerting_worker(app)
                 await stop_media_cleanup_worker(app)
                 await stop_alerting_cleanup_worker(app)
                 worker = getattr(app.state, "contact_request_worker", None)
@@ -280,17 +273,6 @@ def _register_debug_middleware(app: FastAPI) -> None:
         if "/api/" in str(request.url):
             path = request.url.path
             path_params = dict(request.path_params)
-            if path.startswith("/api/v1/leancloud/webhook/"):
-                token_value = path_params.get("webhook_token")
-                token_str = str(token_value) if token_value is not None else path.split("/")[-1]
-                token_prefix = token_str[:8] if token_str else ""
-                masked_token = f"{token_prefix}***" if token_prefix else "***"
-                if token_value is not None:
-                    path_params["webhook_token"] = masked_token
-                path_parts = path.split("/")
-                if path_parts and path_parts[-1]:
-                    path_parts[-1] = masked_token
-                    path = "/".join(path_parts)
             # Keep scheme/host/path for debug diagnostics but never log query strings.
             url_no_query = f"{request.url.scheme}://{request.url.netloc}{path}"
             logger.info(

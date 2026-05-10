@@ -15,9 +15,11 @@
 
 WebSocket 连接建立后，客户端必须先发送 `auth` 消息完成鉴权。
 
-原因：浏览器 WebSocket API 无法自定义 `Authorization` Header；因此在浏览器场景使用首帧 `auth` 消息提交 JWT。
+原因：浏览器 WebSocket API 无法自定义 `Authorization` Header；因此客户端先通过 `POST /api/v1/messages/ws-session` 获取短时 `ws_ticket`，再在首帧 `auth` 提交票据。
 
 约束：所有客户端（浏览器/非浏览器）均使用首帧 `auth` 消息鉴权；不使用/不依赖握手 `Authorization` Header。
+
+会话票据接口见：`messages-ws-session.md`。
 
 ---
 
@@ -53,7 +55,7 @@ WebSocket 连接建立后，客户端必须先发送 `auth` 消息完成鉴权�
   "type": "auth",
   "ws_frame_id": "R0k5x0V6pL3h9Jk8m2Q7eQ",
   "payload": {
-    "access_token": "<jwt_token>",
+    "ws_ticket": "<ws_session_ticket>",
     "device_id": "uuid"
   }
 }
@@ -62,7 +64,7 @@ WebSocket 连接建立后，客户端必须先发送 `auth` 消息完成鉴权�
 约束：
 
 - `device_id` 必须是稳定 UUID（设备/安装级）；生成与持久化规范见 `../spec/client/base/device-id.md`。
-- `access_token` 为 **裸 JWT**（不带 `Bearer ` 前缀）。
+- `ws_ticket` 必须来自 `POST /api/v1/messages/ws-session`，并且处于有效期内。
 - 服务端会按 (user_id, device_id) 注册 Presence endpoint 并续租。
 
 成功响应：

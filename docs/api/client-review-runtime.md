@@ -18,7 +18,7 @@
 ```json
 {
   "client_type": "mp_weixin",
-  "device_id": "d_xxxxx",
+  "device_id": "6f3d2f8c-0b60-4f05-b145-6c2f6b5bf2d8",
   "user_agent": "Mozilla/5.0 ...",
   "platform": "windows",
   "os_version": "10",
@@ -32,7 +32,7 @@
 ### 请求字段约束
 
 - `client_type` (string, required): 客户端标识，枚举值：`mp_weixin`
-- `device_id` (string): 设备标识，最大 64
+- `device_id` (string): 设备标识，必须为 UUID（v1-v5），最大 64
 - `user_agent` (string): 运行态 UA 快照（观测字段），最大 2048
 - `platform` (string): 平台标识，最大 32
 - `os_version` (string): 系统版本，最大 64
@@ -85,8 +85,8 @@
 ```json
 {
   "client_type": "mp_weixin",
-  "device_id": "d_xxxxx",
-  "session_id": "s_xxxxx",
+  "device_id": "6f3d2f8c-0b60-4f05-b145-6c2f6b5bf2d8",
+  "session_id": "runtime:boot:20260514",
   "user_agent": "Mozilla/5.0 ...",
   "platform": "windows",
   "os_version": "10",
@@ -118,7 +118,7 @@
 ### 请求字段约束
 
 - `client_type` (string, required): 客户端标识，枚举值：`mp_weixin`
-- `device_id` (string, required): 设备标识，最大 64
+- `device_id` (string, required): 设备标识，必须为 UUID（v1-v5），最大 64
 - `session_id` (string): 会话标识，最大 64
 - `user_agent` (string): 运行态 UA 快照（观测字段），最大 2048
 - `platform` (string): 平台标识，最大 32
@@ -154,10 +154,13 @@
 - 携带有效鉴权时，服务端从 token 解析并写入 `client_runtime_observations.user_id`。
 - `device_id` 为空时，事件会被忽略并返回 `accepted=false`。
 - 仅接收 `client_type=mp_weixin` 且 `event_name` 命中白名单的事件。
-- 当前白名单事件：`boot_route_decision`、`preflight_probe_result`、`preview_guard_redirect`、`login_clipboard_intake`、`invite_intake_attempt`、`runtime_session_tick`。
+- 当前白名单事件：`boot_route_decision`、`preflight_probe_result`、`preview_guard_redirect`、`login_clipboard_intake`、`invite_intake_attempt`、`runtime_session_tick`、`official_account_follow_attempt`、`official_account_follow_fallback_shown`、`message_connect_failed`、`message_connect_recovered`、`message_send_failed`、`ws_auth_failed`、`ws_ack_timeout`。
+- 消息服务故障事件（`message_connect_failed`、`message_connect_recovered`、`message_send_failed`、`ws_auth_failed`、`ws_ack_timeout`）使用 `entry_source=message_service`。
+- 消息服务故障事件的 `event_payload` 建议字段：`error_code`、`error_message`、`connection_state`、`reconnect_attempt`、`phase`、`conv_id`、`msg_id`、`message_type`、`occurred_at_ms`。
 - 当 `event_payload.clipboard_raw_text` 存在时，单条最大 2048 字符，超长按 2048 截断后入库。
 - 同一 2 秒窗口内，若 `device_id + event_name + page_path + entry_source + event_payload_digest` 一致，仅首条写入。
-- 除 `runtime_session_tick` 外：同一自然日（UTC）内，若 `client_type + device_id + session_id + event_name + page_path + entry_source + segment_type + network_type` 完全一致，仅首条会写入，后续返回 `accepted=false`。
+- 除 `runtime_session_tick` 与消息服务故障事件外：同一自然日（UTC）内，若 `client_type + device_id + session_id + event_name + page_path + entry_source + segment_type + network_type` 完全一致，仅首条会写入，后续返回 `accepted=false`。
+- 消息服务故障事件不参与“同日首条”去重，保留连续故障样本；仍受 2 秒近窗去重与接口限频约束。
 - `runtime_session_tick` 使用 30 秒时间桶去重，保留周期性观测样本。
 - 服务端对 `ip + device_id + session_id` 执行分层限频（秒级与日级）；超限事件返回 `accepted=false`。
 - 客户端离线时可将 `runtime_session_tick` 暂存本地；恢复网络后允许按原始 `occurred_at_ms` 补发。

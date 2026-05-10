@@ -81,6 +81,7 @@ from .views import (
     pending_contact_request_view,
     profile_avatar_advanced_edit_view,
     profile_view,
+    redeem_batch_user_counter_view,
     redeem_code_batch_view,
     redeem_code_claim_view,
     redeem_code_view,
@@ -284,6 +285,7 @@ def _register_dropdowns(admin_instance: AdminWithNext) -> None:
             redeem_code_batch_view,
             redeem_code_view,
             redeem_code_claim_view,
+            redeem_batch_user_counter_view,
         ],
         always_open=False,
     )

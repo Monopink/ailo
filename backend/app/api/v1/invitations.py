@@ -37,6 +37,7 @@ from app.schemas.invitation import (
 from app.services.entitlement.service import ENTITLEMENT_SOURCE_INVITE_BIND_INVITER
 from app.services.growth.invitation_policy import get_invitation_policy_rules
 from app.services.growth.reward_service import apply_growth_rewards
+from app.services.invitation.bindability import is_invite_code_bindable
 from app.services.invitation.intake import (
     normalize_event_source_or_raise,
     normalize_invite_code_or_raise,
@@ -157,26 +158,6 @@ async def _get_or_create_user_invite_code(
             continue
 
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="系统错误")
-
-
-async def _is_bindable(
-    db: AsyncSession,
-    *,
-    invitee_user: User,
-    inviter_user_id: int | None,
-) -> bool:
-    existing = await invite_binding_crud.get_by_invitee_user_id(db, invitee_user_id=invitee_user.id)
-    if existing is not None:
-        return False
-    if inviter_user_id is None:
-        return False
-    if inviter_user_id == invitee_user.id:
-        return False
-    return not await invite_binding_crud.is_inviter_of(
-        db,
-        inviter_user_id=invitee_user.id,
-        invitee_user_id=inviter_user_id,
-    )
 
 
 class _InviterRewardPolicy:
@@ -502,9 +483,9 @@ async def resolve_invite_code(
         return InvitationResolveResponse(valid=False, code_type=None, bindable=False)
 
     inviter_user_id = int(code_record.owner_user_id)
-    bindable = await _is_bindable(
+    bindable = await is_invite_code_bindable(
         db,
-        invitee_user=current_user,
+        invitee_user_id=int(current_user.id),
         inviter_user_id=inviter_user_id,
     )
 

@@ -30,7 +30,7 @@
 
 ### 不纳入范围
 
-- 邀请码/权益并发一致性改造。
+- 邀请码/权益并发一致性改造（见 `docs/plans/P1-invitation-entitlement-concurrency-and-migration-cleanup.md`）。
 - 消息核心表结构约束收紧（保持多 provider 通用定义）。
 
 ## 实施内容

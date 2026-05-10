@@ -75,6 +75,32 @@ class RedeemCodeBatch(AutoIncrementModel):
     )
 
 
+class RedeemBatchUserCounter(AutoIncrementModel):
+    """Per-user claim counter for one redeem batch."""
+
+    __tablename__ = "redeem_batch_user_counters"
+
+    batch_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("redeem_code_batches.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    claimed_total: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+
+    batch = relationship("RedeemCodeBatch", foreign_keys=[batch_id], lazy="raise", viewonly=True)
+    user = relationship("User", foreign_keys=[user_id], lazy="raise", viewonly=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "claimed_total >= 0",
+            name="ck_redeem_batch_user_counters_claimed_total_nonnegative",
+        ),
+        UniqueConstraint("batch_id", "user_id", name="uq_redeem_batch_user_counters_batch_user"),
+        Index("idx_redeem_batch_user_counters_user_time", "user_id", "updated_at"),
+    )
+
+
 class RedeemCode(AutoIncrementModel):
     """Redeem code entity."""
 

@@ -12,6 +12,7 @@ from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.crud.campaign import campaign as campaign_crud
 from app.crud.campaign import campaign_attribution as campaign_attribution_crud
+from app.crud.redeem import redeem_batch_user_counter as redeem_batch_user_counter_crud
 from app.crud.redeem import redeem_code as redeem_code_crud
 from app.crud.redeem import redeem_code_batch as redeem_code_batch_crud
 from app.crud.redeem import redeem_code_claim as redeem_code_claim_crud
@@ -140,7 +141,7 @@ async def claim_redeem_code(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="兑换码无效")
 
         batch = await redeem_code_batch_crud.get_by_id(
-            db, batch_id=int(redeem.batch_id), for_update=True
+            db, batch_id=int(redeem.batch_id), for_update=False
         )
         if batch is None or int(batch.status) != int(RedeemCodeBatchStatus.ACTIVE):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="兑换码无效")
@@ -148,12 +149,6 @@ async def claim_redeem_code(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="兑换码无效")
         if batch.ends_at is not None and batch.ends_at <= now:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="兑换码无效")
-
-        user_claimed_count = await redeem_code_claim_crud.count_by_user_and_batch(
-            db, user_id=actor_user_id, batch_id=int(batch.id)
-        )
-        if user_claimed_count >= int(batch.max_claims_per_user):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="已达到领取上限")
 
         already_claimed = await redeem_code_claim_crud.get_by_user_and_code(
             db,
@@ -166,12 +161,32 @@ async def claim_redeem_code(
         max_claims_total = (
             int(redeem.max_claims_total) if redeem.max_claims_total is not None else None
         )
-        if max_claims_total is not None and int(redeem.claimed_total) >= max_claims_total:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="兑换码已被领完")
-        if int(batch.mode) == int(RedeemCodeMode.ONE_TIME) and int(redeem.claimed_total) >= 1:
+
+        counter_value = await redeem_batch_user_counter_crud.increment_with_cap(
+            db,
+            batch_id=int(batch.id),
+            user_id=actor_user_id,
+            max_claims_per_user=int(batch.max_claims_per_user),
+        )
+        if counter_value is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="已达到领取上限")
+
+        code_incremented = await redeem_code_crud.increment_claimed_total_if_available(
+            db,
+            redeem_code_id=int(redeem.id),
+            at=now,
+            max_claims_total=max_claims_total,
+            enforce_one_time=int(batch.mode) == int(RedeemCodeMode.ONE_TIME),
+        )
+        if not code_incremented:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="兑换码已被领完")
 
-        if batch.budget_total is not None and int(batch.budget_used) >= int(batch.budget_total):
+        budget_incremented = await redeem_code_batch_crud.increment_budget_used_if_available(
+            db,
+            batch_id=int(batch.id),
+            at=now,
+        )
+        if not budget_incremented:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="活动预算已用尽")
 
         claim = await redeem_code_claim_crud.create_claim(
@@ -183,10 +198,6 @@ async def claim_redeem_code(
             idempotency_key=f"redeem_claim:{actor_user_id}:{int(redeem.id)}",
             event_payload={"batch_code": batch.batch_code},
         )
-
-        redeem.claimed_total = int(redeem.claimed_total) + 1
-        batch.budget_used = int(batch.budget_used) + 1
-        await db.flush()
 
         reward = await apply_growth_rewards(
             db,

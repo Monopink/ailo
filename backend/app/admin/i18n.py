@@ -139,6 +139,7 @@ _ADMIN_TEXT_MAP: dict[str, tuple[str, str]] = {
     "Redeem Code Batches": ("兑换码批次", "Redeem Code Batches"),
     "Redeem Codes": ("兑换码", "Redeem Codes"),
     "Redeem Claims": ("兑换码领取记录", "Redeem Claims"),
+    "Redeem Batch User Counters": ("兑换批次用户计数", "Redeem Batch User Counters"),
     "Entitlement Operations": ("权益操作", "Entitlement Operations"),
     "Entitlement Types": ("权益类型字典", "Entitlement Types"),
     "Entitlement Reason Codes": ("权益原因码", "Entitlement Reason Codes"),

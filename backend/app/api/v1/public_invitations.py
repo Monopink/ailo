@@ -25,11 +25,23 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/public/invitations", tags=["Public Invitations"])
 
 
-def _safe_client_ip(request: Request) -> str:
+def _resolve_client_ip_or_deny(*, request: Request, request_id: str) -> str:
     try:
         return get_client_ip(request)
-    except ClientIPResolutionError:
-        return ""
+    except ClientIPResolutionError as exc:
+        logger.warning(
+            "public_invite_intake_client_ip_resolve_failed",
+            request_id=request_id,
+            reason=exc.reason,
+        )
+        raise HTTPException(
+            status_code=403,
+            detail=build_protective_denial_detail(
+                reason="CLIENT_IP_RESOLUTION_FAILED",
+                camouflage_message="请求来源受限",
+                metadata={"request_id": request_id},
+            ),
+        ) from exc
 
 
 def _request_id(request: Request) -> str:
@@ -48,17 +60,18 @@ def _request_id(request: Request) -> str:
 async def _guard_public_attack(
     *,
     request: Request,
+    client_ip: str,
+    request_id: str,
     payload: InvitationIntakeRequest,
     db: AsyncSession,
 ) -> None:
-    client_ip = _safe_client_ip(request)
-    if client_ip != "" and await is_ip_blocked(db, client_ip):
+    if await is_ip_blocked(db, client_ip):
         raise HTTPException(
             status_code=403,
             detail=build_protective_denial_detail(
                 reason="IP_BLOCKED",
                 camouflage_message="请求来源受限",
-                metadata={"request_id": _request_id(request)},
+                metadata={"request_id": request_id},
             ),
         )
 
@@ -69,7 +82,7 @@ async def _guard_public_attack(
             request_method=request.method,
             request_path=request.url.path,
             client_ip=client_ip,
-            request_id=_request_id(request),
+            request_id=request_id,
             user_id=None,
             user_qiao_id=None,
         ),
@@ -98,16 +111,14 @@ async def _guard_public_attack(
 
 async def _is_public_intake_rate_limited(
     *,
-    request: Request,
+    client_ip: str,
     payload: InvitationIntakeRequest,
     db: AsyncSession,
 ) -> bool:
-    client_ip = _safe_client_ip(request)
     identifiers: list[str] = []
     if payload.device_id:
         identifiers.append(f"device:{payload.device_id}")
-    if client_ip != "":
-        identifiers.append(f"ip:{client_ip}")
+    identifiers.append(f"ip:{client_ip}")
 
     for identifier in identifiers:
         allowed, _error_code, _retry_after = await check_rate_limit(
@@ -127,8 +138,16 @@ async def intake_public_invitation_code(
     db: AsyncSession = Depends(get_db),
 ) -> InvitationPublicIntakeResponse:
     """Intake public invitation text/link input and return one recognized valid invite code."""
-    await _guard_public_attack(request=request, payload=payload, db=db)
-    if await _is_public_intake_rate_limited(request=request, payload=payload, db=db):
+    request_id = _request_id(request)
+    client_ip = _resolve_client_ip_or_deny(request=request, request_id=request_id)
+    await _guard_public_attack(
+        request=request,
+        client_ip=client_ip,
+        request_id=request_id,
+        payload=payload,
+        db=db,
+    )
+    if await _is_public_intake_rate_limited(client_ip=client_ip, payload=payload, db=db):
         return InvitationPublicIntakeResponse(recognized_code=None, valid=False)
 
     result = await orchestrate_invitation_intake(

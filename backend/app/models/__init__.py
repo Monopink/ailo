@@ -66,7 +66,7 @@ from .message import (
     MessageHistory,
 )
 from .profile import Profile, UserProfileLog
-from .redeem import RedeemCode, RedeemCodeBatch, RedeemCodeClaim
+from .redeem import RedeemBatchUserCounter, RedeemCode, RedeemCodeBatch, RedeemCodeClaim
 from .security import SecurityIPBlock, SecurityIPRiskStats, UserRiskStats, UserViolationLog
 from .system import (
     AlertEvent,
@@ -145,6 +145,7 @@ __all__ = [
     "Campaign",
     "CampaignAttribution",
     "RedeemCodeBatch",
+    "RedeemBatchUserCounter",
     "RedeemCode",
     "RedeemCodeClaim",
     "GrowthRewardRule",

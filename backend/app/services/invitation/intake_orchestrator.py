@@ -9,12 +9,12 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud.invite import invite_binding as invite_binding_crud
 from app.crud.invite import invite_code as invite_code_crud
 from app.crud.invite import invite_event as invite_event_crud
 from app.crud.invite import invite_intake_log as invite_intake_log_crud
 from app.enums.invite import InviteEventType
 from app.models.system.runtime_observation import ClientRuntimeObservation
+from app.services.invitation.bindability import is_invite_code_bindable
 from app.services.invitation.intake import (
     normalize_event_source_or_raise,
     normalize_trigger_or_raise,
@@ -35,30 +35,6 @@ class IntakeOrchestrationResult:
     recognized_code: str | None
     valid: bool
     bindable: bool
-
-
-async def _is_bindable_by_user_ids(
-    db: AsyncSession,
-    *,
-    invitee_user_id: int,
-    inviter_user_id: int | None,
-) -> bool:
-    """Check whether invitee can bind inviter's invite code."""
-    existing = await invite_binding_crud.get_by_invitee_user_id(
-        db,
-        invitee_user_id=invitee_user_id,
-    )
-    if existing is not None:
-        return False
-    if inviter_user_id is None:
-        return False
-    if inviter_user_id == invitee_user_id:
-        return False
-    return not await invite_binding_crud.is_inviter_of(
-        db,
-        inviter_user_id=invitee_user_id,
-        invitee_user_id=inviter_user_id,
-    )
 
 
 def _log_fields_for_actor(*, actor_user_id: int | None) -> dict[str, object]:
@@ -137,7 +113,7 @@ async def orchestrate_invitation_intake(
                 invite_code_id = int(code_record.id)
                 valid = True
                 if actor_user_id is not None:
-                    bindable = await _is_bindable_by_user_ids(
+                    bindable = await is_invite_code_bindable(
                         db,
                         invitee_user_id=actor_user_id,
                         inviter_user_id=int(code_record.owner_user_id),

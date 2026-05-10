@@ -34,7 +34,7 @@ from app.models.invite import (
     InviteEvent,
     InviteIntakeLog,
 )
-from app.models.redeem import RedeemCode, RedeemCodeBatch, RedeemCodeClaim
+from app.models.redeem import RedeemBatchUserCounter, RedeemCode, RedeemCodeBatch, RedeemCodeClaim
 from app.models.user import User
 
 INVITE_CODE_LENGTH = 6
@@ -1141,6 +1141,43 @@ class RedeemCodeClaimView(BaseRoleAwareModelView):
     ]
 
 
+class RedeemBatchUserCounterView(BaseRoleAwareModelView):
+    """Read-only admin view for redeem_batch_user_counters."""
+
+    def can_create(self, request: Request) -> bool:
+        return False
+
+    def can_edit(self, request: Request) -> bool:
+        return False
+
+    def can_delete(self, request: Request) -> bool:
+        return False
+
+    searchable_fields = ["batch_id", "user_id"]
+    sortable_fields = ["id", "batch_id", "user_id", "claimed_total", "created_at", "updated_at"]
+    fields_default_sort = [("updated_at", True)]
+    fields = [
+        IntegerField("id", label="ID"),
+        HasOne("batch", identity="redeem_code_batches", label="Batch", required=True),
+        _ReadableByIntForeignKeyField(
+            "batch_name",
+            label="Batch Name",
+            fk_attr="batch_id",
+            map_loader=_get_redeem_batch_name_map,
+        ),
+        HasOne("user", identity="user", label="User", required=True),
+        _ReadableByIntForeignKeyField(
+            "user_qiao_id",
+            label="User Qiao ID",
+            fk_attr="user_id",
+            map_loader=_get_user_qiao_id_map,
+        ),
+        IntegerField("claimed_total", label="Claimed Total"),
+        DateTimeField("created_at", label="Created At"),
+        DateTimeField("updated_at", label="Updated At"),
+    ]
+
+
 invite_code_view = InviteCodeView(
     InviteCode, name="Invite Codes", icon="fa fa-ticket", identity="invite_codes"
 )
@@ -1189,6 +1226,12 @@ redeem_code_view = RedeemCodeView(
 redeem_code_claim_view = RedeemCodeClaimView(
     RedeemCodeClaim, name="Redeem Claims", icon="fa fa-receipt", identity="redeem_code_claims"
 )
+redeem_batch_user_counter_view = RedeemBatchUserCounterView(
+    RedeemBatchUserCounter,
+    name="Redeem Batch User Counters",
+    icon="fa fa-chart-column",
+    identity="redeem_batch_user_counters",
+)
 
 GROWTH_MODEL_VIEWS = [
     campaign_view,
@@ -1198,6 +1241,7 @@ GROWTH_MODEL_VIEWS = [
     redeem_code_batch_view,
     redeem_code_view,
     redeem_code_claim_view,
+    redeem_batch_user_counter_view,
     invite_code_view,
     invite_binding_view,
     invite_event_view,

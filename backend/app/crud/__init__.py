@@ -31,7 +31,7 @@ from .llm import llm_config, llm_provider, llm_test_log
 
 # Message CRUD
 from .message import media_file, message
-from .redeem import redeem_code, redeem_code_batch, redeem_code_claim
+from .redeem import redeem_batch_user_counter, redeem_code, redeem_code_batch, redeem_code_claim
 
 # System CRUD
 from .system import (
@@ -82,6 +82,7 @@ __all__ = [
     "redeem_code_batch",
     "redeem_code",
     "redeem_code_claim",
+    "redeem_batch_user_counter",
     "entitlement_type",
     "entitlement_reason_code",
     "user_entitlement_account",

@@ -58,7 +58,12 @@ declare global {
       sent_time: number;
     }
 
-    type MessageConnectionState = 'connected' | 'connecting' | 'disconnected' | 'suspending';
+    type MessageConnectionState =
+      | 'connected'
+      | 'connecting'
+      | 'disconnected'
+      | 'suspending'
+      | 'config_error';
 
     interface ConversationSummary {
       convId: string;

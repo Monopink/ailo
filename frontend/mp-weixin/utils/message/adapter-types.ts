@@ -49,7 +49,12 @@ export type AdapterTypingPayload = {
   sent_time: number;
 };
 
-export type ConnectionState = 'connected' | 'connecting' | 'disconnected' | 'suspending';
+export type ConnectionState =
+  | 'connected'
+  | 'connecting'
+  | 'disconnected'
+  | 'suspending'
+  | 'config_error';
 
 export interface MessageAdapter {
   connect(userId: string, auth: MessageAuthPayload, config: MessageConnectConfig): Promise<void>;

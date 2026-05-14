@@ -646,6 +646,14 @@ Page<ContactListPageData, ContactListPageCustom>({
       return;
     }
 
+    if (state === 'config_error') {
+      this.clearConnectionIssueTimer();
+      if (!this.data.showConnectionIssue) {
+        this.setData({ showConnectionIssue: true });
+      }
+      return;
+    }
+
     if (state === 'disconnected') {
       if (this._connectionIssueTimer !== null) {
         return;

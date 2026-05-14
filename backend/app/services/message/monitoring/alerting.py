@@ -26,6 +26,9 @@ from app.models.message import (
     MessageEndpoint,
 )
 from app.services.alerting.events import build_standard_alert_entities, emit_alert
+from app.services.message.monitoring.client_runtime_alerting import (
+    emit_domain_misconfig_alert_if_needed,
+)
 from app.services.message.websocket.manager import ws_manager
 from app.type_defs import JSONDict
 from app.utils.logging import get_logger
@@ -164,6 +167,7 @@ async def _run_once() -> None:
         outbox_backlog_count = await _count_outbox_backlog(db)
         ws_send_failed_count = await _count_ws_send_failed(db, now=now)
         ack_p95_latency_ms = await _ack_p95_latency_ms(db, now=now)
+        await emit_domain_misconfig_alert_if_needed(db, now=now)
 
     ws_send_failure_count = ws_send_queue_full_count + ws_send_failed_count
 

@@ -1,14 +1,17 @@
 """Offline message endpoints."""
 
 from datetime import UTC, datetime
+from ipaddress import ip_address
+from urllib.parse import urlparse
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.exceptions import ConfigurationError
 from app.models.user import User
 from app.schemas.message.offline import (
     OfflineMessageAckRequest,
@@ -24,6 +27,7 @@ from app.schemas.message.ws_session import (
 )
 from app.services.message.offline import ack_offline_message, fetch_offline_messages
 from app.services.message.websocket import issue_ws_session_ticket
+from app.services.system_config import get_config_str
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -31,10 +35,43 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/messages", tags=["Messages"])
 
 
+def _is_loopback_hostname(hostname: str | None) -> bool:
+    if hostname is None:
+        return False
+    normalized = hostname.strip().lower()
+    if normalized == "localhost":
+        return True
+    try:
+        return ip_address(normalized).is_loopback
+    except ValueError:
+        return False
+
+
+def _normalize_ws_server_url(value: str, *, allow_loopback_http: bool) -> str:
+    normalized = value.strip().rstrip("/")
+    parsed = urlparse(normalized)
+    if parsed.scheme == "https" and parsed.netloc:
+        return normalized
+    if (
+        allow_loopback_http
+        and parsed.scheme == "http"
+        and parsed.netloc
+        and _is_loopback_hostname(parsed.hostname)
+    ):
+        return normalized
+    raise ConfigurationError(
+        message=(
+            "Configuration 'api_base_url' must be an https absolute URL, "
+            "or an http loopback URL in non-production environments."
+        ),
+        config_key="api_base_url",
+    )
+
+
 @router.post("/ws-session", response_model=MessageWSSessionBootstrapResponse)
 async def issue_ws_session(
     payload: MessageWSSessionTicketRequest,
-    request: Request,
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> MessageWSSessionBootstrapResponse:
     """Issue a short-lived websocket session ticket for realtime auth."""
@@ -51,7 +88,11 @@ async def issue_ws_session(
         ttl_seconds=ttl_seconds,
     )
     expires_in_ms = max(claims.expires_at_ms - claims.issued_at_ms, 0)
-    base_url = str(request.base_url).rstrip("/")
+    api_base_url = await get_config_str(db, key="api_base_url")
+    base_url = _normalize_ws_server_url(
+        api_base_url,
+        allow_loopback_http=not settings.is_production,
+    )
     config_version = f"ws:{current_user.qiao_id}:{device_uuid}:{claims.issued_at_ms}"
 
     return MessageWSSessionBootstrapResponse(

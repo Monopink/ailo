@@ -35,6 +35,8 @@ const RECONNECT_BASE_DELAY = 1000;
 const RECONNECT_MAX_DELAY = 30000;
 const RECONNECT_BACKOFF = 2;
 const RECONNECT_JITTER = 0.2;
+const CONFIG_PROBE_INTERVAL_MS = 60000;
+const CONFIG_PROBE_JITTER = 0.1;
 const SEND_TOTAL_TIMEOUT_MS = 3000;
 const SEND_CONNECT_WAIT_TIMEOUT_MS = 900;
 const SEND_RETRY_DELAYS_MS = [300, 700] as const;
@@ -45,6 +47,7 @@ const RETRYABLE_SEND_ERRORS = new Set<string>([
   'WS_OPEN_TIMEOUT',
   'WS_CLOSED_BEFORE_OPEN',
   'MESSAGE_CONNECT_TIMEOUT',
+  'WS_DOMAIN_NOT_ALLOWED',
 ]);
 
 const createBusinessMessage = (
@@ -162,6 +165,8 @@ export class MessageService {
   private offlineSyncReady = false;
   private pendingAck: { message: StoredMessage; sentTime: number; msgId: string } | null = null;
   private lastConnectFailureReportedAtMs = 0;
+  private configProbeTimer: ReturnType<typeof setTimeout> | null = null;
+  private configProbeAttempt = 0;
 
   constructor(adapter: MessageAdapter = getMessageAdapter()) {
     this.adapter = adapter;
@@ -191,17 +196,21 @@ export class MessageService {
       return;
     }
     this.lastConnectFailureReportedAtMs = nowMs;
+    const errorCode = this.normalizeRuntimeErrorCode(error);
     reportMessageRuntimeObservation('message_connect_failed', {
-      error_code: error.message,
+      error_code: errorCode,
       error_message: error.message,
       phase,
       connection_state: this.connectionState,
       reconnect_attempt: this.reconnectAttempt,
+      recovery_mode: this.resolveRecoveryMode(),
+      probe_interval_ms: this.connectionState === 'config_error' ? CONFIG_PROBE_INTERVAL_MS : null,
+      probe_attempt: this.connectionState === 'config_error' ? this.configProbeAttempt : null,
       occurred_at_ms: nowMs,
     });
-    if (error.message === 'WS_AUTH_FAILED') {
+    if (errorCode === 'WS_AUTH_FAILED') {
       reportMessageRuntimeObservation('ws_auth_failed', {
-        error_code: error.message,
+        error_code: errorCode,
         error_message: error.message,
         phase,
         connection_state: this.connectionState,
@@ -215,6 +224,13 @@ export class MessageService {
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
+    }
+  }
+
+  private clearConfigProbeTimer(): void {
+    if (this.configProbeTimer !== null) {
+      clearTimeout(this.configProbeTimer);
+      this.configProbeTimer = null;
     }
   }
 
@@ -232,7 +248,31 @@ export class MessageService {
     });
   }
 
+  private isDomainNotAllowedError(error: Error): boolean {
+    const normalized = error.message.toLowerCase();
+    return (
+      normalized.includes('url not in domain list') || normalized.includes('ws_domain_not_allowed')
+    );
+  }
+
+  private normalizeRuntimeErrorCode(error: Error): string {
+    if (this.isDomainNotAllowedError(error)) {
+      return 'WS_DOMAIN_NOT_ALLOWED';
+    }
+    return error.message;
+  }
+
+  private resolveRecoveryMode(): string | null {
+    if (this.connectionState === 'config_error') {
+      return 'low_frequency_probe';
+    }
+    return null;
+  }
+
   private isRetryableSendError(error: Error): boolean {
+    if (error.message === 'WS_DOMAIN_NOT_ALLOWED') {
+      return false;
+    }
     if (RETRYABLE_SEND_ERRORS.has(error.message)) {
       return true;
     }
@@ -246,6 +286,9 @@ export class MessageService {
   }
 
   private async ensureConnectedForSend(deadlineMs: number): Promise<void> {
+    if (this.connectionState === 'config_error') {
+      throw new Error('WS_DOMAIN_NOT_ALLOWED');
+    }
     if (this.adapter.isConnected()) {
       return;
     }
@@ -266,7 +309,7 @@ export class MessageService {
   }
 
   private scheduleReconnect(): void {
-    if (this.suspended || this.reconnectTimer !== null) {
+    if (this.suspended || this.reconnectTimer !== null || this.connectionState === 'config_error') {
       return;
     }
     this.reconnectAttempt += 1;
@@ -284,11 +327,128 @@ export class MessageService {
     }, delay);
   }
 
+  private calculateConfigProbeDelay(): number {
+    const jitter = 1 + (Math.random() * 2 - 1) * CONFIG_PROBE_JITTER;
+    return Math.max(5000, Math.round(CONFIG_PROBE_INTERVAL_MS * jitter));
+  }
+
+  private scheduleConfigProbe(): void {
+    if (this.suspended || this.configProbeTimer !== null) {
+      return;
+    }
+    const delay = this.calculateConfigProbeDelay();
+    const attempt = this.configProbeAttempt + 1;
+    this.configProbeTimer = setTimeout(() => {
+      this.configProbeTimer = null;
+      void this.runConfigProbe(attempt);
+    }, delay);
+    reportMessageRuntimeObservation('message_connect_failed', {
+      error_code: 'WS_DOMAIN_NOT_ALLOWED',
+      error_message: 'WS_DOMAIN_NOT_ALLOWED',
+      phase: 'config_probe_scheduled',
+      recovery_mode: 'low_frequency_probe',
+      probe_interval_ms: CONFIG_PROBE_INTERVAL_MS,
+      probe_delay_ms: delay,
+      probe_attempt: attempt,
+      connection_state: this.connectionState,
+      reconnect_attempt: this.reconnectAttempt,
+      occurred_at_ms: Date.now(),
+    });
+  }
+
+  private async runConfigProbe(attempt: number): Promise<void> {
+    if (this.suspended) {
+      return;
+    }
+    this.configProbeAttempt = attempt;
+    try {
+      await conversationStore.refresh();
+      const connectPayload = await conversationStore.getConnectPayload();
+      const userId = this.userId;
+      if (!isNonEmptyString(userId) || connectPayload.userId !== userId) {
+        throw new Error('MESSAGE_SESSION_USER_MISMATCH');
+      }
+      await this.adapter.connect(userId, connectPayload.auth as MessageAuthPayload, {
+        provider: connectPayload.provider,
+        server_url: connectPayload.serverUrl,
+        config_version: connectPayload.configVersion,
+        session_hint: connectPayload.sessionHint,
+      });
+      this.connectedConfigVersion = connectPayload.configVersion;
+      this.setConnectionState('connected');
+      this.configProbeAttempt = 0;
+      this.clearConfigProbeTimer();
+    } catch (error) {
+      const err = normalizeError(error);
+      logger.warn('Config probe failed', {
+        attempt,
+        error: err.message,
+      });
+      reportMessageRuntimeObservation('message_connect_failed', {
+        error_code: this.normalizeRuntimeErrorCode(err),
+        error_message: err.message,
+        phase: 'config_probe_failed',
+        recovery_mode: 'low_frequency_probe',
+        probe_interval_ms: CONFIG_PROBE_INTERVAL_MS,
+        probe_attempt: attempt,
+        connection_state: this.connectionState,
+        reconnect_attempt: this.reconnectAttempt,
+        occurred_at_ms: Date.now(),
+      });
+      if (this.connectionState === 'config_error') {
+        this.scheduleConfigProbe();
+      }
+    }
+  }
+
+  private async enterConfigErrorMode(triggerError: Error): Promise<void> {
+    this.clearReconnectTimer();
+    this.reconnectAttempt = 0;
+    this.connectedConfigVersion = null;
+    this.setConnectionState('config_error');
+    reportMessageRuntimeObservation('message_connect_failed', {
+      error_code: this.normalizeRuntimeErrorCode(triggerError),
+      error_message: triggerError.message,
+      phase: 'config_error_enter',
+      recovery_mode: 'single_refresh_then_probe',
+      probe_interval_ms: CONFIG_PROBE_INTERVAL_MS,
+      probe_attempt: this.configProbeAttempt,
+      connection_state: this.connectionState,
+      reconnect_attempt: this.reconnectAttempt,
+      occurred_at_ms: Date.now(),
+    });
+
+    try {
+      await conversationStore.refresh();
+      const connectPayload = await conversationStore.getConnectPayload();
+      const userId = this.userId;
+      if (!isNonEmptyString(userId) || connectPayload.userId !== userId) {
+        throw new Error('MESSAGE_SESSION_USER_MISMATCH');
+      }
+      await this.adapter.connect(userId, connectPayload.auth as MessageAuthPayload, {
+        provider: connectPayload.provider,
+        server_url: connectPayload.serverUrl,
+        config_version: connectPayload.configVersion,
+        session_hint: connectPayload.sessionHint,
+      });
+      this.connectedConfigVersion = connectPayload.configVersion;
+      this.setConnectionState('connected');
+      return;
+    } catch (error) {
+      const err = normalizeError(error);
+      logger.warn('Config refresh after domain error failed', { error: err.message });
+      this.scheduleConfigProbe();
+      throw new Error('WS_DOMAIN_NOT_ALLOWED');
+    }
+  }
+
   private handleAdapterConnectionState(state: ConnectionState): void {
     if (state === 'connected') {
       const previousState = this.connectionState;
       this.reconnectAttempt = 0;
       this.clearReconnectTimer();
+      this.clearConfigProbeTimer();
+      this.configProbeAttempt = 0;
       this.setConnectionState('connected');
       if (previousState !== 'connected') {
         reportMessageRuntimeObservation('message_connect_recovered', {
@@ -305,6 +465,11 @@ export class MessageService {
     }
 
     if (state === 'disconnected') {
+      if (this.connectionState === 'config_error') {
+        this.setConnectionState('config_error');
+        this.scheduleConfigProbe();
+        return;
+      }
       const previousState = this.connectionState;
       this.connectedConfigVersion = null;
       this.setConnectionState('disconnected');
@@ -388,10 +553,16 @@ export class MessageService {
       this.connectedConfigVersion = connectPayload.configVersion;
       this.reconnectAttempt = 0;
       this.clearReconnectTimer();
+      this.clearConfigProbeTimer();
+      this.configProbeAttempt = 0;
       this.setConnectionState('connected');
     })()
-      .catch((error) => {
+      .catch(async (error) => {
         const err = normalizeError(error);
+        if (this.isDomainNotAllowedError(err)) {
+          await this.enterConfigErrorMode(err);
+          return;
+        }
         this.connectedConfigVersion = null;
         this.setConnectionState('disconnected');
         this.reportConnectFailure(err, 'ensure_connected');
@@ -408,6 +579,7 @@ export class MessageService {
   async resume(): Promise<void> {
     this.suspended = false;
     this.clearReconnectTimer();
+    this.clearConfigProbeTimer();
     if (this.connectionState === 'suspending') {
       this.setConnectionState('disconnected');
     }
@@ -423,6 +595,7 @@ export class MessageService {
   suspend(): void {
     this.suspended = true;
     this.clearReconnectTimer();
+    this.clearConfigProbeTimer();
     this.setConnectionState('suspending');
   }
 
@@ -450,10 +623,15 @@ export class MessageService {
         await this.ensureConnected();
       } catch (error) {
         const err = normalizeError(error);
+        if (err.message === 'WS_DOMAIN_NOT_ALLOWED') {
+          logger.warn('Message service enters config error mode on init');
+        }
         logger.warn('Message service connect failed on init', { error: err.message });
-        this.setConnectionState('disconnected');
-        this.reportConnectFailure(err, 'initialize');
-        this.scheduleReconnect();
+        if (err.message !== 'WS_DOMAIN_NOT_ALLOWED') {
+          this.setConnectionState('disconnected');
+          this.reportConnectFailure(err, 'initialize');
+          this.scheduleReconnect();
+        }
       }
       try {
         await this.startOfflineSync();
@@ -596,9 +774,12 @@ export class MessageService {
       error: err.message,
     });
     reportMessageRuntimeObservation('message_send_failed', {
-      error_code: err.message,
+      error_code: this.normalizeRuntimeErrorCode(err),
       error_message: err.message,
       connection_state: this.connectionState,
+      recovery_mode: this.resolveRecoveryMode(),
+      probe_interval_ms: this.connectionState === 'config_error' ? CONFIG_PROBE_INTERVAL_MS : null,
+      probe_attempt: this.connectionState === 'config_error' ? this.configProbeAttempt : null,
       conv_id: convId,
       msg_id: msgId,
       message_type: message.message_type,
@@ -955,6 +1136,13 @@ export class MessageService {
 
   handleError(error: Error): void {
     const err = normalizeError(error);
+    if (this.isDomainNotAllowedError(err)) {
+      void this.enterConfigErrorMode(err).catch((modeErr) => {
+        logger.warn('Enter config error mode failed', {
+          error: normalizeError(modeErr).message,
+        });
+      });
+    }
     logger.error('Message service error', { error: err.message });
     if (err.message === 'WS_ACK_TIMEOUT') {
       reportMessageRuntimeObservation('ws_ack_timeout', {
@@ -979,6 +1167,8 @@ export class MessageService {
       this.userId = null;
       this.reconnectAttempt = 0;
       this.clearReconnectTimer();
+      this.clearConfigProbeTimer();
+      this.configProbeAttempt = 0;
       this.connectPromise = null;
       this.connectedConfigVersion = null;
       await this.adapter.disconnect();

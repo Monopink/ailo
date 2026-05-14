@@ -98,3 +98,19 @@ WS 的 `ack` 语义：
 
 - 入站业务定位键统一使用 `conversation_id`（等于 `contacts.conversation_id`），Provider 仅负责传输与鉴权；业务层按 `conversation_id` 查找 contact/instance 并进入统一消息管线。
 - 客户端可上送 `typing`（start/end）以驱动 buffer 的双计时器策略与真实聊天节奏。
+
+---
+
+## 会话地址与域名故障恢复
+
+- `POST /api/v1/messages/ws-session` 返回的 `session.server_url` 仅来自 `system_configs.api_base_url`，不允许回退到请求 Host。
+- `api_base_url` 校验规则：
+  - `prod` 环境仅允许 `https://` 绝对地址；
+  - 非 `prod` 环境仅允许回环地址（`localhost`、`127.0.0.1`、`::1`）使用 `http://`，其余地址必须使用 `https://`。
+- 客户端命中 `createSocketTask:fail url not in domain list` 时，统一归类为 `WS_DOMAIN_NOT_ALLOWED`。
+- 客户端进入 `config_error` 后执行固定恢复流程：
+  - 立即强制刷新一次会话配置并重连；
+  - 若仍失败，停止高频指数退避重连；
+  - 进入低频自动探测（`60s` 周期，`±10%` 抖动）；
+  - 探测成功后恢复到正常连接状态机。
+- `config_error` 状态下发送路径返回确定性错误 `WS_DOMAIN_NOT_ALLOWED`，用于失败态展示与运行态事件聚合。

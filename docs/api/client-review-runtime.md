@@ -156,7 +156,8 @@
 - 仅接收 `client_type=mp_weixin` 且 `event_name` 命中白名单的事件。
 - 当前白名单事件：`boot_route_decision`、`preflight_probe_result`、`preview_guard_redirect`、`login_clipboard_intake`、`invite_intake_attempt`、`runtime_session_tick`、`official_account_follow_attempt`、`official_account_follow_fallback_shown`、`message_connect_failed`、`message_connect_recovered`、`message_send_failed`、`ws_auth_failed`、`ws_ack_timeout`。
 - 消息服务故障事件（`message_connect_failed`、`message_connect_recovered`、`message_send_failed`、`ws_auth_failed`、`ws_ack_timeout`）使用 `entry_source=message_service`。
-- 消息服务故障事件的 `event_payload` 建议字段：`error_code`、`error_message`、`connection_state`、`reconnect_attempt`、`phase`、`conv_id`、`msg_id`、`message_type`、`occurred_at_ms`。
+- 消息服务故障事件的 `event_payload` 建议字段：`error_code`、`error_message`、`connection_state`、`reconnect_attempt`、`phase`、`conv_id`、`msg_id`、`message_type`、`recovery_mode`、`probe_interval_ms`、`probe_attempt`、`occurred_at_ms`。
+- 当小程序出现 `createSocketTask:fail url not in domain list` 时，`error_code` 必须归一为 `WS_DOMAIN_NOT_ALLOWED`，`error_message` 保留原始错误文本用于诊断。
 - 当 `event_payload.clipboard_raw_text` 存在时，单条最大 2048 字符，超长按 2048 截断后入库。
 - 同一 2 秒窗口内，若 `device_id + event_name + page_path + entry_source + event_payload_digest` 一致，仅首条写入。
 - 除 `runtime_session_tick` 与消息服务故障事件外：同一自然日（UTC）内，若 `client_type + device_id + session_id + event_name + page_path + entry_source + segment_type + network_type` 完全一致，仅首条会写入，后续返回 `accepted=false`。

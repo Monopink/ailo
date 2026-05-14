@@ -45,8 +45,15 @@
 }
 ```
 
+`session.server_url` 生成规则：
+
+- 唯一来源：`system_configs.api_base_url`
+- 服务端会做规范化：去尾部 `/`
+- `prod` 环境：`api_base_url` 必须是 `https://` 绝对地址
+- 非 `prod` 环境：允许 `http://` 回环地址（`localhost`、`127.0.0.1`、`::1`），其余仍必须是 `https://` 绝对地址
+
 ## 错误响应
 
 - `400 Bad Request`：`device_id` 非法或缺失
 - `401 Unauthorized`：登录失效
-- `500 Internal Server Error`：系统错误
+- `500 Internal Server Error`：系统错误（含 `api_base_url` 缺失或格式非法）

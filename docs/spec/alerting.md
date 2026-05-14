@@ -24,6 +24,21 @@
 - `dedupe_key`：去重键（可为空）；非空时参与去重。
 - `details`：JSONB 详情（关键业务告警必填）；用于诊断与运营检索。
 
+### 已启用消息 WS 告警事件
+
+- `MESSAGE_WS_ACTIVE_ENDPOINT_THRESHOLD_EXCEEDED`
+- `MESSAGE_WS_OUTBOX_BACKLOG_THRESHOLD_EXCEEDED`
+- `MESSAGE_WS_SEND_FAILURE_THRESHOLD_EXCEEDED`
+- `MESSAGE_WS_ACK_P95_THRESHOLD_EXCEEDED`
+- `MESSAGE_WS_CLIENT_DOMAIN_MISCONFIG_THRESHOLD_EXCEEDED`
+
+`MESSAGE_WS_CLIENT_DOMAIN_MISCONFIG_THRESHOLD_EXCEEDED` 触发来源：
+
+- 数据源：`client_runtime_observations`
+- 过滤条件：`client_type=mp_weixin`、`entry_source=message_service`、`event_name=message_connect_failed`、`event_payload.error_code=WS_DOMAIN_NOT_ALLOWED`
+- 窗口：最近 `300` 秒
+- 阈值：`>=8`
+
 ## 去重语义
 
 - 去重键为：`(event_type, dedupe_key)`。

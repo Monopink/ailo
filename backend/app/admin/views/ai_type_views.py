@@ -9,7 +9,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
-from starlette_admin import DateTimeField, IntegerField, StringField, TextAreaField
+from starlette_admin import DateTimeField, HasMany, IntegerField, StringField, TextAreaField
 from starlette_admin.contrib.sqla import ModelView
 
 from app.models.ai.template import AIPersona, AITemplate, AIType
@@ -61,6 +61,9 @@ class AITypeView(ModelView):
         "id",
         "created_at",
         "updated_at",
+        "templates",
+        "templates_single_use",
+        "templates_reusable",
         "persona_total",
         "persona_active",
         "persona_active_reusable",
@@ -74,6 +77,9 @@ class AITypeView(ModelView):
         "id",
         "created_at",
         "updated_at",
+        "templates",
+        "templates_single_use",
+        "templates_reusable",
         "persona_total",
         "persona_active",
         "persona_active_reusable",
@@ -84,6 +90,9 @@ class AITypeView(ModelView):
         "template_active_single_use",
     ]
     exclude_fields_from_list: Sequence[str] = [
+        "templates",
+        "templates_single_use",
+        "templates_reusable",
         "persona_total",
         "persona_active_reusable",
         "persona_active_single_use",
@@ -166,6 +175,24 @@ class AITypeView(ModelView):
             name="template_active_single_use",
             label="Templates (Active Single-use)",
             help_text="Active + Single-use templates",
+        ),
+        HasMany(
+            "templates_single_use",
+            identity="ai_template",
+            label="Templates (Single-use)",
+            help_text="Single-use templates linked to this AI type (sorted by priority)",
+            exclude_from_list=True,
+            exclude_from_create=True,
+            exclude_from_edit=True,
+        ),
+        HasMany(
+            "templates_reusable",
+            identity="ai_template",
+            label="Templates (Reusable)",
+            help_text="Reusable templates linked to this AI type (sorted by priority)",
+            exclude_from_list=True,
+            exclude_from_create=True,
+            exclude_from_edit=True,
         ),
         DateTimeField("created_at", label="Created At", help_text="Creation timestamp"),
         DateTimeField("updated_at", label="Updated At", help_text="Last update timestamp"),

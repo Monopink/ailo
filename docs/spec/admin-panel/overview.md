@@ -44,6 +44,7 @@
 - 分数算法测试（关系算法输入输出验证）
 - AI Advanced Edit（personality/style 高级配置编辑）
 - Persona Batch Create（按 AI Type 批量生成 persona 队列，支持批量编辑导入并逐条提交 persona/profile 字段）
+- AI Type Detail（在 AI Type 详情页分字段展示 single-use/reusable templates，组内按 priority 升序，并可跳转 template 详情页）
 - Profile Avatar Advanced Edit（profile 头像上传、裁切与覆盖）
 
 其中 Chat Console 详见 [chat-console.md](chat-console.md)。
@@ -54,6 +55,10 @@ AI Advanced Edit 详见 [ai-advanced-edit.md](ai-advanced-edit.md)。
 - 用户统计、消息统计、AI 统计
 
 详见 [reports.md](reports.md)。
+
+### 7) 增长运营
+
+- Redeem Batch User Counters（按 batch/user 查看 `claimed_total`、更新时间，用于兑换领取上限排障）
 
 ## 全局约束
 

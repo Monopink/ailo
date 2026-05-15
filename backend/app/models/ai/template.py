@@ -31,6 +31,26 @@ class AIType(AutoIncrementModel):
         comment="Admin-visible name for this AI type",
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Description")
+    templates: Mapped[list["AITemplate"]] = orm_relationship(
+        "AITemplate",
+        primaryjoin="AIType.id == foreign(AITemplate.type_id)",
+        lazy="select",
+        viewonly=True,
+    )
+    templates_single_use: Mapped[list["AITemplate"]] = orm_relationship(
+        "AITemplate",
+        primaryjoin=("and_(AIType.id == foreign(AITemplate.type_id), AITemplate.is_reusable == 0)"),
+        order_by="AITemplate.priority, AITemplate.id",
+        lazy="select",
+        viewonly=True,
+    )
+    templates_reusable: Mapped[list["AITemplate"]] = orm_relationship(
+        "AITemplate",
+        primaryjoin=("and_(AIType.id == foreign(AITemplate.type_id), AITemplate.is_reusable == 1)"),
+        order_by="AITemplate.priority, AITemplate.id",
+        lazy="select",
+        viewonly=True,
+    )
 
     def __admin_select2_repr__(self, request: Request) -> str:
         return f"<span>[{self.id}] {escape(self.display_name)}</span>"
@@ -153,6 +173,11 @@ class AITemplate(AutoIncrementModel):
         uselist=False,
         primaryjoin="AITemplate.llm_config_id == foreign(LLMConfig.id)",
     )
+
+    def __admin_repr__(self, request: Request) -> str:
+        display = escape(self.display_name) if self.display_name else f"Template {self.id}"
+        status_label = "active" if self.status == 1 else "inactive"
+        return f"[{self.id}] {display} ({status_label}, priority={self.priority})"
 
     def __admin_select2_repr__(self, request: Request) -> str:
         display = escape(self.display_name) if self.display_name else f"Template {self.id}"

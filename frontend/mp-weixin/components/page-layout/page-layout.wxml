@@ -19,10 +19,16 @@
     class="page-layout__content"
     scroll-y="{{true}}"
     enhanced="{{true}}"
+    lower-threshold="{{lowerThreshold}}"
+    refresher-enabled="{{enableContentRefresh}}"
+    refresher-triggered="{{enableContentRefresh && refreshState === 'refreshing'}}"
     show-scrollbar="{{false}}"
     scroll-into-view="{{contentScrollIntoView}}"
     scroll-with-animation="{{contentScrollWithAnimation}}"
-    bindscroll="onContentScroll">
+    bindscroll="onContentScroll"
+    bindscrolltolower="onContentReachBottom"
+    bindrefresherrefresh="onContentRefresh"
+    bindrefresherrestore="onContentRefresherRestore">
     <slot name="content" />
 
     <view wx:if="{{hasFooter && !fixedFooter}}" class="page-layout__footer-inline">

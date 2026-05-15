@@ -3,6 +3,10 @@
   screenState="{{pageLayoutData.screenModel.screenState}}"
   contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
   refreshState="{{pageLayoutData.screenModel.refreshState}}"
+  lowerThreshold="{{200}}"
+  enableContentRefresh="{{true}}"
+  bind:contentreachbottom="handleContentReachBottom"
+  bind:contentrefresh="handleContentRefresh"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   hasFooter="{{pageLayoutData.hasFooter}}">
   <!-- Category tabs - always visible in header -->

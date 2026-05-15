@@ -84,6 +84,14 @@ Component({
       type: Boolean,
       value: true,
     },
+    lowerThreshold: {
+      type: Number,
+      value: 200,
+    },
+    enableContentRefresh: {
+      type: Boolean,
+      value: false,
+    },
     disableScroll: {
       type: Boolean,
       value: false,
@@ -155,6 +163,9 @@ Component({
     },
 
     onContentScroll(event: WechatMiniprogram.ScrollViewScroll) {
+      this.triggerEvent('contentscroll', {
+        scrollTop: event.detail.scrollTop,
+      });
       if (this.properties.headerSolidMode !== 'auto') {
         return;
       }
@@ -163,6 +174,18 @@ Component({
       if (shouldSolid !== this.data.isHeaderSolid) {
         this.setData({ isHeaderSolid: shouldSolid });
       }
+    },
+
+    onContentReachBottom() {
+      this.triggerEvent('contentreachbottom');
+    },
+
+    onContentRefresh() {
+      this.triggerEvent('contentrefresh');
+    },
+
+    onContentRefresherRestore() {
+      this.triggerEvent('contentrefresherrestore');
     },
   },
 });

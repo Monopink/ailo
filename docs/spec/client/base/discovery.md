@@ -15,22 +15,24 @@
 - 分类卡片数据优先读取本地缓存。
 - 无分类缓存时展示内置默认卡片。
 - 后台刷新分类数据并更新缓存。
-- 点击卡片进入 `pages/square/square`，参数为 `category_key`。
+- 点击卡片进入 `pkg/square/square`，参数为 `category_key`。
 
-## 列表页（`pages/square/square`）
+## 列表页（`pkg/square/square`）
 
 - Tab 数据来自分类接口（缓存优先，后台刷新）。
 - 青少年模式开启且本地时间在 `22:00-06:00` 时，页面展示白屏提示，不展示联系人列表。
 - 列表请求必须携带 `category_key`。
+- 页面内容滚动使用 `page-layout` 组件内容区容器。
 - 首屏请求返回 `feed_version`，后续分页请求携带 `feed_version + cursor`。
-- 页面下拉刷新触发 `refresh=true`，服务端返回新 `feed_version`。
-- 页面触底触发 `onReachBottom` 并使用 `cursor` 持续加载。
+- 内容区下拉刷新事件触发 `refresh=true`，服务端返回新 `feed_version`。
+- 内容区触底事件触发分页请求，并使用 `cursor` 持续加载。
 - 列表缓存按 `user + category_key + feed_version` 维度存储。
 - 无效或下线 `category_key` 时提示 `暂无内容`，并返回入口页。
 - 刷新节奏由响应 `refresh_available_at` 控制。
 - 刷新限流与加载更多限流独立生效。
+- `page-layout` 事件契约见：`../mini-program/page-layout.md`。
 
-## 陌生人页（`pages/stranger-info/stranger-info`）
+## 陌生人页（`pkg/stranger-info/stranger-info`）
 
 - 从 Square 进入时透传 `category_key`。
 - 请求详情时附带 `category_key`。

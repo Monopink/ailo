@@ -95,8 +95,8 @@ interface SquarePageCustom {
   canRefreshNow(): boolean;
   getRefreshWaitSeconds(): number;
   selectCategory(event: WechatMiniprogram.TouchEvent): void;
-  onPullDownRefresh(): void;
-  onReachBottom(): void;
+  handleContentRefresh(): void;
+  handleContentReachBottom(): void;
   handleContactTap(event: WechatMiniprogram.BaseEvent): void;
   handleAddContact(event: WechatMiniprogram.BaseEvent): Promise<void>;
   onUnload(): void;
@@ -594,13 +594,14 @@ Page<SquarePageData, SquarePageCustom>({
     this.loadContactsWithCache();
   },
 
-  onPullDownRefresh() {
-    void this.loadContacts({ mode: 'refresh' }).finally(() => {
-      void wx.stopPullDownRefresh();
+  handleContentRefresh() {
+    void this.loadContacts({
+      mode: 'refresh',
+      silentOnCooldown: true,
     });
   },
 
-  onReachBottom() {
+  handleContentReachBottom() {
     if (this.data.minorModeDiscoveryBlocked) {
       return;
     }

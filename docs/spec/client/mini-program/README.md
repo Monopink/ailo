@@ -4,6 +4,7 @@
 
 ## UI 要点
 
+- 页面结构与滚动容器契约见：`./page-layout.md`
 - 基础 UI 统一使用 TDesign，自绘组件仅限 `ui-gender-badge`
 - 需要导航栏的页面使用 `t-navbar`，并配置 `navigationStyle: "custom"`
 - 禁止硬编码颜色/尺寸/阴影，必须使用设计令牌

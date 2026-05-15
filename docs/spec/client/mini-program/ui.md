@@ -15,11 +15,14 @@
 - 页面使用 `page-layout` 作为根容器
 - 导航栏放在 `page-layout` 的 `header` slot
 - 固定区（如输入栏）必须处理安全区
+- `page-layout` 组件契约见：`./page-layout.md`
 
 ## 页面状态与提示
 
 - 页面状态使用 `screenModel` 传递，包含 `screenState`、`contentVariant`、`refreshState`
 - `page-layout` 提供页面结构与滚动容器
+- 使用 `page-layout` 内容滚动容器的页面，通过 `contentreachbottom` 触发分页加载
+- 使用 `page-layout` 内容滚动容器的页面，通过 `contentrefresh` 触发数据刷新
 - 鉴权失效场景使用 modal，用户确认后跳转登录页
 - toast 用于动作反馈，以及白屏场景的一次性加载失败提示
 

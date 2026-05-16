@@ -1,6 +1,4 @@
 import squareDiscoveryService, {
-  SQUARE_CACHE_STALE_PERIOD_MS,
-  SQUARE_CACHE_TTL_MS,
   type SquareLoadParams,
   type SquareContactViewModel,
 } from '../../../utils/discovery-service';
@@ -9,25 +7,22 @@ import { classifyError } from '../../../utils/error-classifier';
 import { BasePageService } from './base-page-service';
 import { createReadyScreenModel, type ScreenModel } from './page-state';
 
-export type SquareLoadMode = 'initial' | 'refresh' | 'load_more';
+export type SquareLoadMode = 'initial' | 'load_more';
 
-export interface SquareCacheResult {
-  screenModel: ScreenModel;
-  contacts: SquareContactViewModel[];
-  feedVersion: string;
-  nextCursor: string | null;
-  hasMore: boolean;
-  nextRefreshAvailableAt: number | null;
-  shouldRevalidate: boolean;
-}
+export type SquareEndReason = 'no_more_data' | 'page_limit_reached' | null;
 
 export interface SquareLoadResult {
   screenModel: ScreenModel;
   contacts: SquareContactViewModel[];
-  feedVersion: string | null;
   nextCursor: string | null;
   hasMore: boolean;
+  currentPageIndex: number;
+  maxPagesPerFeed: number;
+  endReason: SquareEndReason;
+  canRefreshNow: boolean;
+  refreshRemainingSeconds: number;
   nextRefreshAvailableAt: number | null;
+  refreshIntervalSeconds: number;
   authInvalid: boolean;
   shouldToastBlankFailure: boolean;
   errorMessage: string;
@@ -37,9 +32,10 @@ export interface SquareLoadContext {
   mode: SquareLoadMode;
   hasCurrentContent: boolean;
   currentContacts: SquareContactViewModel[];
-  currentFeedVersion: string | null;
   currentCursor: string | null;
   hasMore: boolean;
+  currentNextRefreshAvailableAt: number | null;
+  currentRefreshIntervalSeconds: number;
 }
 
 const resolveScreenByContacts = (
@@ -78,14 +74,22 @@ const buildContextResult = (
   overrides: Partial<SquareLoadResult>
 ): SquareLoadResult => ({
   screenModel: createReadyScreenModel({
-    contentVariant: context.hasCurrentContent ? 'data' : 'blank',
+    contentVariant: context.hasCurrentContent ? 'data' : 'empty',
     refreshState: 'degraded',
   }),
   contacts: context.hasCurrentContent ? context.currentContacts : [],
-  feedVersion: context.currentFeedVersion,
   nextCursor: context.currentCursor,
   hasMore: context.hasMore,
-  nextRefreshAvailableAt: null,
+  currentPageIndex: 1,
+  maxPagesPerFeed: 1,
+  endReason: null,
+  canRefreshNow: false,
+  refreshRemainingSeconds:
+    context.currentNextRefreshAvailableAt === null
+      ? 0
+      : Math.max(0, Math.ceil((context.currentNextRefreshAvailableAt - Date.now()) / 1000)),
+  nextRefreshAvailableAt: context.currentNextRefreshAvailableAt,
+  refreshIntervalSeconds: context.currentRefreshIntervalSeconds,
   authInvalid: false,
   shouldToastBlankFailure: false,
   errorMessage: '',
@@ -101,9 +105,10 @@ const resolveLoadMorePrecheckResult = (context: SquareLoadContext): SquareLoadRe
       screenModel: resolveScreenByContacts(context.currentContacts, 'idle'),
       contacts: context.currentContacts,
       hasMore: false,
+      endReason: 'page_limit_reached',
     });
   }
-  if (context.currentFeedVersion === null || context.currentCursor === null) {
+  if (context.currentCursor === null) {
     return buildContextResult(context, {
       screenModel: resolveScreenByContacts(context.currentContacts, 'degraded'),
       contacts: context.currentContacts,
@@ -114,55 +119,15 @@ const resolveLoadMorePrecheckResult = (context: SquareLoadContext): SquareLoadRe
 };
 
 const buildRequestParams = (context: SquareLoadContext): SquareLoadParams => {
-  if (context.mode === 'refresh') {
-    return { refresh: true };
-  }
   if (context.mode === 'load_more') {
     return {
-      feedVersion: context.currentFeedVersion,
       cursor: context.currentCursor,
-      refresh: false,
     };
   }
-  return {
-    feedVersion: context.currentFeedVersion,
-    refresh: false,
-  };
+  return {};
 };
 
 export class SquarePageService extends BasePageService {
-  resolveCache(categoryKey: string): SquareCacheResult | null {
-    if (!isValidCategoryKey(categoryKey)) {
-      return null;
-    }
-    const cache = squareDiscoveryService.getCacheEntry(categoryKey);
-    if (
-      cache === null ||
-      typeof cache.timestamp !== 'number' ||
-      typeof cache.feedVersion !== 'string' ||
-      cache.feedVersion.length === 0
-    ) {
-      return null;
-    }
-
-    const age = Date.now() - cache.timestamp;
-    const isFresh = age < SQUARE_CACHE_TTL_MS;
-    const isStale = age < SQUARE_CACHE_TTL_MS + SQUARE_CACHE_STALE_PERIOD_MS;
-    if (!isFresh && !isStale) {
-      return null;
-    }
-
-    return {
-      screenModel: resolveScreenByContacts(cache.contacts, 'idle'),
-      contacts: cache.contacts,
-      feedVersion: cache.feedVersion,
-      nextCursor: cache.nextCursor,
-      hasMore: cache.hasMore,
-      nextRefreshAvailableAt: cache.nextRefreshAvailableAt,
-      shouldRevalidate: !isFresh,
-    };
-  }
-
   async load(categoryKey: string, context: SquareLoadContext): Promise<SquareLoadResult | null> {
     if (!isValidCategoryKey(categoryKey)) {
       return buildContextResult(context, {
@@ -190,10 +155,15 @@ export class SquarePageService extends BasePageService {
       return {
         screenModel: resolveScreenByContacts(contacts, 'idle'),
         contacts,
-        feedVersion: result.feedVersion,
         nextCursor: result.nextCursor,
         hasMore: result.hasMore,
+        currentPageIndex: result.currentPageIndex,
+        maxPagesPerFeed: result.maxPagesPerFeed,
+        endReason: result.endReason,
+        canRefreshNow: result.canRefreshNow,
+        refreshRemainingSeconds: result.refreshRemainingSeconds,
         nextRefreshAvailableAt: result.nextRefreshAvailableAt,
+        refreshIntervalSeconds: result.refreshIntervalSeconds,
         authInvalid: false,
         shouldToastBlankFailure: false,
         errorMessage: '',
@@ -204,27 +174,16 @@ export class SquarePageService extends BasePageService {
         return null;
       }
       const isAuthInvalid = semantics.reason === 'auth-invalid';
-
-      const cache = squareDiscoveryService.getCacheEntry(categoryKey, context.currentFeedVersion);
-      if (cache !== null && typeof cache.timestamp === 'number') {
-        const age = Date.now() - cache.timestamp;
-        if (age < SQUARE_CACHE_TTL_MS + SQUARE_CACHE_STALE_PERIOD_MS) {
-          return buildContextResult(context, {
-            screenModel: resolveScreenByContacts(cache.contacts, 'degraded'),
-            contacts: cache.contacts,
-            feedVersion: cache.feedVersion,
-            nextCursor: cache.nextCursor,
-            hasMore: cache.hasMore,
-            nextRefreshAvailableAt: cache.nextRefreshAvailableAt,
-            authInvalid: isAuthInvalid,
-          });
-        }
-      }
+      const isRateLimit = semantics.reason === 'rate-limit';
 
       return buildContextResult(context, {
         authInvalid: isAuthInvalid,
-        shouldToastBlankFailure: !context.hasCurrentContent && !isAuthInvalid,
-        errorMessage: error instanceof Error ? error.message : '加载失败',
+        shouldToastBlankFailure: false,
+        errorMessage: isRateLimit ? '' : error instanceof Error ? error.message : '加载失败',
+        canRefreshNow:
+          context.currentNextRefreshAvailableAt === null
+            ? true
+            : Date.now() >= context.currentNextRefreshAvailableAt,
       });
     }
   }

@@ -70,8 +70,6 @@ async def get_square_categories(
 async def get_square_contacts(
     category_key: str = Query(..., description="Category key (kebab-case)"),
     cursor: str | None = Query(None, description="Opaque cursor for loading next page"),
-    feed_version: str | None = Query(None, description="Feed version from previous response"),
-    refresh: bool = Query(False, description="Whether to refresh and generate a new feed version"),
     page_size: int | None = Query(
         None, ge=1, le=50, description="Items per page (default from config, max 50)"
     ),
@@ -95,8 +93,6 @@ async def get_square_contacts(
             category_key=category_key,
             cursor=cursor,
             page_size=page_size,
-            feed_version=feed_version,
-            refresh=refresh,
         )
     except ValueError as exc:
         error_msg = str(exc)
@@ -123,7 +119,6 @@ async def get_square_contacts(
                 user_qiao_id=current_user.qiao_id,
                 category_key=category_key,
                 cursor=cursor,
-                feed_version=feed_version,
             )
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无效的游标参数")
         logger.error(

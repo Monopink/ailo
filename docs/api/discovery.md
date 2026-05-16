@@ -64,8 +64,8 @@
 - **路径**: `GET /api/v1/discovery/square`
 - **认证**: Bearer Token（必需）
 - **速率限制**:
-  - 刷新请求（`refresh=true`）按 `user_qiao_id + category_key` 维度生效
-  - 加载更多请求（携带 `cursor`）按 `user_qiao_id + category_key` 维度生效
+  - 刷新窗口按 `user_qiao_id + category_key` 维度生效
+  - 加载更多请求按 `user_qiao_id + category_key` 维度生效
 
 ### 请求参数
 
@@ -73,8 +73,6 @@
 
 - `category_key` (string, 必填) - 分类键
 - `cursor` (string, 可选) - 加载下一页的游标
-- `feed_version` (string, 可选) - 当前 Feed 版本
-- `refresh` (boolean, 可选) - 是否刷新并生成新 Feed 版本，默认 `false`
 - `page_size` (integer, 可选) - 每页数量，默认取系统配置
 
 ### 分类约束
@@ -99,10 +97,15 @@
       "region": "上海"
     }
   ],
-  "feed_version": "20260425161200543210",
   "next_cursor": "eyJ2IjoxLCJmIjoiMjAyNjA0MjUxNjEyMDA1NDMyMTAiLCJ0IjoxLCJzIjoiOGVmYzY4ZWQ2Y2NhOTNkYzFmMmY1YjA3ZjY0YjZiMjQiLCJxIjoicWlhb194bTAwMSJ9",
   "has_more": true,
-  "refresh_available_at": "2026-04-25T07:12:10Z"
+  "current_page_index": 1,
+  "max_pages_per_feed": 3,
+  "end_reason": null,
+  "can_refresh_now": false,
+  "refresh_remaining_seconds": 7080,
+  "next_refresh_available_at": "2026-05-16T03:00:00Z",
+  "refresh_interval_seconds": 7200
 }
 ```
 
@@ -119,14 +122,25 @@
   - `remark` (string|null) - 预设描述（写入联系人时的默认 remark）
   - `bio` (string|null) - 个性签名
   - `region` (string|null) - 地区
-- `feed_version` (string) - 当前列表版本标识
 - `next_cursor` (string|null) - 下一页游标
 - `has_more` (boolean) - 是否有下一页
-- `refresh_available_at` (string|null) - 下次可刷新时间（ISO 8601），仅刷新请求返回
+- `current_page_index` (integer) - 当前响应页序，首屏为 `1`
+- `max_pages_per_feed` (integer) - 当前 feed 最大可加载页数
+- `end_reason` (string|null) - 分页结束原因，取值：`no_more_data`、`page_limit_reached`
+- `can_refresh_now` (boolean) - 当前分类是否允许刷新
+- `refresh_remaining_seconds` (integer) - 距离可刷新剩余秒数
+- `next_refresh_available_at` (string) - 下次可刷新时间（ISO 8601）
+- `refresh_interval_seconds` (integer) - 刷新间隔秒数
 
 ### 相关文档
 
 Square 列表的预设字段（`tags`、`remark`）生成规则见：`docs/spec/contact/square.md`
+
+### 行为约束
+
+- 首屏请求（不带 `cursor`）由服务端按 `user_qiao_id + category_key` 的刷新窗口状态决定是否切换列表版本。
+- 分页请求（带 `cursor`）始终沿用同一列表版本，直至 `has_more=false`。
+- 当 `end_reason=page_limit_reached` 时表示已达到当前 feed 的最大分页数，客户端停止继续请求并展示“已经到底啦”。
 
 ### 错误响应
 

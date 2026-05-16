@@ -2,10 +2,23 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from html import escape
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, ForeignKey, Integer, String, Text, text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
+from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from starlette.requests import Request
 
@@ -124,4 +137,54 @@ class SquareTypeEntry(AutoIncrementModel):
     )
 
 
-__all__ = ["AppPage", "SquareCategory", "SquareTypeEntry"]
+class SquareUserCategoryState(AutoIncrementModel):
+    """Per-user per-category square refresh state."""
+
+    __tablename__ = "square_user_category_state"
+
+    user_qiao_id: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        comment="Owner user qiao_id",
+    )
+    category_key: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("square_categories.category_key", ondelete="CASCADE"),
+        nullable=False,
+        comment="Square category key",
+    )
+    feed_version: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        comment="Current feed version for this user-category",
+    )
+    last_refreshed_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        comment="Timestamp when feed version was last rotated",
+    )
+    next_refresh_available_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        comment="Next timestamp when feed rotation is allowed",
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_qiao_id",
+            "category_key",
+            name="uq_square_user_category_state_user_category",
+        ),
+        Index(
+            "idx_square_user_category_state_user_category",
+            "user_qiao_id",
+            "category_key",
+        ),
+        Index(
+            "idx_square_user_category_state_next_refresh",
+            "next_refresh_available_at",
+        ),
+    )
+
+
+__all__ = ["AppPage", "SquareCategory", "SquareTypeEntry", "SquareUserCategoryState"]

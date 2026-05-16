@@ -82,6 +82,8 @@ VALUES
 
 -- Discovery configurations
 ('square_page_size', '20', '20', 2, 'Square page size (items per page)', 'discovery_square', NULL),
+('square_refresh_interval_seconds', '7200', '7200', 2, 'Square feed refresh interval in seconds per user and category', 'discovery_square', NULL),
+('square_max_pages_per_feed', '3', '3', 2, 'Square max page count per feed version', 'discovery_square', NULL),
 
 -- Messaging configurations
 ('max_message_length_chars', '49', '49', 2, 'Maximum message length in characters', 'messaging', NULL),
@@ -204,8 +206,10 @@ VALUES
 ('message_rate_limit_long_window_seconds', '60', '60', 2, 'Long window in seconds', 'messaging', NULL),
 
 -- Square rate limit configuration
-('square_rate_limit_requests', '1', '1', 2, 'Square refresh requests per window', 'discovery_square', NULL),
-('square_rate_limit_window_seconds', '10', '10', 2, 'Square refresh window in seconds', 'discovery_square', NULL),
+('square_refresh_rate_limit_requests', '1', '1', 2, 'Square feed refresh requests per window', 'discovery_square', NULL),
+('square_refresh_rate_limit_window_seconds', '10', '10', 2, 'Square feed refresh window in seconds', 'discovery_square', NULL),
+('square_load_more_rate_limit_requests', '3', '3', 2, 'Square feed load-more requests per window', 'discovery_square', NULL),
+('square_load_more_rate_limit_window_seconds', '1', '1', 2, 'Square feed load-more window in seconds', 'discovery_square', NULL),
 
 -- Media upload configuration
 ('avatar_max_size_mb', '1', '1', 2, 'Maximum avatar file size in MB', 'media', NULL),

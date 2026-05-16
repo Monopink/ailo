@@ -1,6 +1,7 @@
 """Discovery service business logic."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
+from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -97,8 +98,6 @@ async def get_square_contacts(
     category_key: str,
     cursor: str | None = None,
     page_size: int | None = None,
-    feed_version: str | None = None,
-    refresh: bool = False,
 ) -> SquareContactListResponse:
     """
     Get square page contacts with feed cursor pagination.
@@ -109,11 +108,8 @@ async def get_square_contacts(
         category_key: Required category key filter
         cursor: Opaque cursor for loading additional entries
         page_size: Items per page (None = use config default)
-        feed_version: Existing feed version for loading more
-        refresh: Whether this request requests a new feed version
-
     Returns:
-        SquareContactListResponse with feed cursor and refresh time
+        SquareContactListResponse with refresh status and page-limit semantics
 
     Raises:
         ValueError: Invalid category key or rate limit exceeded
@@ -135,31 +131,114 @@ async def get_square_contacts(
         if category_key not in category_keys:
             raise ValueError(_ERR_INVALID_CATEGORY)
 
-        rate_group = "square_refresh" if refresh else "square_load_more"
-        rate_key = f"{user_qiao_id}:{category_key}"
-        allowed, _error_code, retry_after = await check_rate_limit(
-            identifier=rate_key, group=rate_group, db=db
+        refresh_interval_seconds = await get_config_int(
+            db,
+            key="square_refresh_interval_seconds",
+        )
+        max_pages_per_feed = await get_config_int(
+            db,
+            key="square_max_pages_per_feed",
+        )
+        resolved_max_pages_per_feed = max(1, max_pages_per_feed)
+
+        now = datetime.now(UTC)
+        persisted_state = await discovery_data.get_square_feed_state(
+            db,
+            user_qiao_id=user_qiao_id,
+            category_key=category_key,
+        )
+        should_attempt_refresh = cursor is None and (
+            persisted_state is None or persisted_state.next_refresh_available_at <= now
         )
 
-        if not allowed:
-            logger.warning(
-                "square_rate_limit",
+        feed_state: discovery_data.SquareCategoryFeedState | None
+        if cursor is not None:
+            rate_key = f"{user_qiao_id}:{category_key}"
+            allowed, _error_code, retry_after = await check_rate_limit(
+                identifier=rate_key,
+                group="square_load_more",
+                db=db,
+            )
+            if not allowed:
+                logger.warning(
+                    "square_rate_limit",
+                    user_qiao_id=user_qiao_id,
+                    category_key=category_key,
+                    retry_after=retry_after,
+                    action="load_more",
+                )
+                raise ValueError(f"{_ERR_RATE_LIMIT_PREFIX}{retry_after or 0}")
+            feed_state = persisted_state
+        elif should_attempt_refresh:
+            rate_key = f"{user_qiao_id}:{category_key}"
+            allowed, _error_code, retry_after = await check_rate_limit(
+                identifier=rate_key,
+                group="square_refresh",
+                db=db,
+            )
+            if not allowed and persisted_state is not None:
+                logger.warning(
+                    "square_refresh_rate_limit_degraded",
+                    user_qiao_id=user_qiao_id,
+                    category_key=category_key,
+                    retry_after=retry_after,
+                )
+                feed_state = persisted_state
+            else:
+                feed_state = await discovery_data.get_or_refresh_square_feed_state(
+                    db,
+                    user_qiao_id=user_qiao_id,
+                    category_key=category_key,
+                    refresh_interval_seconds=refresh_interval_seconds,
+                )
+        else:
+            feed_state = persisted_state
+
+        if cursor is not None and feed_state is None:
+            raise ValueError("INVALID_CURSOR")
+
+        if feed_state is None:
+            feed_state = await discovery_data.get_or_refresh_square_feed_state(
+                db,
                 user_qiao_id=user_qiao_id,
                 category_key=category_key,
-                retry_after=retry_after,
+                refresh_interval_seconds=refresh_interval_seconds,
             )
-            raise ValueError(f"{_ERR_RATE_LIMIT_PREFIX}{retry_after or 0}")
+            now = datetime.now(UTC)
 
-        resolved_feed_version = _resolve_feed_version(
-            feed_version=feed_version,
-            refresh=refresh,
+        resolved_feed_version = feed_state.feed_version
+        current_page_index = discovery_data.resolve_square_next_page_index(
+            cursor=cursor,
+            feed_version=resolved_feed_version,
         )
+
+        can_refresh_now = now >= feed_state.next_refresh_available_at
+        refresh_remaining_seconds = max(
+            0,
+            int((feed_state.next_refresh_available_at - now).total_seconds()),
+        )
+
+        if current_page_index > resolved_max_pages_per_feed:
+            return SquareContactListResponse(
+                items=[],
+                next_cursor=None,
+                has_more=False,
+                current_page_index=current_page_index,
+                max_pages_per_feed=resolved_max_pages_per_feed,
+                end_reason="page_limit_reached",
+                can_refresh_now=can_refresh_now,
+                refresh_remaining_seconds=refresh_remaining_seconds,
+                next_refresh_available_at=feed_state.next_refresh_available_at,
+                refresh_interval_seconds=max(0, refresh_interval_seconds),
+            )
+
         feed_page = await discovery_data.get_square_feed_page(
             db=db,
             user_qiao_id=user_qiao_id,
             category_key=category_key,
             feed_version=resolved_feed_version,
-            cursor=None if refresh else cursor,
+            current_page_index=current_page_index,
+            cursor=cursor,
             page_size=page_size,
         )
         avatar_base = get_media_base_url()
@@ -186,7 +265,21 @@ async def get_square_contacts(
             )
             for record in feed_page.records
         ]
-        refresh_available_at = await _resolve_refresh_available_at(db) if refresh else None
+
+        resolved_has_more = feed_page.has_more
+        resolved_next_cursor = feed_page.next_cursor
+        end_reason: Literal["no_more_data", "page_limit_reached"] | None = None
+        if current_page_index >= resolved_max_pages_per_feed:
+            if feed_page.has_more:
+                resolved_has_more = False
+                resolved_next_cursor = None
+                end_reason = "page_limit_reached"
+            else:
+                resolved_has_more = False
+                resolved_next_cursor = None
+                end_reason = "no_more_data"
+        elif not feed_page.has_more:
+            end_reason = "no_more_data"
 
         logger.info(
             "square_contacts_retrieved",
@@ -194,22 +287,29 @@ async def get_square_contacts(
             count=len(items),
             category_key=category_key,
             feed_version=resolved_feed_version,
-            has_more=feed_page.has_more,
+            has_more=resolved_has_more,
+            current_page_index=current_page_index,
+            max_pages_per_feed=resolved_max_pages_per_feed,
+            end_reason=end_reason,
             candidate_count=feed_page.metrics.candidate_count,
             excluded_history_count=feed_page.metrics.excluded_history_count,
             duplicate_filtered_count=feed_page.metrics.duplicate_filtered_count,
             query_duration_ms=feed_page.metrics.query_duration_ms,
-            refresh_available_at=(
-                refresh_available_at.isoformat() if refresh_available_at else None
-            ),
+            next_refresh_available_at=feed_state.next_refresh_available_at.isoformat(),
+            refresh_remaining_seconds=refresh_remaining_seconds,
         )
 
         return SquareContactListResponse(
             items=items,
-            feed_version=resolved_feed_version,
-            next_cursor=feed_page.next_cursor,
-            has_more=feed_page.has_more,
-            refresh_available_at=refresh_available_at,
+            next_cursor=resolved_next_cursor,
+            has_more=resolved_has_more,
+            current_page_index=current_page_index,
+            max_pages_per_feed=resolved_max_pages_per_feed,
+            end_reason=end_reason,
+            can_refresh_now=can_refresh_now,
+            refresh_remaining_seconds=refresh_remaining_seconds,
+            next_refresh_available_at=feed_state.next_refresh_available_at,
+            refresh_interval_seconds=max(0, refresh_interval_seconds),
         )
 
     except ValueError:
@@ -287,19 +387,3 @@ async def get_stranger_profile(
             error=str(exc),
         )
         raise RuntimeError(f"Failed to get stranger profile: {exc!s}") from exc
-
-
-async def _resolve_refresh_available_at(db: AsyncSession) -> datetime | None:
-    """Resolve next refresh availability timestamp from rate-limit window config."""
-
-    window_seconds = await get_config_int(db, key="square_refresh_rate_limit_window_seconds")
-    if window_seconds <= 0:
-        return None
-    return datetime.now(UTC) + timedelta(seconds=window_seconds)
-
-
-def _resolve_feed_version(*, feed_version: str | None, refresh: bool) -> str:
-    if refresh or not isinstance(feed_version, str) or not feed_version.strip():
-        now = datetime.now(UTC)
-        return now.strftime("%Y%m%d%H%M%S%f")
-    return feed_version.strip()

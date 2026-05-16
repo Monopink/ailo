@@ -6,6 +6,7 @@ import base64
 import json
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +21,7 @@ from app.enums import (
 )
 from app.models.ai import AIPersona
 from app.models.contact import Contact
-from app.models.content import SquareCategory, SquareTypeEntry
+from app.models.content import SquareCategory, SquareTypeEntry, SquareUserCategoryState
 from app.models.profile import Profile
 from app.type_defs import JSONValue
 from app.utils.logging import get_logger
@@ -62,16 +63,25 @@ class SquareFeedPage:
 
 
 @dataclass(slots=True)
+class SquareCategoryFeedState:
+    feed_version: str
+    last_refreshed_at: datetime
+    next_refresh_available_at: datetime
+
+
+@dataclass(slots=True)
 class _DecodedCursor:
+    page_index: int
     type_rank: int
     sort_key: str
     qiao_id: str
 
 
-def _encode_square_cursor(*, feed_version: str, record: SquareFeedRecord) -> str:
+def _encode_square_cursor(*, feed_version: str, page_index: int, record: SquareFeedRecord) -> str:
     payload = {
         "v": _CURSOR_SCHEMA_VERSION,
         "f": feed_version,
+        "p": page_index,
         "t": record.type_rank,
         "s": record.sort_key,
         "q": record.qiao_id,
@@ -98,16 +108,33 @@ def _decode_square_cursor(cursor: str, *, feed_version: str) -> _DecodedCursor:
     if payload_map.get("f") != feed_version:
         raise ValueError("INVALID_CURSOR")
 
+    page_index = payload_map.get("p")
     type_rank = payload_map.get("t")
     sort_key = payload_map.get("s")
     qiao_id = payload_map.get("q")
+    if not isinstance(page_index, int) or page_index <= 0:
+        raise ValueError("INVALID_CURSOR")
     if not isinstance(type_rank, int) or type_rank <= 0:
         raise ValueError("INVALID_CURSOR")
     if not isinstance(sort_key, str) or not sort_key:
         raise ValueError("INVALID_CURSOR")
     if not isinstance(qiao_id, str) or not qiao_id:
         raise ValueError("INVALID_CURSOR")
-    return _DecodedCursor(type_rank=type_rank, sort_key=sort_key, qiao_id=qiao_id)
+    return _DecodedCursor(
+        page_index=page_index,
+        type_rank=type_rank,
+        sort_key=sort_key,
+        qiao_id=qiao_id,
+    )
+
+
+def resolve_square_next_page_index(*, cursor: str | None, feed_version: str) -> int:
+    """Resolve next page index from cursor for a given feed."""
+
+    if cursor is None:
+        return 1
+    decoded = _decode_square_cursor(cursor, feed_version=feed_version)
+    return decoded.page_index + 1
 
 
 async def get_active_square_categories(
@@ -146,6 +173,7 @@ async def get_square_feed_page(
     user_qiao_id: str,
     category_key: str,
     feed_version: str,
+    current_page_index: int,
     cursor: str | None,
     page_size: int,
 ) -> SquareFeedPage:
@@ -300,7 +328,11 @@ async def get_square_feed_page(
 
     next_cursor = None
     if has_more and records:
-        next_cursor = _encode_square_cursor(feed_version=feed_version, record=records[-1])
+        next_cursor = _encode_square_cursor(
+            feed_version=feed_version,
+            page_index=current_page_index,
+            record=records[-1],
+        )
 
     metrics = SquareFeedMetrics(
         candidate_count=candidate_count,
@@ -314,6 +346,95 @@ async def get_square_feed_page(
         has_more=has_more,
         next_cursor=next_cursor,
         metrics=metrics,
+    )
+
+
+def build_square_feed_version(*, now: datetime | None = None) -> str:
+    """Build feed version identifier from UTC timestamp."""
+
+    ts = now or datetime.now(UTC)
+    return ts.strftime("%Y%m%d%H%M%S%f")
+
+
+async def get_or_refresh_square_feed_state(
+    db: AsyncSession,
+    *,
+    user_qiao_id: str,
+    category_key: str,
+    refresh_interval_seconds: int,
+) -> SquareCategoryFeedState:
+    """Load user-category feed state and rotate feed when refresh window expires."""
+
+    now = datetime.now(UTC)
+    interval_seconds = max(0, refresh_interval_seconds)
+    next_refresh_at = now + timedelta(seconds=interval_seconds)
+
+    stmt = (
+        select(SquareUserCategoryState)
+        .where(
+            SquareUserCategoryState.user_qiao_id == user_qiao_id,
+            SquareUserCategoryState.category_key == category_key,
+        )
+        .limit(1)
+        .with_for_update()
+    )
+    result = await db.execute(stmt)
+    state = result.scalar_one_or_none()
+
+    if state is None:
+        state = SquareUserCategoryState(
+            user_qiao_id=user_qiao_id,
+            category_key=category_key,
+            feed_version=build_square_feed_version(now=now),
+            last_refreshed_at=now,
+            next_refresh_available_at=next_refresh_at,
+        )
+        db.add(state)
+        await db.flush()
+        return SquareCategoryFeedState(
+            feed_version=state.feed_version,
+            last_refreshed_at=state.last_refreshed_at,
+            next_refresh_available_at=state.next_refresh_available_at,
+        )
+
+    if state.next_refresh_available_at <= now:
+        state.feed_version = build_square_feed_version(now=now)
+        state.last_refreshed_at = now
+        state.next_refresh_available_at = next_refresh_at
+        db.add(state)
+        await db.flush()
+
+    return SquareCategoryFeedState(
+        feed_version=state.feed_version,
+        last_refreshed_at=state.last_refreshed_at,
+        next_refresh_available_at=state.next_refresh_available_at,
+    )
+
+
+async def get_square_feed_state(
+    db: AsyncSession,
+    *,
+    user_qiao_id: str,
+    category_key: str,
+) -> SquareCategoryFeedState | None:
+    """Load persisted user-category feed state without rotating feed version."""
+
+    stmt = (
+        select(SquareUserCategoryState)
+        .where(
+            SquareUserCategoryState.user_qiao_id == user_qiao_id,
+            SquareUserCategoryState.category_key == category_key,
+        )
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    state = result.scalar_one_or_none()
+    if state is None:
+        return None
+    return SquareCategoryFeedState(
+        feed_version=state.feed_version,
+        last_refreshed_at=state.last_refreshed_at,
+        next_refresh_available_at=state.next_refresh_available_at,
     )
 
 

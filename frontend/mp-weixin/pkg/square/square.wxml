@@ -4,12 +4,10 @@
   contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
   refreshState="{{pageLayoutData.screenModel.refreshState}}"
   lowerThreshold="{{200}}"
-  enableContentRefresh="{{true}}"
+  enableContentRefresh="{{false}}"
   bind:contentreachbottom="handleContentReachBottom"
-  bind:contentrefresh="handleContentRefresh"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   hasFooter="{{pageLayoutData.hasFooter}}">
-  <!-- Category tabs - always visible in header -->
   <view slot="header" class="square-header">
     <t-navbar left-arrow="{{true}}">
       <view slot="title" class="navbar-title">发现</view>
@@ -30,17 +28,19 @@
         </view>
       </view>
     </scroll-view>
+    <view wx:if="{{!minorModeDiscoveryBlocked}}" class="square-refresh-bar">
+      <text class="square-refresh-bar__text">{{refreshInfoText}}</text>
+    </view>
   </view>
 
   <view slot="blank" class="square-page__blank">
-    <text class="square-page__blank-text">青少年模式下 22:00-06:00 时段不可使用发现</text>
+    <text class="square-page__blank-text">{{blankMessage}}</text>
   </view>
 
   <view slot="empty" class="square-page__empty">
     <text class="square-page__empty-text">{{pageLayoutData.emptyMessage}}</text>
   </view>
 
-  <!-- Contact list -->
   <view slot="content" class="square-page">
     <view class="square-list">
       <view
@@ -49,15 +49,13 @@
         class="square-item list-row"
         bindtap="handleContactTap"
         data-id="{{item.qiao_id}}">
-        <!-- Avatar -->
         <app-avatar
           src="{{item.avatar_url}}"
           size="medium"
           shape="circle"
           class="list-row__avatar" />
 
-        <!-- Info -->
-          <view class="list-row__info">
+        <view class="list-row__info">
           <view class="square-item__header">
             <text class="square-item__name list-text-primary">{{item.nickname}}</text>
             <gender-badge wx:if="{{item.gender}}" gender="{{item.gender}}" />
@@ -68,6 +66,10 @@
           <text wx:if="{{item.bio}}" class="square-item__bio list-text-secondary">{{item.bio}}</text>
           <text wx:if="{{item.region}}" class="square-item__region list-text-secondary">{{item.region}}</text>
         </view>
+      </view>
+
+      <view wx:if="{{!loadingMore && !hasMore && contacts.length > 0}}" class="square-list__end">
+        <text class="square-list__end-text">已经到底啦，待会再来刷新试试~</text>
       </view>
     </view>
   </view>

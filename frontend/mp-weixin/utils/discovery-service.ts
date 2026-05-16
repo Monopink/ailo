@@ -1,4 +1,3 @@
-import { STORAGE_KEYS } from './config';
 import { requestValidated } from './api';
 import { getAvatarUrl } from './avatar';
 import {
@@ -15,8 +14,6 @@ import {
   type SquareContact,
 } from './schemas';
 
-export const SQUARE_CACHE_TTL_MS = 10 * 60 * 1000;
-export const SQUARE_CACHE_STALE_PERIOD_MS = 60 * 60 * 1000;
 export const SQUARE_CATEGORIES_CACHE_KEY = 'square_categories_v1';
 export const SQUARE_CATEGORIES_CACHE_TTL_MS = 10 * 60 * 1000;
 export const SQUARE_CATEGORIES_CACHE_STALE_PERIOD_MS = 6 * 60 * 60 * 1000;
@@ -35,20 +32,6 @@ export interface SquareContactViewModel {
   categoryKey: string;
 }
 
-export interface SquareCacheEntry {
-  contacts: SquareContactViewModel[];
-  feedVersion: string;
-  nextCursor: string | null;
-  hasMore: boolean;
-  nextRefreshAvailableAt: number | null;
-  timestamp: number;
-}
-
-interface SquareCachePointer {
-  feedVersion: string;
-  timestamp: number;
-}
-
 export interface SquareCategoriesCacheEntry {
   items: SquareCategoryCard[];
   timestamp: number;
@@ -57,19 +40,20 @@ export interface SquareCategoriesCacheEntry {
 
 export interface SquareLoadParams {
   cursor?: string | null;
-  feedVersion?: string | null;
-  refresh?: boolean;
   pageSize?: number;
 }
 
 export interface SquareLoadResult {
   contacts: SquareContactViewModel[];
-  feedVersion: string;
   nextCursor: string | null;
   hasMore: boolean;
-  nextRefreshAvailableAt: number | null;
-  cacheAgeMs: number | null;
-  fromCache: boolean;
+  currentPageIndex: number;
+  maxPagesPerFeed: number;
+  endReason: 'no_more_data' | 'page_limit_reached' | null;
+  canRefreshNow: boolean;
+  refreshRemainingSeconds: number;
+  nextRefreshAvailableAt: number;
+  refreshIntervalSeconds: number;
 }
 
 export interface SquareCategoriesLoadResult {
@@ -82,35 +66,6 @@ export interface SquareCategoriesLoadResult {
 class SquareDiscoveryService {
   private logger = getLogger('SquareDiscoveryService');
 
-  getCacheEntry(categoryKey: string, feedVersion?: string | null): SquareCacheEntry | null {
-    if (!isValidCategoryKey(categoryKey)) {
-      return null;
-    }
-    const resolvedFeedVersion = isNonEmptyString(feedVersion)
-      ? feedVersion.trim()
-      : this.getLatestFeedVersion(categoryKey);
-    if (!isNonEmptyString(resolvedFeedVersion)) {
-      return null;
-    }
-    try {
-      const stored = wx.getStorageSync<SquareCacheEntry | null>(
-        this.getContactsCacheKey(categoryKey, resolvedFeedVersion)
-      );
-      if (
-        stored !== null &&
-        Array.isArray(stored.contacts) &&
-        typeof stored.timestamp === 'number' &&
-        isNonEmptyString(stored.feedVersion)
-      ) {
-        return stored;
-      }
-    } catch (error: unknown) {
-      const err = normalizeError(error);
-      this.logger.warn('Failed to read square cache', { errorMessage: err.message });
-    }
-    return null;
-  }
-
   async load(categoryKey: string, params: SquareLoadParams = {}): Promise<SquareLoadResult> {
     if (!isValidCategoryKey(categoryKey)) {
       throw new Error('无效的分类参数');
@@ -121,30 +76,30 @@ class SquareDiscoveryService {
       method: 'GET',
     });
     const contacts = response.items.map((item) => this.normalizeContact(item));
-    const nextRefreshAvailableAt = this.parseRefreshTimestamp(response.refresh_available_at);
-    const entry: SquareCacheEntry = {
-      contacts,
-      feedVersion: response.feed_version,
-      nextCursor: isNonEmptyString(response.next_cursor) ? response.next_cursor.trim() : null,
-      hasMore: Boolean(response.has_more),
-      nextRefreshAvailableAt,
-      timestamp: Date.now(),
-    };
-    this.setCacheEntry(categoryKey, entry);
+    const nextRefreshAvailableAt = this.parseRequiredRefreshTimestamp(
+      response.next_refresh_available_at
+    );
+
     this.logger.info('Square contacts fetched', {
       categoryKey,
       count: contacts.length,
-      feedVersion: entry.feedVersion,
-      hasMore: entry.hasMore,
+      currentPageIndex: response.current_page_index,
+      maxPagesPerFeed: response.max_pages_per_feed,
+      hasMore: response.has_more,
+      endReason: response.end_reason,
     });
+
     return {
       contacts,
-      feedVersion: entry.feedVersion,
-      nextCursor: entry.nextCursor,
-      hasMore: entry.hasMore,
+      nextCursor: isNonEmptyString(response.next_cursor) ? response.next_cursor.trim() : null,
+      hasMore: Boolean(response.has_more),
+      currentPageIndex: response.current_page_index,
+      maxPagesPerFeed: response.max_pages_per_feed,
+      endReason: response.end_reason,
+      canRefreshNow: response.can_refresh_now,
+      refreshRemainingSeconds: response.refresh_remaining_seconds,
       nextRefreshAvailableAt,
-      cacheAgeMs: null,
-      fromCache: false,
+      refreshIntervalSeconds: response.refresh_interval_seconds,
     };
   }
 
@@ -171,60 +126,23 @@ class SquareDiscoveryService {
       method: 'GET',
     });
     const cards = buildSquareCategoryCards(response.items);
-    const isFallback = false;
-    const items = cards;
     const entry: SquareCategoriesCacheEntry = {
-      items,
+      items: cards,
       timestamp: Date.now(),
-      isFallback,
+      isFallback: false,
     };
     this.setCategoriesCacheEntry(entry);
-    this.logger.info('Square categories fetched', { count: items.length, isFallback });
+    this.logger.info('Square categories fetched', { count: cards.length, isFallback: false });
     return {
-      items,
+      items: cards,
       fromCache: false,
       cacheAgeMs: null,
-      isFallback,
+      isFallback: false,
     };
   }
 
   getFallbackCategories(): SquareCategoryCard[] {
     return [];
-  }
-
-  clearCache(categoryKey: string): void {
-    if (!isValidCategoryKey(categoryKey)) {
-      return;
-    }
-    try {
-      const latestFeedVersion = this.getLatestFeedVersion(categoryKey);
-      if (isNonEmptyString(latestFeedVersion)) {
-        wx.removeStorageSync(this.getContactsCacheKey(categoryKey, latestFeedVersion));
-      }
-      wx.removeStorageSync(this.getLatestPointerKey(categoryKey));
-    } catch (error: unknown) {
-      const err = normalizeError(error);
-      this.logger.warn('Failed to clear square cache', {
-        errorMessage: err.message,
-      });
-    }
-  }
-
-  private setCacheEntry(categoryKey: string, entry: SquareCacheEntry): void {
-    if (!isValidCategoryKey(categoryKey) || !isNonEmptyString(entry.feedVersion)) {
-      return;
-    }
-    try {
-      wx.setStorageSync(this.getContactsCacheKey(categoryKey, entry.feedVersion), entry);
-      const pointer: SquareCachePointer = {
-        feedVersion: entry.feedVersion,
-        timestamp: entry.timestamp,
-      };
-      wx.setStorageSync(this.getLatestPointerKey(categoryKey), pointer);
-    } catch (error: unknown) {
-      const err = normalizeError(error);
-      this.logger.warn('Failed to write square cache', { errorMessage: err.message });
-    }
   }
 
   private setCategoriesCacheEntry(entry: SquareCategoriesCacheEntry): void {
@@ -238,54 +156,11 @@ class SquareDiscoveryService {
     }
   }
 
-  private getLatestFeedVersion(categoryKey: string): string | null {
-    try {
-      const pointer = wx.getStorageSync<SquareCachePointer | null>(
-        this.getLatestPointerKey(categoryKey)
-      );
-      if (pointer !== null && isNonEmptyString(pointer.feedVersion)) {
-        return pointer.feedVersion.trim();
-      }
-    } catch (error: unknown) {
-      const err = normalizeError(error);
-      this.logger.warn('Failed to read square cache pointer', { errorMessage: err.message });
-    }
-    return null;
-  }
-
-  private getContactsCacheKey(categoryKey: string, feedVersion: string): string {
-    return `square_${this.getCurrentUserQiaoId()}_${categoryKey}_${feedVersion}`;
-  }
-
-  private getLatestPointerKey(categoryKey: string): string {
-    return `square_latest_${this.getCurrentUserQiaoId()}_${categoryKey}`;
-  }
-
-  private getCurrentUserQiaoId(): string {
-    try {
-      const userInfo = wx.getStorageSync<Record<string, unknown> | null>(STORAGE_KEYS.USER_INFO);
-      const rawQiaoId = userInfo?.qiao_id;
-      if (typeof rawQiaoId === 'string' && rawQiaoId.trim().length > 0) {
-        return rawQiaoId.trim();
-      }
-    } catch (error: unknown) {
-      const err = normalizeError(error);
-      this.logger.warn('Failed to resolve current user qiao_id', { errorMessage: err.message });
-    }
-    return 'anonymous';
-  }
-
   private buildSquareQuery(categoryKey: string, params: SquareLoadParams): string {
     const queryParts = [`category_key=${encodeURIComponent(categoryKey)}`];
 
     if (isNonEmptyString(params.cursor)) {
       queryParts.push(`cursor=${encodeURIComponent(params.cursor.trim())}`);
-    }
-    if (isNonEmptyString(params.feedVersion)) {
-      queryParts.push(`feed_version=${encodeURIComponent(params.feedVersion.trim())}`);
-    }
-    if (params.refresh === true) {
-      queryParts.push('refresh=true');
     }
     if (
       typeof params.pageSize === 'number' &&
@@ -318,12 +193,12 @@ class SquareDiscoveryService {
     };
   }
 
-  private parseRefreshTimestamp(value?: string | null): number | null {
-    if (!isNonEmptyString(value)) {
-      return null;
-    }
+  private parseRequiredRefreshTimestamp(value: string): number {
     const parsed = Date.parse(value.trim());
-    return Number.isNaN(parsed) ? null : parsed;
+    if (Number.isNaN(parsed)) {
+      throw new Error('刷新时间字段无效');
+    }
+    return parsed;
   }
 }
 

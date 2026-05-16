@@ -4,6 +4,7 @@ This module contains Pydantic schemas for discovery page operations.
 """
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -72,12 +73,20 @@ class SquareContactListResponse(BaseModel):
     """Square contact list response."""
 
     items: list[SquareContactResponse] = Field(..., description="Contact list")
-    feed_version: str = Field(..., description="Feed version identifier")
     next_cursor: str | None = Field(None, description="Cursor for loading next page")
     has_more: bool = Field(..., description="Whether there are more items")
-    refresh_available_at: datetime | None = Field(
-        None, description="Next allowed refresh time in ISO 8601"
+    current_page_index: int = Field(..., description="Current page index, first page is 1")
+    max_pages_per_feed: int = Field(..., description="Max allowed pages in one feed")
+    end_reason: Literal["no_more_data", "page_limit_reached"] | None = Field(
+        None,
+        description="Pagination end reason",
     )
+    can_refresh_now: bool = Field(..., description="Whether feed refresh is currently allowed")
+    refresh_remaining_seconds: int = Field(..., description="Seconds until next refresh is allowed")
+    next_refresh_available_at: datetime = Field(
+        ..., description="Next allowed refresh time in ISO 8601"
+    )
+    refresh_interval_seconds: int = Field(..., description="Refresh interval seconds")
 
 
 class SquareEntryBase(BaseModel):

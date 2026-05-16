@@ -16,7 +16,11 @@ import {
   isMinorModeDiscoveryRestricted,
 } from '../../utils/minor-mode';
 import { type ScreenModel } from '../services/pages/page-state';
-import { createSquarePageService } from '../services/pages/square-service';
+import {
+  createSquarePageService,
+  type SquareEndReason,
+  type SquareLoadMode,
+} from '../services/pages/square-service';
 
 const logger = getLogger('Square');
 
@@ -32,17 +36,21 @@ interface SquarePageData {
   contacts: SquareContactViewModel[];
   loading: boolean;
   loadingMore: boolean;
-  feedVersion: string | null;
   nextCursor: string | null;
   hasMore: boolean;
+  currentPageIndex: number;
+  maxPagesPerFeed: number;
+  endReason: SquareEndReason;
+  refreshRemainingSeconds: number;
   nextRefreshAvailableAt: number | null;
+  refreshIntervalSeconds: number;
+  refreshInfoText: string;
+  blankMessage: string;
   minorModeDiscoveryBlocked: boolean;
 }
 
 interface LoadContactsOptions {
-  mode?: 'initial' | 'refresh' | 'load_more';
-  respectCooldown?: boolean;
-  silentOnCooldown?: boolean;
+  mode?: SquareLoadMode;
   showGlobalLoading?: boolean;
 }
 
@@ -59,10 +67,17 @@ interface StrangerEntryPayload {
   region?: string;
 }
 
+interface ContactRequestSentPayload {
+  qiaoId?: string;
+}
+
 interface SquarePageCustom {
   squarePageService: ReturnType<typeof createSquarePageService>;
   _blankFailureToastShown: boolean;
   _requestedCategoryKey: string | null;
+  _initialized: boolean;
+  _removedQiaoIds: Set<string>;
+  _refreshCountdownTimer: number | null;
   ensureMinorModeAllowed(): Promise<boolean>;
   applyScreenModel(screenModel: ScreenModel): void;
   notifyBlankLoadFailed(message: string): void;
@@ -74,31 +89,28 @@ interface SquarePageCustom {
   ): boolean;
   bootstrapCategories(): void;
   refreshCategories(): Promise<boolean>;
-  displayCachedContacts(): boolean;
-  loadContactsWithCache(): void;
-  revalidateCache(): Promise<void>;
-  canStartLoad(
-    mode: 'initial' | 'refresh' | 'load_more',
-    respectCooldown: boolean,
-    silentOnCooldown: boolean
-  ): Promise<boolean>;
-  applyLoadingState(mode: 'initial' | 'refresh' | 'load_more', showGlobalLoading: boolean): void;
+  filterRemovedContacts(contacts: SquareContactViewModel[]): SquareContactViewModel[];
+  initializeOnce(): Promise<void>;
+  applyLoadingState(mode: SquareLoadMode, showGlobalLoading: boolean): void;
   handleLoadResult(
-    mode: 'initial' | 'refresh' | 'load_more',
-    silentOnCooldown: boolean,
+    mode: SquareLoadMode,
     result: Awaited<ReturnType<ReturnType<typeof createSquarePageService>['load']>>
   ): Promise<boolean>;
   applyFinalLoadResult(
     result: NonNullable<Awaited<ReturnType<ReturnType<typeof createSquarePageService>['load']>>>
   ): void;
   loadContacts(options?: LoadContactsOptions): Promise<void>;
-  canRefreshNow(): boolean;
-  getRefreshWaitSeconds(): number;
   selectCategory(event: WechatMiniprogram.TouchEvent): void;
-  handleContentRefresh(): void;
   handleContentReachBottom(): void;
   handleContactTap(event: WechatMiniprogram.BaseEvent): void;
+  handleStrangerContactRequestSent(payload: ContactRequestSentPayload): void;
+  removeContactFromCurrentView(qiaoId: string): void;
+  updateRefreshInfoBar(): void;
+  startRefreshCountdown(): void;
+  stopRefreshCountdown(): void;
+  formatRefreshInfoText(): string;
   handleAddContact(event: WechatMiniprogram.BaseEvent): Promise<void>;
+  onHide(): void;
   onUnload(): void;
 }
 
@@ -163,6 +175,29 @@ const buildPageLayoutScreenModelPayload = (screenModel: ScreenModel): Record<str
   'pageLayoutData.screenModel': screenModel,
 });
 
+const formatTimestamp = (timestampMs: number): string => {
+  const date = new Date(timestampMs);
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  const hours = `${date.getHours()}`.padStart(2, '0');
+  const minutes = `${date.getMinutes()}`.padStart(2, '0');
+  return `${month}-${day} ${hours}:${minutes}`;
+};
+
+const formatDuration = (seconds: number): string => {
+  const normalized = Math.max(0, seconds);
+  const hours = Math.floor(normalized / 3600);
+  const minutes = Math.floor((normalized % 3600) / 60);
+  const remainSeconds = normalized % 60;
+  if (hours > 0) {
+    return `${hours}小时${minutes}分${remainSeconds}秒`;
+  }
+  if (minutes > 0) {
+    return `${minutes}分${remainSeconds}秒`;
+  }
+  return `${remainSeconds}秒`;
+};
+
 Page<SquarePageData, SquarePageCustom>({
   data: {
     pageLayoutData: createPageLayoutData({
@@ -178,15 +213,24 @@ Page<SquarePageData, SquarePageCustom>({
     contacts: [],
     loading: false,
     loadingMore: false,
-    feedVersion: null,
     nextCursor: null,
     hasMore: true,
+    currentPageIndex: 1,
+    maxPagesPerFeed: 1,
+    endReason: null,
+    refreshRemainingSeconds: 0,
     nextRefreshAvailableAt: null,
+    refreshIntervalSeconds: 0,
+    refreshInfoText: '刷新信息加载中',
+    blankMessage: '页面暂时不可用，请稍后重试',
     minorModeDiscoveryBlocked: false,
   },
 
   _blankFailureToastShown: false,
   _requestedCategoryKey: null,
+  _initialized: false,
+  _removedQiaoIds: new Set<string>(),
+  _refreshCountdownTimer: null,
   squarePageService: null as unknown as ReturnType<typeof createSquarePageService>,
 
   applyScreenModel(screenModel) {
@@ -229,7 +273,9 @@ Page<SquarePageData, SquarePageCustom>({
         contacts: [],
         hasMore: false,
         nextCursor: null,
-        feedVersion: null,
+        currentPageIndex: 1,
+        maxPagesPerFeed: 1,
+        endReason: null,
         ...buildPageLayoutScreenModelPayload({
           screenState: 'ready',
           contentVariant: 'empty',
@@ -289,7 +335,9 @@ Page<SquarePageData, SquarePageCustom>({
       contacts: [],
       hasMore: false,
       nextCursor: null,
-      feedVersion: null,
+      currentPageIndex: 1,
+      maxPagesPerFeed: 1,
+      endReason: null,
       ...buildPageLayoutScreenModelPayload({
         screenState: 'ready',
         contentVariant: 'data',
@@ -314,12 +362,19 @@ Page<SquarePageData, SquarePageCustom>({
     }
   },
 
-  onLoad(options?: Record<string, string | undefined>) {
+  filterRemovedContacts(contacts) {
+    if (this._removedQiaoIds.size === 0) {
+      return contacts;
+    }
+    return contacts.filter((item) => !this._removedQiaoIds.has(item.qiao_id));
+  },
+
+  async onLoad(options?: Record<string, string | undefined>) {
     this.squarePageService = createSquarePageService();
     const requestedCategory = options?.category_key;
     if (isNonEmptyString(requestedCategory)) {
       if (!isValidCategoryKey(requestedCategory)) {
-        void this.switchToEntry('暂无内容');
+        await this.switchToEntry('暂无内容');
         return;
       }
       this._requestedCategoryKey = requestedCategory;
@@ -328,7 +383,9 @@ Page<SquarePageData, SquarePageCustom>({
     }
 
     this._blankFailureToastShown = false;
+    this._removedQiaoIds.clear();
     this.bootstrapCategories();
+    await this.initializeOnce();
   },
 
   async ensureMinorModeAllowed() {
@@ -337,10 +394,12 @@ Page<SquarePageData, SquarePageCustom>({
       this.setData({
         minorModeDiscoveryBlocked: true,
         contacts: [],
-        feedVersion: null,
         nextCursor: null,
         hasMore: true,
-        nextRefreshAvailableAt: null,
+        currentPageIndex: 1,
+        maxPagesPerFeed: 1,
+        endReason: null,
+        blankMessage: '青少年模式下 22:00-06:00 时段不可使用发现',
         ...buildPageLayoutScreenModelPayload(BLOCKED_SCREEN_MODEL),
       });
       return false;
@@ -351,10 +410,12 @@ Page<SquarePageData, SquarePageCustom>({
         this.setData({
           minorModeDiscoveryBlocked: true,
           contacts: [],
-          feedVersion: null,
           nextCursor: null,
           hasMore: true,
-          nextRefreshAvailableAt: null,
+          currentPageIndex: 1,
+          maxPagesPerFeed: 1,
+          endReason: null,
+          blankMessage: '青少年模式下 22:00-06:00 时段不可使用发现',
           ...buildPageLayoutScreenModelPayload(BLOCKED_SCREEN_MODEL),
         });
         return false;
@@ -365,6 +426,7 @@ Page<SquarePageData, SquarePageCustom>({
     if (this.data.minorModeDiscoveryBlocked) {
       this.setData({
         minorModeDiscoveryBlocked: false,
+        blankMessage: '页面暂时不可用，请稍后重试',
         ...buildPageLayoutScreenModelPayload({
           screenState: 'ready',
           contentVariant: 'data',
@@ -375,13 +437,19 @@ Page<SquarePageData, SquarePageCustom>({
     return true;
   },
 
-  async onShow() {
+  async initializeOnce() {
+    if (this._initialized) {
+      this.startRefreshCountdown();
+      return;
+    }
+
     const passGuard = await requireAuth(this as unknown as AuthGuardPage);
     if (!passGuard) {
       return;
     }
     const allowed = await this.ensureMinorModeAllowed();
     if (!allowed) {
+      this._initialized = true;
       return;
     }
 
@@ -390,74 +458,21 @@ Page<SquarePageData, SquarePageCustom>({
       return;
     }
 
-    void this.loadContacts({
+    this._initialized = true;
+    await this.loadContacts({
       mode: 'initial',
-      respectCooldown: false,
-      silentOnCooldown: true,
       showGlobalLoading: this.data.contacts.length === 0,
     });
   },
 
-  displayCachedContacts() {
-    const cacheResult = this.squarePageService.resolveCache(this.data.currentCategoryKey);
-    if (cacheResult === null) {
-      return false;
-    }
-    this.setData({
-      contacts: cacheResult.contacts,
-      feedVersion: cacheResult.feedVersion,
-      nextCursor: cacheResult.nextCursor,
-      hasMore: cacheResult.hasMore,
-      nextRefreshAvailableAt: cacheResult.nextRefreshAvailableAt,
-      ...buildPageLayoutScreenModelPayload(cacheResult.screenModel),
-    });
-    if (cacheResult.shouldRevalidate) {
-      void this.revalidateCache();
-    }
-    return true;
-  },
-
-  loadContactsWithCache() {
-    if (this.displayCachedContacts()) {
-      return;
-    }
-    void this.loadContacts({ respectCooldown: false });
-  },
-
-  async revalidateCache() {
-    try {
-      await this.loadContacts({
-        mode: 'initial',
-        respectCooldown: false,
-        silentOnCooldown: true,
-        showGlobalLoading: false,
-      });
-    } catch (error) {
-      const err = normalizeError(error);
-      logger.warn('Revalidation failed, keeping stale cache', { error: err.message });
-    }
-  },
-
-  async canStartLoad(mode, respectCooldown, silentOnCooldown) {
-    if (mode === 'refresh' && respectCooldown && !this.canRefreshNow()) {
-      if (!silentOnCooldown) {
-        const waitSeconds = this.getRefreshWaitSeconds();
-        showToast(waitSeconds > 0 ? `请${waitSeconds}秒后再试` : '还不能刷新');
+  async onShow() {
+    if (this.data.minorModeDiscoveryBlocked) {
+      const allowed = await this.ensureMinorModeAllowed();
+      if (allowed) {
+        this._initialized = false;
       }
-      return false;
     }
-    if (mode === 'load_more') {
-      if (!this.data.hasMore || this.data.loadingMore || this.data.loading) {
-        return false;
-      }
-    } else if (this.data.loading) {
-      return false;
-    }
-    if (!isValidCategoryKey(this.data.currentCategoryKey)) {
-      await this.switchToEntry('暂无内容');
-      return false;
-    }
-    return true;
+    await this.initializeOnce();
   },
 
   applyLoadingState(mode, showGlobalLoading) {
@@ -477,7 +492,7 @@ Page<SquarePageData, SquarePageCustom>({
     });
   },
 
-  async handleLoadResult(mode, silentOnCooldown, result) {
+  async handleLoadResult(mode, result) {
     if (result === null) {
       this.setData({ loading: false, loadingMore: false });
       return true;
@@ -492,7 +507,7 @@ Page<SquarePageData, SquarePageCustom>({
       await this.switchToEntry('暂无内容');
       return true;
     }
-    if (mode === 'load_more' && isNonEmptyString(result.errorMessage) && !silentOnCooldown) {
+    if (mode === 'load_more' && isNonEmptyString(result.errorMessage)) {
       showToast(result.errorMessage);
     }
     if (result.shouldToastBlankFailure) {
@@ -505,63 +520,71 @@ Page<SquarePageData, SquarePageCustom>({
   },
 
   applyFinalLoadResult(result) {
+    const filteredContacts = this.filterRemovedContacts(result.contacts);
+    const contentVariant =
+      result.screenModel.contentVariant === 'blank'
+        ? 'blank'
+        : filteredContacts.length === 0
+          ? 'empty'
+          : 'data';
+
     this.setData({
       loading: false,
       loadingMore: false,
-      ...(result.screenModel.contentVariant === 'blank' ? null : { contacts: result.contacts }),
-      feedVersion: result.feedVersion,
+      ...(contentVariant === 'blank' ? null : { contacts: filteredContacts }),
       nextCursor: result.nextCursor,
       hasMore: result.hasMore,
+      currentPageIndex: result.currentPageIndex,
+      maxPagesPerFeed: result.maxPagesPerFeed,
+      endReason: result.endReason,
+      refreshRemainingSeconds: result.refreshRemainingSeconds,
       nextRefreshAvailableAt: result.nextRefreshAvailableAt,
-      ...buildPageLayoutScreenModelPayload(result.screenModel),
+      refreshIntervalSeconds: result.refreshIntervalSeconds,
+      ...buildPageLayoutScreenModelPayload({
+        ...result.screenModel,
+        contentVariant,
+      }),
     });
+    this.updateRefreshInfoBar();
+    this.startRefreshCountdown();
   },
 
   async loadContacts(options: LoadContactsOptions = {}) {
-    const {
-      mode = 'initial',
-      respectCooldown = mode === 'refresh',
-      silentOnCooldown = false,
-      showGlobalLoading = mode !== 'load_more',
-    } = options;
+    const { mode = 'initial', showGlobalLoading = mode !== 'load_more' } = options;
 
-    const canStart = await this.canStartLoad(mode, respectCooldown, silentOnCooldown);
-    if (!canStart) {
+    if (mode === 'load_more') {
+      if (!this.data.hasMore || this.data.loadingMore || this.data.loading) {
+        return;
+      }
+      if (!isNonEmptyString(this.data.nextCursor)) {
+        return;
+      }
+    } else if (this.data.loading) {
       return;
     }
+
+    if (!isValidCategoryKey(this.data.currentCategoryKey)) {
+      await this.switchToEntry('暂无内容');
+      return;
+    }
+
     this.applyLoadingState(mode, showGlobalLoading);
 
     const result = await this.squarePageService.load(this.data.currentCategoryKey, {
       mode,
       hasCurrentContent: this.data.contacts.length > 0,
       currentContacts: this.data.contacts,
-      currentFeedVersion: this.data.feedVersion,
       currentCursor: this.data.nextCursor,
       hasMore: this.data.hasMore,
+      currentNextRefreshAvailableAt: this.data.nextRefreshAvailableAt,
+      currentRefreshIntervalSeconds: this.data.refreshIntervalSeconds,
     });
-    const handled = await this.handleLoadResult(mode, silentOnCooldown, result);
+
+    const handled = await this.handleLoadResult(mode, result);
     if (handled || result === null) {
       return;
     }
     this.applyFinalLoadResult(result);
-  },
-
-  canRefreshNow() {
-    const { nextRefreshAvailableAt } = this.data;
-    if (nextRefreshAvailableAt === null) {
-      return true;
-    }
-    return Date.now() >= nextRefreshAvailableAt;
-  },
-
-  getRefreshWaitSeconds() {
-    const { nextRefreshAvailableAt } = this.data;
-    if (nextRefreshAvailableAt === null) {
-      return 0;
-    }
-    const diffMs = nextRefreshAvailableAt - Date.now();
-    const seconds = Math.ceil(diffMs / 1000);
-    return seconds > 0 ? seconds : 0;
   },
 
   selectCategory(event) {
@@ -581,24 +604,23 @@ Page<SquarePageData, SquarePageCustom>({
     this.setData({
       currentCategoryKey: categoryKey,
       contacts: [],
-      feedVersion: null,
       nextCursor: null,
       hasMore: true,
+      currentPageIndex: 1,
+      maxPagesPerFeed: 1,
+      endReason: null,
+      refreshRemainingSeconds: 0,
       nextRefreshAvailableAt: null,
+      refreshIntervalSeconds: 0,
+      refreshInfoText: '刷新信息加载中',
       ...buildPageLayoutScreenModelPayload({
         screenState: 'ready',
         contentVariant: 'data',
         refreshState: 'idle',
       }),
     });
-    this.loadContactsWithCache();
-  },
-
-  handleContentRefresh() {
-    void this.loadContacts({
-      mode: 'refresh',
-      silentOnCooldown: true,
-    });
+    this.stopRefreshCountdown();
+    void this.loadContacts({ mode: 'initial' });
   },
 
   handleContentReachBottom() {
@@ -607,14 +629,8 @@ Page<SquarePageData, SquarePageCustom>({
     }
     void this.loadContacts({
       mode: 'load_more',
-      respectCooldown: false,
-      silentOnCooldown: true,
       showGlobalLoading: false,
     });
-  },
-
-  onUnload() {
-    this.squarePageService.dispose();
   },
 
   handleContactTap(event) {
@@ -634,6 +650,10 @@ Page<SquarePageData, SquarePageCustom>({
     void wx.navigateTo({
       url: `/pkg/stranger-info/stranger-info?id=${qiaoId}`,
       success: (res) => {
+        res.eventChannel.on('contact-request-sent', (payload: ContactRequestSentPayload) => {
+          this.handleStrangerContactRequestSent(payload);
+        });
+
         if (contact === null) {
           return;
         }
@@ -659,6 +679,73 @@ Page<SquarePageData, SquarePageCustom>({
     });
   },
 
+  handleStrangerContactRequestSent(payload) {
+    const qiaoId = isNonEmptyString(payload.qiaoId) ? payload.qiaoId.trim() : '';
+    if (!isNonEmptyString(qiaoId)) {
+      return;
+    }
+    this._removedQiaoIds.add(qiaoId);
+    this.removeContactFromCurrentView(qiaoId);
+  },
+
+  removeContactFromCurrentView(qiaoId) {
+    const updatedContacts = this.data.contacts.filter((contact) => contact.qiao_id !== qiaoId);
+    this.setData({
+      contacts: updatedContacts,
+      ...buildPageLayoutScreenModelPayload({
+        screenState: 'ready',
+        contentVariant: updatedContacts.length === 0 ? 'empty' : 'data',
+        refreshState: this.data.pageLayoutData.screenModel.refreshState,
+      }),
+    });
+  },
+
+  formatRefreshInfoText() {
+    const nextRefreshAt = this.data.nextRefreshAvailableAt;
+    if (nextRefreshAt === null) {
+      return '刷新信息加载中';
+    }
+    const now = Date.now();
+    const remainSeconds = Math.max(0, Math.ceil((nextRefreshAt - now) / 1000));
+    if (remainSeconds <= 0) {
+      return '当前分类可刷新';
+    }
+    return `下次刷新 ${formatTimestamp(nextRefreshAt)} · 还有 ${formatDuration(remainSeconds)}`;
+  },
+
+  updateRefreshInfoBar() {
+    this.setData({
+      refreshInfoText: this.formatRefreshInfoText(),
+    });
+  },
+
+  startRefreshCountdown() {
+    this.stopRefreshCountdown();
+    if (this.data.nextRefreshAvailableAt === null) {
+      return;
+    }
+    this._refreshCountdownTimer = setInterval(() => {
+      this.updateRefreshInfoBar();
+    }, 1000) as unknown as number;
+  },
+
+  stopRefreshCountdown() {
+    if (this._refreshCountdownTimer === null) {
+      return;
+    }
+    clearInterval(this._refreshCountdownTimer);
+    this._refreshCountdownTimer = null;
+  },
+
+  onHide() {
+    this.stopRefreshCountdown();
+  },
+
+  onUnload() {
+    this.stopRefreshCountdown();
+    this.squarePageService.dispose();
+  },
+
   async handleAddContact(event) {
     if (this.data.minorModeDiscoveryBlocked) {
       return;
@@ -668,7 +755,6 @@ Page<SquarePageData, SquarePageCustom>({
       return;
     }
     const targetContact = this.data.contacts.find((item) => item.qiao_id === qiaoId) ?? null;
-    const originalContacts = [...this.data.contacts];
     const message = await promptContactRequestMessage();
     if (message === null) {
       return;
@@ -687,26 +773,8 @@ Page<SquarePageData, SquarePageCustom>({
       void wx.hideLoading();
       showToast('请求已发送', 'success');
 
-      const updatedContacts = originalContacts.filter((contact) => contact.qiao_id !== qiaoId);
-      this.setData({
-        contacts: updatedContacts,
-        ...buildPageLayoutScreenModelPayload({
-          screenState: 'ready',
-          contentVariant: updatedContacts.length === 0 ? 'empty' : 'data',
-          refreshState: this.data.pageLayoutData.screenModel.refreshState,
-        }),
-      });
-
-      squareDiscoveryService.clearCache(this.data.currentCategoryKey);
-
-      void this.loadContacts({
-        mode: 'refresh',
-        silentOnCooldown: true,
-        showGlobalLoading: false,
-      }).catch((error) => {
-        const err = normalizeError(error);
-        logger.warn('Square page refresh failed after add contact', { error: err.message });
-      });
+      this._removedQiaoIds.add(qiaoId);
+      this.removeContactFromCurrentView(qiaoId);
 
       logger.info('Contact request sent', {
         to_qiao_id: qiaoId,
@@ -721,7 +789,6 @@ Page<SquarePageData, SquarePageCustom>({
         to_qiao_id: qiaoId,
         error: failureMessage,
       });
-      this.setData({ contacts: originalContacts });
     }
   },
 });

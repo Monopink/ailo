@@ -1,6 +1,6 @@
 # `page-layout` 组件契约
 
-`page-layout` 是小程序页面结构与内容滚动容器组件，负责统一页面状态展示、内容区滚动、触底分页与下拉刷新事件。
+`page-layout` 是小程序页面结构与内容滚动容器组件，负责统一页面状态展示、内容区滚动、触底分页与可选下拉刷新事件。
 
 ## 状态契约
 
@@ -36,5 +36,5 @@
 ## 页面接入规则
 
 - 使用 `page-layout` 内容滚动容器的页面，通过 `contentreachbottom` 触发分页加载。
-- 使用 `page-layout` 内容滚动容器的页面，通过 `contentrefresh` 触发数据刷新。
+- 启用 `enableContentRefresh=true` 的页面，通过 `contentrefresh` 触发数据刷新。
 - 页面分页状态与刷新状态通过业务层状态机驱动，`page-layout` 仅承载事件与结构。

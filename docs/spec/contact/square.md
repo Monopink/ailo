@@ -40,12 +40,14 @@ Square（发现页）用于展示可添加的 AI 联系人。
 - Square 联系人列表按 `category_key` 维度查询。
 - `category_key` 必须属于当前用户可见分类集合。
 - 列表筛选目标分类下 ACTIVE 的上架记录并映射到 `type_id` 集。
-- 列表分页使用 `cursor`。
-- 刷新请求使用 `refresh=true` 并生成新 `feed_version`。
-- 加载更多请求使用 `feed_version + cursor` 继续读取同一列表版本。
+- 首次查询由服务端根据 `user + category_key` 刷新状态决定 `feed_version` 是否切换。
+- 列表分页使用 `cursor`，`cursor` 包含 feed 与页序信息。
+- 加载更多请求按 `cursor` 继续读取同一列表版本。
+- 每个分类每个 `feed_version` 的最大分页数由 `square_max_pages_per_feed` 控制。
 - 每条联系人卡片回传 `category_key` 用于来源回显。
 - 限流按动作拆分为“刷新”和“加载更多”两组。
-- `refresh_available_at` 仅用于刷新节奏控制。
+- 刷新节奏按 `user + category_key` 独立控制，间隔取 `square_refresh_interval_seconds`。
+- 列表接口始终返回刷新状态字段：`can_refresh_now`、`refresh_remaining_seconds`、`next_refresh_available_at`、`refresh_interval_seconds`。
 
 ## Persona 选择与展示字段
 

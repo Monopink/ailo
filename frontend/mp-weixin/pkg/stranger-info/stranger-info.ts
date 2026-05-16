@@ -360,6 +360,17 @@ Page<StrangerInfoPageData, StrangerInfoPageCustom>({
 
       logger.info('Contact request sent', { qiao_id: this.data.qiaoId });
 
+      const pageInstance = this as unknown as {
+        getOpenerEventChannel?: () => WechatMiniprogram.EventChannel;
+      };
+      const eventChannel =
+        typeof pageInstance.getOpenerEventChannel === 'function'
+          ? pageInstance.getOpenerEventChannel()
+          : null;
+      if (eventChannel !== null) {
+        eventChannel.emit('contact-request-sent', { qiaoId: this.data.qiaoId });
+      }
+
       setTimeout(() => {
         void wx.navigateBack();
       }, 1500);

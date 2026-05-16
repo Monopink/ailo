@@ -468,10 +468,15 @@ export type SquareContact = z.infer<typeof SquareContactSchema>;
 
 export const SquareApiResponseSchema = z.object({
   items: z.array(SquareContactSchema),
-  feed_version: z.string(),
   next_cursor: z.string().optional().nullable(),
   has_more: z.boolean(),
-  refresh_available_at: z.string().optional().nullable(),
+  current_page_index: z.number().int().positive(),
+  max_pages_per_feed: z.number().int().positive(),
+  end_reason: z.enum(['no_more_data', 'page_limit_reached']).nullable(),
+  can_refresh_now: z.boolean(),
+  refresh_remaining_seconds: z.number().int().nonnegative(),
+  next_refresh_available_at: z.string(),
+  refresh_interval_seconds: z.number().int().nonnegative(),
 });
 export type SquareApiResponse = z.infer<typeof SquareApiResponseSchema>;
 

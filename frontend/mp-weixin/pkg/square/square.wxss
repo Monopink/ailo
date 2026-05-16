@@ -50,6 +50,18 @@
   border-bottom: 1rpx solid var(--color-separator);
 }
 
+.square-refresh-bar {
+  padding: var(--space-sm) var(--padding-page);
+  border-bottom: 1rpx solid var(--color-separator);
+  background-color: var(--color-bg-primary);
+}
+
+.square-refresh-bar__text {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
+}
+
 .square-tabs__list {
   display: inline-flex;
   gap: var(--space-md);
@@ -132,14 +144,25 @@
 }
 
 .square-tabs__item--charcoal {
-  --square-tabs-active-bg: var(--square-entry-card-charcoal-solid);
-  --square-tabs-active-color: var(--color-text-inverse);
+  --square-tabs-active-bg: var(--square-entry-card-charcoal-gradient);
+  --square-tabs-active-color: var(--square-entry-card-title-color);
 }
 
 /* Contact list - iOS style direct list */
 .square-list {
   background-color: var(--color-bg-secondary);
   margin-top: var(--space-md);
+}
+
+.square-list__end {
+  padding: var(--space-lg) var(--padding-page);
+  display: flex;
+  justify-content: center;
+}
+
+.square-list__end-text {
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-sm);
 }
 
 .square-item {

@@ -41,7 +41,7 @@ from .base import (
 )
 from .campaign import Campaign, CampaignAttribution
 from .contact import Contact, ContactRequest
-from .content import AppPage, SquareCategory, SquareTypeEntry
+from .content import AppPage, SquareCategory, SquareTypeEntry, SquareUserCategoryState
 from .entitlement import (
     EntitlementReasonCode,
     EntitlementType,
@@ -153,6 +153,7 @@ __all__ = [
     "SnowflakeModel",
     "SnowflakeQiaoModel",
     "SquareTypeEntry",
+    "SquareUserCategoryState",
     "StatsAIDaily",
     "StatsAIMonthly",
     "StatsAIWeekly",

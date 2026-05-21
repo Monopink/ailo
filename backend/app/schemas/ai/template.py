@@ -60,7 +60,7 @@ class AITemplateBase(BaseModel):
         ..., ge=1, description="Default typing speed (words per minute) for instances"
     )
     is_reusable: int = Field(1, description="Is reusable: 1=reusable, 0=single_use")
-    status: int = Field(1, description="Status: 1=active, 2=inactive")
+    status: int = Field(1, description="Status: 1=active, 2=inactive, 3=used")
     llm_config_id: int | None = Field(
         None,
         description="Preferred llm_configs.id for instances created from this template",
@@ -89,7 +89,7 @@ class AITemplateUpdate(BaseModel):
         description="Default typing speed (words per minute)",
     )
     is_reusable: int | None = Field(None, description="Is reusable")
-    status: int | None = Field(None, description="Status")
+    status: int | None = Field(None, description="Status: 1=active, 2=inactive, 3=used")
     llm_config_id: int | None = Field(
         None, description="Preferred llm_configs.id for this template"
     )

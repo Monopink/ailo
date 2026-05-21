@@ -152,7 +152,7 @@ class UserView(BaseRoleAwareModelView):
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
     row_actions: ClassVar[list[str]] = ["view", "profile", "edit"]
-    searchable_fields: ClassVar[list[str]] = ["username", "phone", "email", "qiao_id"]
+    searchable_fields: ClassVar[list[str]] = ["id", "username", "phone", "email", "qiao_id"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "username",
@@ -525,7 +525,12 @@ class ProfileView(BaseRoleAwareModelView):
         return f"/qiao-dash/profile/advanced-edit/{pk}"
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["nickname", "owner_qiao_id"]
+    searchable_fields: ClassVar[list[str]] = [
+        "id",
+        "nickname",
+        "owner_qiao_id",
+        "avatar_key",
+    ]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "owner_type",
@@ -673,7 +678,7 @@ class UserProfileLogView(ModelView):
     ]
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["owner_qiao_id", "field_name"]
+    searchable_fields: ClassVar[list[str]] = ["id", "owner_qiao_id", "field_name"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "owner_qiao_id",
@@ -759,6 +764,7 @@ class ContactView(BaseRoleAwareModelView):
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
     searchable_fields: ClassVar[list[str]] = [
+        "id",
         "conversation_id",
         "user_qiao_id",
         "contact_qiao_id",
@@ -1030,7 +1036,7 @@ class ContactRequestView(ModelView):
     exclude_fields_from_list: ClassVar[list[str]] = []
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["from_qiao_id", "to_qiao_id"]
+    searchable_fields: ClassVar[list[str]] = ["id", "from_qiao_id", "to_qiao_id"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "from_qiao_id",

@@ -211,7 +211,7 @@ class AITemplateView(ModelView):
         return None
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = []
+    searchable_fields: ClassVar[list[str]] = ["id", "display_name", "type_id"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "type_id",
@@ -521,7 +521,7 @@ class AIPersonaView(ModelView):
         return False
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["qiao_id", "username"]
+    searchable_fields: ClassVar[list[str]] = ["id", "qiao_id", "username"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "qiao_id",
@@ -835,7 +835,7 @@ class AITemplateMemoryView(ModelView):
     exclude_fields_from_edit: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("display_order", True)]
-    searchable_fields: ClassVar[list[str]] = ["content"]
+    searchable_fields: ClassVar[list[str]] = ["id", "template_id", "content"]
     sortable_fields: ClassVar[list[str]] = [
         "template_id",
         "display_order",

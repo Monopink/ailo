@@ -262,7 +262,7 @@ class InviteCodeView(BaseRoleAwareModelView):
         "created_at",
         "updated_at",
     ]
-    searchable_fields = ["code", "owner_user_id"]
+    searchable_fields = ["id", "code", "owner_user_id"]
     sortable_fields = ["id", "code", "owner_user_id", "status", "created_at", "updated_at"]
     fields_default_sort = [("created_at", True)]
 
@@ -380,7 +380,7 @@ class InviteBindingView(BaseRoleAwareModelView):
     def can_delete(self, request: Request) -> bool:
         return False
 
-    searchable_fields = ["invitee_user_id", "inviter_user_id_snapshot", "code_snapshot"]
+    searchable_fields = ["id", "invitee_user_id", "inviter_user_id_snapshot", "code_snapshot"]
     sortable_fields = [
         "id",
         "invitee_user_id",
@@ -431,7 +431,7 @@ class InviteEventView(BaseRoleAwareModelView):
     def can_delete(self, request: Request) -> bool:
         return False
 
-    searchable_fields = ["actor_user_id", "invite_code_id", "event_source", "code_snapshot"]
+    searchable_fields = ["id", "actor_user_id", "invite_code_id", "event_source", "code_snapshot"]
     sortable_fields = [
         "id",
         "event_type",
@@ -478,6 +478,7 @@ class InviteIntakeLogView(BaseRoleAwareModelView):
         return False
 
     searchable_fields = [
+        "id",
         "source",
         "trigger",
         "first_candidate",
@@ -558,7 +559,7 @@ class CampaignView(BaseRoleAwareModelView):
 
     exclude_fields_from_create = ["id", "created_at", "updated_at"]
     exclude_fields_from_edit = ["id", "created_at", "updated_at"]
-    searchable_fields = ["code", "name"]
+    searchable_fields = ["id", "code", "name"]
     sortable_fields = [
         "id",
         "code",
@@ -617,7 +618,7 @@ class CampaignAttributionView(BaseRoleAwareModelView):
     def can_delete(self, request: Request) -> bool:
         return False
 
-    searchable_fields = ["user_id", "campaign_id", "attribution_source"]
+    searchable_fields = ["id", "user_id", "campaign_id", "attribution_source"]
     sortable_fields = ["id", "user_id", "campaign_id", "attributed_at", "created_at", "updated_at"]
     fields_default_sort = [("created_at", True)]
     fields = [
@@ -661,7 +662,7 @@ class GrowthRewardRuleView(BaseRoleAwareModelView):
         "updated_at",
     ]
     exclude_fields_from_edit = ["id", "scope_id", "entitlement_type_id", "created_at", "updated_at"]
-    searchable_fields = ["scope_type", "scope_id", "entitlement_type_id"]
+    searchable_fields = ["id", "scope_type", "scope_id", "entitlement_type_id"]
     sortable_fields = [
         "id",
         "trigger_event",
@@ -879,6 +880,7 @@ class GrowthRewardApplyView(BaseRoleAwareModelView):
         return False
 
     searchable_fields = [
+        "id",
         "rule_id",
         "actor_user_id",
         "beneficiary_user_id",
@@ -963,7 +965,7 @@ class RedeemCodeBatchView(BaseRoleAwareModelView):
 
     exclude_fields_from_create = ["id", "created_at", "updated_at", "budget_used"]
     exclude_fields_from_edit = ["id", "created_at", "updated_at", "budget_used"]
-    searchable_fields = ["batch_code", "name"]
+    searchable_fields = ["id", "batch_code", "name"]
     sortable_fields = [
         "id",
         "batch_code",
@@ -1001,7 +1003,7 @@ class RedeemCodeView(BaseRoleAwareModelView):
 
     exclude_fields_from_create = ["id", "batch_id", "created_at", "updated_at", "claimed_total"]
     exclude_fields_from_edit = ["id", "batch_id", "created_at", "updated_at", "claimed_total"]
-    searchable_fields = ["code", "batch_id"]
+    searchable_fields = ["id", "code", "batch_id"]
     sortable_fields = [
         "id",
         "batch_id",
@@ -1108,7 +1110,7 @@ class RedeemCodeClaimView(BaseRoleAwareModelView):
     def can_delete(self, request: Request) -> bool:
         return False
 
-    searchable_fields = ["user_id", "redeem_code_id", "batch_id", "code_snapshot"]
+    searchable_fields = ["id", "user_id", "redeem_code_id", "batch_id", "code_snapshot"]
     sortable_fields = ["id", "user_id", "redeem_code_id", "batch_id", "created_at"]
     fields_default_sort = [("created_at", True)]
     fields = [
@@ -1153,7 +1155,7 @@ class RedeemBatchUserCounterView(BaseRoleAwareModelView):
     def can_delete(self, request: Request) -> bool:
         return False
 
-    searchable_fields = ["batch_id", "user_id"]
+    searchable_fields = ["id", "batch_id", "user_id"]
     sortable_fields = ["id", "batch_id", "user_id", "claimed_total", "created_at", "updated_at"]
     fields_default_sort = [("updated_at", True)]
     fields = [

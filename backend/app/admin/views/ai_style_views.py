@@ -85,7 +85,7 @@ class AIStyleView(ModelView):
         return False
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["display_name"]
+    searchable_fields: ClassVar[list[str]] = ["id", "display_name"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "display_name",
@@ -372,7 +372,7 @@ class AIRelationshipView(ModelView):
         return None
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["display_name", "prompt_fragment"]
+    searchable_fields: ClassVar[list[str]] = ["id", "display_name", "prompt_fragment"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "display_name",
@@ -494,7 +494,7 @@ class AIStyleDimensionView(ModelView):
             raise FormValidationError(errors)
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("style_id", False)]
-    searchable_fields: ClassVar[list[str]] = []
+    searchable_fields: ClassVar[list[str]] = ["id", "style_id", "dimension_id"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "style_id",
@@ -535,7 +535,7 @@ class AIDimensionView(ModelView):
     exclude_fields_from_edit: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("name", False)]
-    searchable_fields: ClassVar[list[str]] = ["name", "display_name"]
+    searchable_fields: ClassVar[list[str]] = ["id", "name", "display_name"]
     sortable_fields: ClassVar[list[str]] = ["id", "name", "display_name", "created_at"]
 
     fields: ClassVar[list[object]] = [
@@ -599,7 +599,7 @@ class AIDimensionRelationshipMappingView(ModelView):
             raise FormValidationError(errors)
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("start_position", False)]
-    searchable_fields: ClassVar[list[str]] = []
+    searchable_fields: ClassVar[list[str]] = ["id", "dimension_id", "relationship_id"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "start_position",

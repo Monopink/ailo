@@ -240,7 +240,7 @@ class MediaFileView(ModelView):
         return False
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["file_id", "original_name"]
+    searchable_fields: ClassVar[list[str]] = ["id", "file_id", "original_name"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "file_type",
@@ -370,7 +370,13 @@ class MessageDeliveryView(ModelView):
         return True
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["msg_id_server", "target_key"]
+    searchable_fields: ClassVar[list[str]] = [
+        "id",
+        "msg_id_server",
+        "target_key",
+        "provider_msg_id",
+        "failed_reason_code",
+    ]
 
     fields: ClassVar[Sequence[BaseField]] = cast(
         Sequence[BaseField],
@@ -464,7 +470,7 @@ class NotificationPushHistoryView(ModelView):
     exclude_fields_from_create: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
     exclude_fields_from_edit: ClassVar[list[str]] = ["id", "created_at", "updated_at"]
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["to_qiao_id"]
+    searchable_fields: ClassVar[list[str]] = ["id", "to_qiao_id"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "notification_type",
@@ -539,7 +545,7 @@ class MessageDeviceView(ModelView):
         return True
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("updated_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["user_qiao_id", "device_id"]
+    searchable_fields: ClassVar[list[str]] = ["id", "user_qiao_id", "device_id"]
 
     fields: ClassVar[Sequence[BaseField]] = cast(
         Sequence[BaseField],
@@ -600,7 +606,7 @@ class MessageEndpointView(ModelView):
         return True
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("updated_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["user_qiao_id", "target_key", "device_id"]
+    searchable_fields: ClassVar[list[str]] = ["id", "user_qiao_id", "target_key", "device_id"]
 
     fields: ClassVar[Sequence[BaseField]] = cast(
         Sequence[BaseField],
@@ -667,6 +673,7 @@ class MessageDispatchOutboxView(ModelView):
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
     searchable_fields: ClassVar[list[str]] = [
+        "id",
         "msg_id_server",
         "owner_user_id",
         "last_error_code",

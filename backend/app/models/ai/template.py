@@ -141,7 +141,7 @@ class AITemplate(AutoIncrementModel):
         nullable=False,
         default=1,
         server_default=text("1"),
-        comment="Status: 1=active, 2=inactive",
+        comment="Status: 1=active, 2=inactive, 3=used (single-use consumed)",
     )
 
     # Relationships
@@ -176,8 +176,8 @@ class AITemplate(AutoIncrementModel):
 
     def __admin_repr__(self, request: Request) -> str:
         display = escape(self.display_name) if self.display_name else f"Template {self.id}"
-        status_label = "active" if self.status == 1 else "inactive"
-        return f"[{self.id}] {display} ({status_label}, priority={self.priority})"
+        status_label = {1: "A", 2: "I", 3: "U"}.get(int(self.status), "?")
+        return f"[{self.id}] {display} ({status_label}, P={self.priority})"
 
     def __admin_select2_repr__(self, request: Request) -> str:
         display = escape(self.display_name) if self.display_name else f"Template {self.id}"

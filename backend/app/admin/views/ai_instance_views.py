@@ -421,7 +421,7 @@ class AIInstanceView(ModelView):
             raise FormValidationError({"personality": contract_error})
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["qiao_id", "user_qiao_id"]
+    searchable_fields: ClassVar[list[str]] = ["id", "qiao_id", "user_qiao_id"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "user_id",
@@ -593,7 +593,7 @@ class AIInstanceDimensionView(ModelView):
         return False
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("score", True)]
-    searchable_fields: ClassVar[list[str]] = []
+    searchable_fields: ClassVar[list[str]] = ["id", "instance_id", "dimension_id"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "instance_id",
@@ -810,6 +810,7 @@ class AIInstanceMemoryView(ModelView):
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
     searchable_fields: ClassVar[list[str]] = [
+        "id",
         "content",
         "user_qiao_id",
         "instance_qiao_id",

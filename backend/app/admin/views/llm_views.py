@@ -53,7 +53,7 @@ class LLMProviderView(ModelView):
     exclude_fields_from_detail = []
 
     fields_default_sort = [("display_name", False)]
-    searchable_fields = ["name", "display_name"]
+    searchable_fields = ["id", "name", "display_name"]
     sortable_fields = ["id", "name", "display_name", "created_at", "updated_at"]
 
     def can_delete(self, request: Request) -> bool:
@@ -252,7 +252,7 @@ class LLMConfigView(ModelView):
             raise FormValidationError({"provider": str(exc)}) from exc
 
     fields_default_sort = [("name", False)]
-    searchable_fields = ["name", "model_name"]
+    searchable_fields = ["id", "name", "model_name"]
     sortable_fields = [
         "id",
         "name",
@@ -487,7 +487,7 @@ class LLMTestLogView(ModelView):
     exclude_fields_from_detail = []
 
     fields_default_sort = [("created_at", True)]  # Newest first
-    searchable_fields = ["config_name", "provider_name", "model_name", "test_message"]
+    searchable_fields = ["id", "config_name", "provider_name", "model_name", "test_message"]
     sortable_fields = [
         "id",
         "config_id",

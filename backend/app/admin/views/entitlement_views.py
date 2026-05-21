@@ -171,7 +171,7 @@ class EntitlementTypeView(BaseRoleAwareModelView):
     def can_delete(self, request: Request) -> bool:
         return False
 
-    searchable_fields = ["code", "unit"]
+    searchable_fields = ["id", "code", "unit"]
     sortable_fields = ["id", "code", "mode", "unit", "status"]
     fields_default_sort = [("created_at", True)]
     fields = [
@@ -190,7 +190,7 @@ class EntitlementReasonCodeView(BaseRoleAwareModelView):
 
     exclude_fields_from_create = ["id", "is_system", "created_at", "updated_at"]
     exclude_fields_from_edit = ["id", "is_system", "created_at", "updated_at"]
-    searchable_fields = ["code", "display_name", "description"]
+    searchable_fields = ["id", "code", "display_name", "description"]
     sortable_fields = ["id", "code", "display_name", "applies_to", "is_system", "status"]
     fields_default_sort = [("created_at", True)]
     fields = [
@@ -290,7 +290,7 @@ class UserEntitlementAccountView(BaseRoleAwareModelView):
     def can_delete(self, request: Request) -> bool:
         return False
 
-    searchable_fields = ["user_id", "entitlement_type_id"]
+    searchable_fields = ["id", "user_id", "entitlement_type_id"]
     sortable_fields = [
         "id",
         "user_id",
@@ -344,6 +344,7 @@ class UserEntitlementLedgerView(BaseRoleAwareModelView):
         return False
 
     searchable_fields = [
+        "id",
         "user_id",
         "entitlement_type_id",
         "source_type",

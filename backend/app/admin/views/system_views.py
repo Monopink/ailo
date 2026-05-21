@@ -72,7 +72,7 @@ class SystemConfigView(ModelView):
         return False
 
     fields_default_sort = [("config_key", False)]
-    searchable_fields = ["config_key", "description"]
+    searchable_fields = ["id", "config_key", "description"]
     sortable_fields = [
         "id",
         "config_key",
@@ -190,7 +190,7 @@ class AdminUserView(BaseRoleAwareModelView):
         DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["username"]
+    searchable_fields = ["id", "username"]
     sortable_fields = [
         "id",
         "username",
@@ -268,7 +268,14 @@ class AdminOperationLogView(ModelView):
         return False
 
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["resource_name", "operation_desc"]
+    searchable_fields = [
+        "id",
+        "admin_user_id",
+        "resource_id",
+        "resource_name",
+        "operation_desc",
+        "ip_address",
+    ]
     sortable_fields = ["id", "admin_user_id", "resource_type", "created_at"]
 
     fields = [
@@ -303,7 +310,7 @@ class AdminLoginLogView(ModelView):
         return False
 
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["username", "ip_address"]
+    searchable_fields = ["id", "admin_user_id", "username", "ip_address"]
     sortable_fields = ["id", "admin_user_id", "username", "result", "created_at"]
 
     fields = [
@@ -336,7 +343,7 @@ class AlertEventView(ModelView):
         return False
 
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["event_type", "domain", "dedupe_key"]
+    searchable_fields = ["id", "event_type", "domain", "dedupe_key"]
     sortable_fields = ["id", "event_type", "domain", "severity_level", "created_at"]
 
     fields = [
@@ -368,7 +375,7 @@ class AlertEventEntityView(ModelView):
         return False
 
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["event_id", "entity_type", "entity_id"]
+    searchable_fields = ["id", "event_id", "entity_type", "entity_id"]
     sortable_fields = ["id", "event_id", "entity_type", "entity_id", "created_at"]
 
     fields = [
@@ -394,6 +401,7 @@ class ClientRuntimeObservationView(ModelView):
 
     fields_default_sort = [("occurred_at", True)]
     searchable_fields = [
+        "id",
         "client_type",
         "client_ip",
         "device_id",

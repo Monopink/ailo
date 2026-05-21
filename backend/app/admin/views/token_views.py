@@ -85,7 +85,7 @@ class UserTokenView(ModelView):
     ]
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("last_activity_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["user_qiao_id", "device_id", "ip_address"]
+    searchable_fields: ClassVar[list[str]] = ["id", "user_qiao_id", "device_id", "ip_address"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "user_qiao_id",
@@ -201,6 +201,7 @@ class LoginRecordView(ModelView):
     exclude_fields_from_list: ClassVar[list[str]] = ["user_id", "user_qiao_id"]
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("login_time", True)]
     searchable_fields: ClassVar[list[str]] = [
+        "id",
         "user_qiao_id",
         "ip_address",
         "device_id",
@@ -321,6 +322,7 @@ class UserAuthView(ModelView):
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
     searchable_fields: ClassVar[list[str]] = [
+        "id",
         "user_qiao_id",
         "provider_uid",
         "unionid",

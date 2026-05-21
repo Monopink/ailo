@@ -39,7 +39,7 @@ class AIPersonalityView(ModelView):
         return False
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
-    searchable_fields: ClassVar[list[str]] = ["display_name", "prompt"]
+    searchable_fields: ClassVar[list[str]] = ["id", "display_name", "prompt"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "display_name",
@@ -102,7 +102,7 @@ class AIPersonalityPlaceholderView(ModelView):
         ("personality_id", False),
         ("placeholder_key", False),
     ]
-    searchable_fields: ClassVar[list[str]] = ["placeholder_key", "display_name"]
+    searchable_fields: ClassVar[list[str]] = ["id", "placeholder_key", "display_name"]
     sortable_fields: ClassVar[list[str]] = [
         "id",
         "personality_id",

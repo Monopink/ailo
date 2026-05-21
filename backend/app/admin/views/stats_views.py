@@ -38,7 +38,7 @@ class StatsUserDailyView(ModelView):
         return False
 
     fields_default_sort = [("stat_date", True)]
-    searchable_fields = ["stat_date"]
+    searchable_fields = ["id", "stat_date"]
     sortable_fields = ["id", "stat_date", "new_users", "active_users", "total_users"]
 
     fields = [
@@ -74,7 +74,7 @@ class StatsUserWeeklyView(ModelView):
         return False
 
     fields_default_sort = [("stat_date", True)]
-    searchable_fields = ["stat_date"]
+    searchable_fields = ["id", "stat_date"]
     sortable_fields = ["id", "stat_date", "new_users", "active_users", "total_users"]
 
     fields = [
@@ -110,7 +110,7 @@ class StatsUserMonthlyView(ModelView):
         return False
 
     fields_default_sort = [("stat_date", True)]
-    searchable_fields = ["stat_date"]
+    searchable_fields = ["id", "stat_date"]
     sortable_fields = ["id", "stat_date", "new_users", "active_users", "total_users"]
 
     fields = [
@@ -146,7 +146,7 @@ class StatsMessageDailyView(ModelView):
         return False
 
     fields_default_sort = [("stat_date", True)]
-    searchable_fields = ["stat_date"]
+    searchable_fields = ["id", "stat_date"]
     sortable_fields = [
         "id",
         "stat_date",
@@ -185,7 +185,7 @@ class StatsMessageWeeklyView(ModelView):
         return False
 
     fields_default_sort = [("stat_date", True)]
-    searchable_fields = ["stat_date"]
+    searchable_fields = ["id", "stat_date"]
     sortable_fields = [
         "id",
         "stat_date",
@@ -224,7 +224,7 @@ class StatsMessageMonthlyView(ModelView):
         return False
 
     fields_default_sort = [("stat_date", True)]
-    searchable_fields = ["stat_date"]
+    searchable_fields = ["id", "stat_date"]
     sortable_fields = [
         "id",
         "stat_date",
@@ -263,7 +263,7 @@ class StatsAIDailyView(ModelView):
         return False
 
     fields_default_sort = [("stat_date", True)]
-    searchable_fields = ["stat_date"]
+    searchable_fields = ["id", "stat_date"]
     sortable_fields = [
         "id",
         "stat_date",
@@ -301,7 +301,7 @@ class StatsAIWeeklyView(ModelView):
         return False
 
     fields_default_sort = [("stat_date", True)]
-    searchable_fields = ["stat_date"]
+    searchable_fields = ["id", "stat_date"]
     sortable_fields = [
         "id",
         "stat_date",
@@ -339,7 +339,7 @@ class StatsAIMonthlyView(ModelView):
         return False
 
     fields_default_sort = [("stat_date", True)]
-    searchable_fields = ["stat_date"]
+    searchable_fields = ["id", "stat_date"]
     sortable_fields = [
         "id",
         "stat_date",

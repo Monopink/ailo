@@ -209,7 +209,7 @@ class SquareCategoryView(ModelView):
     ]
 
     fields_default_sort = [("sort_order", False), ("category_key", False)]
-    searchable_fields = ["category_key", "title", "theme_key", "icon_ref"]
+    searchable_fields = ["id", "category_key", "title", "theme_key", "icon_ref"]
     sortable_fields = [
         "id",
         "category_key",
@@ -416,7 +416,7 @@ class SquareTypeEntryView(ModelView):
     exclude_fields_from_list = []
 
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["category_key", "type_id"]
+    searchable_fields = ["id", "category_key", "type_id"]
     sortable_fields = [
         "id",
         "category_key",
@@ -604,7 +604,7 @@ class AppPageView(ModelView):
     ]
 
     fields_default_sort = [("updated_at", True)]
-    searchable_fields = ["page_key", "title", "client_type", "locale"]
+    searchable_fields = ["id", "page_key", "title", "client_type", "locale"]
     sortable_fields = [
         "id",
         "page_key",

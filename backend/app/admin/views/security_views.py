@@ -48,7 +48,15 @@ class UserViolationLogView(ModelView):
 
     exclude_fields_from_list = []
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["user_qiao_id", "instance_qiao_id"]
+    searchable_fields = [
+        "id",
+        "user_id",
+        "user_qiao_id",
+        "instance_id",
+        "instance_qiao_id",
+        "rule_code",
+        "request_id",
+    ]
     sortable_fields = [
         "id",
         "user_qiao_id",
@@ -146,7 +154,7 @@ class UserRiskStatsView(ModelView):
         return False
 
     fields_default_sort = [("current_risk_level", True), ("total_violations", True)]
-    searchable_fields = ["user_qiao_id"]
+    searchable_fields = ["id", "user_qiao_id"]
     sortable_fields = [
         "id",
         "user_qiao_id",
@@ -258,7 +266,7 @@ class SecurityIPRiskStatsView(ModelView):
         return False
 
     fields_default_sort = [("total_attack_count", True), ("last_attack_at", True)]
-    searchable_fields = ["ip_address", "last_rule_code", "last_source"]
+    searchable_fields = ["id", "ip_address", "last_rule_code", "last_source"]
     sortable_fields = [
         "id",
         "ip_address",
@@ -318,7 +326,7 @@ class SecurityIPBlockView(ModelView):
         return False
 
     fields_default_sort = [("blocked_at", True), ("expires_at", True)]
-    searchable_fields = ["ip_address", "rule_code", "reason_code", "source"]
+    searchable_fields = ["id", "ip_address", "rule_code", "reason_code", "source"]
     sortable_fields = [
         "id",
         "ip_address",

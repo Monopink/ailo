@@ -54,6 +54,14 @@ class CountField(IntegerField):
         return result or 0
 
 
+class TemplateReprLegendField(StringField):
+    """Detail-only legend for template repr abbreviations."""
+
+    async def parse_obj(self, request: Request, obj: Any) -> str:
+        del request, obj
+        return "模板缩写说明：A=启用，I=停用，U=已使用，P=优先级（数字越小越优先）"
+
+
 class AITypeView(ModelView):
     """CRUD view for ai_types entries."""
 
@@ -102,7 +110,7 @@ class AITypeView(ModelView):
     ]
 
     fields_default_sort = [("created_at", True)]
-    searchable_fields = ["display_name"]
+    searchable_fields = ["id", "display_name"]
     sortable_fields = ["id", "display_name", "created_at", "updated_at"]
 
     fields = [
@@ -175,6 +183,14 @@ class AITypeView(ModelView):
             name="template_active_single_use",
             label="Templates (Active Single-use)",
             help_text="Active + Single-use templates",
+        ),
+        TemplateReprLegendField(
+            "_template_repr_legend",
+            label="Template 缩写说明",
+            help_text="AI Template 在详情区列表中的状态与优先级缩写说明",
+            exclude_from_list=True,
+            exclude_from_create=True,
+            exclude_from_edit=True,
         ),
         HasMany(
             "templates_single_use",

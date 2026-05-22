@@ -101,16 +101,19 @@
 - 需要重置数据库 → `/database reset`
 - 实施验收审查（用户明确提出时） → `/code-review-expert`
 - 准备提交前 → `/pre-commit-check`
+- 跨模块调用链/影响面分析 → CodeGraph MCP（`codegraph_context`、`codegraph_impact`、`codegraph_callers`、`codegraph_callees`）
 
 ## MCP
 
 <critical-rules>
 **工具优先级**（重要！）:
-- 代码分析：Serena（本地）> Code Index > Grep
+- 代码分析：Serena（本地）> CodeGraph > Code Index > Grep
 - 文档查询：Context7（第三方库）> DeepWiki（开源项目）> DuckDuckGo（通用）
 </critical-rules>
 
 相关说明:
+- CodeGraph: 结构化问题优先使用（符号关系、调用链、影响面、入口上下文）；文本字面量匹配再使用 Code Index/Grep
+- CodeGraph: 会话启动时检查 `codegraph_status`，索引异常或缺失时报告并执行 `codegraph init -i` 或 `codegraph sync`
 - DuckDuckGo: 过滤 CSDN、w3schools 等低质量来源
 - Chrome DevTools: 优先用 `take_snapshot`（a11y tree）而不是截图
 - Shrimp Task Manager: `execute_task` 只返回指导，需实际执行

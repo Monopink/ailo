@@ -6,10 +6,11 @@ This module contains Pydantic schemas for contact relationships and requests.
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.enums import (
     AvatarDisplayMode,
+    ContactRequestRetryMode,
     ContactRequestSource,
     ContactRequestStatus,
     ContactSource,
@@ -188,10 +189,88 @@ class ContactRequestAccept(BaseModel):
 
 
 class ContactRequestRetryPayload(BaseModel):
-    """Schema for admin-triggered contact request retry payload."""
+    """Schema for admin-triggered contact request retry execution payload."""
 
+    mode: ContactRequestRetryMode = Field(
+        ContactRequestRetryMode.AUTO,
+        description="Retry mode: AUTO or MANUAL",
+    )
+    selected_ai_type_id: str | None = Field(
+        None,
+        description="Selected AI type ID when mode=MANUAL",
+    )
+    selected_template_id: str | None = Field(
+        None,
+        description="Explicit template ID when mode=MANUAL",
+    )
+    force_continue: bool = Field(
+        False,
+        description="Whether operator confirms force continue despite warnings",
+    )
+    idempotency_key: str = Field(..., min_length=1, max_length=128, description="Idempotency key")
+    precheck_payload: dict[str, Any] | None = Field(
+        None,
+        description="Client-side precheck snapshot used for execution audit",
+    )
     alias: str | None = Field(None, max_length=32, description="Override alias when retry succeeds")
     tags: list[str] | None = Field(None, description="Override tags when retry succeeds")
+
+    @model_validator(mode="after")
+    def validate_retry_payload(self) -> "ContactRequestRetryPayload":
+        """Validate manual selection requirements."""
+        if self.mode == ContactRequestRetryMode.MANUAL:
+            if self.selected_template_id is not None:
+                template_id = self.selected_template_id.strip()
+                self.selected_template_id = template_id if template_id != "" else None
+            ai_type_id = self.selected_ai_type_id.strip() if self.selected_ai_type_id else ""
+            self.selected_ai_type_id = ai_type_id if ai_type_id != "" else None
+            if self.selected_template_id is None and self.selected_ai_type_id is None:
+                required_ai_type_msg = (
+                    "selected_ai_type_id is required for MANUAL mode when "
+                    "selected_template_id is absent"
+                )
+                raise ValueError(required_ai_type_msg)
+        else:
+            self.selected_ai_type_id = None
+            self.selected_template_id = None
+        return self
+
+
+class ContactRequestRetryPrecheckPayload(BaseModel):
+    """Schema for admin-triggered contact request retry precheck payload."""
+
+    mode: ContactRequestRetryMode = Field(
+        ContactRequestRetryMode.AUTO,
+        description="Retry mode: AUTO or MANUAL",
+    )
+    selected_ai_type_id: str | None = Field(
+        None,
+        description="Selected AI type ID when mode=MANUAL",
+    )
+    selected_template_id: str | None = Field(
+        None,
+        description="Explicit template ID when mode=MANUAL",
+    )
+
+    @model_validator(mode="after")
+    def validate_precheck_payload(self) -> "ContactRequestRetryPrecheckPayload":
+        """Validate precheck manual selection requirements."""
+        if self.mode == ContactRequestRetryMode.MANUAL:
+            if self.selected_template_id is not None:
+                template_id = self.selected_template_id.strip()
+                self.selected_template_id = template_id if template_id != "" else None
+            ai_type_id = self.selected_ai_type_id.strip() if self.selected_ai_type_id else ""
+            self.selected_ai_type_id = ai_type_id if ai_type_id != "" else None
+            if self.selected_template_id is None and self.selected_ai_type_id is None:
+                required_ai_type_msg = (
+                    "selected_ai_type_id is required for MANUAL mode when "
+                    "selected_template_id is absent"
+                )
+                raise ValueError(required_ai_type_msg)
+        else:
+            self.selected_ai_type_id = None
+            self.selected_template_id = None
+        return self
 
 
 # Contact Search Schemas

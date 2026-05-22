@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     ForeignKey,
     Index,
@@ -25,7 +26,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.enums import AvatarDisplayMode, ContactRequestStatus, ContactSource, ContactType
 from app.models.base import SnowflakeModel, SoftDeleteMixin
-from app.type_defs import JSONDict
+from app.type_defs import JSONDict, JSONValue
 
 if TYPE_CHECKING:
     from app.models.ai.instance import AIInstance
@@ -345,3 +346,136 @@ class ContactRequest(SnowflakeModel):
 
     # Indexes - Only essential indexes for MVP
     __table_args__ = (Index("idx_contact_requests_expires_at", "expires_at"),)
+
+
+class ContactRequestRetryAttempt(SnowflakeModel):
+    """Retry attempt event log for pending contact requests."""
+
+    __tablename__ = "contact_request_retry_attempts"
+
+    request_id: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        comment="contact_requests.id",
+    )
+    attempt_no: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="Monotonic retry attempt number per request",
+    )
+    operator_admin_user_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Admin user id who triggered retry",
+    )
+    operator_username: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        comment="Admin username who triggered retry",
+    )
+    mode: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        comment="Retry mode: AUTO or MANUAL",
+    )
+    selected_ai_type_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Selected ai_types.id when mode=MANUAL",
+    )
+    selected_template_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Explicitly selected ai_templates.id for MANUAL mode",
+    )
+    force_continue: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+        comment="Whether operator force-continued despite warnings",
+    )
+    idempotency_key: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        comment="Idempotency key for admin retry execution",
+    )
+    precheck_checks: Mapped[JSONValue] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'[]'::jsonb"),
+        comment="Precheck checks snapshot",
+    )
+    precheck_warnings: Mapped[JSONValue] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'[]'::jsonb"),
+        comment="Precheck warnings snapshot",
+    )
+    precheck_summary: Mapped[JSONDict] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+        comment="Precheck summary snapshot",
+    )
+    requested_ai_type_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Requested target ai type id from pending request",
+    )
+    selected_template_type_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Actual selected template type id",
+    )
+    is_type_mismatch: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+        comment="Whether requested and selected template types mismatch",
+    )
+    result_status: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="FAILED",
+        server_default=text("'FAILED'"),
+        comment="Result status: SUCCESS, FAILED, REJECTED, ERROR",
+    )
+    result_failure_code: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        comment="Failure code after retry execution",
+    )
+    result_failure_detail: Mapped[JSONDict | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Failure detail snapshot after retry execution",
+    )
+    started_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        comment="Retry attempt started at",
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=True,
+        comment="Retry attempt finished at",
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "request_id",
+            "attempt_no",
+            name="uq_contact_request_retry_attempt_request_attempt_no",
+        ),
+        UniqueConstraint(
+            "request_id",
+            "idempotency_key",
+            name="uq_contact_request_retry_attempt_request_idempotency",
+        ),
+        Index("idx_contact_request_retry_attempts_request_id", "request_id"),
+        Index("idx_contact_request_retry_attempts_started_at", "started_at"),
+        Index("idx_contact_request_retry_attempts_finished_at", "finished_at"),
+        Index("idx_contact_request_retry_attempts_result_status", "result_status"),
+    )

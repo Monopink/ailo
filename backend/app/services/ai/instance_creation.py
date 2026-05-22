@@ -18,7 +18,7 @@ from app.exceptions import AIRelationshipError
 from app.models.ai import AIInstance
 from app.models.ai.personality import AIPersonality
 from app.models.ai.style import AIDimension, AIRelationship, AIStyleDimension
-from app.models.ai.template import AIPersona, AITemplate
+from app.models.ai.template import AIPersona, AITemplate, AIType
 from app.models.base import generate_qiao_id
 from app.models.user import User
 from app.schemas.ai import AIInstanceCreate
@@ -312,6 +312,8 @@ async def create_instance_from_persona(
     user_id: int,
     user_qiao_id: str,
     created_by: AIInstanceCreator = AIInstanceCreator.USER,
+    suppress_ai_type_metadata: bool = False,
+    ai_type_suppressed_reason: str | None = None,
 ) -> AIInstance:
     """
     Instantiate a persona using the provided template for the given user.
@@ -323,25 +325,38 @@ async def create_instance_from_persona(
         user_id: Owning user ID
         user_qiao_id: Owning user qiao_id
         created_by: Creator type (defaults to USER)
+        suppress_ai_type_metadata: Whether to suppress ai_type fields in metadata
+        ai_type_suppressed_reason: Structured reason when ai_type metadata is suppressed
 
     Returns:
         Newly created AI instance
     """
 
-    def _type_display_name(entity: object) -> str | None:
-        ai_type = getattr(entity, "ai_type", None)
-        return getattr(ai_type, "display_name", None) if ai_type is not None else None
+    type_ids: set[int] = set()
+    if not suppress_ai_type_metadata:
+        type_ids.add(int(persona.type_id))
+        type_ids.add(int(template.type_id))
+    ai_type_name_map: dict[int, str] = {}
+    if type_ids:
+        ai_type_rows = await db.execute(
+            select(AIType.id, AIType.display_name).where(AIType.id.in_(type_ids))
+        )
+        ai_type_name_map = {int(row.id): str(row.display_name) for row in ai_type_rows}
 
     creation_metadata = {
         "source": "persona",
         "persona_id": persona.id,
         "persona_qiao_id": persona.qiao_id,
-        "persona_type_id": persona.type_id,
-        "persona_type_name": _type_display_name(persona),
+        "persona_type_id": None if suppress_ai_type_metadata else persona.type_id,
+        "persona_type_name": (
+            None if suppress_ai_type_metadata else ai_type_name_map.get(int(persona.type_id))
+        ),
         "template_id": template.id,
         "template_display_name": template.display_name,
-        "template_type_id": template.type_id,
-        "template_type_name": _type_display_name(template),
+        "template_type_id": None if suppress_ai_type_metadata else template.type_id,
+        "template_type_name": (
+            None if suppress_ai_type_metadata else ai_type_name_map.get(int(template.type_id))
+        ),
         "template_style_id": template.style_id,
         "template_personality_id": template.personality_id,
         "template_prompt_variables": template.prompt_variables,
@@ -352,6 +367,10 @@ async def create_instance_from_persona(
         "template_is_reusable": template.is_reusable,
         "template_priority": template.priority,
         "template_status": template.status,
+        "ai_type_suppressed": suppress_ai_type_metadata,
+        "ai_type_suppressed_reason": ai_type_suppressed_reason
+        if suppress_ai_type_metadata
+        else None,
     }
 
     instance_data = AIInstanceCreate(

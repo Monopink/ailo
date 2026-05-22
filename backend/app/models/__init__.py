@@ -40,7 +40,7 @@ from .base import (
     SnowflakeQiaoModel,
 )
 from .campaign import Campaign, CampaignAttribution
-from .contact import Contact, ContactRequest
+from .contact import Contact, ContactRequest, ContactRequestRetryAttempt
 from .content import AppPage, SquareCategory, SquareTypeEntry, SquareUserCategoryState
 from .entitlement import (
     EntitlementReasonCode,
@@ -118,6 +118,7 @@ __all__ = [
     "BaseModel",
     "Contact",
     "ContactRequest",
+    "ContactRequestRetryAttempt",
     "ImmutableAutoIncrementModel",
     "ImmutableSnowflakeModel",
     "LLMConfig",

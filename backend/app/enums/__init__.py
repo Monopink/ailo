@@ -36,6 +36,10 @@ from .client import ClientType, LocaleCode
 from .contact import (
     AvatarDisplayMode,
     ContactRequestFailureCode,
+    ContactRequestRetryFailureCode,
+    ContactRequestRetryMode,
+    ContactRequestRetryResultStatus,
+    ContactRequestRetryRuleCode,
     ContactRequestSource,
     ContactRequestStatus,
     ContactSource,
@@ -143,6 +147,10 @@ __all__ = [
     "ContactRequestSource",
     "ContactRequestStatus",
     "ContactRequestFailureCode",
+    "ContactRequestRetryFailureCode",
+    "ContactRequestRetryMode",
+    "ContactRequestRetryResultStatus",
+    "ContactRequestRetryRuleCode",
     # Message System
     "MessageDirection",
     "MessageParticipantType",

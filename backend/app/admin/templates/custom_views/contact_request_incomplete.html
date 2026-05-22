@@ -1,0 +1,232 @@
+{% extends "layout.html" %}
+{% block title %}<title>Incomplete Contact Requests</title>{% endblock %}
+{% block head_css %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/dt.min.css') }}">
+<link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/contact-request-incomplete.css') }}">
+<link rel="stylesheet" href="{{ url_for(__name__ ~ ':statics', path='css/select2.min.css') }}">
+{% endblock %}
+
+{% block header %}
+<div class="d-flex justify-content-between align-items-center">
+  <div>
+    <h1>未完成请求</h1>
+  </div>
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{{ url_for(__name__ ~ ':index') }}">Admin</a></li>
+    <li class="breadcrumb-item active">未完成请求</li>
+  </ol>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row row-deck row-cols-1 row-cols-sm-2 row-cols-lg-5 mb-3 g-3">
+  <div class="col">
+    <div class="card">
+      <div class="card-body">
+        <div class="text-uppercase text-muted">未完成总数</div>
+        <div class="h2 mb-0" id="metric-incomplete-total">-</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card">
+      <div class="card-body">
+        <div class="text-uppercase text-muted">24h 重试成功请求数</div>
+        <div class="h2 mb-0" id="metric-last24h-success">-</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card">
+      <div class="card-body">
+        <div class="text-uppercase text-muted">24h 重试失败请求数</div>
+        <div class="h2 mb-0" id="metric-last24h-failed">-</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card">
+      <div class="card-body">
+        <div class="text-uppercase text-muted">24h 重试失败次数</div>
+        <div class="h2 mb-0" id="metric-last24h-failed-attempts">-</div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card">
+      <div class="card-body">
+        <div class="text-uppercase text-muted">24h 重试阻断次数</div>
+        <div class="h2 mb-0" id="metric-last24h-blocked-attempts">-</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card incomplete-workbench">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <div class="card-title">未完成请求</div>
+    <div class="text-muted" id="list-total-hint">共 0 条</div>
+  </div>
+  <div class="card-body border-bottom p-0">
+    <div class="row g-2 align-items-end m-3">
+      <div class="col-md-6 col-lg-2">
+        <label class="form-label">AI 类型</label>
+        <select class="form-select" id="filter-ai-type">
+          <option value="">全部</option>
+        </select>
+      </div>
+      <div class="col-md-6 col-lg-2">
+        <label class="form-label">失败代码</label>
+        <select class="form-select" id="filter-failure-code">
+          <option value="">全部</option>
+        </select>
+      </div>
+      <div class="col-md-6 col-lg-2">
+        <label class="form-label">状态</label>
+        <select class="form-select" id="filter-status">
+          <option value="">ALL</option>
+          <option value="1">PENDING</option>
+          <option value="8">PROCESSING</option>
+          <option value="9">FAILED</option>
+        </select>
+      </div>
+      <div class="col-md-6 col-lg-2">
+        <label class="form-label">更新时间起</label>
+        <input class="form-control" id="filter-updated-from" type="datetime-local">
+      </div>
+      <div class="col-md-6 col-lg-2">
+        <label class="form-label">更新时间止</label>
+        <input class="form-control" id="filter-updated-to" type="datetime-local">
+      </div>
+      <div class="col-md-6 col-lg-2 d-flex gap-2">
+        <button class="btn btn-primary w-100" id="btn-filter-apply">筛选</button>
+        <button class="btn btn-outline-secondary w-100" id="btn-filter-reset">重置</button>
+      </div>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-vcenter" id="incomplete-table">
+      <thead>
+        <tr>
+          <th class="w-1"></th>
+          <th>请求ID</th>
+          <th>请求状态</th>
+          <th>申请时间</th>
+          <th>到期时间</th>
+          <th>是否有效</th>
+          <th>双方Qiao ID</th>
+          <th>双方ID</th>
+          <th>原因</th>
+          <th>AI类型</th>
+          <th>重试次数</th>
+          <th>最后重试时间</th>
+          <th>更新时间</th>
+        </tr>
+      </thead>
+      <tbody id="incomplete-table-body">
+        <tr><td colspan="13" class="text-center text-muted">加载中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal fade" id="auto-retry-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">确认重试</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2"><strong>请求ID：</strong><span id="auto-retry-request-id">-</span></div>
+        <div class="mb-2"><strong>请求 AI 类型：</strong><span id="auto-retry-request-ai-type">-</span></div>
+        <div class="small text-muted mt-2 mb-3">
+          <div>该类型可用模板总数：<span id="auto-retry-active-template-count">-</span></div>
+          <div>过滤用户已用后可用数：<span id="auto-retry-selectable-template-count">-</span></div>
+        </div>
+        <div class="mb-2"><strong>结果预计：</strong></div>
+        <div class="border rounded p-2" id="auto-retry-expected-result">预检中...</div>
+        <div class="mt-3" id="auto-retry-exec-section">
+          <div class="mb-2"><strong>执行结果：</strong></div>
+          <div class="border rounded p-2" id="auto-retry-exec-result">尚未执行</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">取消</button>
+        <button class="btn btn-primary" id="btn-auto-retry-execute" type="button" disabled>重试</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="manual-retry-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">手动指定重试</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body">
+        <div id="manual-retry-step-main">
+          <div class="mb-2"><strong>请求ID：</strong><span id="manual-retry-request-id">-</span></div>
+          <div class="mb-2"><strong>原始请求 AI 类型：</strong><span id="manual-retry-request-ai-type">-</span></div>
+          <div class="mb-3">
+            <label class="form-label">AI 类型</label>
+            <select class="form-select" id="manual-retry-ai-type-select"></select>
+            <div class="alert alert-warning py-2 px-3 mt-2 d-none" id="manual-retry-ai-type-mismatch-warning" role="alert">
+              当前所选 AI 类型与原始请求 AI 类型不一致，系统将按新类型执行重试，请确认业务意图。
+            </div>
+            <div class="small text-muted mt-2 mb-3">
+              <div>该类型可用模板总数：<span id="manual-retry-active-template-count">-</span></div>
+              <div>过滤用户已用后可用数：<span id="manual-retry-selectable-template-count">-</span></div>
+            </div>
+            <label class="form-label mt-3">模板（可选）</label>
+            <select class="form-select" id="manual-retry-template-select"></select>
+            <div class="small text-muted mt-2 d-none" id="manual-retry-template-detail"></div>
+          </div>
+          <div class="mb-2"><strong>结果预计：</strong></div>
+          <div class="border rounded p-2" id="manual-retry-expected-result">待预检</div>
+        </div>
+
+        <div class="d-none" id="manual-retry-step-confirm">
+          <div class="mb-2"><strong>确认信息</strong></div>
+          <div class="border rounded p-2">
+            <div class="mb-2"><strong>请求ID：</strong><span id="manual-retry-confirm-request-id">-</span></div>
+            <div class="mb-2"><strong>原始请求 AI 类型：</strong><span id="manual-retry-confirm-request-ai-type">-</span></div>
+            <div class="mb-2"><strong>模板：</strong><span id="manual-retry-confirm-template">-</span></div>
+            <div><strong>风险结论：</strong><span id="manual-retry-confirm-risk">-</span></div>
+          </div>
+        </div>
+
+        <div class="mt-3 d-none" id="manual-retry-exec-section">
+          <div class="mb-2"><strong>执行结果：</strong></div>
+          <div class="border rounded p-2" id="manual-retry-exec-result">尚未执行</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary d-none" id="btn-manual-retry-back" type="button">后退</button>
+        <button class="btn btn-secondary" id="btn-manual-retry-cancel" data-bs-dismiss="modal" type="button">取消</button>
+        <button class="btn btn-primary" id="btn-manual-retry-next" type="button" disabled>继续</button>
+        <button class="btn btn-primary d-none" id="btn-manual-retry-confirm" type="button">确认</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+{{ super() }}
+<script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/vendor/dt.min.js') }}"></script>
+<script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/vendor/select2.min.js') }}"></script>
+<script type="text/javascript" src="{{ url_for(__name__ ~ ':statics', path='js/components/search-select.js') }}"></script>
+<script>
+window.ailoIncompleteContactRequestsPageConfig = {
+  apiBase: "/admin-api/contact-requests",
+  adminBase: "/qiao-dash",
+  templateListPath: "/qiao-dash/ai_template/list",
+  contactRequestDetailPath: "/qiao-dash/contact_request/detail"
+};
+</script>
+<script type="module" src="{{ url_for(__name__ ~ ':statics', path='js/contact-request-incomplete/page.js') }}"></script>
+{% endblock %}

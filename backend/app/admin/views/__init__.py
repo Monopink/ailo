@@ -130,10 +130,10 @@ from .token_views import (
 )
 from .user_views import (
     USER_MODEL_VIEWS,
-    contact_request_retry_view,
+    contact_request_retry_attempt_view,
     contact_request_view,
     contact_view,
-    pending_contact_request_view,
+    incomplete_contact_request_view,
     profile_view,
     user_profile_log_view,
     user_view,
@@ -224,7 +224,7 @@ __all__ = [
     "profile_view",
     "user_profile_log_view",
     "contact_view",
-    "pending_contact_request_view",
+    "incomplete_contact_request_view",
     "profile_avatar_advanced_edit_view",
     # Individual message/media views
     "message_history_view",
@@ -266,7 +266,7 @@ __all__ = [
     "user_auth_view",
     # Individual business views
     "contact_request_view",
-    "contact_request_retry_view",
+    "contact_request_retry_attempt_view",
     # Individual statistics views
     "stats_user_daily_view",
     "stats_user_weekly_view",

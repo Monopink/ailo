@@ -99,6 +99,7 @@ _ADMIN_TEXT_MAP: dict[str, tuple[str, str]] = {
     "Operation Configuration": ("运营配置", "Operation Configuration"),
     "System Configuration": ("系统配置", "System Configuration"),
     "Dashboard": ("仪表盘", "Dashboard"),
+    "Incomplete Requests": ("未完成请求", "Incomplete Requests"),
     "Admin": ("管理端", "Admin"),
     "Theme Switch": ("主题切换", "Theme Switch"),
     "Theme": ("主题", "Theme"),

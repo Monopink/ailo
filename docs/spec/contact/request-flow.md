@@ -245,7 +245,12 @@ stateDiagram-v2
 
 **重试逻辑**：
 
-- 管理员补充模板后，可在后台触发重试
+- 管理员可在后台触发自动重试或指定模板重试
+- 指定模板重试支持预检结果展示，预检仅作为即时参考
+- 手动重试在未指定模板时要求选择 `AI Type`；指定模板时 `AI Type` 可选
+- 手动重试在传入模板时强制使用指定模板执行，不保证最终成功
+- 手动重试弹窗的模板详情中，`Style` 与 `Personality` 展示名称字段；名称缺失时回退展示对应 ID
+- 管理员确认执行后直接进入重试流程，以实时重试结果为准
 - 用户重复提交命中未完成请求（`PENDING` 或 `PROCESSING`）时，系统直接返回成功，不变更原请求状态
 - 请求已过期或进入终态时，重复提交会创建新请求并重新进入处理流程
 
@@ -288,28 +293,87 @@ stateDiagram-v2
 - POST /api/v1/contact-requests - 发送联系人请求
 - POST /api/v1/contact-requests/{request_id}/accept - 接受请求
 - POST /api/v1/contact-requests/{request_id}/ignore - 忽略请求
+- 管理端接口详见：[api/admin-contact-requests.md](../../api/admin-contact-requests.md)
 
 ### 管理后台重试 API
 
-- 路径：`POST /api/v1/admin/contact-requests/{request_id}/retry`
-- 鉴权：复用 Starlette Admin 的 Session（依赖 `verify_admin_session`），仅登录的后台管理账号可调用
-- 行为：
-  1. `FOR UPDATE` 锁定目标请求，校验 `status=PENDING` 且 `failure_code` 属于可恢复挂起类型
-  2. `retry_count += 1`，`last_retry_at = NOW()`
-  3. 调用 `_process_ai_contact_request`，成功则状态变为 `ACCEPTED` 并创建联系人；未恢复则保持 `PENDING` 并写入新的 `failure_code/detail`；系统错误落 `FAILED`
-- 日志：在挂起、重试等动作上分别记录 `contact_request_pending`、`contact_request_retry` 等结构化日志字段（`request_id`、`ai_type_id`、`admin_user`、`retry_count` 等）
+- 路径：
+  - `GET /admin-api/contact-requests/incomplete/overview`
+  - `GET /admin-api/contact-requests/incomplete`
+  - `GET /admin-api/contact-requests/ai-types/search`
+  - `GET /admin-api/contact-requests/templates/search`
+  - `POST /admin-api/contact-requests/{request_id}/retry-precheck`
+  - `POST /admin-api/contact-requests/{request_id}/retry`
+- 鉴权：复用 Starlette Admin Session。
+- 权限：
+  - 自动重试：登录后台账号可执行。
+  - 指定模板重试：仅 `SUPER_ADMIN` 可执行。
+- 预检语义：
+  - 返回阻断项（`blocking_errors`）、告警项（`warnings`）、检查项（`checks`）与汇总（`summary`）。
+  - 阻断项表示不可执行；告警项表示可在确认后执行。
+- 执行语义：
+  1. `mode` 使用字符串枚举 `ContactRequestRetryMode`，仅允许 `AUTO`、`MANUAL`。
+  2. `FOR UPDATE` 锁定目标请求并校验重试资格。
+  3. 重试前后使用同一规则分级模型校验（阻断/告警）。
+  4. 命中阻断项时直接失败并返回 `409 Conflict`。
+  5. `mode=MANUAL` 且未传 `selected_template_id` 时，必须传入 `selected_ai_type_id`。
+  6. `mode=MANUAL` 且传入 `selected_template_id` 时，`selected_ai_type_id` 可选。
+  7. `mode=MANUAL` 且未传 `selected_template_id` 时，系统按 `selected_ai_type_id` 自动选模板执行，仍可能失败。
+  8. `mode=MANUAL` 且传入 `selected_template_id` 时，系统强制使用指定模板执行。
+  9. `mode=MANUAL` 且同时传入 `selected_template_id + selected_ai_type_id` 且两者类型不一致时：
+     - 预检返回高风险告警。
+     - 执行阶段允许继续，要求 `SUPER_ADMIN` 且 `force_continue=true`。
+  10. `mode=MANUAL` 且所选模板已被该用户使用过时：
+      - 预检返回阻断项 `TEMPLATE_ALREADY_USED_BY_USER`。
+      - 执行阶段强制拦截并返回 `409`。
+  11. 当请求原始 AI 类型不可解析时：
+      - 未传 `selected_template_id`：执行失败。
+      - 传入 `selected_template_id`：允许执行；实例对外 `ai_type` 为空，并在 `creation_metadata` 记录原因说明。
+  12. 创建成功后更新请求状态为 `ACCEPTED`；失败保持未完成状态并写回失败信息；系统异常记录失败状态。
+  13. 写入管理员操作审计与重试尝试事件。
 
-### 管理后台挂起处理面板
+### 管理后台未完成请求面板
 
-自定义视图 `custom_views/contact_request_pending.html`（Starlette Admin）提供流程化的操作面板：
+未完成请求面板入口路径为 `/qiao-dash/incomplete-contact-requests`。
 
-1. **概览区**：展示挂起请求总数、按 `ai_type_id` 的 Top N、24 小时内重试成功/失败数量，数据来自 `contact_requests` 聚合。
-2. **挂起列表**：
-   - 字段：`request_id`、`from_qiao_id`、`to_qiao_id`、`ai_type_id`（来源于 `failure_detail.ai_type_id`）、`failure_code`、`retry_count`、`last_retry_at`、`updated_at`
-   - 过滤器：支持按 `ai_type_id`、`failure_code`、更新时间筛选
-   - 操作列提供：
-     - “补模板”跳转：根据 `ai_type_id` 进入模板管理页面
-     - “立即重试”按钮：调用上述 Admin API，返回后刷新行状态
-3. **详情侧栏**：点击任一行展开，展示原始请求信息、`failure_detail` JSON、最近日志记录，并以“查看缺模板 → 补模板 → 重试”步骤条提示管理员完成流程。
+1. **工作台布局**
+   - 筛选区、列表区位于同一工作台卡片。
+2. **概览区**
+   - 未完成总数（`incomplete_total`）。
+   - 24h 重试成功请求数（按请求去重）。
+   - 24h 重试失败请求数（按请求去重）。
+   - 24h 重试失败次数（按尝试事件计数）。
+   - 24h 重试阻断次数（按 `result_status=REJECTED` 计数，排除业务拒绝码 `AI_CONTACT_LIMIT_REACHED` 与 `RETRY_REJECTED`）。
+3. **未完成列表**
+   - 展示未成功且未完成的请求：`PENDING`、`PROCESSING`、`FAILED`。
+   - 不展示 `IGNORED` 与 `ACCEPTED`。
+   - 列表支持分页查询。
+4. **列表字段**
+   - 请求字段：`request_id`、`status`、`申请时间`（按 `created_at` 计算相对当前时间，示例 `1天23小时前`）。
+   - 到期字段：`到期时间`（按 `expires_at` 计算相对当前时间）与 `是否有效`（由 `is_expired` 映射图标：有效/无效）。
+   - 参与方字段：`from_qiao_id`、`to_qiao_id`、`from_id`、`to_id`。
+   - 失败字段：`failure_reason_label`、`ai_type_display_name`。
+   - 重试字段：`retry_count`、`last_retry_at`、`is_retryable`。
+   - 时间字段按浏览器时区展示，UTC 原值用于排障提示。
+5. **操作行为**
+   - 查看：直接跳转 `/qiao-dash/contact_request/detail/{request_id}`。
+   - 补模板：跳转 `ai_template` 列表并通过 `search` 参数过滤。
+   - 重试：仅 `is_retryable=true` 的记录可执行。
+   - 指定模板重试：打开“手动指定重试”弹窗，进入后默认选中原始请求 `AI Type`，并自动加载该类型模板列表。
+   - 指定模板重试：模板检索始终按所选 `AI Type` 过滤。
+   - 指定模板重试：模板选项显示 `ID + 名称 + 状态 + 优先级`，示例：`[12] Friendly Default Config (ACTIVE, P=1)`。
+   - 指定模板重试：选择模板后自动预检；第一步“继续”，第二步“后退/确认”。
+   - 指定模板重试：当所选 `AI Type` 与原始请求 `AI Type` 不一致时，在弹窗内显示告警提示。
+   - 指定模板重试：当所选模板已被该用户使用过时，预检显示阻断提示并禁用确认执行。
+   - 执行反馈：重试结果在弹窗内展示，成功后禁用执行按钮，弹窗不自动关闭，由管理员手动关闭。
 
-若重试失败，行会重新回到列表顶部并显示新的 `failure_code` 与时间戳；成功后记录从列表移除，由后台 Worker 继续后续流程。
+### 管理端重试统计口径
+
+- 请求维度：
+  - `24h 重试失败请求数` 按 `request_id` 去重。
+- 尝试维度：
+  - `24h 重试失败次数` 按重试尝试事件计数。
+- `24h 重试阻断次数` 按 `result_status=REJECTED` 计数，排除业务拒绝码 `AI_CONTACT_LIMIT_REACHED` 与 `RETRY_REJECTED`。
+- 类型维度：
+  - 需求侧归属：`requested_ai_type_id`。
+  - 供给侧归属：`selected_template_type_id`。

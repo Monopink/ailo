@@ -4,16 +4,15 @@ Creates ModelView instances for user management and admin system models.
 
 import secrets
 import string
-from collections import Counter
 from collections.abc import MutableMapping
 from datetime import UTC, datetime, timedelta
 from typing import ClassVar, cast
 
-from sqlalchemy import delete, desc, func, select
+from sqlalchemy import delete, select
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
 from starlette.requests import Request
-from starlette.responses import RedirectResponse, Response
+from starlette.responses import Response
 from starlette.templating import Jinja2Templates
 from starlette_admin import (
     BooleanField,
@@ -46,17 +45,15 @@ from app.enums import (
     UserType,
 )
 from app.models.ai.instance import AIInstance
-from app.models.contact import Contact, ContactRequest
+from app.models.contact import Contact, ContactRequest, ContactRequestRetryAttempt
 from app.models.message import MediaFile
 from app.models.profile import Profile, UserProfileLog
 from app.models.user import User
-from app.services.contact.request_service import retry_pending_contact_request
 from app.services.entitlement.service import ensure_system_initial_ai_contact_limit
 from app.services.profile.avatar import get_avatar_url
 from app.services.profile.integrity import ensure_user_profile
 from app.services.security.username import USERNAME_HELP_TEXT
 from app.services.system_config import get_config_int
-from app.type_defs import JSONDict
 from app.utils.phone import is_china_phone, normalize_phone
 
 from .base import BaseRoleAwareModelView, InvertedBooleanField
@@ -1124,16 +1121,7 @@ class ContactRequestView(ModelView):
         DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    row_actions: ClassVar[list[str]] = ["view", "retry_request"]
-
-    @link_row_action(
-        name="retry_request",
-        text="Retry",
-        icon_class="fa fa-undo",
-    )
-    def retry_request_action(self, _request: Request, pk: int | str) -> str:
-        """Trigger retry for hanging requests."""
-        return f"/qiao-dash/contact-requests/{pk}/retry"
+    row_actions: ClassVar[list[str]] = ["view"]
 
     async def validate(self, request: Request, data: FormData) -> None:
         """Custom validation for contact requests."""
@@ -1241,106 +1229,157 @@ class ContactRequestView(ModelView):
         return False
 
 
-class PendingContactRequestView(CustomView):
-    """Custom dashboard for hanging contact requests."""
+class ContactRequestRetryAttemptView(ModelView):
+    """Read-only retry attempt log view for incomplete contact requests."""
+
+    def can_create(self, request: Request) -> bool:
+        return False
+
+    def can_edit(self, request: Request) -> bool:
+        return False
+
+    def can_delete(self, request: Request) -> bool:
+        return False
+
+    fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("started_at", True)]
+    searchable_fields: ClassVar[list[str]] = [
+        "id",
+        "request_id",
+        "operator_username",
+        "mode",
+        "result_status",
+        "result_failure_code",
+        "idempotency_key",
+    ]
+    sortable_fields: ClassVar[list[str]] = [
+        "id",
+        "request_id",
+        "attempt_no",
+        "operator_admin_user_id",
+        "operator_username",
+        "mode",
+        "selected_ai_type_id",
+        "selected_template_id",
+        "requested_ai_type_id",
+        "selected_template_type_id",
+        "is_type_mismatch",
+        "result_status",
+        "result_failure_code",
+        "force_continue",
+        "started_at",
+        "finished_at",
+        "created_at",
+        "updated_at",
+    ]
+
+    fields: ClassVar[list[BaseField]] = [
+        StringField("id", label="ID", help_text="Retry attempt row ID"),
+        StringField("request_id", label="Request ID", help_text="Target contact request ID"),
+        IntegerField(
+            "attempt_no",
+            label="Attempt No",
+            help_text="Monotonic retry attempt number per request",
+        ),
+        StringField(
+            "operator_admin_user_id",
+            label="Operator Admin User ID",
+            help_text="Admin user ID who triggered retry",
+        ),
+        StringField(
+            "operator_username",
+            label="Operator Username",
+            help_text="Admin username who triggered retry",
+        ),
+        StringField("mode", label="Retry Mode", help_text="AUTO or MANUAL"),
+        StringField(
+            "selected_ai_type_id",
+            label="Selected AI Type ID",
+            help_text="Selected AI type for manual retry",
+        ),
+        StringField(
+            "selected_template_id",
+            label="Selected Template ID",
+            help_text="Explicit selected template for manual retry",
+        ),
+        BooleanField(
+            "force_continue",
+            label="Force Continue",
+            help_text="Whether operator force-continued despite warnings",
+        ),
+        StringField(
+            "idempotency_key",
+            label="Idempotency Key",
+            help_text="Retry execution idempotency key",
+        ),
+        JSONField(
+            "precheck_checks",
+            label="Precheck Checks",
+            help_text="Precheck checks snapshot",
+        ),
+        JSONField(
+            "precheck_warnings",
+            label="Precheck Warnings",
+            help_text="Precheck warnings snapshot",
+        ),
+        JSONField(
+            "precheck_summary",
+            label="Precheck Summary",
+            help_text="Precheck summary snapshot",
+        ),
+        StringField(
+            "requested_ai_type_id",
+            label="Requested AI Type ID",
+            help_text="Requested AI type from source request detail",
+        ),
+        StringField(
+            "selected_template_type_id",
+            label="Selected Template Type ID",
+            help_text="Resolved selected template AI type ID",
+        ),
+        BooleanField(
+            "is_type_mismatch",
+            label="Type Mismatch",
+            help_text="Whether requested and selected template types mismatch",
+        ),
+        StringField(
+            "result_status",
+            label="Result Status",
+            help_text="SUCCESS / FAILED / REJECTED / ERROR",
+        ),
+        StringField(
+            "result_failure_code",
+            label="Result Failure Code",
+            help_text="Failure code after retry execution",
+        ),
+        JSONField(
+            "result_failure_detail",
+            label="Result Failure Detail",
+            help_text="Failure detail after retry execution",
+        ),
+        DateTimeField("started_at", label="Started At", help_text="Retry start time"),
+        DateTimeField("finished_at", label="Finished At", help_text="Retry finish time"),
+        DateTimeField("created_at", label="Created At", help_text="Record creation time"),
+        DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
+    ]
+
+
+class IncompleteContactRequestView(CustomView):
+    """Custom dashboard for incomplete contact requests."""
 
     def is_active(self, request: Request) -> bool:
-        """Check if current page is pending contact requests page."""
+        """Check if current page is incomplete contact requests page."""
         path = request.scope["path"]
         admin_state = getattr(request.app.state, "ADMIN", None)
         if admin_state and hasattr(admin_state, "base_url"):
             base_url = cast(str, admin_state.base_url)
-            return path == f"{base_url}/pending-contact-requests"
-        return "/pending-contact-requests" in path
+            return path == f"{base_url}/incomplete-contact-requests"
+        return "/incomplete-contact-requests" in path
 
     async def render(self, request: Request, templates: Jinja2Templates) -> Response:
-        session = request.state.session
-        stmt = (
-            select(ContactRequest)
-            .where(
-                ContactRequest.status == ContactRequestStatus.PENDING,
-                ContactRequest.failure_code.is_not(None),
-            )
-            .order_by(desc(ContactRequest.updated_at))
-        )
-        result = await session.execute(stmt)
-        pending_requests = result.scalars().all()
-
-        items: list[JSONDict] = []
-        type_counter: Counter[str] = Counter()
-        for req in pending_requests:
-            detail = cast(JSONDict, req.failure_detail or {})
-            ai_type_id = detail.get("ai_type_id") or detail.get("type_id")
-            if ai_type_id is not None:
-                type_counter[str(ai_type_id)] += 1
-            item: JSONDict = {
-                "id": req.id,
-                "from_qiao_id": req.from_qiao_id,
-                "to_qiao_id": req.to_qiao_id,
-                "ai_type_id": ai_type_id,
-                "failure_code": req.failure_code,
-                "retry_count": req.retry_count or 0,
-                "last_retry_at": req.last_retry_at.isoformat() if req.last_retry_at else None,
-                "updated_at": req.updated_at.isoformat() if req.updated_at else None,
-                "failure_detail": detail,
-            }
-            items.append(item)
-
-        top_types: list[JSONDict] = [
-            {"ai_type_id": key, "count": count} for key, count in type_counter.most_common(5)
-        ]
-
-        window_start = datetime.now(UTC) - timedelta(hours=24)
-        success_stmt = select(func.count(ContactRequest.id)).where(
-            ContactRequest.status == ContactRequestStatus.ACCEPTED,
-            ContactRequest.last_retry_at.is_not(None),
-            ContactRequest.last_retry_at >= window_start,
-        )
-        failure_stmt = select(func.count(ContactRequest.id)).where(
-            ContactRequest.status == ContactRequestStatus.PENDING,
-            ContactRequest.failure_code.is_not(None),
-            ContactRequest.last_retry_at.is_not(None),
-            ContactRequest.last_retry_at >= window_start,
-        )
-        success_result = await session.execute(success_stmt)
-        failure_result = await session.execute(failure_stmt)
-        overview: JSONDict = {
-            "pending_total": len(items),
-            "type_summary": top_types,
-            "last24h_success": success_result.scalar_one() or 0,
-            "last24h_failed": failure_result.scalar_one() or 0,
-        }
-
         context: dict[str, object] = {
             "request": request,
-            "items": items,
-            "overview": overview,
         }
-        return templates.TemplateResponse("custom_views/contact_request_pending.html", context)
-
-
-class ContactRequestRetryView(CustomView):
-    """Internal redirect view to trigger retries via row actions."""
-
-    add_to_menu = False
-
-    async def render(self, request: Request, _templates: Jinja2Templates) -> Response:
-        session = request.state.session
-        request_id = request.path_params.get("id")
-        if not request_id:
-            raise FormValidationError({"id": "Request ID missing"})
-
-        try:
-            request_id = int(request_id)
-        except ValueError as exc:
-            raise FormValidationError({"id": f"Invalid Request ID: {exc}"}) from exc
-
-        admin_user = request.session.get("admin_user") or {}
-        operator = admin_user.get("username")
-        await retry_pending_contact_request(session, request_id=request_id, operator=operator)
-
-        referer = request.headers.get("referer") or str(request.url_for("admin:index"))
-        return RedirectResponse(url=referer, status_code=303)
+        return templates.TemplateResponse("custom_views/contact_request_incomplete.html", context)
 
 
 # Create view instances
@@ -1359,17 +1398,17 @@ contact_request_view = ContactRequestView(
     icon="fa fa-user-plus",
     identity="contact_request",
 )
-pending_contact_request_view = PendingContactRequestView(
-    label="Pending Requests",
-    name="contact_request_pending",
-    path="/pending-contact-requests",
-    icon="fa fa-hourglass-half",
+contact_request_retry_attempt_view = ContactRequestRetryAttemptView(
+    ContactRequestRetryAttempt,
+    name="Contact Request Retry Attempts",
+    icon="fa fa-history",
+    identity="contact_request_retry_attempt",
 )
-contact_request_retry_view = ContactRequestRetryView(
-    label="Retry Contact Request",
-    name="contact_request_retry",
-    path="/contact-requests/{id:int}/retry",
-    add_to_menu=False,
+incomplete_contact_request_view = IncompleteContactRequestView(
+    label="Incomplete Requests",
+    name="contact_request_incomplete",
+    path="/incomplete-contact-requests",
+    icon="fa fa-hourglass-half",
 )
 # Export all user views
 USER_MODEL_VIEWS = [
@@ -1378,5 +1417,5 @@ USER_MODEL_VIEWS = [
     user_profile_log_view,
     contact_view,
     contact_request_view,
-    pending_contact_request_view,
+    incomplete_contact_request_view,
 ]

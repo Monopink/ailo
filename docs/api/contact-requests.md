@@ -13,6 +13,11 @@
 - `docs/spec/contact/request-flow.md`
 - `docs/spec/contact/ai-creation.md`
 - `docs/spec/contact/management.md`
+- `docs/api/admin-contact-requests.md`
+
+## 管理端接口说明
+
+管理后台联系人请求接口采用独立文档维护：`docs/api/admin-contact-requests.md`。
 
 ---
 

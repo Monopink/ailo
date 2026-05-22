@@ -46,6 +46,7 @@ function initSearchSelect({
   limit = 20,
   dropdownParent = null,
   allowClear = true,
+  buildQueryParams = null,
   language = {},
   onSelect = null,
   onClear = null,
@@ -85,7 +86,23 @@ function initSearchSelect({
           success({ items: [], has_more: false });
           return null;
         }
-        const url = `${searchUrl}?q=${encodeURIComponent(term)}&limit=${limit}&page=${page}`;
+        const query = new URLSearchParams({
+          q: term,
+          limit: String(limit),
+          page: String(page),
+        });
+        if (typeof buildQueryParams === 'function') {
+          const extras = buildQueryParams({ term, page });
+          if (extras && typeof extras === 'object') {
+            Object.entries(extras).forEach(([key, value]) => {
+              if (value === null || value === undefined || value === '') {
+                return;
+              }
+              query.set(String(key), String(value));
+            });
+          }
+        }
+        const url = `${searchUrl}?${query.toString()}`;
         fetch(url, { credentials: 'same-origin' })
           .then(async (response) => {
             const data = await parseJsonResponse(response);

@@ -22,6 +22,7 @@ async def create_operation_log(
     resource_id: str | None = None,
     resource_name: str | None = None,
     request: Request | None = None,
+    operation_meta: dict[str, object] | None = None,
     *,
     commit: bool = True,
 ) -> None:
@@ -36,6 +37,7 @@ async def create_operation_log(
         resource_id: ID of the resource (optional)
         resource_name: Name of the resource (optional)
         request: FastAPI request object for IP and user agent (optional)
+        operation_meta: Structured metadata payload for audit details (optional)
         commit: Whether to commit immediately. If False, only flush and let caller commit.
 
     """
@@ -47,6 +49,7 @@ async def create_operation_log(
             "operation_desc": operation_desc,
             "resource_id": resource_id,
             "resource_name": resource_name,
+            "operation_meta": operation_meta,
         }
 
         # Extract IP and user agent from request if available

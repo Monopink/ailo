@@ -163,7 +163,7 @@ class AITemplate(AutoIncrementModel):
         "AIType",
         primaryjoin="AITemplate.type_id == AIType.id",
         foreign_keys=[type_id],
-        lazy="select",
+        lazy="raise",
         viewonly=True,
     )
     llm_config = orm_relationship(
@@ -224,7 +224,7 @@ class AIPersona(SnowflakeQiaoModel):
         "AIType",
         primaryjoin="AIPersona.type_id == AIType.id",
         foreign_keys=[type_id],
-        lazy="select",
+        lazy="raise",
         viewonly=True,
     )
 

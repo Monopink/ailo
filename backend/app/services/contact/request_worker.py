@@ -20,7 +20,10 @@ from app.core.database import get_sessionmaker
 from app.crud.contact import contact_request as contact_request_crud
 from app.enums import ContactRequestStatus, ContactType
 from app.models.contact import ContactRequest
-from app.services.contact.request_service import _extract_request_tags, _process_ai_contact_request
+from app.services.contact.ai_contact_request_service import (
+    extract_request_tags,
+    process_ai_contact_request,
+)
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -78,11 +81,11 @@ async def _process_one(db: AsyncSession, req: ContactRequest) -> None:
         # Cache primitive values to avoid expired attributes later
         user_qiao_id = req.from_qiao_id
         user_id = req.from_id
-        extracted_tags = _extract_request_tags(req.tags)
+        extracted_tags = extract_request_tags(req.tags)
         if req.tags is not None and extracted_tags is None:
             raise RuntimeError("contact_request_tags_invalid")
 
-        await _process_ai_contact_request(
+        await process_ai_contact_request(
             db=db,
             user_qiao_id=user_qiao_id,
             user_id=user_id,
@@ -106,8 +109,8 @@ async def _process_one(db: AsyncSession, req: ContactRequest) -> None:
             )
 
     except Exception as e:
-        # Unexpected error in worker itself (not in _process_ai_contact_request)
-        # This should rarely happen as _process_ai_contact_request handles its own errors
+        # Unexpected error in worker itself (not in process_ai_contact_request)
+        # This should rarely happen as process_ai_contact_request handles its own errors
         logger.error(
             "worker_process_one_failed",
             request_id=req.id,

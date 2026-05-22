@@ -76,7 +76,7 @@ async def handle_ai_contact_request(
             reason="PERSONA_INACTIVE",
         )
 
-    template, pending_failure_code = await _select_template_for_ai_type(
+    template, pending_failure_code = await select_template_for_ai_type(
         db, type_id=persona.type_id, user_id=user_id
     )
     if not template:
@@ -125,7 +125,7 @@ async def _lock_persona_by_qiao_id(db: AsyncSession, *, qiao_id: str) -> AIPerso
     return result.scalar_one_or_none()
 
 
-async def _select_template_for_ai_type(
+async def select_template_for_ai_type(
     db: AsyncSession, *, type_id: int, user_id: int
 ) -> tuple[AITemplate | None, str | None]:
     """Select a template for the AI type, preferring single-use templates.

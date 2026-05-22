@@ -14,19 +14,19 @@
 
 <div class="page-body">
   <div class="container-xl">
-    <!-- Pending AI Contact Requests -->
+    <!-- Incomplete AI Contact Requests -->
     <div class="row row-deck row-cards mb-4">
       <div class="col-12">
-        <h3 class="mb-3">Pending AI Contact Requests</h3>
+        <h3 class="mb-3">Incomplete AI Contact Requests</h3>
       </div>
 
       <div class="col-sm-6 col-lg-4">
         <div class="card">
           <div class="card-body">
             <div class="d-flex align-items-center justify-content-between mb-3">
-              <div class="subheader">Total Pending</div>
+              <div class="subheader">Total Incomplete</div>
               <a
-                href="/qiao-dash/pending-contact-requests"
+                href="/qiao-dash/incomplete-contact-requests"
                 class="btn btn-sm btn-icon"
                 title="View Details"
               >
@@ -34,7 +34,7 @@
               </a>
             </div>
             <div class="h3 mb-2">
-              {{ pending_contact_requests.pending_total }}
+              {{ incomplete_contact_requests.incomplete_total }}
             </div>
             <div class="text-muted small">
               Requests waiting for retry
@@ -50,7 +50,7 @@
               <div class="subheader">24h Retry Success</div>
             </div>
             <div class="h3 mb-2 text-success">
-              {{ pending_contact_requests.last24h_success }}
+              {{ incomplete_contact_requests.last24h_success }}
             </div>
             <div class="text-muted small">
               Successfully retried in last 24h
@@ -66,7 +66,7 @@
               <div class="subheader">24h Retry Failed</div>
             </div>
             <div class="h3 mb-2 text-warning">
-              {{ pending_contact_requests.last24h_failed }}
+              {{ incomplete_contact_requests.last24h_failed }}
             </div>
             <div class="text-muted small">
               Failed retry in last 24h

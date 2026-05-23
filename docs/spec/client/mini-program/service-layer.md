@@ -1,4 +1,4 @@
-﻿# Service 层架构规范
+# Service 层架构规范
 
 ## 目的
 

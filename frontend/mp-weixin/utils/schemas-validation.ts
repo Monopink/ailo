@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Runtime validation schemas using Zod
  *
  * These schemas provide both TypeScript types and runtime validation.

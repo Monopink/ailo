@@ -50,6 +50,8 @@ const TAG_GAP_RPX = 6;
 const TAG_FALLBACK_VISIBLE_COUNT = 1;
 const LIGHT_WORDMARK_SRC = '/assets/wordmark.svg';
 const DARK_WORDMARK_SRC = '/assets/wordmark-dark.svg';
+const DEFAULT_NAVBAR_TITLE_SWITCH_THRESHOLD_PX = 1;
+const NAVBAR_TITLE_SWITCH_HYSTERESIS_PX = 0;
 
 interface TagMeasureItem {
   key: string;
@@ -438,6 +440,8 @@ interface ContactListPageData {
   showConnectionIssue: boolean;
   navbarTitle: string;
   wordmarkSrc: string;
+  showNavbarTitle: boolean;
+  navbarTitleSwitchThresholdPx: number;
 }
 
 interface ContactListPageCustom {
@@ -460,6 +464,9 @@ interface ContactListPageCustom {
   applyScreenModel(screenModel: ScreenModel): void;
   syncLayoutStateFromContactList(contactList: ContactListRenderItem[]): void;
   updateNavigationTitle(): void;
+  resolveNavbarTitleVisibility(scrollTop: number): boolean;
+  measureNavbarTitleSwitchThreshold(): void;
+  onContentScroll(event: WechatMiniprogram.CustomEvent<{ scrollTop?: number }>): void;
   bindThemeChange(): void;
   unbindThemeChange(): void;
   syncWordmarkByTheme(theme?: string): void;
@@ -558,6 +565,8 @@ Page<ContactListPageData, ContactListPageCustom>({
     showConnectionIssue: false,
     navbarTitle: APP_CONFIG.brandName,
     wordmarkSrc: getWordmarkSrcByTheme(getCurrentTheme()),
+    showNavbarTitle: false,
+    navbarTitleSwitchThresholdPx: DEFAULT_NAVBAR_TITLE_SWITCH_THRESHOLD_PX,
   },
 
   indexPageService: null as unknown as ReturnType<typeof createIndexPageService>,
@@ -596,6 +605,10 @@ Page<ContactListPageData, ContactListPageCustom>({
       };
     });
     this._layoutStateByConversationId = nextStateByConversationId;
+  },
+
+  onReady() {
+    this.measureNavbarTitleSwitchThreshold();
   },
 
   async onLoad() {
@@ -652,6 +665,46 @@ Page<ContactListPageData, ContactListPageCustom>({
       this._connectionSubscription();
       this._connectionSubscription = null;
     }
+  },
+
+  resolveNavbarTitleVisibility(scrollTop) {
+    const threshold = Math.max(1, Math.round(this.data.navbarTitleSwitchThresholdPx));
+    if (this.data.showNavbarTitle) {
+      return scrollTop >= threshold - NAVBAR_TITLE_SWITCH_HYSTERESIS_PX;
+    }
+    return scrollTop >= threshold + NAVBAR_TITLE_SWITCH_HYSTERESIS_PX;
+  },
+
+  measureNavbarTitleSwitchThreshold() {
+    const query = wx.createSelectorQuery();
+    query.select('.index-page__large-title').boundingClientRect((rect) => {
+      const height =
+        typeof rect.height === 'number' && Number.isFinite(rect.height) ? rect.height : null;
+      if (height === null || height <= 0) {
+        return;
+      }
+      const nextThreshold = Math.max(1, Math.round(height * 0.25));
+      if (nextThreshold === this.data.navbarTitleSwitchThresholdPx) {
+        return;
+      }
+      this.setData({ navbarTitleSwitchThresholdPx: nextThreshold });
+    });
+    query.exec();
+  },
+
+  onContentScroll(event) {
+    const rawScrollTop = event.detail.scrollTop;
+    const scrollTop =
+      typeof rawScrollTop === 'number' && Number.isFinite(rawScrollTop)
+        ? Math.max(0, Math.round(rawScrollTop))
+        : 0;
+    const shouldShowNavbarTitle = this.resolveNavbarTitleVisibility(scrollTop);
+    if (shouldShowNavbarTitle === this.data.showNavbarTitle) {
+      return;
+    }
+    this.setData({
+      showNavbarTitle: shouldShowNavbarTitle,
+    });
   },
 
   bindThemeChange() {

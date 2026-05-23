@@ -31,12 +31,16 @@ const BLOCKED_SCREEN_MODEL: ScreenModel = {
   contentVariant: 'blank',
   refreshState: 'idle',
 };
+const DEFAULT_NAVBAR_TITLE_SWITCH_THRESHOLD_PX = 72;
+const NAVBAR_TITLE_SWITCH_HYSTERESIS_PX = 8;
 
 interface SquareEntryPageData {
   pageLayoutData: PageLayoutData;
   entryCards: SquareCategoryCard[];
   categoriesReady: boolean;
   minorModeDiscoveryBlocked: boolean;
+  showNavbarTitle: boolean;
+  navbarTitleSwitchThresholdPx: number;
 }
 
 interface SquareEntryPageCustom {
@@ -45,6 +49,9 @@ interface SquareEntryPageCustom {
   applyScreenModel(screenModel: ScreenModel): void;
   bootstrapCategories(): void;
   refreshCategories(): Promise<void>;
+  resolveNavbarTitleVisibility(scrollTop: number): boolean;
+  measureNavbarTitleSwitchThreshold(): void;
+  onContentScroll(event: WechatMiniprogram.CustomEvent<{ scrollTop?: number }>): void;
   handleCardTap(event: WechatMiniprogram.TouchEvent): void;
 }
 
@@ -77,9 +84,15 @@ Page<SquareEntryPageData, SquareEntryPageCustom>({
     entryCards: squareDiscoveryService.getFallbackCategories(),
     categoriesReady: false,
     minorModeDiscoveryBlocked: false,
+    showNavbarTitle: false,
+    navbarTitleSwitchThresholdPx: DEFAULT_NAVBAR_TITLE_SWITCH_THRESHOLD_PX,
   },
 
   _navigating: false,
+
+  onReady() {
+    this.measureNavbarTitleSwitchThreshold();
+  },
 
   applyScreenModel(screenModel) {
     this.setData(buildPageLayoutScreenModelPayload(screenModel));
@@ -176,6 +189,44 @@ Page<SquareEntryPageData, SquareEntryPageCustom>({
     }
     this.bootstrapCategories();
     void this.refreshCategories();
+  },
+
+  resolveNavbarTitleVisibility(scrollTop) {
+    const threshold = Math.max(1, Math.round(this.data.navbarTitleSwitchThresholdPx));
+    if (this.data.showNavbarTitle) {
+      return scrollTop > threshold - NAVBAR_TITLE_SWITCH_HYSTERESIS_PX;
+    }
+    return scrollTop > threshold + NAVBAR_TITLE_SWITCH_HYSTERESIS_PX;
+  },
+
+  measureNavbarTitleSwitchThreshold() {
+    const query = wx.createSelectorQuery();
+    query.select('.page-large-title').boundingClientRect((rect) => {
+      const height =
+        typeof rect.height === 'number' && Number.isFinite(rect.height) ? rect.height : null;
+      if (height === null || height <= 0) {
+        return;
+      }
+      const nextThreshold = Math.max(1, Math.round(height));
+      if (nextThreshold === this.data.navbarTitleSwitchThresholdPx) {
+        return;
+      }
+      this.setData({ navbarTitleSwitchThresholdPx: nextThreshold });
+    });
+    query.exec();
+  },
+
+  onContentScroll(event) {
+    const rawScrollTop = event.detail.scrollTop;
+    const scrollTop =
+      typeof rawScrollTop === 'number' && Number.isFinite(rawScrollTop)
+        ? Math.max(0, Math.round(rawScrollTop))
+        : 0;
+    const shouldShowNavbarTitle = this.resolveNavbarTitleVisibility(scrollTop);
+    if (shouldShowNavbarTitle === this.data.showNavbarTitle) {
+      return;
+    }
+    this.setData({ showNavbarTitle: shouldShowNavbarTitle });
   },
 
   handleCardTap(event) {

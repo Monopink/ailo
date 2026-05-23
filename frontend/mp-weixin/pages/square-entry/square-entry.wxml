@@ -1,14 +1,19 @@
 <page-layout
   style="--color-bg-page: var(--color-bg-white); --color-bg-header-solid: var(--color-bg-white); --color-navbar-glass-bg: transparent;"
+  headerSolidMode="manual"
+  headerSolid="{{false}}"
   screenState="{{pageLayoutData.screenModel.screenState}}"
   contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
   refreshState="{{pageLayoutData.screenModel.refreshState}}"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
-  hasFooter="{{pageLayoutData.hasFooter}}">
+  hasFooter="{{pageLayoutData.hasFooter}}"
+  bind:contentscroll="onContentScroll">
   <view slot="header" class="square-entry-page__header">
     <view class="square-entry-page__header-top-fade" />
     <view class="square-entry-page__header-main">
-      <t-navbar left-arrow="{{false}}" />
+      <t-navbar left-arrow="{{false}}">
+        <view wx:if="{{showNavbarTitle}}" slot="title" class="navbar-title">发现</view>
+      </t-navbar>
     </view>
   </view>
 

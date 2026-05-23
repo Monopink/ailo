@@ -1,17 +1,22 @@
 <page-layout
   style="--color-bg-page: var(--color-bg-white); --color-bg-header-solid: var(--color-bg-white); --color-navbar-glass-bg: transparent;"
+  headerSolidMode="manual"
+  headerSolid="{{false}}"
   screenState="{{pageLayoutData.screenModel.screenState}}"
   contentVariant="{{pageLayoutData.screenModel.contentVariant}}"
   refreshState="{{pageLayoutData.screenModel.refreshState}}"
   emptyMessage="{{pageLayoutData.emptyMessage}}"
   emptyActionText="去添加"
   hasFooter="{{pageLayoutData.hasFooter}}"
+  bind:contentscroll="onContentScroll"
   bind:emptyaction="goToSquareEntry">
   <view slot="header" class="index-page__header">
     <view class="index-page__top-fade" />
     <view class="index-page__header-main">
-      <t-navbar left-arrow="{{false}}" />
-      <view class="page-large-title index-page__large-title">
+      <t-navbar left-arrow="{{false}}">
+        <view wx:if="{{showNavbarTitle}}" slot="title" class="navbar-title">{{navbarTitle}}</view>
+      </t-navbar>
+      <view wx:if="{{pageLayoutData.screenModel.contentVariant === 'empty'}}" class="page-large-title index-page__large-title">
         <image class="index-page__wordmark" src="{{wordmarkSrc}}" mode="widthFix" />
       </view>
       <view wx:if="{{showConnectionIssue}}" class="index-page__connection">
@@ -21,6 +26,9 @@
   </view>
 
   <view slot="content" class="index-page__content">
+    <view class="page-large-title index-page__large-title">
+      <image class="index-page__wordmark" src="{{wordmarkSrc}}" mode="widthFix" />
+    </view>
     <t-cell-group>
     <t-swipe-cell
         class="index-swipe-cell"

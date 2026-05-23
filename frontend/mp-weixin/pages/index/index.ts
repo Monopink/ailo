@@ -35,6 +35,7 @@ type AuthGuardPage = WechatMiniprogram.Page.Instance<
 
 interface LoadOptions {
   forceReload?: boolean;
+  hydrateFromCache?: boolean;
 }
 
 interface ContactListRenderItem extends ContactListItem {
@@ -60,6 +61,13 @@ interface TagMeasureItem {
 interface MessageMeasureItem {
   key: string;
   text: string;
+}
+
+interface ContactLayoutState {
+  tagsSignature: string;
+  visibleTags: string[];
+  hiddenTagCount: number;
+  showTwoMessagePreview: boolean;
 }
 
 const normalizeTheme = (theme?: string): SupportedTheme => (theme === 'dark' ? 'dark' : 'light');
@@ -287,17 +295,52 @@ const getRectWidth = (value: unknown): number | undefined => {
 const getVisibleTagToneClasses = (tags: string[], visibleCount: number): string[] =>
   mapTagToneClasses(tags).slice(0, visibleCount);
 
-const decorateContactList = (contacts: ContactListItem[]): ContactListRenderItem[] =>
+const buildTagSignature = (tags: string[]): string => tags.join('\u0001');
+
+const resolveVisibleTagsFromState = (tags: string[], visibleTags: string[]): string[] => {
+  if (tags.length === 0 || visibleTags.length === 0) {
+    return [];
+  }
+  const maxVisibleCount = Math.min(tags.length, visibleTags.length);
+  for (let index = 0; index < maxVisibleCount; index += 1) {
+    if (tags[index] !== visibleTags[index]) {
+      return tags.slice(0, index);
+    }
+  }
+  return tags.slice(0, maxVisibleCount);
+};
+
+const decorateContactList = (
+  contacts: ContactListItem[],
+  layoutStateByConversationId: Record<string, ContactLayoutState>
+): ContactListRenderItem[] =>
   contacts.map((contact) => {
     const tags = getValidTags(contact.tags);
+    const tagSignature = buildTagSignature(tags);
     const tagLayout = buildFallbackTagLayout(tags);
+    const layoutState = isNonEmptyString(contact.conversation_id)
+      ? layoutStateByConversationId[contact.conversation_id]
+      : undefined;
+    const reusableLayoutState = layoutState?.tagsSignature === tagSignature ? layoutState : null;
+    const visibleTags =
+      reusableLayoutState !== null
+        ? resolveVisibleTagsFromState(tags, reusableLayoutState.visibleTags)
+        : tagLayout.visibleTags;
+    const hiddenTagCount = Math.max(0, tags.length - visibleTags.length);
+    const canReuseTwoMessagePreview =
+      reusableLayoutState !== null &&
+      tags.length === 0 &&
+      contact.canShowTwoMessagePreview &&
+      isNonEmptyString(contact.secondLastMessage);
     return {
       ...contact,
       hasTags: tags.length > 0,
-      visibleTags: tagLayout.visibleTags,
-      visibleTagToneClasses: getVisibleTagToneClasses(tags, tagLayout.visibleTags.length),
-      hiddenTagCount: tagLayout.hiddenTagCount,
-      showTwoMessagePreview: false,
+      visibleTags,
+      visibleTagToneClasses: getVisibleTagToneClasses(tags, visibleTags.length),
+      hiddenTagCount,
+      showTwoMessagePreview: canReuseTwoMessagePreview
+        ? reusableLayoutState.showTwoMessagePreview
+        : false,
     };
   });
 
@@ -399,6 +442,7 @@ interface ContactListPageData {
 
 interface ContactListPageCustom {
   indexPageService: ReturnType<typeof createIndexPageService>;
+  _hasRequestedInitialLoad: boolean;
   _loadPromise: Promise<void> | null;
   _connectionIssueTimer: ReturnType<typeof setTimeout> | null;
   _connectionSubscription: (() => void) | null;
@@ -411,8 +455,10 @@ interface ContactListPageCustom {
   _messagePreviewTimer: ReturnType<typeof setTimeout> | null;
   _messagePreviewVersion: number;
   _messageWidthCache: Record<string, number>;
+  _layoutStateByConversationId: Record<string, ContactLayoutState>;
   _themeChangeHandler: ((event: ThemeChangeResult) => void) | null;
   applyScreenModel(screenModel: ScreenModel): void;
+  syncLayoutStateFromContactList(contactList: ContactListRenderItem[]): void;
   updateNavigationTitle(): void;
   bindThemeChange(): void;
   unbindThemeChange(): void;
@@ -428,7 +474,7 @@ interface ContactListPageCustom {
   refreshTagLayout(): void;
   refreshMessagePreviewLayout(): void;
   scheduleAutoRetryLoad(): void;
-  syncInviteCapability(): boolean;
+  syncInviteCapability(syncToView?: boolean): boolean;
   applyLoadedList(
     screenModel: ScreenModel,
     contactList: ContactListItem[],
@@ -515,6 +561,7 @@ Page<ContactListPageData, ContactListPageCustom>({
   },
 
   indexPageService: null as unknown as ReturnType<typeof createIndexPageService>,
+  _hasRequestedInitialLoad: false,
   _loadPromise: null,
   _connectionIssueTimer: null,
   _connectionSubscription: null,
@@ -527,10 +574,28 @@ Page<ContactListPageData, ContactListPageCustom>({
   _messagePreviewTimer: null,
   _messagePreviewVersion: 0,
   _messageWidthCache: {},
+  _layoutStateByConversationId: {},
   _themeChangeHandler: null,
 
   applyScreenModel(screenModel: ScreenModel) {
     this.setData(buildPageLayoutScreenModelPayload(screenModel));
+  },
+
+  syncLayoutStateFromContactList(contactList) {
+    const nextStateByConversationId: Record<string, ContactLayoutState> = {};
+    contactList.forEach((contact) => {
+      if (!isNonEmptyString(contact.conversation_id)) {
+        return;
+      }
+      const tags = getValidTags(contact.tags);
+      nextStateByConversationId[contact.conversation_id] = {
+        tagsSignature: buildTagSignature(tags),
+        visibleTags: [...contact.visibleTags],
+        hiddenTagCount: contact.hiddenTagCount,
+        showTwoMessagePreview: contact.showTwoMessagePreview,
+      };
+    });
+    this._layoutStateByConversationId = nextStateByConversationId;
   },
 
   async onLoad() {
@@ -542,15 +607,15 @@ Page<ContactListPageData, ContactListPageCustom>({
     this.bindThemeChange();
     this.syncWordmarkByTheme();
     this.bindConnectionStatus();
-    void this.loadContactsFromCache();
 
     const isAuth = await requireAuth(this as unknown as AuthGuardPage);
     if (!isAuth) {
       return;
     }
     this.syncInviteCapability();
+    this._hasRequestedInitialLoad = true;
 
-    void this.loadContactList();
+    void this.loadContactList({ forceReload: true, hydrateFromCache: true });
   },
 
   onShow() {
@@ -558,9 +623,10 @@ Page<ContactListPageData, ContactListPageCustom>({
     this.updateNavigationTitle();
     this.syncWordmarkByTheme();
     this.syncInviteCapability();
-    void this.loadContactsFromCache().finally(() => {
-      void this.refreshContactListFromAPI();
-    });
+    if (!this._hasRequestedInitialLoad || this._loadPromise !== null) {
+      return;
+    }
+    void this.refreshContactListFromAPI();
   },
 
   onHide() {
@@ -815,6 +881,7 @@ Page<ContactListPageData, ContactListPageCustom>({
               (contact, index) => contact !== this.data.contactList[index]
             );
             if (hasChanged) {
+              this.syncLayoutStateFromContactList(nextContactList);
               this.setData({ contactList: nextContactList });
             }
           });
@@ -836,6 +903,7 @@ Page<ContactListPageData, ContactListPageCustom>({
 
     if (candidateContactIndexes.length === 0) {
       if (resetPayload.shouldUpdate) {
+        this.syncLayoutStateFromContactList(resetPayload.nextContactList);
         this.setData({
           contactList: resetPayload.nextContactList,
           messageMeasureItems: [],
@@ -847,6 +915,7 @@ Page<ContactListPageData, ContactListPageCustom>({
     const messageMeasureItems = buildMessageMeasureItems(this.data.contactList);
     if (messageMeasureItems.length === 0) {
       if (resetPayload.shouldUpdate) {
+        this.syncLayoutStateFromContactList(resetPayload.nextContactList);
         this.setData({
           contactList: resetPayload.nextContactList,
           messageMeasureItems: [],
@@ -901,6 +970,7 @@ Page<ContactListPageData, ContactListPageCustom>({
               (contact, index) => contact !== this.data.contactList[index]
             );
             if (hasChanged) {
+              this.syncLayoutStateFromContactList(nextContactList);
               this.setData({ contactList: nextContactList });
             }
           });
@@ -920,42 +990,48 @@ Page<ContactListPageData, ContactListPageCustom>({
     this._autoRetryTimer = setTimeout(() => {
       this._autoRetryTimer = null;
       this._autoRetryAttempt += 1;
-      void this.loadContactList({ forceReload: true });
+      void this.loadContactList({ forceReload: true, hydrateFromCache: false });
     }, delay);
   },
 
-  syncInviteCapability() {
+  syncInviteCapability(syncToView = true) {
     const canUseInvite = canUseInviteCapability(authService.getUserInfo());
-    if (this.data.canUseInvite !== canUseInvite) {
+    if (syncToView && this.data.canUseInvite !== canUseInvite) {
       this.setData({ canUseInvite });
     }
     return canUseInvite;
   },
 
   applyLoadedList(screenModel, contactList, unreadTotal, availableContactSlots) {
-    const contactListForRender = decorateContactList(contactList);
-    const normalizedAvailableSlots =
+    const contactListForRender = decorateContactList(
+      contactList,
+      this._layoutStateByConversationId
+    );
+    const normalizedIncomingAvailableSlots =
       typeof availableContactSlots === 'number' && Number.isFinite(availableContactSlots)
         ? Math.max(0, Math.floor(availableContactSlots))
         : null;
-    const canUseInvite = this.syncInviteCapability();
+    const effectiveAvailableSlots =
+      normalizedIncomingAvailableSlots ?? this.data.availableContactSlots;
+    const canUseInvite = this.syncInviteCapability(false);
     const showContactLimitHint =
-      contactListForRender.length > 0 && normalizedAvailableSlots !== null;
-    const showContactLimitReached = showContactLimitHint && normalizedAvailableSlots === 0;
+      contactListForRender.length > 0 && effectiveAvailableSlots !== null;
+    const showContactLimitReached = showContactLimitHint && effectiveAvailableSlots === 0;
     const contactLimitHintText = showContactLimitReached
       ? '联系人已达上限，先和他们聊聊吧'
-      : `还可以再添加 ${normalizedAvailableSlots ?? 0} 位联系人`;
+      : `还可以再添加 ${effectiveAvailableSlots ?? 0} 位联系人`;
 
     this.setData({
       contactList: contactListForRender,
       unreadTotal,
-      availableContactSlots: normalizedAvailableSlots,
+      availableContactSlots: effectiveAvailableSlots,
       showContactLimitHint,
       showContactLimitReached,
       contactLimitHintText,
       canUseInvite,
       ...buildPageLayoutScreenModelPayload(screenModel),
     });
+    this.syncLayoutStateFromContactList(contactListForRender);
     this.scheduleTagLayoutRefresh();
     this.scheduleMessagePreviewRefresh();
     this.updateNavigationTitle();
@@ -969,13 +1045,13 @@ Page<ContactListPageData, ContactListPageCustom>({
   },
 
   async loadContactList(options: LoadOptions = {}) {
-    const { forceReload = false } = options;
+    const { forceReload = false, hydrateFromCache = false } = options;
     if (this._loadPromise !== null && !forceReload) {
       return this._loadPromise;
     }
 
     const loadTask = (async (): Promise<void> => {
-      if (!forceReload || this.data.contactList.length === 0) {
+      if (hydrateFromCache) {
         await this.loadContactsFromCache();
       }
 
@@ -1063,7 +1139,7 @@ Page<ContactListPageData, ContactListPageCustom>({
         logger.warn('Previous contact refresh failed', { error: err.message });
       }
     }
-    return this.loadContactList({ forceReload: true });
+    return this.loadContactList({ forceReload: true, hydrateFromCache: false });
   },
 
   onMessageReceived(message) {
@@ -1087,11 +1163,12 @@ Page<ContactListPageData, ContactListPageCustom>({
       return;
     }
     const result = await this.indexPageService.enrichContactPreview(convId, this.data.contactList);
-    const contactList = decorateContactList(result.contactList);
+    const contactList = decorateContactList(result.contactList, this._layoutStateByConversationId);
     this.setData({
       contactList,
       unreadTotal: result.unreadTotal,
     });
+    this.syncLayoutStateFromContactList(contactList);
     this.scheduleTagLayoutRefresh();
     this.scheduleMessagePreviewRefresh();
     this.updateNavigationTitle();

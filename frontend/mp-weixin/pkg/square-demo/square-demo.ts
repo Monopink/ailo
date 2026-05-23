@@ -17,7 +17,6 @@ interface SquareDemoContactViewModel {
 }
 
 const DEMO_AVATAR_BASE_URL = ASSET_CONFIG.demoAvatarBaseUrl;
-const AVATAR_PLACEHOLDER_URL = ASSET_CONFIG.avatarPlaceholderUrl;
 const MORE_CATEGORY_KEY = 'more';
 const PREVIEW_COUNT = 5;
 const DEMO_TAB_DISCOVERY_INDEX = 1;
@@ -244,7 +243,6 @@ interface SquareDemoPageData {
   contacts: SquareDemoContactViewModel[];
   contactsPreview: SquareDemoContactViewModel[];
   hasMore: boolean;
-  avatarPlaceholderUrl: string;
   demoTabItems: ResolvedTabBarItem[];
   demoTabActiveIndex: number;
 }
@@ -329,7 +327,6 @@ Page<SquareDemoPageData, SquareDemoPageCustom>({
     contacts: [],
     contactsPreview: [],
     hasMore: false,
-    avatarPlaceholderUrl: AVATAR_PLACEHOLDER_URL,
     demoTabItems: resolveDemoTabItems(),
     demoTabActiveIndex: DEMO_TAB_DISCOVERY_INDEX,
   },

@@ -4,35 +4,20 @@
   aria-role="img"
   aria-label="头像">
   <image
-    wx:if="{{src0 !== ''}}"
-    class="ui-avatar__image {{activeBuffer === 0 ? 'ui-avatar__image--active' : 'ui-avatar__image--inactive'}}"
-    src="{{src0}}"
+    class="ui-avatar__image {{!mainFailed && mainSrc !== '' ? 'ui-avatar__image--visible' : 'ui-avatar__image--hidden'}}"
+    src="{{mainSrc}}"
     mode="{{mode}}"
     webp="{{webp}}"
     lazy-load="{{lazy}}"
-    data-buffer="0"
-    bindload="onBufferLoad"
-    binderror="onBufferError" />
+    bindload="onMainLoad"
+    binderror="onMainError" />
   <image
-    wx:if="{{src1 !== ''}}"
-    class="ui-avatar__image {{activeBuffer === 1 ? 'ui-avatar__image--active' : 'ui-avatar__image--inactive'}}"
-    src="{{src1}}"
+    class="ui-avatar__prefetch"
+    src="{{prefetchSrc}}"
     mode="{{mode}}"
     webp="{{webp}}"
     lazy-load="{{lazy}}"
-    data-buffer="1"
-    bindload="onBufferLoad"
-    binderror="onBufferError" />
-  <view wx:if="{{showPlaceholderIcon}}" class="ui-avatar__placeholder" aria-hidden="{{true}}">
-    <image
-      wx:if="{{placeholderSrc !== '' && !placeholderFailed}}"
-      class="ui-avatar__placeholder-image"
-      src="{{placeholderSrc}}"
-      mode="aspectFit"
-      binderror="onPlaceholderError" />
-    <view wx:else class="ui-avatar__fallback">
-      <view class="ui-avatar__fallback-head"></view>
-      <view class="ui-avatar__fallback-body"></view>
-    </view>
-  </view>
+    bindload="onPrefetchLoad"
+    binderror="onPrefetchError" />
+  <view wx:if="{{mainSrc === '' || mainFailed}}" class="ui-avatar__placeholder" aria-hidden="{{true}}"></view>
 </view>

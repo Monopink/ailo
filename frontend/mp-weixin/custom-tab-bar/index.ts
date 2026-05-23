@@ -5,6 +5,7 @@ type ThemeChangeResult = WechatMiniprogram.OnThemeChangeListenerResult;
 type ThemeAwareTabBar = WechatMiniprogram.Component.TrivialInstance & {
   themeChangeHandler?: (event: ThemeChangeResult) => void;
   syncTheme: (theme?: string) => void;
+  syncActiveByCurrentRoute: () => void;
 };
 
 const normalizeTheme = (theme?: string): TabBarTheme => (theme === 'dark' ? 'dark' : 'light');
@@ -18,7 +19,7 @@ const initialTheme = getCurrentTheme();
 
 Component({
   data: {
-    active: 0,
+    active: -1,
     currentTheme: initialTheme,
     list: getTabMenuByTheme(initialTheme),
   },
@@ -33,6 +34,7 @@ Component({
       component.themeChangeHandler = themeChangeHandler;
       wx.onThemeChange(themeChangeHandler);
       component.syncTheme();
+      component.syncActiveByCurrentRoute();
     },
 
     detached(): void {
@@ -43,7 +45,33 @@ Component({
     },
   },
 
+  pageLifetimes: {
+    show(): void {
+      const component = this as ThemeAwareTabBar;
+      component.syncActiveByCurrentRoute();
+    },
+  },
+
   methods: {
+    resolveActiveByCurrentRoute(): number {
+      const page = getCurrentPages().pop();
+      if (typeof page === 'undefined' || page.route.length === 0) {
+        return -1;
+      }
+      const route = page.route;
+      return this.data.list.findIndex(
+        (item: ResolvedTabBarItem) => item.pagePath === route || `/${item.pagePath}` === route
+      );
+    },
+
+    syncActiveByCurrentRoute(): void {
+      const active = this.resolveActiveByCurrentRoute();
+      if (active < 0 || this.data.active === active) {
+        return;
+      }
+      this.setData({ active });
+    },
+
     syncTheme(theme?: string): void {
       const currentTheme = normalizeTheme(theme ?? getCurrentTheme());
       if (this.data.currentTheme === currentTheme) {
@@ -68,6 +96,9 @@ Component({
       if (typeof item === 'undefined' || item.pagePath.length === 0) {
         return;
       }
+      if (index === this.data.active) {
+        return;
+      }
 
       this.setData({
         active: index,
@@ -78,23 +109,7 @@ Component({
 
     init(): void {
       this.syncTheme();
-
-      const page = getCurrentPages().pop();
-      if (typeof page === 'undefined' || page.route.length === 0) {
-        return;
-      }
-
-      const route = page.route;
-      const active = this.data.list.findIndex(
-        (item: ResolvedTabBarItem) => item.pagePath === route || `/${item.pagePath}` === route
-      );
-      if (active < 0) {
-        return;
-      }
-
-      this.setData({
-        active,
-      });
+      this.syncActiveByCurrentRoute();
     },
   },
 });

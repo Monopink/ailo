@@ -46,7 +46,6 @@
         data-id="{{item.qiao_id}}">
         <app-avatar
           src="{{item.avatar_url}}"
-          placeholderSrc="{{avatarPlaceholderUrl}}"
           size="medium"
           shape="circle"
           class="list-row__avatar" />

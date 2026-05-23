@@ -17,7 +17,7 @@ export interface ProfileLoadResult extends ProfileBootstrapResult {
 
 export class ProfilePageService extends BasePageService {
   bootstrap(): ProfileBootstrapResult {
-    const profile = profileService.getProfile();
+    const profile = profileService.getProfile({ allowStale: true });
     return {
       screenModel: createReadyScreenModel({
         contentVariant: 'data',

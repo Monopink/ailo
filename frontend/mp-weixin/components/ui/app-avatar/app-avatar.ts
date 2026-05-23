@@ -5,20 +5,14 @@ const AVATAR_PRESET_SIZE = {
 } as const;
 
 type AvatarPresetSize = keyof typeof AVATAR_PRESET_SIZE;
-type AvatarBufferIndex = 0 | 1;
 
 type AvatarComponentData = {
   sizeStyle: string;
   desiredSrc: string;
-  activeBuffer: AvatarBufferIndex;
-  src0: string;
-  src1: string;
-  loaded0: boolean;
-  loaded1: boolean;
-  failed0: boolean;
-  failed1: boolean;
-  placeholderFailed: boolean;
-  showPlaceholderIcon: boolean;
+  mainSrc: string;
+  mainFailed: boolean;
+  prefetchSrc: string;
+  prefetchFailed: boolean;
 };
 
 const DEFAULT_SIZE_STYLE = `width:${AVATAR_PRESET_SIZE.medium};height:${AVATAR_PRESET_SIZE.medium};`;
@@ -53,32 +47,6 @@ const resolveNonEmptyString = (value: unknown): string => {
   return trimmed.length > 0 ? trimmed : '';
 };
 
-const isBufferLoading = (data: AvatarComponentData, buffer: AvatarBufferIndex): boolean => {
-  const desired = data.desiredSrc;
-  if (desired === '') {
-    return false;
-  }
-  if (buffer === 0) {
-    return data.src0 === desired && !data.loaded0 && !data.failed0;
-  }
-  return data.src1 === desired && !data.loaded1 && !data.failed1;
-};
-
-const hasActiveLoadedImage = (data: AvatarComponentData): boolean => {
-  if (data.activeBuffer === 0) {
-    return data.src0 !== '' && data.loaded0;
-  }
-  return data.src1 !== '' && data.loaded1;
-};
-
-const resolvePlaceholderIconVisibility = (data: AvatarComponentData): boolean => {
-  if (hasActiveLoadedImage(data)) {
-    return false;
-  }
-  const isLoading = isBufferLoading(data, 0) || isBufferLoading(data, 1);
-  return !isLoading;
-};
-
 Component({
   options: {
     addGlobalClass: true,
@@ -110,24 +78,15 @@ Component({
       type: Boolean,
       value: false,
     },
-    placeholderSrc: {
-      type: String,
-      value: '',
-    },
   },
 
   data: {
     sizeStyle: DEFAULT_SIZE_STYLE,
     desiredSrc: '',
-    activeBuffer: 0,
-    src0: '',
-    src1: '',
-    loaded0: false,
-    loaded1: false,
-    failed0: false,
-    failed1: false,
-    placeholderFailed: false,
-    showPlaceholderIcon: true,
+    mainSrc: '',
+    mainFailed: false,
+    prefetchSrc: '',
+    prefetchFailed: false,
   } as AvatarComponentData,
 
   lifetimes: {
@@ -146,160 +105,124 @@ Component({
     syncFromProperties() {
       const desiredSrc = resolveNonEmptyString(this.data.src);
       const sizeStyle = resolveSizeStyle(this.data.size);
+      const basePatch: Partial<AvatarComponentData> = {};
 
-      if (desiredSrc === '') {
-        const next: Partial<AvatarComponentData> = {
-          desiredSrc: '',
-          sizeStyle,
-          activeBuffer: 0,
-          src0: '',
-          src1: '',
-          loaded0: false,
-          loaded1: false,
-          failed0: false,
-          failed1: false,
-        };
-        const patched: Partial<AvatarComponentData> = {
-          ...next,
-          showPlaceholderIcon: resolvePlaceholderIconVisibility({
-            ...this.data,
-            ...next,
-          } as AvatarComponentData),
-        };
-        this.setData(patched);
-        return;
+      if (this.data.sizeStyle !== sizeStyle) {
+        basePatch.sizeStyle = sizeStyle;
       }
 
-      const next: Partial<AvatarComponentData> = {
-        desiredSrc,
-        sizeStyle,
-      };
-
-      const active = this.data.activeBuffer;
-      const inactive: AvatarBufferIndex = active === 0 ? 1 : 0;
-      const activeSrc = active === 0 ? this.data.src0 : this.data.src1;
-      const inactiveSrc = inactive === 0 ? this.data.src0 : this.data.src1;
-      const activeLoaded = active === 0 ? this.data.loaded0 : this.data.loaded1;
-
-      if (activeSrc === desiredSrc) {
-        const nextData = { ...this.data, ...next } as AvatarComponentData;
+      if (desiredSrc === '') {
         this.setData({
-          ...next,
-          showPlaceholderIcon: resolvePlaceholderIconVisibility(nextData),
+          ...basePatch,
+          desiredSrc: '',
+          mainSrc: '',
+          mainFailed: false,
+          prefetchSrc: '',
+          prefetchFailed: false,
         });
         return;
       }
 
-      if (!activeLoaded && activeSrc === '') {
-        next.activeBuffer = 0;
-        next.src0 = desiredSrc;
-        next.loaded0 = false;
-        next.failed0 = false;
-        next.src1 = '';
-        next.loaded1 = false;
-        next.failed1 = false;
-      } else {
-        if (inactiveSrc !== desiredSrc) {
-          if (inactive === 0) {
-            next.src0 = desiredSrc;
-            next.loaded0 = false;
-            next.failed0 = false;
-          } else {
-            next.src1 = desiredSrc;
-            next.loaded1 = false;
-            next.failed1 = false;
-          }
+      if (desiredSrc === this.data.mainSrc) {
+        if (!this.data.mainFailed) {
+          this.setData({
+            ...basePatch,
+            desiredSrc,
+            prefetchSrc: '',
+            prefetchFailed: false,
+          });
+          return;
         }
+
+        this.setData({
+          ...basePatch,
+          desiredSrc,
+          prefetchSrc: desiredSrc,
+          prefetchFailed: false,
+        });
+        return;
       }
 
-      const nextData = { ...this.data, ...next } as AvatarComponentData;
-      next.showPlaceholderIcon = resolvePlaceholderIconVisibility(nextData);
-      this.setData(next);
+      if (this.data.mainSrc === '' || this.data.mainFailed) {
+        this.setData({
+          ...basePatch,
+          desiredSrc,
+          mainSrc: desiredSrc,
+          mainFailed: false,
+          prefetchSrc: '',
+          prefetchFailed: false,
+        });
+        return;
+      }
+
+      if (this.data.prefetchSrc === desiredSrc) {
+        this.setData({
+          ...basePatch,
+          desiredSrc,
+        });
+        return;
+      }
+
+      this.setData({
+        ...basePatch,
+        desiredSrc,
+        prefetchSrc: desiredSrc,
+        prefetchFailed: false,
+      });
     },
 
-    onBufferLoad(event: WechatMiniprogram.CustomEvent<WechatMiniprogram.GeneralCallbackResult>) {
-      const buffer = Number((event.currentTarget.dataset as { buffer?: unknown }).buffer);
-      if (buffer !== 0 && buffer !== 1) {
+    onMainLoad(event: WechatMiniprogram.CustomEvent<WechatMiniprogram.GeneralCallbackResult>) {
+      if (this.data.mainSrc === '') {
         return;
       }
-
-      const desiredSrc = this.data.desiredSrc;
-      if (desiredSrc === '') {
-        return;
-      }
-
-      const bufferSrc = buffer === 0 ? this.data.src0 : this.data.src1;
-      if (bufferSrc === '') {
-        return;
-      }
-
-      const patch: Partial<AvatarComponentData> = {};
-      if (buffer === 0) {
-        patch.loaded0 = true;
-        patch.failed0 = false;
-      } else {
-        patch.loaded1 = true;
-        patch.failed1 = false;
-      }
-
-      if (bufferSrc === desiredSrc) {
-        patch.activeBuffer = buffer;
-        patch.showPlaceholderIcon = resolvePlaceholderIconVisibility({
-          ...this.data,
-          ...patch,
-        } as AvatarComponentData);
-        this.setData(patch);
+      this.setData({
+        mainFailed: false,
+      });
+      if (this.data.mainSrc === this.data.desiredSrc) {
         this.triggerEvent('load', event.detail);
-        return;
       }
-
-      patch.showPlaceholderIcon = resolvePlaceholderIconVisibility({
-        ...this.data,
-        ...patch,
-      } as AvatarComponentData);
-      this.setData(patch);
     },
 
-    onPlaceholderError() {
-      const patch: Partial<AvatarComponentData> = {
-        placeholderFailed: true,
-      };
-      patch.showPlaceholderIcon = resolvePlaceholderIconVisibility({
-        ...this.data,
-        ...patch,
-      } as AvatarComponentData);
-      this.setData(patch);
-    },
-
-    onBufferError(event: WechatMiniprogram.CustomEvent<WechatMiniprogram.GeneralCallbackResult>) {
-      const buffer = Number((event.currentTarget.dataset as { buffer?: unknown }).buffer);
-      if (buffer !== 0 && buffer !== 1) {
+    onMainError(event: WechatMiniprogram.CustomEvent<WechatMiniprogram.GeneralCallbackResult>) {
+      if (this.data.mainSrc === '') {
         return;
       }
-
-      const desiredSrc = this.data.desiredSrc;
-      const bufferSrc = buffer === 0 ? this.data.src0 : this.data.src1;
-      if (desiredSrc === '' || bufferSrc === '') {
-        return;
-      }
-
-      const patch: Partial<AvatarComponentData> = {};
-      if (buffer === 0) {
-        patch.loaded0 = false;
-        patch.failed0 = true;
-      } else {
-        patch.loaded1 = false;
-        patch.failed1 = true;
-      }
-
-      patch.showPlaceholderIcon = resolvePlaceholderIconVisibility({
-        ...this.data,
-        ...patch,
-      } as AvatarComponentData);
-      this.setData(patch);
-      if (bufferSrc === desiredSrc) {
+      this.setData({
+        mainFailed: true,
+      });
+      if (this.data.mainSrc === this.data.desiredSrc) {
         this.triggerEvent('error', event.detail);
       }
+    },
+
+    onPrefetchLoad() {
+      if (this.data.prefetchSrc === '') {
+        return;
+      }
+
+      if (this.data.prefetchSrc !== this.data.desiredSrc) {
+        this.setData({
+          prefetchFailed: false,
+        });
+        return;
+      }
+
+      this.setData({
+        mainSrc: this.data.prefetchSrc,
+        mainFailed: false,
+        prefetchSrc: '',
+        prefetchFailed: false,
+      });
+    },
+
+    onPrefetchError() {
+      if (this.data.prefetchSrc === '') {
+        return;
+      }
+      this.setData({
+        prefetchFailed: true,
+        prefetchSrc: '',
+      });
     },
   },
 });

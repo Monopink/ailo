@@ -487,7 +487,12 @@ Page<ChatPageData, ChatPageCustom>({
       payload.navbarTitle = patch.navbarTitle;
     }
     if (patch.contactAvatar !== undefined) {
-      payload.contactAvatar = patch.contactAvatar;
+      const nextContactAvatar = isNonEmptyString(patch.contactAvatar)
+        ? patch.contactAvatar
+        : this.data.contactAvatar;
+      if (this.data.contactAvatar !== nextContactAvatar) {
+        payload.contactAvatar = nextContactAvatar;
+      }
     }
     if (patch.contactQiaoId !== undefined) {
       payload.contactQiaoId = patch.contactQiaoId;
@@ -832,14 +837,28 @@ Page<ChatPageData, ChatPageCustom>({
   async refreshContactInfo(convId: string) {
     const viewModel = await getChatContactViewModel(convId);
     const contactName = firstNonEmptyString(viewModel.displayName, this.data.contactName) ?? '';
-
-    this.setData({
-      contactName,
-      navbarTitle: contactName,
-      contactAvatar: viewModel.displayAvatar,
-      contactQiaoId: viewModel.contactQiaoId,
-      sessionHint: viewModel.sessionHint,
-    });
+    const nextContactAvatar = viewModel.displayAvatar;
+    const nextContactQiaoId = viewModel.contactQiaoId;
+    const nextSessionHint = viewModel.sessionHint;
+    const payload: Record<string, unknown> = {};
+    if (this.data.contactName !== contactName) {
+      payload.contactName = contactName;
+    }
+    if (this.data.navbarTitle !== contactName) {
+      payload.navbarTitle = contactName;
+    }
+    if (this.data.contactAvatar !== nextContactAvatar) {
+      payload.contactAvatar = nextContactAvatar;
+    }
+    if (this.data.contactQiaoId !== nextContactQiaoId) {
+      payload.contactQiaoId = nextContactQiaoId;
+    }
+    if (this.data.sessionHint !== nextSessionHint) {
+      payload.sessionHint = nextSessionHint;
+    }
+    if (Object.keys(payload).length > 0) {
+      this.setData(payload);
+    }
   },
 
   async refreshConversationChannel() {
@@ -884,15 +903,21 @@ Page<ChatPageData, ChatPageCustom>({
   },
 
   async refreshUserAvatar(forceRefresh = false) {
-    const cached = profileService.getProfile();
-    if (!forceRefresh && cached !== null) {
-      this.setData({ userAvatar: cached.displayAvatar });
+    const cachedSnapshot = profileService.getProfile({ allowStale: true });
+    if (cachedSnapshot !== null && this.data.userAvatar !== cachedSnapshot.displayAvatar) {
+      this.setData({ userAvatar: cachedSnapshot.displayAvatar });
+    }
+
+    const cachedFresh = profileService.getProfile();
+    if (!forceRefresh && cachedFresh !== null) {
       return;
     }
 
     try {
       const profile = await profileService.loadProfile(forceRefresh);
-      this.setData({ userAvatar: profile.displayAvatar });
+      if (this.data.userAvatar !== profile.displayAvatar) {
+        this.setData({ userAvatar: profile.displayAvatar });
+      }
     } catch (error) {
       logger.warn('Load profile for avatar failed', {
         error: error instanceof Error ? error.message : String(error),

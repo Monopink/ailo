@@ -34,7 +34,7 @@ export interface ProfileDetailUpdateResult {
 
 export class ProfileDetailPageService extends BasePageService {
   bootstrap(): ProfileDetailBootstrapResult {
-    const profile = profileService.getProfile();
+    const profile = profileService.getProfile({ allowStale: true });
     return {
       screenModel: createReadyScreenModel({
         contentVariant: profile === null ? 'blank' : 'data',

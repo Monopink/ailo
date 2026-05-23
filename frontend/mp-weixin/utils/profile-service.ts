@@ -22,8 +22,11 @@ class ProfileService {
   private loadPromise: Promise<ProfileViewModel> | null = null;
   private cacheVersion = 0;
 
-  getProfile(): ProfileViewModel | null {
-    if (this.isCacheValid()) {
+  getProfile(options: { allowStale?: boolean } = {}): ProfileViewModel | null {
+    if (this.cache === null) {
+      return null;
+    }
+    if (options.allowStale === true || this.isCacheValid()) {
       return this.cache;
     }
     return null;

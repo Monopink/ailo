@@ -754,7 +754,6 @@ Page<SquarePageData, SquarePageCustom>({
     if (!isNonEmptyString(qiaoId)) {
       return;
     }
-    const targetContact = this.data.contacts.find((item) => item.qiao_id === qiaoId) ?? null;
     const message = await promptContactRequestMessage();
     if (message === null) {
       return;
@@ -767,7 +766,6 @@ Page<SquarePageData, SquarePageCustom>({
         qiaoId,
         message,
         categoryKey: this.data.currentCategoryKey,
-        alias: targetContact?.nickname,
       });
 
       void wx.hideLoading();

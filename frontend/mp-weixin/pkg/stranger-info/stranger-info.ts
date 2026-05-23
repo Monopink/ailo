@@ -349,7 +349,6 @@ Page<StrangerInfoPageData, StrangerInfoPageCustom>({
         qiaoId: this.data.qiaoId,
         message,
         categoryKey: this.data.profile?.categoryKey,
-        alias: this.data.profile?.displayName,
       });
 
       void wx.hideLoading();

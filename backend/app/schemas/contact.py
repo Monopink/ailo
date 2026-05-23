@@ -37,7 +37,7 @@ class ContactListItem(BaseSchema):
     conversation_id: str = Field(..., description="Conversation identifier")
     contact_type: ContactType = Field(..., description="Contact type")
     contact_qiao_id: str = Field(..., description="Contact external ID")
-    alias: str | None = Field(None, description="Contact alias/remark name")
+    alias: str | None = Field(None, description="Contact remark name")
     tags: list[str] = Field(default_factory=list, description="Contact tags")
     is_pinned: bool = Field(..., description="Is pinned to the top")
     is_muted: bool = Field(..., description="Has do-not-disturb enabled")
@@ -83,7 +83,7 @@ class ContactCreate(BaseModel):
 
     contact_type: ContactType = Field(..., description="Contact type")
     contact_qiao_id: str = Field(..., max_length=32, description="Contact external ID")
-    alias: str | None = Field(None, max_length=32, description="Contact alias/remark name")
+    alias: str | None = Field(None, max_length=32, description="Contact remark name")
     custom_avatar_key: str | None = Field(
         None,
         max_length=255,
@@ -102,7 +102,7 @@ class ContactCreate(BaseModel):
 class ContactUpdate(BaseModel):
     """Schema for updating contact information."""
 
-    alias: str | None = Field(None, max_length=32, description="Contact alias/remark name")
+    alias: str | None = Field(None, max_length=32, description="Contact remark name")
     tags: list[str] | None = Field(None, description="Contact tags")
     remark: str | None = Field(None, max_length=400, description="Contact remark/notes")
     avatar_file_id: str | None = Field(
@@ -140,7 +140,7 @@ class ContactRequestCreate(BaseModel):
         pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
         description="Source square category key (kebab-case)",
     )
-    alias: str | None = Field(None, max_length=32, description="Contact alias/remark name")
+    alias: str | None = Field(None, max_length=32, description="Contact remark name")
     tags: list[str] | None = Field(None, description="Contact tags")
     source: ContactRequestSource = Field(ContactRequestSource.SEARCH, description="Request source")
 
@@ -184,7 +184,7 @@ class ContactRequestUpdate(BaseModel):
 class ContactRequestAccept(BaseModel):
     """Schema for accepting contact request."""
 
-    alias: str | None = Field(None, max_length=32, description="Contact alias/remark name")
+    alias: str | None = Field(None, max_length=32, description="Contact remark name")
     tags: list[str] | None = Field(None, description="Contact tags")
 
 

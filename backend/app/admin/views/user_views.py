@@ -810,7 +810,7 @@ class ContactView(BaseRoleAwareModelView):
             required=False,
         ),
         StringField("contact_qiao_id", label="Contact Qiao ID", help_text="Contact external ID"),
-        StringField("alias", label="Alias", help_text="Custom name for this contact"),
+        StringField("alias", label="Alias", help_text="Contact remark name"),
         HasOne(
             "custom_avatar_media",
             identity="media_file",

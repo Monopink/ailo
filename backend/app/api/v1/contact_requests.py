@@ -122,7 +122,7 @@ async def accept_contact_request(
     - request_id: Contact request ID
 
     **Request Body:**
-    - alias: Optional contact alias/remark name
+    - alias: Optional contact remark name
     - tags: Optional contact tags
 
     **Error Codes:**

@@ -70,7 +70,7 @@ class Contact(SnowflakeModel, SoftDeleteMixin):
     )
 
     alias: Mapped[str | None] = mapped_column(
-        String(100), nullable=True, comment="Contact alias/remark name"
+        String(100), nullable=True, comment="Contact remark name"
     )
 
     custom_avatar_key: Mapped[str | None] = mapped_column(
@@ -245,7 +245,7 @@ class ContactRequest(SnowflakeModel):
     )
 
     alias: Mapped[str | None] = mapped_column(
-        String(100), nullable=True, comment="Requested alias/remark name"
+        String(100), nullable=True, comment="Requested contact remark name"
     )
 
     tags: Mapped[JSONDict | None] = mapped_column(

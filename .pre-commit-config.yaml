@@ -8,6 +8,8 @@ repos:
       - id: mixed-line-ending
         name: Fix line endings (LF)
         args: ["--fix=lf"]
+      - id: fix-byte-order-marker
+        name: Remove UTF-8 BOM
       - id: end-of-file-fixer
         name: Fix end of files
       - id: check-yaml
@@ -85,6 +87,15 @@ repos:
         types: [python]
         pass_filenames: true
         files: ^backend/app/.*\.py$
+        stages: [pre-commit]
+
+      - id: check-text-encoding
+        name: Check UTF-8 encoding and garbled text
+        entry: venv/Scripts/python.exe scripts/check_text_encoding.py
+        language: system
+        pass_filenames: true
+        files: \.(py|ts|tsx|js|jsx|json|ya?ml|toml|md|txt|sql|wxml|wxss|wxs|xml|html|css|sh|bat|ps1|ini|cfg|conf|env|example)$
+        exclude: ^docs/references/.*
         stages: [pre-commit]
 
       # mypy - Type checker

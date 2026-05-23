@@ -15,9 +15,12 @@ Run project validation after code changes and before commit.
    - Only use `git diff --name-only --cached` when you specifically need the staged file list for a commit gate.
 2. If backend files changed, run [backend-checklist.md](./backend-checklist.md).
 3. If frontend files changed, run [frontend-checklist.md](./frontend-checklist.md).
-4. Run [implementation-standards.md](./implementation-standards.md).
-5. Re-run checks after every auto-fix.
-6. Return pass/fail with file-level errors.
+4. Run encoding gate for text files:
+   - `pre-commit run fix-byte-order-marker --all-files`
+   - `pre-commit run check-text-encoding --all-files`
+5. Run [implementation-standards.md](./implementation-standards.md).
+6. Re-run checks after every auto-fix.
+7. Return pass/fail with file-level errors.
 
 ## Rules
 
@@ -27,6 +30,7 @@ Run project validation after code changes and before commit.
 4. Keep validation scoped to changed files when possible.
 5. Always run validation commands inside project `venv` (or project-declared virtual env).
 6. If `venv` is missing/broken (tool unavailable, import error, interpreter mismatch), stop and report to user; do not fall back to global Python/tools.
+7. Treat encoding or garbled-text detection failures as blocking issues.
 
 ## Environment Guardrails
 

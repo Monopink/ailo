@@ -111,7 +111,7 @@
     // File Settings
     // ============================================
     "files.encoding": "utf8",
-    "files.autoGuessEncoding": true,
+    "files.autoGuessEncoding": false,
     // Associate WeChat Mini Program files with proper language modes
     "files.associations": {
         "*.wxml": "html",

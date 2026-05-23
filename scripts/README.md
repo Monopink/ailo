@@ -167,6 +167,30 @@ python scripts/check_jinja_templates.py backend/app/admin/templates/custom_views
 
 ---
 
+### 6. check_text_encoding.py
+**Purpose**: Enforce UTF-8 text encoding and detect common garbled text markers
+
+**Usage**:
+```bash
+# Validate specific files
+python scripts/check_text_encoding.py path/to/file1.md path/to/file2.py
+
+# Skip mojibake heuristics (strict UTF-8 only)
+python scripts/check_text_encoding.py --no-mojibake-check path/to/file.md
+```
+
+**What it checks**:
+1. File is valid UTF-8
+2. UTF-8 BOM is not present
+3. Replacement character `U+FFFD` is not present
+4. Conservative mojibake token patterns are not present
+
+**Exit codes**:
+- 0: All files pass
+- 1: One or more encoding issues found
+
+---
+
 ## Recommended Workflow
 
 ### For AI Development

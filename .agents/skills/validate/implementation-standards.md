@@ -8,6 +8,7 @@ Checklist for implementation-level quality gates.
 2. New data structures have explicit type/schema definitions.
 3. All modified files pass lint/type checks from `/validate`.
 4. Required documentation is updated with code changes.
+5. Text files are UTF-8 without BOM and contain no garbled characters.
 
 ## Documentation Mapping
 

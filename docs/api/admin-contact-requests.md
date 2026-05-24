@@ -4,6 +4,8 @@
 
 - [未完成请求概览](#未完成请求概览) - `GET /admin-api/contact-requests/incomplete/overview`
 - [未完成请求列表](#未完成请求列表) - `GET /admin-api/contact-requests/incomplete`
+- [忽略未完成请求](#忽略未完成请求) - `POST /admin-api/contact-requests/{request_id}/ignore`
+- [恢复已忽略请求为待处理](#恢复已忽略请求为待处理) - `POST /admin-api/contact-requests/{request_id}/reopen-pending`
 - [重试 AI 类型搜索](#重试-ai-类型搜索) - `GET /admin-api/contact-requests/ai-types/search`
 - [重试模板搜索](#重试模板搜索) - `GET /admin-api/contact-requests/templates/search`
 - [重试预检](#重试预检) - `POST /admin-api/contact-requests/{request_id}/retry-precheck`
@@ -121,6 +123,65 @@
 - `is_expired` (boolean) - 由服务端计算的到期状态（`expires_at <= 当前UTC时间`）。
 - 时间字段（`created_at/expires_at/updated_at/last_retry_at`）均为 UTC ISO 8601 字符串。
 - 前端展示约定：`created_at` 与 `expires_at` 在未完成请求面板以相对时间显示（例如 `1天23小时前`）；`is_expired=false` 显示“有效”图标，`is_expired=true` 显示“无效”图标。
+
+---
+
+## 忽略未完成请求
+
+### 基本信息
+
+- **路径**: `POST /admin-api/contact-requests/{request_id}/ignore`
+- **认证**: Admin Session（必需）
+- **说明**: 将目标请求状态改为 `IGNORED`。
+
+### 路径参数
+
+- `request_id` (string, 必填) - Snowflake 数字字符串。
+
+### 成功响应（200）
+
+```json
+{
+  "request_id": "273338979288485888",
+  "status": 3
+}
+```
+
+### 行为约束
+
+- 允许状态：`PENDING`、`FAILED`。
+- `PROCESSING` 状态请求拒绝执行并返回 `409 Conflict`。
+- 成功后清空 `failure_code` 与 `failure_detail`。
+
+---
+
+## 恢复已忽略请求为待处理
+
+### 基本信息
+
+- **路径**: `POST /admin-api/contact-requests/{request_id}/reopen-pending`
+- **认证**: Admin Session（必需）
+- **说明**: 将 `IGNORED` 请求恢复为 `PENDING`，用于重新进入待处理流程。
+
+### 路径参数
+
+- `request_id` (string, 必填) - Snowflake 数字字符串。
+
+### 成功响应（200）
+
+```json
+{
+  "request_id": "273338979288485888",
+  "status": 1,
+  "expires_at": "2026-05-31T12:00:00+00:00"
+}
+```
+
+### 行为约束
+
+- 仅允许 `IGNORED -> PENDING`。
+- 恢复时保持原 `expires_at` 不变，不重新计算过期时间。
+- `to_type=AI` 时恢复后写入 `failure_code=MANUAL_PROVISION_REQUIRED`，用于重新进入未完成处理链路。
 
 ---
 

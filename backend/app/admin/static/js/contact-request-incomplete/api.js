@@ -59,3 +59,9 @@ export function executeRetryRequest(apiBase, requestId, body) {
     body: JSON.stringify(body),
   });
 }
+
+export function ignoreIncompleteRequest(apiBase, requestId) {
+  return fetchJson(`${apiBase}/${encodeURIComponent(requestId)}/ignore`, {
+    method: 'POST',
+  });
+}

@@ -1,4 +1,4 @@
-import { buildListQuery, fetchIncompleteList, fetchIncompleteOverview } from './api.js';
+import { buildListQuery, fetchIncompleteList, fetchIncompleteOverview, ignoreIncompleteRequest } from './api.js';
 import { withUtcTitle, safeText, showToast, escapeHtml, formatRelativeToNow } from './formatters.js';
 import { refreshFilterOptions, renderUserIdCell } from './render-list.js';
 import { AutoRetryModalController, ManualRetryModalController } from './retry-modal.js';
@@ -17,6 +17,7 @@ let dataTable = null;
 const tableBody = document.getElementById('incomplete-table-body');
 const autoRetryModalEl = document.getElementById('auto-retry-modal');
 const manualRetryModalEl = document.getElementById('manual-retry-modal');
+const ignoreRequestModalEl = document.getElementById('ignore-request-modal');
 const totalHint = document.getElementById('list-total-hint');
 const filterAiType = document.getElementById('filter-ai-type');
 const filterFailureCode = document.getElementById('filter-failure-code');
@@ -25,6 +26,8 @@ const filterUpdatedFrom = document.getElementById('filter-updated-from');
 const filterUpdatedTo = document.getElementById('filter-updated-to');
 const autoRetryModal = window.bootstrap && autoRetryModalEl ? new window.bootstrap.Modal(autoRetryModalEl) : null;
 const manualRetryModal = window.bootstrap && manualRetryModalEl ? new window.bootstrap.Modal(manualRetryModalEl) : null;
+const ignoreRequestModal =
+  window.bootstrap && ignoreRequestModalEl ? new window.bootstrap.Modal(ignoreRequestModalEl) : null;
 
 const autoRetryElements = {
   requestId: document.getElementById('auto-retry-request-id'),
@@ -59,6 +62,11 @@ const manualRetryElements = {
   cancelBtn: document.getElementById('btn-manual-retry-cancel'),
   nextBtn: document.getElementById('btn-manual-retry-next'),
   confirmBtn: document.getElementById('btn-manual-retry-confirm'),
+};
+
+const ignoreState = {
+  requestId: null,
+  isSubmitting: false,
 };
 
 function findRowByRequestId(requestId) {
@@ -160,6 +168,7 @@ function renderActionCell(row) {
   const requestId = escapeHtml(safeText(row.request_id));
   const retryDisabled = row.is_retryable ? '' : 'disabled';
   const supplementDisabled = row.ai_type_id ? '' : 'disabled';
+  const ignoreDisabled = row.status === 8 ? 'disabled' : '';
   return `<div class="incomplete-action-group">
     <button class="btn btn-sm incomplete-action-btn action-view" data-request-id="${requestId}" title="查看详情"><i class="fa fa-eye"></i></button>
     <button class="btn btn-sm incomplete-action-btn action-supplement-template" data-ai-type-id="${escapeHtml(
@@ -167,7 +176,43 @@ function renderActionCell(row) {
     )}" ${supplementDisabled} title="补模板"><i class="fa fa-external-link"></i></button>
     <button class="btn btn-sm incomplete-action-btn action-retry" data-request-id="${requestId}" ${retryDisabled} title="重试"><i class="fa fa-rotate-right"></i></button>
     <button class="btn btn-sm incomplete-action-btn action-template-retry" data-request-id="${requestId}" ${retryDisabled} title="指定模板重试"><i class="fa fa-random"></i></button>
+    <button class="btn btn-sm incomplete-action-btn action-ignore" data-request-id="${requestId}" ${ignoreDisabled} title="忽略"><i class="fa fa-times"></i></button>
   </div>`;
+}
+
+function setIgnoreModalState() {
+  const idEl = document.getElementById('ignore-request-id');
+  if (idEl) idEl.textContent = safeText(ignoreState.requestId);
+  const confirmBtn = document.getElementById('btn-ignore-request-confirm');
+  if (confirmBtn) {
+    confirmBtn.disabled = ignoreState.isSubmitting || !ignoreState.requestId;
+    confirmBtn.textContent = ignoreState.isSubmitting ? '处理中...' : '确认忽略';
+  }
+}
+
+function openIgnoreModal(requestId) {
+  ignoreState.requestId = requestId;
+  ignoreState.isSubmitting = false;
+  setIgnoreModalState();
+  ignoreRequestModal?.show();
+}
+
+async function confirmIgnoreRequest() {
+  if (!ignoreState.requestId || ignoreState.isSubmitting) return;
+  ignoreState.isSubmitting = true;
+  setIgnoreModalState();
+  try {
+    await ignoreIncompleteRequest(API_BASE, ignoreState.requestId);
+    ignoreRequestModal?.hide();
+    ignoreState.requestId = null;
+    showToast('请求已忽略');
+    await Promise.all([loadOverview(), reloadList()]);
+  } catch (error) {
+    showToast(error?.message || '忽略失败', true);
+  } finally {
+    ignoreState.isSubmitting = false;
+    setIgnoreModalState();
+  }
 }
 
 function renderValidityIcon(isExpired) {
@@ -260,7 +305,6 @@ function initDataTable() {
         className: 'text-nowrap',
         render: (_, __, row) => renderActionCell(row),
       },
-      { data: 'request_id', className: 'text-nowrap', render: (value) => escapeHtml(safeText(value)) },
       {
         data: 'status',
         className: 'text-nowrap',
@@ -359,7 +403,15 @@ function bindMainEvents(autoRetryController, manualRetryController) {
     }
     if (target.classList.contains('action-template-retry') && requestId) {
       manualRetryController.open({ requestId });
+      return;
     }
+    if (target.classList.contains('action-ignore') && requestId) {
+      openIgnoreModal(requestId);
+    }
+  });
+
+  document.getElementById('btn-ignore-request-confirm')?.addEventListener('click', () => {
+    confirmIgnoreRequest().catch(() => {});
   });
 }
 
@@ -399,7 +451,7 @@ async function bootstrap() {
 document.addEventListener('DOMContentLoaded', () => {
   bootstrap().catch((error) => {
     if (tableBody) {
-      tableBody.innerHTML = '<tr><td colspan="13" class="text-center text-danger">加载失败</td></tr>';
+      tableBody.innerHTML = '<tr><td colspan="12" class="text-center text-danger">加载失败</td></tr>';
     }
     showToast(error?.message || '初始化失败', true);
   });

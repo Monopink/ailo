@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from fastapi import HTTPException
 
 from app.enums import (
     AITemplateStatus,
@@ -62,6 +63,26 @@ class _ListSession:
             return _ScalarResult(self._total)
         self._index += 1
         return _RowsResult(self._rows)
+
+
+class _ActionSession:
+    def __init__(self, row: Any | None) -> None:
+        self.row = row
+        self.added: list[Any] = []
+        self.committed = False
+
+    async def get(self, _model: Any, _request_id: int, with_for_update: bool = False) -> Any:
+        assert with_for_update is True
+        return self.row
+
+    def add(self, value: Any) -> None:
+        self.added.append(value)
+
+    async def commit(self) -> None:
+        self.committed = True
+
+    async def flush(self) -> None:
+        return None
 
 
 @pytest.mark.asyncio
@@ -299,3 +320,133 @@ async def test_manual_precheck_warnings_without_blocking(
     assert ContactRequestRetryRuleCode.TEMPLATE_STATUS_NON_ACTIVE.value in warning_codes
     assert payload["blocking_errors"] == []
     assert payload["summary"]["can_execute"] is True
+
+
+@pytest.mark.asyncio
+async def test_admin_ignore_incomplete_request_changes_status() -> None:
+    row = SimpleNamespace(
+        id=99,
+        status=ContactRequestStatus.PENDING,
+        to_qiao_id="qiao_ai_target_001",
+        failure_code=ContactRequestFailureCode.ALL_TEMPLATES_ALREADY_USED.value,
+        failure_detail={"ai_type_id": 3},
+    )
+    session = _ActionSession(row)
+
+    payload = await panel_service.admin_ignore_incomplete_contact_request(
+        session,  # type: ignore[arg-type]
+        request_id=99,
+        operator_admin_user_id=1,
+        operator_username="admin",
+        operator_role=1,
+    )
+
+    assert payload["request_id"] == "99"
+    assert payload["status"] == int(ContactRequestStatus.IGNORED)
+    assert int(row.status) == int(ContactRequestStatus.IGNORED)
+    assert row.failure_code is None
+    assert row.failure_detail is None
+    assert session.committed is True
+
+
+@pytest.mark.asyncio
+async def test_admin_reopen_ignored_request_to_pending_keeps_expires_at_unchanged() -> None:
+    now = datetime(2026, 5, 24, 12, 0, 0, tzinfo=UTC)
+    original_expires_at = now - timedelta(days=2)
+    row = SimpleNamespace(
+        id=100,
+        status=ContactRequestStatus.IGNORED,
+        to_qiao_id="qiao_ai_target_002",
+        to_type=2,
+        expires_at=original_expires_at,
+        failure_code=None,
+        failure_detail=None,
+    )
+    session = _ActionSession(row)
+
+    class _PersonaResult:
+        def one_or_none(self) -> Any:
+            return SimpleNamespace(type_id=3, qiao_id="qiao_ai_target_002")
+
+    async def _fake_execute(_statement: Any) -> _PersonaResult:
+        return _PersonaResult()
+
+    session.execute = _fake_execute  # type: ignore[attr-defined]
+
+    payload = await panel_service.admin_reopen_ignored_contact_request(
+        session,  # type: ignore[arg-type]
+        request_id=100,
+        operator_admin_user_id=2,
+        operator_username="operator",
+        operator_role=1,
+    )
+
+    assert payload["request_id"] == "100"
+    assert payload["status"] == int(ContactRequestStatus.PENDING)
+    assert int(row.status) == int(ContactRequestStatus.PENDING)
+    assert row.failure_code == ContactRequestFailureCode.MANUAL_PROVISION_REQUIRED.value
+    assert row.failure_detail == {
+        "ai_type_id": 3,
+        "type_id": 3,
+        "qiao_id": "qiao_ai_target_002",
+        "request_id": 100,
+    }
+    assert row.expires_at == original_expires_at
+    assert session.committed is True
+
+
+@pytest.mark.asyncio
+async def test_admin_reopen_rejects_non_ignored_status() -> None:
+    row = SimpleNamespace(
+        id=101,
+        status=ContactRequestStatus.FAILED,
+        to_qiao_id="qiao_ai_target_003",
+        to_type=2,
+        expires_at=datetime(2026, 5, 24, 12, 0, 0, tzinfo=UTC),
+        failure_code=None,
+        failure_detail=None,
+    )
+    session = _ActionSession(row)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await panel_service.admin_reopen_ignored_contact_request(
+            session,  # type: ignore[arg-type]
+            request_id=101,
+            operator_admin_user_id=2,
+            operator_username="operator",
+            operator_role=1,
+        )
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_admin_reopen_rejects_ai_request_without_resolvable_ai_type() -> None:
+    row = SimpleNamespace(
+        id=102,
+        status=ContactRequestStatus.IGNORED,
+        to_qiao_id="missing_persona_qiao_id",
+        to_type=2,
+        expires_at=datetime(2026, 5, 24, 12, 0, 0, tzinfo=UTC),
+        failure_code=None,
+        failure_detail=None,
+    )
+    session = _ActionSession(row)
+
+    class _EmptyPersonaResult:
+        def one_or_none(self) -> Any:
+            return None
+
+    async def _fake_execute(_statement: Any) -> _EmptyPersonaResult:
+        return _EmptyPersonaResult()
+
+    session.execute = _fake_execute  # type: ignore[attr-defined]
+
+    with pytest.raises(HTTPException) as exc_info:
+        await panel_service.admin_reopen_ignored_contact_request(
+            session,  # type: ignore[arg-type]
+            request_id=102,
+            operator_admin_user_id=2,
+            operator_username="operator",
+            operator_role=1,
+        )
+    assert exc_info.value.status_code == 409

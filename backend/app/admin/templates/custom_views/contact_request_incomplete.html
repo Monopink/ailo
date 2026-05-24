@@ -110,7 +110,6 @@
       <thead>
         <tr>
           <th class="w-1"></th>
-          <th>请求ID</th>
           <th>请求状态</th>
           <th>申请时间</th>
           <th>到期时间</th>
@@ -125,9 +124,28 @@
         </tr>
       </thead>
       <tbody id="incomplete-table-body">
-        <tr><td colspan="13" class="text-center text-muted">加载中...</td></tr>
+        <tr><td colspan="12" class="text-center text-muted">加载中...</td></tr>
       </tbody>
     </table>
+  </div>
+</div>
+
+<div class="modal fade" id="ignore-request-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">确认忽略请求</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2"><strong>请求ID：</strong><span id="ignore-request-id">-</span></div>
+        <div class="text-muted">忽略后状态将变为 IGNORED，并从未完成请求列表移除。</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">取消</button>
+        <button class="btn btn-danger" id="btn-ignore-request-confirm" type="button">确认忽略</button>
+      </div>
+    </div>
   </div>
 </div>
 

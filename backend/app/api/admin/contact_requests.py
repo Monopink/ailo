@@ -8,6 +8,8 @@ from app.api.deps import get_admin_user_and_db
 from app.enums import AdminRole, ContactRequestRetryMode
 from app.schemas.contact import ContactRequestRetryPayload, ContactRequestRetryPrecheckPayload
 from app.services.contact.incomplete_admin_service import (
+    admin_ignore_incomplete_contact_request,
+    admin_reopen_ignored_contact_request,
     get_incomplete_contact_request_overview,
     list_incomplete_contact_requests,
     parse_contact_request_id_or_400,
@@ -228,4 +230,50 @@ async def admin_retry_contact_request(
         tags=payload.tags,
         operator_admin_user_id=admin_user_id,
         operator=username,
+    )
+
+
+@contact_requests_router.post(
+    "/{request_id}/ignore",
+    summary="Ignore incomplete contact request from admin panel",
+)
+async def admin_ignore_incomplete_request(
+    request_id: str,
+    admin_context: tuple[dict[str, Any], AsyncSession] = Depends(get_admin_user_and_db),
+) -> JSONDict:
+    """Set incomplete request status to IGNORED for admin operations."""
+    parsed_request_id = parse_contact_request_id_or_400(request_id)
+    admin_user, db = admin_context
+    admin_user_id, username, role_value = _require_admin_identity(
+        admin_user, require_super_admin=False
+    )
+    return await admin_ignore_incomplete_contact_request(
+        db,
+        request_id=parsed_request_id,
+        operator_admin_user_id=admin_user_id,
+        operator_username=username,
+        operator_role=role_value,
+    )
+
+
+@contact_requests_router.post(
+    "/{request_id}/reopen-pending",
+    summary="Reopen ignored contact request to pending",
+)
+async def admin_reopen_ignored_request(
+    request_id: str,
+    admin_context: tuple[dict[str, Any], AsyncSession] = Depends(get_admin_user_and_db),
+) -> JSONDict:
+    """Set ignored request status to PENDING for admin operations."""
+    parsed_request_id = parse_contact_request_id_or_400(request_id)
+    admin_user, db = admin_context
+    admin_user_id, username, role_value = _require_admin_identity(
+        admin_user, require_super_admin=False
+    )
+    return await admin_reopen_ignored_contact_request(
+        db,
+        request_id=parsed_request_id,
+        operator_admin_user_id=admin_user_id,
+        operator_username=username,
+        operator_role=role_value,
     )

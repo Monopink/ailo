@@ -14,14 +14,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.enums import (
+    AdminOperationType,
+    AdminRole,
     ContactRequestFailureCode,
     ContactRequestRetryFailureCode,
     ContactRequestRetryResultStatus,
     ContactRequestStatus,
+    ContactType,
 )
-from app.models.ai.template import AIType
+from app.models.ai.template import AIPersona, AIType
 from app.models.contact import ContactRequest, ContactRequestRetryAttempt
 from app.type_defs import JSONDict, JSONValue
+from app.utils.admin_logs import create_operation_log
 
 _SNOWFLAKE_PATTERN = re.compile(r"^[0-9]+$")
 _MAX_LIMIT = 100
@@ -107,6 +111,19 @@ def _extract_ai_type_id(detail: JSONDict | None) -> str | None:
     return str(ai_type)
 
 
+def _parse_positive_int(raw_value: object) -> int | None:
+    if isinstance(raw_value, bool):
+        return None
+    if isinstance(raw_value, int):
+        return raw_value if raw_value > 0 else None
+    if isinstance(raw_value, str):
+        candidate = raw_value.strip()
+        if candidate.isdigit():
+            parsed = int(candidate)
+            return parsed if parsed > 0 else None
+    return None
+
+
 def _failure_meta(code: str | None) -> FailureCodeMeta:
     if not isinstance(code, str):
         return FailureCodeMeta(label="未知失败原因", hint="请查看失败详情并人工排查")
@@ -130,6 +147,14 @@ def _base_incomplete_panel_conditions() -> list[ColumnElement[bool]]:
     return [ContactRequest.status.in_(_INCOMPLETE_STATUSES)]
 
 
+def _assert_admin_can_write(role_value: int) -> None:
+    if role_value == int(AdminRole.VIEWER):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="管理员无权限执行当前操作",
+        )
+
+
 async def _load_ai_type_name_map(db: AsyncSession, *, ai_type_ids: set[str]) -> dict[str, str]:
     int_ids: list[int] = []
     for raw_id in ai_type_ids:
@@ -140,6 +165,42 @@ async def _load_ai_type_name_map(db: AsyncSession, *, ai_type_ids: set[str]) -> 
 
     result = await db.execute(select(AIType.id, AIType.display_name).where(AIType.id.in_(int_ids)))
     return {str(row.id): row.display_name for row in result}
+
+
+async def _build_reopen_failure_detail_for_ai_request(
+    db: AsyncSession, *, request_row: ContactRequest
+) -> JSONDict:
+    detail = request_row.failure_detail if isinstance(request_row.failure_detail, dict) else {}
+    ai_type_id = _parse_positive_int(detail.get("ai_type_id") or detail.get("type_id"))
+    qiao_id = detail.get("qiao_id")
+
+    if ai_type_id is None:
+        persona_result = await db.execute(
+            select(AIPersona.type_id, AIPersona.qiao_id).where(
+                AIPersona.qiao_id == request_row.to_qiao_id
+            )
+        )
+        persona_row = persona_result.one_or_none()
+        if persona_row is not None:
+            ai_type_id = int(persona_row.type_id)
+            qiao_id = persona_row.qiao_id
+
+    if ai_type_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="请求缺少可识别的 AI 类型，无法恢复待处理",
+        )
+
+    normalized_qiao_id = str(qiao_id).strip() if isinstance(qiao_id, str) else ""
+    if normalized_qiao_id == "":
+        normalized_qiao_id = request_row.to_qiao_id
+
+    return {
+        "ai_type_id": ai_type_id,
+        "type_id": ai_type_id,
+        "qiao_id": normalized_qiao_id,
+        "request_id": request_row.id,
+    }
 
 
 async def _build_item_payload(
@@ -310,4 +371,115 @@ async def list_incomplete_contact_requests(
         "total": total,
         "limit": normalized_limit,
         "offset": normalized_offset,
+    }
+
+
+async def admin_ignore_incomplete_contact_request(
+    db: AsyncSession,
+    *,
+    request_id: int,
+    operator_admin_user_id: int,
+    operator_username: str,
+    operator_role: int,
+) -> JSONDict:
+    """Force-ignore an incomplete contact request from admin panel."""
+    _assert_admin_can_write(operator_role)
+    request_row = await db.get(ContactRequest, request_id, with_for_update=True)
+    if request_row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="请求不存在")
+
+    if request_row.status == ContactRequestStatus.PROCESSING:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="当前请求正在处理中")
+    if request_row.status not in (
+        ContactRequestStatus.PENDING,
+        ContactRequestStatus.FAILED,
+    ):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="当前状态不允许忽略")
+
+    previous_status = int(request_row.status)
+    request_row.status = ContactRequestStatus.IGNORED
+    request_row.failure_code = None
+    request_row.failure_detail = None
+    db.add(request_row)
+
+    await create_operation_log(
+        db,
+        admin_user_id=operator_admin_user_id,
+        operation_type=int(AdminOperationType.UPDATE),
+        resource_type="contact_request",
+        operation_desc="admin ignore incomplete contact request",
+        resource_id=str(request_id),
+        resource_name=request_row.to_qiao_id,
+        operation_meta={
+            "from_status": previous_status,
+            "to_status": int(ContactRequestStatus.IGNORED),
+            "operator_username": operator_username,
+        },
+        commit=False,
+    )
+    await db.commit()
+
+    return {
+        "request_id": str(request_row.id),
+        "status": int(request_row.status),
+    }
+
+
+async def admin_reopen_ignored_contact_request(
+    db: AsyncSession,
+    *,
+    request_id: int,
+    operator_admin_user_id: int,
+    operator_username: str,
+    operator_role: int,
+) -> JSONDict:
+    """Reopen an ignored contact request into pending state."""
+    _assert_admin_can_write(operator_role)
+    request_row = await db.get(ContactRequest, request_id, with_for_update=True)
+    if request_row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="请求不存在")
+    if request_row.status != ContactRequestStatus.IGNORED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="仅已忽略请求可恢复待处理"
+        )
+
+    previous_status = int(request_row.status)
+    request_row.status = ContactRequestStatus.PENDING
+    if request_row.to_type == int(ContactType.AI):
+        request_row.failure_code = ContactRequestFailureCode.MANUAL_PROVISION_REQUIRED.value
+        request_row.failure_detail = await _build_reopen_failure_detail_for_ai_request(
+            db, request_row=request_row
+        )
+    else:
+        request_row.failure_code = None
+        request_row.failure_detail = None
+    db.add(request_row)
+
+    await create_operation_log(
+        db,
+        admin_user_id=operator_admin_user_id,
+        operation_type=int(AdminOperationType.UPDATE),
+        resource_type="contact_request",
+        operation_desc="admin reopen ignored contact request to pending",
+        resource_id=str(request_id),
+        resource_name=request_row.to_qiao_id,
+        operation_meta={
+            "from_status": previous_status,
+            "to_status": int(ContactRequestStatus.PENDING),
+            "operator_username": operator_username,
+            "expires_at": request_row.expires_at.isoformat() if request_row.expires_at else None,
+            "ai_type_id": (
+                request_row.failure_detail.get("ai_type_id")
+                if isinstance(request_row.failure_detail, dict)
+                else None
+            ),
+        },
+        commit=False,
+    )
+    await db.commit()
+
+    return {
+        "request_id": str(request_row.id),
+        "status": int(request_row.status),
+        "expires_at": _to_iso(request_row.expires_at),
     }

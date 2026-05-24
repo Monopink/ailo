@@ -54,7 +54,7 @@
   - 对应的 contact 记录已创建
 
 - **IGNORED (3)** - 已忽略
-  - 终态
+  - 可由管理端恢复为待处理
   - 业务逻辑正常拒绝（非系统错误）
   - 例如：用户主动拒绝、AI 联系人数量达到上限
 
@@ -78,7 +78,7 @@ stateDiagram-v2
     PROCESSING --> FAILED: 系统错误
 
     ACCEPTED --> [*]
-    IGNORED --> [*]
+    IGNORED --> PENDING: 管理端恢复待处理
     FAILED --> [*]
 ```
 
@@ -300,6 +300,8 @@ stateDiagram-v2
 - 路径：
   - `GET /admin-api/contact-requests/incomplete/overview`
   - `GET /admin-api/contact-requests/incomplete`
+  - `POST /admin-api/contact-requests/{request_id}/ignore`
+  - `POST /admin-api/contact-requests/{request_id}/reopen-pending`
   - `GET /admin-api/contact-requests/ai-types/search`
   - `GET /admin-api/contact-requests/templates/search`
   - `POST /admin-api/contact-requests/{request_id}/retry-precheck`
@@ -349,7 +351,7 @@ stateDiagram-v2
    - 不展示 `IGNORED` 与 `ACCEPTED`。
    - 列表支持分页查询。
 4. **列表字段**
-   - 请求字段：`request_id`、`status`、`申请时间`（按 `created_at` 计算相对当前时间，示例 `1天23小时前`）。
+   - 请求字段：`status`、`申请时间`（按 `created_at` 计算相对当前时间，示例 `1天23小时前`）。
    - 到期字段：`到期时间`（按 `expires_at` 计算相对当前时间）与 `是否有效`（由 `is_expired` 映射图标：有效/无效）。
    - 参与方字段：`from_qiao_id`、`to_qiao_id`、`from_id`、`to_id`。
    - 失败字段：`failure_reason_label`、`ai_type_display_name`。
@@ -358,6 +360,8 @@ stateDiagram-v2
 5. **操作行为**
    - 查看：直接跳转 `/qiao-dash/contact_request/detail/{request_id}`。
    - 补模板：跳转 `ai_template` 列表并通过 `search` 参数过滤。
+   - 忽略：二次确认后将状态改为 `IGNORED`，并从未完成列表移除。
+   - 恢复待处理：在 `contact_request` 页面仅对 `IGNORED` 请求开放，执行后状态改为 `PENDING`。
    - 重试：仅 `is_retryable=true` 的记录可执行。
    - 指定模板重试：打开“手动指定重试”弹窗，进入后默认选中原始请求 `AI Type`，并自动加载该类型模板列表。
    - 指定模板重试：模板检索始终按所选 `AI Type` 过滤。

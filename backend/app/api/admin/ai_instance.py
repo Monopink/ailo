@@ -12,7 +12,7 @@ from app.core.constants import POSITION_MAX_VALUE
 from app.core.database import get_db
 from app.crud.ai import ai_instance as ai_instance_crud
 from app.crud.ai.instance_dimension import update_dimensions_batch
-from app.enums import PositionMappingAlgorithm
+from app.enums import AIInstanceStatus, PositionMappingAlgorithm
 from app.models.ai.instance import AIInstance
 from app.models.ai.instance_dimension import AIInstanceDimension
 from app.models.ai.memory import AIInstanceMemory
@@ -219,6 +219,17 @@ async def save_instance(
         if not isinstance(prompt_variables, dict):
             raise HTTPException(status_code=400, detail="prompt_variables must be a dict")
         update_data["prompt_variables"] = prompt_variables
+
+    if "status" in data:
+        status_value = _coerce_int(data.get("status"))
+        if status_value is None:
+            raise HTTPException(status_code=400, detail="status must be an integer")
+        if status_value not in (int(AIInstanceStatus.ACTIVE), int(AIInstanceStatus.INACTIVE)):
+            raise HTTPException(
+                status_code=400,
+                detail="status can only be Active or Inactive in advanced edit",
+            )
+        update_data["status"] = status_value
 
     # Validate and update dimensions (skip items with empty score/algorithm)
     updated_dims = 0

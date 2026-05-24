@@ -80,6 +80,17 @@ function renderTemplateMemoryRow(memory) {
 
 function buildTemplatePayload(formElement, memoryController) {
   const formData = new FormData(formElement);
+  const rawStatus = formData.get('status');
+  let statusValue = null;
+  let statusError = null;
+  if (typeof rawStatus === 'string' && rawStatus.trim() !== '') {
+    const parsedStatus = parseInt(rawStatus, 10);
+    if (Number.isNaN(parsedStatus)) {
+      statusError = 'Status must be an integer';
+    } else {
+      statusValue = parsedStatus;
+    }
+  }
 
   const variables = {};
   for (const [key, value] of formData.entries()) {
@@ -108,14 +119,16 @@ function buildTemplatePayload(formElement, memoryController) {
     }
   });
 
-  return {
-    payload: {
-      prompt_variables: variables,
-      position_mapping_config: positionMappingConfig,
-      memory_changes: memoryController.buildChanges(),
-    },
-    missingParamMessages,
+  const payload = {
+    prompt_variables: variables,
+    position_mapping_config: positionMappingConfig,
+    memory_changes: memoryController.buildChanges(),
   };
+  if (statusValue !== null) {
+    payload.status = statusValue;
+  }
+
+  return { payload, missingParamMessages, statusError };
 }
 
 function bindAlgorithmVisibility() {
@@ -148,7 +161,7 @@ function bindCancel(snapshotGuard) {
 function bindSubmit(mainForm, snapshotGuard, memoryController) {
   mainForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const { payload, missingParamMessages } = buildTemplatePayload(event.target, memoryController);
+    const { payload, missingParamMessages, statusError } = buildTemplatePayload(event.target, memoryController);
     const action =
       event.submitter && event.submitter.dataset && event.submitter.dataset.action
         ? event.submitter.dataset.action
@@ -156,6 +169,10 @@ function bindSubmit(mainForm, snapshotGuard, memoryController) {
 
     if (missingParamMessages.length) {
       alert(`请完善以下算法参数：\n${missingParamMessages.join('\n')}`);
+      return;
+    }
+    if (statusError) {
+      alert(statusError);
       return;
     }
 

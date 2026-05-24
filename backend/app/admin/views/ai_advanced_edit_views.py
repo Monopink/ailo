@@ -291,6 +291,7 @@ class InstanceAdvancedEditView(CustomView):
             ),
             "typing_speed_wpm": instance.typing_speed_wpm,
             "timezone": instance.timezone,
+            "status": instance.status,
             "llm_config_id": instance.llm_config_id,
             "llm_config": llm_summary,
         }
@@ -415,8 +416,10 @@ class TemplateAdvancedEditView(CustomView):
         return {
             "id": template.id,
             "personality_display_name": personality_name,
+            "status": template.status,
             "prompt_variables": prompt_variables,
             "typing_speed_wpm": template.typing_speed_wpm,
+            "timezone": template.timezone,
             "llm_config_id": template.llm_config_id,
             "llm_config": llm_summary,
         }

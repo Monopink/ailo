@@ -83,6 +83,26 @@ def _validate_required_placeholders(
             raise ValueError(f"Missing required placeholder: {placeholder.placeholder_key}")
 
 
+def find_missing_required_placeholder_keys(
+    variables: dict[str, Any] | None,
+    placeholders: list[AIPersonalityPlaceholder],
+) -> list[str]:
+    """Return required placeholder keys that are missing or blank."""
+    payload = variables if isinstance(variables, dict) else {}
+    missing_keys: list[str] = []
+    for placeholder in placeholders:
+        if int(placeholder.is_required) != 1:
+            continue
+        key = placeholder.placeholder_key
+        if key not in payload:
+            missing_keys.append(key)
+            continue
+        raw_value = payload.get(key)
+        if raw_value is None or str(raw_value).strip() == "":
+            missing_keys.append(key)
+    return sorted(set(missing_keys))
+
+
 def interpolate_advanced_template(
     template: str,
     variables: dict[str, Any],

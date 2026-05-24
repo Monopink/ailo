@@ -9,8 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.crud.ai import ai_template as ai_template_crud
-from app.enums import PositionMappingAlgorithm
+from app.enums import AITemplateStatus, PositionMappingAlgorithm
 from app.models.ai.memory import AITemplateMemory
+from app.services.ai.template_activation import get_missing_required_prompt_variables_for_template
 from app.services.ai.utils.position_mapping import parse_algorithm_params
 from app.utils.logging import get_logger
 
@@ -59,6 +60,12 @@ def _parse_memory_changes(payload: object) -> dict[str, list[object]]:
         "update": update_items if isinstance(update_items, list) else [],
         "archive_ids": archive_ids if isinstance(archive_ids, list) else [],
     }
+
+
+def _format_missing_prompt_variables_error(missing_keys: list[str]) -> str:
+    return (
+        f"Cannot activate template: missing required Prompt Variables ({', '.join(missing_keys)})"
+    )
 
 
 def _validate_template_memory_payload(payload: object) -> tuple[str, int, int, str]:
@@ -171,6 +178,20 @@ async def save_ai_template(
         raise HTTPException(status_code=404, detail="Template not found")
 
     update_data: dict[str, object] = {}
+    raw_status = data.get("status")
+    next_status = int(getattr(template, "status", AITemplateStatus.INACTIVE))
+
+    if "status" in data:
+        status_value = _coerce_int(raw_status)
+        if status_value is None:
+            raise HTTPException(status_code=400, detail="status must be an integer")
+        if status_value not in (int(AITemplateStatus.ACTIVE), int(AITemplateStatus.INACTIVE)):
+            raise HTTPException(
+                status_code=400,
+                detail="status can only be Active or Inactive in advanced edit",
+            )
+        next_status = status_value
+        update_data["status"] = next_status
 
     # Handle prompt_variables
     if "prompt_variables" in data:
@@ -218,6 +239,29 @@ async def save_ai_template(
                     raise HTTPException(status_code=400, detail=str(exc))
 
         update_data["position_mapping_config"] = position_mapping_config
+
+    current_status = int(getattr(template, "status", AITemplateStatus.INACTIVE))
+    is_transition_to_active = (
+        "status" in data
+        and next_status == int(AITemplateStatus.ACTIVE)
+        and current_status != int(AITemplateStatus.ACTIVE)
+    )
+    if is_transition_to_active:
+        effective_prompt_variables = (
+            update_data.get("prompt_variables")
+            if isinstance(update_data.get("prompt_variables"), dict)
+            else template.prompt_variables
+        )
+        missing_keys = await get_missing_required_prompt_variables_for_template(
+            db,
+            personality_id=template.personality_id,
+            prompt_variables=effective_prompt_variables,
+        )
+        if missing_keys:
+            raise HTTPException(
+                status_code=400,
+                detail=_format_missing_prompt_variables_error(missing_keys),
+            )
 
     memory_changes = _parse_memory_changes(data.get("memory_changes"))
     has_memory_changes = any(memory_changes[key] for key in ("create", "update", "archive_ids"))

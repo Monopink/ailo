@@ -135,6 +135,19 @@ function renderInstanceMemoryRow(memory, { canToggleArchive }) {
 
 function buildInstancePayload(formElement, memoryController) {
   const formData = new FormData(formElement);
+  const rawStatus = (formData.get('status') || '').toString().trim();
+  let parsedStatus = null;
+  let statusError = null;
+  if (rawStatus !== '') {
+    const statusValue = parseInt(rawStatus, 10);
+    if (Number.isNaN(statusValue)) {
+      statusError = 'Status must be an integer';
+    } else if (statusValue !== 1 && statusValue !== 2) {
+      statusError = 'Status can only be Active or Inactive in advanced edit';
+    } else {
+      parsedStatus = statusValue;
+    }
+  }
 
   const variables = {};
   for (const [key, value] of formData.entries()) {
@@ -193,16 +206,18 @@ function buildInstancePayload(formElement, memoryController) {
   const relationshipId =
     relationshipIdInput && relationshipIdInput.value ? parseInt(relationshipIdInput.value, 10) : null;
 
-  return {
-    payload: {
-      prompt_variables: variables,
-      dimensions,
-      positions,
-      relationship_id: relationshipId,
-      memory_changes: memoryController.buildChanges(),
-    },
-    missingParamMessages,
+  const payload = {
+    prompt_variables: variables,
+    dimensions,
+    positions,
+    relationship_id: relationshipId,
+    memory_changes: memoryController.buildChanges(),
   };
+  if (parsedStatus !== null) {
+    payload.status = parsedStatus;
+  }
+
+  return { payload, missingParamMessages, statusError };
 }
 
 function buildOverridesFromForm() {
@@ -272,7 +287,7 @@ function bindCancel(snapshotGuard) {
 function bindSubmit(mainForm, snapshotGuard, memoryController) {
   mainForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const { payload, missingParamMessages } = buildInstancePayload(event.target, memoryController);
+    const { payload, missingParamMessages, statusError } = buildInstancePayload(event.target, memoryController);
     const action =
       event.submitter && event.submitter.dataset && event.submitter.dataset.action
         ? event.submitter.dataset.action
@@ -280,6 +295,10 @@ function bindSubmit(mainForm, snapshotGuard, memoryController) {
 
     if (missingParamMessages.length) {
       alert(`请完善以下算法参数：\n${missingParamMessages.join('\n')}`);
+      return;
+    }
+    if (statusError) {
+      alert(statusError);
       return;
     }
 

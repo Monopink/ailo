@@ -8,6 +8,7 @@ from typing import Any, ClassVar, cast
 from urllib.parse import urlencode
 
 from sqlalchemy import delete, func, select
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
@@ -46,6 +47,7 @@ from app.services.admin.persona_batch_import_store import (
     create_persona_batch_import_token,
 )
 from app.services.ai.response_schema import validate_style_personality_contract
+from app.services.ai.template_activation import get_missing_required_prompt_variables_for_template
 from app.services.profile.avatar import get_avatar_url
 from app.services.profile.integrity import ensure_persona_profile
 from app.services.security.username import (
@@ -86,6 +88,7 @@ class AITemplateView(ModelView):
         "created_at",
         "updated_at",
         "type_id",  # Auto-filled from ai_type relationship
+        "status",
     ]
     exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
@@ -119,6 +122,7 @@ class AITemplateView(ModelView):
         obj.style_id = _extract_relation_id(_data.get("style"))
         obj.personality_id = _extract_relation_id(_data.get("personality"))
         obj.llm_config_id = _extract_relation_id(_data.get("llm_config"))
+        obj.status = int(AITemplateStatus.INACTIVE)
 
         if hasattr(obj, "timezone") and (obj.timezone is None or obj.timezone == ""):
             obj.timezone = "Asia/Shanghai"
@@ -141,7 +145,10 @@ class AITemplateView(ModelView):
             personality_id=getattr(obj, "personality_id", None),
         )
         if contract_error is not None:
-            raise FormValidationError({"personality": contract_error})
+            errors["personality"] = contract_error
+
+        if errors:
+            raise FormValidationError(errors)
 
     async def before_edit(self, _request: Request, _data: FormData, obj: AITemplate) -> None:
         """Auto-fill foreign keys before editing template."""
@@ -168,13 +175,43 @@ class AITemplateView(ModelView):
         if errors:
             raise FormValidationError(errors)
 
+        status_history = sa_inspect(obj).attrs.status.history
+        if status_history.has_changes():
+            status_value = self._coerce_status_value(getattr(obj, "status", None))
+            if status_value is None:
+                errors["status"] = "Status must be an integer"
+            elif status_value not in (
+                int(AITemplateStatus.ACTIVE),
+                int(AITemplateStatus.INACTIVE),
+            ):
+                errors["status"] = "Status can only be Active or Inactive in admin edit"
+            else:
+                previous_status = self._coerce_status_value(
+                    status_history.deleted[0] if status_history.deleted else None
+                )
+                is_transition_to_active = status_value == int(
+                    AITemplateStatus.ACTIVE
+                ) and previous_status != int(AITemplateStatus.ACTIVE)
+                if is_transition_to_active:
+                    activation_error = await self._validate_activation_requirements(
+                        _request.state.session,
+                        personality_id=getattr(obj, "personality_id", None),
+                        prompt_variables=getattr(obj, "prompt_variables", None),
+                    )
+                    if activation_error is not None:
+                        errors["status"] = activation_error
+                        errors["prompt_variables"] = activation_error
+
         contract_error = await self._validate_template_contract(
             _request.state.session,
             style_id=getattr(obj, "style_id", None),
             personality_id=getattr(obj, "personality_id", None),
         )
         if contract_error is not None:
-            raise FormValidationError({"personality": contract_error})
+            errors["personality"] = contract_error
+
+        if errors:
+            raise FormValidationError(errors)
 
     @staticmethod
     async def _validate_template_contract(
@@ -209,6 +246,35 @@ class AITemplateView(ModelView):
         except (TypeError, ValueError) as exc:
             return f"Style/personality contract mismatch: {exc!s}"
         return None
+
+    @staticmethod
+    def _coerce_status_value(raw_status: object) -> int | None:
+        try:
+            return int(cast(Any, raw_status))
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    async def _validate_activation_requirements(
+        session: AsyncSession,
+        *,
+        personality_id: int | None,
+        prompt_variables: object,
+    ) -> str | None:
+        """Validate required prompt variables before activating template."""
+        if personality_id is None:
+            return "AI Personality is required before activating template"
+        missing_keys = await get_missing_required_prompt_variables_for_template(
+            session,
+            personality_id=personality_id,
+            prompt_variables=prompt_variables,
+        )
+        if not missing_keys:
+            return None
+        return (
+            "Cannot activate template: missing required Prompt Variables "
+            f"({', '.join(missing_keys)})"
+        )
 
     fields_default_sort: ClassVar[list[tuple[str, bool]]] = [("created_at", True)]
     searchable_fields: ClassVar[list[str]] = ["id", "display_name", "type_id"]

@@ -311,6 +311,7 @@ class AIInstanceView(ModelView):
         "template_display_name",
         "relationship",
         "relationship_display_name",
+        "status",
     ]
     exclude_fields_from_edit: ClassVar[list[str]] = [
         "id",
@@ -367,7 +368,7 @@ class AIInstanceView(ModelView):
                 prompt_variables=data.get("prompt_variables"),
                 relationship_counts=data.get("relationship_counts"),
                 creation_metadata=data.get("creation_metadata"),
-                status=cast(int | None, data.get("status")),
+                status=int(AIInstanceStatus.INACTIVE),
                 typing_speed_wpm=data.get("typing_speed_wpm"),
                 timezone=data.get("timezone"),
             )

@@ -54,6 +54,41 @@
 
 ---
 
+## ai_instance Advanced Edit
+
+### 页面职责
+
+- 编辑 `prompt_variables`。
+- 编辑 `dimensions` 与位置映射配置。
+- 编辑 `status`（仅允许 `ACTIVE/INACTIVE`，字段位于页面可编辑字段列表末尾）。
+- 管理实例记忆（`ai_instance_memories`）。
+
+### 保存规则
+
+- 提交 `prompt_variables`、`dimensions`、`positions`、`relationship_id`、`status`、`memory_changes` 为单事务。
+- `BLOCKED(3)` 属于系统态，不提供人工直接设置入口。
+
+---
+
+## ai_template Advanced Edit
+
+### 页面职责
+
+- 编辑 `status`（仅允许 `ACTIVE/INACTIVE`）。
+- 编辑 `prompt_variables`。
+- 编辑 `position_mapping_config`。
+- 管理模板记忆（`ai_template_memories`）。
+
+### 保存规则
+
+- 提交 `status`、`prompt_variables`、`position_mapping_config`、`memory_changes` 为单事务。
+- `USED(3)` 属于系统态，不提供人工直接设置入口。
+- 仅当发生 `非 ACTIVE -> ACTIVE` 状态切换时，触发激活前校验：
+  - Personality 的必填 placeholders 必须在 `prompt_variables` 中具备非空值；
+  - 若缺失任一必填项，保存被拒绝。
+
+---
+
 ## ai_style Advanced Edit
 
 ### 页面职责

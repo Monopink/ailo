@@ -122,6 +122,7 @@ VALUES
 ('ai_llm_min_contract_retry_enabled', 'true', 'true', 3, 'Enable minimal-contract retry for AI LLM responses', 'ai_conversation', NULL),
 ('ai_llm_min_contract_retry_max_attempts', '3', '3', 2, 'Maximum attempts for minimal-contract retry (>=1)', 'ai_conversation', NULL),
 ('ai_llm_min_contract_retry_backoff_ms', '300', '300', 2, 'Fixed backoff interval in milliseconds for minimal-contract retry (>=0)', 'ai_conversation', NULL),
+('ai_global_unique_placeholder_keys', '["name"]', 'name', 1, 'Global unique placeholder keys for template advanced edit conflict check', 'ai', NULL),
 
 -- Alerting configurations
 ('alerting_cleanup_enabled', 'true', 'true', 3, 'Enable alert_events cleanup worker', 'alerting', NULL),
@@ -243,6 +244,7 @@ SET config_scope = 'operation'
 WHERE config_key IN (
     'invite_share_command_texts',
     'invite_share_card_titles',
+    'ai_global_unique_placeholder_keys',
     'default_nickname_prefix',
     'default_nickname_suffix_length'
 )

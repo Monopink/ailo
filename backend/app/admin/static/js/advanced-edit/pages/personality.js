@@ -27,7 +27,9 @@ const app = {
     styleSelectorModal: null,
     schemaFieldModal: null,
     presetFieldModal: null,
+    globalUniqueImportModal: null,
     availablePresets: [],
+    globalUniquePlaceholderKeys: [],
     constraints: {},
     presetCandidates: [],
     manualUndoOps: [],
@@ -98,6 +100,7 @@ const app = {
     this.state.styleSelectorModal = new bootstrap.Modal(document.getElementById('styleSelectorModal'));
     this.state.schemaFieldModal = new bootstrap.Modal(document.getElementById('schemaFieldModal'));
     this.state.presetFieldModal = new bootstrap.Modal(document.getElementById('presetFieldModal'));
+    this.state.globalUniqueImportModal = new bootstrap.Modal(document.getElementById('globalUniqueImportModal'));
     this.state.placeholderCsvImportModal = new bootstrap.Modal(document.getElementById('placeholderCsvImportModal'));
 
     // Bind style selector change to live preview

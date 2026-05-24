@@ -49,6 +49,12 @@ export const personalityStyleMethods = {
       : [];
     this.state.orphanScoreDimensionDrafts = {};
     this.state.constraints = data?.constraints && typeof data.constraints === 'object' ? data.constraints : {};
+    this.state.globalUniquePlaceholderKeys = Array.isArray(data?.global_unique_placeholder_keys)
+      ? data.global_unique_placeholder_keys
+          .filter((item) => typeof item === 'string')
+          .map((item) => item.trim())
+          .filter((item, index, list) => item && list.indexOf(item) === index)
+      : [];
 
     this.state.availablePresets = Array.isArray(data?.available_presets)
       ? data.available_presets.map((item) => ({

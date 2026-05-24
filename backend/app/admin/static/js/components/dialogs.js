@@ -86,6 +86,7 @@
 
     return new Promise((resolve) => {
       let resolved = false;
+      let pendingResult = false;
 
       const cleanup = () => {
         confirmEl?.removeEventListener('click', onConfirm);
@@ -104,17 +105,17 @@
       };
 
       const onConfirm = () => {
+        pendingResult = true;
         modal.hide();
-        finish(true);
       };
 
       const onCancel = () => {
+        pendingResult = false;
         modal.hide();
-        finish(false);
       };
 
       const onHidden = () => {
-        finish(false);
+        finish(pendingResult);
       };
 
       confirmEl?.addEventListener('click', onConfirm, { once: true });

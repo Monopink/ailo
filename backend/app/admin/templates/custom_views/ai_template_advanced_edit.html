@@ -109,6 +109,9 @@
                 {% if placeholder.is_required %}
                 <span class="text-danger">*</span>
                 {% endif %}
+                {% if placeholder.placeholder_key in (global_unique_placeholder_keys or []) %}
+                <span class="badge bg-warning text-light ms-2">Unique</span>
+                {% endif %}
               </label>
               <textarea class="form-control prompt-variable-textarea" id="var_{{ placeholder.placeholder_key }}" name="var_{{ placeholder.placeholder_key }}" rows="3" {% if placeholder.is_required %}required{% endif %} placeholder="{{ placeholder.example_value or '' }}">{{ template.prompt_variables.get(placeholder.placeholder_key, '') }}</textarea>
               {% if placeholder.description %}

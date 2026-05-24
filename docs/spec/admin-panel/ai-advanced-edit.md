@@ -33,6 +33,9 @@
 
 - placeholder 采用列表行内编辑（Key/Display Name/Description/Example Value/Required），整页保存。
 - `placeholder_key` 规则：必填；不可重复；仅允许 `[A-Za-z0-9_]+`；禁止以 `score:` 开头。
+- 全局唯一 key 的真相源为 `system_configs.ai_global_unique_placeholder_keys`（字符串数组）。
+- Placeholder 卡片支持“从全局唯一导入”：打开多选弹窗，候选项来自 `system_configs.ai_global_unique_placeholder_keys`；确认后按 `placeholder_key` 导入（已存在 key 跳过），导入默认 `is_required=true`。
+- Placeholder 列表对命中 `system_configs.ai_global_unique_placeholder_keys` 的 key 显示只读标注（Global Unique），不提供逐条开关。
 - 修改 `placeholder_key` 时：当提示词模板中已存在 `{{old_key}}`，弹出确认；用户确认后全量替换为 `{{new_key}}`。
 - 删除 placeholder：弹窗必须展示被删除条目的 `placeholder_key`。
 - “从提示词模板导入”：解析当前提示词模板中所有 `{{...}}`；对未知 placeholder 自动新增条目并填充 `placeholder_key`；不合法的 key 需提示并跳过。
@@ -48,6 +51,7 @@
 ### 保存规则
 
 - 提交 `prompt`、`schema_config`、`placeholders` 为单事务。
+- `placeholder_key` 在同一 personality 范围内唯一。
 - `score` 维度集合在 personality 被 instance/template 引用时保持锁定。
 - `score` 顶层描述随 `schema_config.score_description` 写回 personality schema。
 - `score` 维度描述随 `schema_config.dimensions[].description` 写回 personality schema。
@@ -86,6 +90,16 @@
 - 仅当发生 `非 ACTIVE -> ACTIVE` 状态切换时，触发激活前校验：
   - Personality 的必填 placeholders 必须在 `prompt_variables` 中具备非空值；
   - 若缺失任一必填项，保存被拒绝。
+- 保存时对 `system_configs.ai_global_unique_placeholder_keys` 执行全局同值检查（仅检查当前 template 所属 personality 已定义的同名 key）：
+  - 检查范围为全部 templates；
+  - 仅检查非空值；
+  - 归一化规则为 `trim` 与换行统一（`\r\n` → `\n`）后精确比较；
+  - 当配置结构异常（非字符串数组或数组内含非字符串项）时，跳过全局唯一检查并在保存成功后提示管理员检查配置；
+  - 命中冲突时返回可确认冲突，不做硬阻断。
+- 管理员可在冲突确认弹窗中选择继续或取消：
+  - 继续：携带 `force_continue=true` 重新提交并保存；
+  - 继续保存会写入管理员操作审计日志（含冲突明细）；
+  - 取消：留在当前页继续编辑，不写入数据。
 
 ---
 

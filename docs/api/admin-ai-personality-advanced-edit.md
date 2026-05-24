@@ -93,7 +93,8 @@
   "constraints": {
     "is_referenced": true,
     "score_dimension_set_locked": true
-  }
+  },
+  "global_unique_placeholder_keys": ["signature", "company_name"]
 }
 ```
 
@@ -107,13 +108,14 @@
   2. `ai_dimensions.description`（当 personality schema 缺失时）
 - `field_entries(group=score_dimension).description` 的运行时权威来源是 personality schema。
 - `available_presets` 来源于后端代码注册表，不允许前端硬编码。
+- `global_unique_placeholder_keys` 来源于 `system_configs.ai_global_unique_placeholder_keys`，用于 Placeholder 卡片“从全局唯一导入”候选与只读标注。
 
 ---
 
 ## 2) 获取人格 Placeholder 列表
 
 - **Method / Path**: `GET /admin-api/ai/ai-personality/{personality_id}/placeholders`
-- **用途**: 加载该人格可用的 placeholder（人格专属 + 公共）
+- **用途**: 加载该人格可用的 placeholder
 
 ### Response
 
@@ -132,7 +134,7 @@
 
 ### 行为约束
 
-- 返回按 `placeholder_key` 排序后的合并列表。
+- 返回按 `placeholder_key` 排序的列表。
 - `is_required` 返回布尔值。
 - `id` 用于后续更新/删除。
 
@@ -245,6 +247,8 @@
 
 - 保存为单事务：`prompt`、`json_schema`、placeholder 更新/新增/删除全部成功才提交。
 - 更新/删除 placeholder 时必须校验 `personality_id` 归属，禁止跨人格写入。
+- 同一 personality 下 `placeholder_key` 必须唯一。
+- 全局唯一检查来源为 `system_configs.ai_global_unique_placeholder_keys`，不由 personality placeholder 单条配置。
 - 当当前 personality 已被任意 instance 或 template 引用时，禁止变更 `score` 维度名称集合（新增、删除、改名）。
 - `ai_style` 侧更新 `ai_dimensions.description` 后，不自动同步已存在 personality schema。
 - 任一校验失败时返回错误且不产生部分提交。

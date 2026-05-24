@@ -4,7 +4,7 @@ This module contains SQLAlchemy models for AI personality templates and placehol
 """
 
 from markupsafe import escape
-from sqlalchemy import Integer, String, Text, text
+from sqlalchemy import Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from starlette.requests import Request
@@ -48,6 +48,13 @@ class AIPersonalityPlaceholder(AutoIncrementModel):
     """
 
     __tablename__ = "ai_personality_placeholders"
+    __table_args__ = (
+        UniqueConstraint(
+            "personality_id",
+            "placeholder_key",
+            name="uq_ai_personality_placeholders_personality_key",
+        ),
+    )
 
     personality_id: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="Personality ID, references ai_personalities.id"

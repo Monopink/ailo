@@ -30,12 +30,21 @@ from app.models.ai.style import (
 )
 from app.models.ai.template import AITemplate
 from app.models.llm import LLMConfig
+from app.services.ai.global_unique_placeholder_keys import load_global_unique_placeholder_keys
 from app.services.ai.queries.instance_queries import get_style_dimensions
 from app.services.ai.utils.position_mapping import get_algorithm_param_specs
 from app.type_defs import DimensionSpec, JSONDict
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+async def _load_global_unique_placeholder_keys(db: AsyncSession) -> list[str]:
+    normalized_keys, _is_invalid = await load_global_unique_placeholder_keys(
+        db,
+        logger=logger,
+    )
+    return normalized_keys
 
 
 class InstanceAdvancedEditView(CustomView):
@@ -313,6 +322,7 @@ class TemplateAdvancedEditView(CustomView):
             placeholders = await personality_crud.get_placeholders_by_personality(
                 db, personality_id=template.personality_id
             )
+            global_unique_placeholder_keys = await _load_global_unique_placeholder_keys(db)
 
             # Load template memories
             memories_stmt = (
@@ -345,6 +355,7 @@ class TemplateAdvancedEditView(CustomView):
             "template": template_data,
             "dimension_configs": dimension_configs,
             "placeholders": placeholders,
+            "global_unique_placeholder_keys": global_unique_placeholder_keys,
             "memories": memories_data,
             "algorithm_param_specs": get_algorithm_param_specs(),
         }

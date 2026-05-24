@@ -68,6 +68,17 @@ export const personalityPlaceholderMethods = {
     });
   },
 
+  isGlobalUniquePlaceholderKey(rawKey) {
+    const key = typeof rawKey === 'string' ? rawKey.trim() : '';
+    if (!key) {
+      return false;
+    }
+    const configuredKeys = Array.isArray(this.state.globalUniquePlaceholderKeys)
+      ? this.state.globalUniquePlaceholderKeys
+      : [];
+    return configuredKeys.includes(key);
+  },
+
   renderPlaceholdersList() {
     const container = document.getElementById('placeholders-list');
     if (this.state.placeholders.length === 0) {
@@ -82,22 +93,29 @@ export const personalityPlaceholderMethods = {
       const descriptionValue = this.escapeHtml(p.description || '');
       const exampleValueValue = this.escapeHtml(p.example_value || '');
       const requiredChecked = p.is_required ? 'checked' : '';
+      const isGlobalUnique = this.isGlobalUniquePlaceholderKey(p.placeholder_key || '');
+      const globalUniqueOverlay = isGlobalUnique
+        ? '<span class="badge rounded-pill placeholder-key-global-unique">Unique</span>'
+        : '';
 
       return `
         <tr data-client-id="${clientId}">
           <td style="min-width: 220px;">
-            <input
-              type="text"
-              class="form-control placeholder-input placeholder-key-input"
-              value="${keyValue}"
-              data-client-id="${clientId}"
-              data-field="placeholder_key"
-              placeholder="例如 nickname"
-              inputmode="latin"
-              autocomplete="off"
-              spellcheck="false"
-            >
-            <div class="invalid-feedback">Key 必须为 [A-Za-z0-9_]+ 且不可重复</div>
+            <div class="placeholder-key-field">
+              <input
+                type="text"
+                class="form-control placeholder-input placeholder-key-input"
+                value="${keyValue}"
+                data-client-id="${clientId}"
+                data-field="placeholder_key"
+                placeholder="例如 nickname"
+                inputmode="latin"
+                autocomplete="off"
+                spellcheck="false"
+              >
+              ${globalUniqueOverlay}
+              <div class="invalid-feedback">Key 必须为 [A-Za-z0-9_]+ 且不可重复</div>
+            </div>
           </td>
           <td style="min-width: 180px;">
             <input
@@ -164,7 +182,7 @@ export const personalityPlaceholderMethods = {
         </table>
       </div>
       <div class="text-muted small">
-        Key 仅允许 <code>[A-Za-z0-9_]+</code>，且禁止以 <code>score:</code> 开头。
+        Key 仅允许 <code>[A-Za-z0-9_]+</code>，且禁止以 <code>score:</code> 开头。<code>Unique</code> 标注来源于系统配置 <code>ai_global_unique_placeholder_keys</code>。
       </div>
     `;
   },
@@ -227,7 +245,7 @@ export const personalityPlaceholderMethods = {
       if (!p) return;
 
       if (field === 'is_required' && target instanceof HTMLInputElement) {
-        p.is_required = !!target.checked;
+        p[field] = !!target.checked;
         return;
       }
 
@@ -360,7 +378,9 @@ export const personalityPlaceholderMethods = {
     }
 
     this.renderCustomPlaceholders();
+    this.renderPlaceholdersList();
     this.validatePrompt();
+    this.applyPlaceholderKeyValidationStyles();
   },
 
   async deletePlaceholderByClientId(clientId) {
@@ -458,6 +478,97 @@ export const personalityPlaceholderMethods = {
     } else {
       alert(`已导入 ${valid.length} 个未知 placeholder。`);
     }
+  },
+
+  showGlobalUniqueImportModal() {
+    const listContainer = document.getElementById('global-unique-import-list');
+    if (!listContainer) {
+      return;
+    }
+
+    const globalKeys = Array.isArray(this.state.globalUniquePlaceholderKeys)
+      ? this.state.globalUniquePlaceholderKeys
+      : [];
+    const validKeys = globalKeys.filter((key) => this.isValidPlaceholderKey(key));
+    const existingKeys = new Set(
+      this.state.placeholders
+        .map((placeholder) => (placeholder.placeholder_key || '').trim())
+        .filter((key) => this.isValidPlaceholderKey(key))
+    );
+
+    if (validKeys.length === 0) {
+      listContainer.innerHTML =
+        '<div class="alert alert-info mb-0">系统配置未提供可导入的全局唯一 placeholder key。</div>';
+      this.state.globalUniqueImportModal.show();
+      return;
+    }
+
+    listContainer.innerHTML = validKeys
+      .map((key) => {
+        const isExisting = existingKeys.has(key);
+        const disabled = isExisting ? 'disabled' : '';
+        const hint = isExisting ? '<span class="text-muted small ms-2">已存在</span>' : '';
+        return `
+          <label class="form-check d-flex align-items-center mb-2">
+            <input class="form-check-input me-2" type="checkbox" value="${this.escapeHtml(key)}" ${disabled}>
+            <code>${this.escapeHtml(key)}</code>${hint}
+          </label>
+        `;
+      })
+      .join('');
+
+    this.state.globalUniqueImportModal.show();
+  },
+
+  async confirmGlobalUniqueImport() {
+    const listContainer = document.getElementById('global-unique-import-list');
+    if (!listContainer) {
+      return;
+    }
+
+    const selectedKeys = Array.from(listContainer.querySelectorAll('input[type="checkbox"]:checked')).map((input) =>
+      input instanceof HTMLInputElement ? input.value.trim() : ''
+    );
+    if (selectedKeys.length === 0) {
+      alert('请至少选择一个 placeholder key');
+      return;
+    }
+
+    const existingKeys = new Set(
+      this.state.placeholders
+        .map((placeholder) => (placeholder.placeholder_key || '').trim())
+        .filter((key) => this.isValidPlaceholderKey(key))
+    );
+    let importedCount = 0;
+    selectedKeys.forEach((key) => {
+      if (!key || existingKeys.has(key)) {
+        return;
+      }
+      this.state.placeholders.push(
+        this.normalizePlaceholderRecord({
+          id: null,
+          placeholder_key: key,
+          display_name: '',
+          description: '',
+          example_value: '',
+          is_required: true,
+        })
+      );
+      existingKeys.add(key);
+      importedCount += 1;
+    });
+
+    this.renderCustomPlaceholders();
+    this.renderPlaceholdersList();
+    this.validatePrompt();
+    this.applyPlaceholderKeyValidationStyles();
+    this.state.globalUniqueImportModal.hide();
+
+    if (importedCount > 0) {
+      alert(`已导入 ${importedCount} 个全局唯一 placeholder。`);
+      return;
+    }
+    alert('所选 key 均已存在，未导入新项。');
   },
 
   insertPlaceholder(key) {

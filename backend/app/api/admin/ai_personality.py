@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -14,6 +15,7 @@ from app.models.ai.instance import AIInstance
 from app.models.ai.personality import AIPersonality, AIPersonalityPlaceholder
 from app.models.ai.style import AIDimension
 from app.models.ai.template import AITemplate
+from app.services.ai.global_unique_placeholder_keys import load_global_unique_placeholder_keys
 from app.services.ai.response_schema import generate_json_schema
 from app.services.ai.schema_field_registry import (
     get_score_field_default_description,
@@ -65,6 +67,14 @@ def _extract_score_dimension_names(schema: object, *, field_name: str) -> set[st
             )
         names.add(raw_name.strip())
     return names
+
+
+async def _load_global_unique_placeholder_keys(db: AsyncSession) -> list[str]:
+    normalized_keys, _is_invalid = await load_global_unique_placeholder_keys(
+        db,
+        logger=logger,
+    )
+    return normalized_keys
 
 
 async def _personality_has_references(db: AsyncSession, personality_id: int) -> bool:
@@ -635,6 +645,7 @@ async def get_personality_advanced_config(
         )
 
     is_referenced = await _personality_has_references(db, personality_id)
+    global_unique_placeholder_keys = await _load_global_unique_placeholder_keys(db)
     return {
         "personality": {
             "id": personality.id,
@@ -648,6 +659,7 @@ async def get_personality_advanced_config(
             "is_referenced": is_referenced,
             "score_dimension_set_locked": is_referenced,
         },
+        "global_unique_placeholder_keys": global_unique_placeholder_keys,
     }
 
 
@@ -808,6 +820,16 @@ async def save_personality_all(
     except HTTPException:
         await db.rollback()
         raise
+    except IntegrityError as exc:
+        await db.rollback()
+        constraint_name = getattr(getattr(exc, "orig", None), "diag", None)
+        constraint_name_value = getattr(constraint_name, "constraint_name", None)
+        if constraint_name_value == "uq_ai_personality_placeholders_personality_key":
+            raise HTTPException(
+                status_code=400,
+                detail="duplicate placeholder key in personality",
+            ) from exc
+        raise HTTPException(status_code=400, detail="invalid placeholder data") from exc
     except Exception as exc:
         await db.rollback()
         logger.error(

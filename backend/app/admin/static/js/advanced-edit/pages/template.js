@@ -34,6 +34,55 @@ function confirmAction(options) {
   return dialogs.confirm(options);
 }
 
+function buildGlobalUniqueConflictMessage(conflicts) {
+  const rows = Array.isArray(conflicts) ? conflicts : [];
+  if (rows.length === 0) {
+    return '检测到全局唯一占位符冲突，是否继续保存？';
+  }
+
+  const lines = ['检测到以下全局唯一占位符冲突：'];
+  rows.forEach((item, index) => {
+    const key = String(item?.placeholder_key || '');
+    const valuePreview = String(item?.normalized_value_preview || '');
+    const duplicateTemplates = Array.isArray(item?.duplicate_templates) ? item.duplicate_templates : [];
+    const duplicateCount = Number.isFinite(Number(item?.duplicate_count))
+      ? Number(item.duplicate_count)
+      : duplicateTemplates.length;
+    const templatePreview = duplicateTemplates
+      .map((template) => {
+        const id = template?.id ?? '?';
+        const displayName = template?.display_name ? `(${template.display_name})` : '';
+        return `#${id}${displayName}`;
+      })
+      .join('、');
+    const extraCount = duplicateCount > duplicateTemplates.length ? ` 等共 ${duplicateCount} 个模板` : '';
+    lines.push(`${index + 1}. key=${key}，value="${valuePreview}"，重复模板：${templatePreview || '无'}${extraCount}`);
+  });
+  lines.push('继续保存将忽略冲突并写入当前模板。');
+  return lines.join('\n');
+}
+
+function buildGlobalUniqueCheckWarningMessage(warnings) {
+  const rows = Array.isArray(warnings) ? warnings : [];
+  if (rows.length === 0) {
+    return '';
+  }
+  const globalUniqueRows = rows.filter((item) => item?.code === 'GLOBAL_UNIQUE_CHECK_SKIPPED');
+  if (globalUniqueRows.length === 0) {
+    return '';
+  }
+  const reasonLabels = {
+    invalid_config: '系统配置无效',
+    check_failed: '检查执行异常',
+  };
+  const reasons = globalUniqueRows
+    .map((item) => String(item?.reason || '').trim())
+    .filter((reason, index, list) => reason && list.indexOf(reason) === index)
+    .map((reason) => reasonLabels[reason] || reason);
+  const reasonText = reasons.length > 0 ? `（原因：${reasons.join('、')}）` : '';
+  return `已保存，但全局唯一检查已跳过${reasonText}，请检查系统配置 ai_global_unique_placeholder_keys。`;
+}
+
 function renderTemplateMemoryRow(memory) {
   const isPendingDelete = memory._archivedPending === true;
   const badgeClass = memory.memory_type === 'core' ? 'primary' : 'secondary';
@@ -198,6 +247,10 @@ function bindSubmit(mainForm, snapshotGuard, memoryController) {
         try {
           const result = await postJson(`/admin-api/ai/ai_template/${templateId}/save`, 'POST', payload);
           if (result.ok) {
+            const warningMessage = buildGlobalUniqueCheckWarningMessage(result.data?.warnings);
+            if (warningMessage) {
+              alert(warningMessage);
+            }
             snapshotGuard.markSaved(payload);
             snapshotGuard.guard.bypassOnce();
             if (action === 'save') {
@@ -206,6 +259,41 @@ function bindSubmit(mainForm, snapshotGuard, memoryController) {
               alert('Saved successfully');
               location.reload();
             }
+            return;
+          }
+          const requiresConfirmation = result.data?.requires_confirmation === true;
+          const conflicts = Array.isArray(result.data?.conflicts) ? result.data.conflicts : [];
+          if (requiresConfirmation && conflicts.length > 0) {
+            const forceContinue = await confirmAction({
+              title: '检测到全局唯一冲突',
+              message: buildGlobalUniqueConflictMessage(conflicts),
+              confirmText: '继续保存',
+              cancelText: '返回修改',
+              confirmButtonClass: 'btn btn-warning',
+            });
+            if (!forceContinue) {
+              return;
+            }
+
+            const forcePayload = { ...payload, force_continue: true };
+            const retryResult = await postJson(`/admin-api/ai/ai_template/${templateId}/save`, 'POST', forcePayload);
+            if (retryResult.ok) {
+              const warningMessage = buildGlobalUniqueCheckWarningMessage(retryResult.data?.warnings);
+              if (warningMessage) {
+                alert(warningMessage);
+              }
+              snapshotGuard.markSaved(forcePayload);
+              snapshotGuard.guard.bypassOnce();
+              if (action === 'save') {
+                window.location.href = config.listUrl;
+              } else {
+                alert('Saved successfully');
+                location.reload();
+              }
+              return;
+            }
+
+            alert(`Save failed: ${(retryResult.data && retryResult.data.detail) || 'Unknown error'}`);
             return;
           }
           alert(`Save failed: ${(result.data && result.data.detail) || 'Unknown error'}`);

@@ -321,7 +321,7 @@ Page<ContactInfoPageData, ContactInfoPageCustom>({
       try {
         const selectedIndex = await showActionSheetSafe(
           [toggleLabel, '更新备注头像', '清除备注头像'],
-          { alertText: '警告：清除备注头像后将展示原始头像' }
+          { alertText: '清除备注头像后不可恢复' }
         );
         if (selectedIndex === null) {
           return;

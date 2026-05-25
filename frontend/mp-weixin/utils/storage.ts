@@ -166,25 +166,41 @@ const wxSetStorage = async <T>(key: string, data: T): Promise<void> =>
     });
   });
 
+const normalizeWxStorageError = (error: unknown): Error => {
+  if (error instanceof Error) {
+    return error;
+  }
+  if (typeof error === 'string') {
+    return new Error(error);
+  }
+  if (isWxError(error) && typeof error.errMsg === 'string') {
+    return new Error(error.errMsg);
+  }
+  return new Error('wx.getStorage failed');
+};
+
+const isStorageKeyMissing = async (key: string): Promise<boolean> => {
+  try {
+    const info = await wxGetStorageInfo();
+    return !info.keys.includes(key);
+  } catch {
+    return false;
+  }
+};
+
 const wxGetStorage = async <T>(key: string): Promise<T | undefined> =>
   await new Promise((resolve, reject) => {
     void wx.getStorage<T>({
       key,
       success: (res: WechatMiniprogram.GetStorageSuccessCallbackResult<T>) => resolve(res.data),
       fail: (error) => {
-        if (
-          isWxError(error) &&
-          typeof error.errMsg === 'string' &&
-          error.errMsg.includes('data not found')
-        ) {
-          resolve(undefined);
-          return;
-        }
-        reject(
-          error instanceof Error
-            ? error
-            : new Error(typeof error === 'string' ? error : 'wx.getStorage failed')
-        );
+        void (async () => {
+          if (await isStorageKeyMissing(key)) {
+            resolve(undefined);
+            return;
+          }
+          reject(normalizeWxStorageError(error));
+        })();
       },
     });
   });

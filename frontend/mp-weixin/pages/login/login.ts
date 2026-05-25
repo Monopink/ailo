@@ -4,7 +4,11 @@ import { isNonEmptyString } from '../../utils/guards';
 import { ASSET_CONFIG, LOGIN_CONFIG } from '../../utils/config';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { normalizeCampaignCodeParam, normalizeInviteCodeParam } from '../../utils/invite-code';
-import { probeRuntimeSegment, reportPreflightProbeResult } from '../../utils/runtime-segment';
+import {
+  probeRuntimeSegment,
+  reportPreflightProbeResult,
+  reportRuntimeObservation,
+} from '../../utils/runtime-segment';
 import {
   createLoginPageService,
   type AuthSuccessPayload,
@@ -245,6 +249,15 @@ Page<LoginPageData, LoginPageCustom>({
     if (event.detail.errMsg !== 'getPhoneNumber:ok') {
       logger.warn('Phone authorization rejected', {
         errMsg: event.detail.errMsg,
+      });
+      void reportRuntimeObservation({
+        eventName: 'login_phone_auth_rejected',
+        pagePath: '/pages/login/login',
+        entrySource: 'login',
+        eventPayload: {
+          phase: 'get_phone_number',
+          err_msg: event.detail.errMsg,
+        },
       });
       showToast('已取消登录');
       return;

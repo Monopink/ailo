@@ -49,6 +49,17 @@ const normalizeAuthUser = (payload: AuthUserPayload): StoredAuthUser => ({
 });
 
 export class LoginPageService extends BasePageService {
+  private voidReportLoginObservation(
+    eventName: 'login_bootstrap_failed' | 'login_status_check_failed' | 'login_bind_failed',
+    eventPayload: Record<string, unknown>
+  ): void {
+    void reportRuntimeObservation({
+      eventName,
+      pagePath: '/pages/login/login',
+      entrySource: 'login',
+      eventPayload,
+    });
+  }
   async bootstrap(source: string | undefined): Promise<LoginBootstrapResult | null> {
     const seq = this.startRequest();
     try {
@@ -116,6 +127,11 @@ export class LoginPageService extends BasePageService {
     } catch (error: unknown) {
       const err = normalizeError(error);
       logger.error('Login bootstrap failed', { error: err.message });
+      this.voidReportLoginObservation('login_bootstrap_failed', {
+        phase: 'bootstrap',
+        source: source ?? '',
+        error_message: err.message,
+      });
       if (!this.isRequestActive(seq)) {
         return null;
       }
@@ -133,41 +149,52 @@ export class LoginPageService extends BasePageService {
     phoneAuthPayload: WechatPhoneAuthPayload,
     currentLoginCode: string
   ): Promise<LoginBindResult> {
-    const loginCode = await this.getFreshLoginCode(currentLoginCode);
-    if (!isNonEmptyString(loginCode)) {
-      throw new Error('登录失败，请重试');
-    }
-    const deviceId = await getDeviceId();
-    const bindPayload =
-      'phoneCode' in phoneAuthPayload
-        ? { phone_code: phoneAuthPayload.phoneCode }
-        : {
-            encrypted_data: phoneAuthPayload.encryptedData,
-            iv: phoneAuthPayload.iv,
-          };
-    const response = await requestValidated(WechatBindPhoneResponseSchema, {
-      url: '/auth/wechat/bind-phone',
-      method: 'POST',
-      data: {
-        login_code: loginCode,
-        ...bindPayload,
-        device_id: deviceId,
-        build_id: BUILD_INFO.id,
-        build_time: BUILD_INFO.builtAt,
-      },
-      auth: false,
-    });
+    try {
+      const loginCode = await this.getFreshLoginCode(currentLoginCode);
+      if (!isNonEmptyString(loginCode)) {
+        throw new Error('登录失败，请重试');
+      }
+      const deviceId = await getDeviceId();
+      const bindPayload =
+        'phoneCode' in phoneAuthPayload
+          ? { phone_code: phoneAuthPayload.phoneCode }
+          : {
+              encrypted_data: phoneAuthPayload.encryptedData,
+              iv: phoneAuthPayload.iv,
+            };
+      const response = await requestValidated(WechatBindPhoneResponseSchema, {
+        url: '/auth/wechat/bind-phone',
+        method: 'POST',
+        data: {
+          login_code: loginCode,
+          ...bindPayload,
+          device_id: deviceId,
+          build_id: BUILD_INFO.id,
+          build_time: BUILD_INFO.builtAt,
+        },
+        auth: false,
+      });
 
-    return {
-      loginCode,
-      authSuccess: {
-        access_token: response.access_token,
-        refresh_token: response.refresh_token,
-        needs_profile_setup: response.needs_profile_setup,
-        user: response.user,
-        message: response.message ?? undefined,
-      },
-    };
+      return {
+        loginCode,
+        authSuccess: {
+          access_token: response.access_token,
+          refresh_token: response.refresh_token,
+          needs_profile_setup: response.needs_profile_setup,
+          user: response.user,
+          message: response.message ?? undefined,
+        },
+      };
+    } catch (error: unknown) {
+      const err = normalizeError(error);
+      this.voidReportLoginObservation('login_bind_failed', {
+        phase: 'bind_phone',
+        error_message: err.message,
+        has_phone_code: 'phoneCode' in phoneAuthPayload,
+        has_encrypted_data: 'encryptedData' in phoneAuthPayload,
+      });
+      throw error;
+    }
   }
 
   async persistAuth(authResult: AuthSuccessPayload): Promise<void> {
@@ -311,6 +338,10 @@ export class LoginPageService extends BasePageService {
     } catch (error: unknown) {
       const err = normalizeError(error);
       logger.error('WeChat login status check failed', { error: err.message });
+      this.voidReportLoginObservation('login_status_check_failed', {
+        phase: 'wechat_login_status_check',
+        error_message: err.message,
+      });
       return {
         loginStatus: 'idle',
         authSuccess: null,

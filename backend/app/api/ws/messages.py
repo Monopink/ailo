@@ -34,7 +34,14 @@ from app.services.message.providers.websocket import (
 )
 from app.services.message.websocket.manager import ws_manager
 from app.services.message.websocket.session_ticket import verify_ws_session_ticket
-from app.services.security import SecurityRequestContext, enforce_attack_scan, is_ip_blocked
+from app.services.security import (
+    AttackScanField,
+    InvalidClientIPError,
+    SecurityRequestContext,
+    enforce_attack_scan,
+    is_ip_blocked,
+)
+from app.utils.client_ip import ClientIPResolutionError, get_client_ip
 from app.utils.logging import get_logger
 
 WS_PRESENCE_LEASE_TTL_SECONDS = 90
@@ -58,16 +65,6 @@ async def _send_ack(ws: WebSocket, *, ws_frame_id: str, payload: dict[str, objec
 
 def _new_request_id() -> str:
     return f"req_{uuid4().hex[:12]}"
-
-
-def _extract_ws_client_ip(ws: WebSocket) -> str:
-    raw_client_ip = ws.headers.get("x-client-ip", "").strip()
-    if raw_client_ip:
-        return raw_client_ip[:45]
-    forwarded_for = ws.headers.get("x-forwarded-for", "").strip()
-    if not forwarded_for:
-        return ""
-    return forwarded_for.split(",")[0].strip()[:45]
 
 
 def _build_ws_error_payload(*, status_code: int, detail: str) -> dict[str, object]:
@@ -244,10 +241,29 @@ async def _handle_auth(  # noqa: PLR0911
         return None
 
     async with session_factory() as db:
-        client_ip = _extract_ws_client_ip(ws)
-        if client_ip and await is_ip_blocked(db, client_ip):
+        try:
+            client_ip = get_client_ip(ws)
+        except ClientIPResolutionError as exc:
             logger.warning(
-                "ws_auth_rejected_ip_blocked",
+                "ws_auth_rejected_invalid_client_ip",
+                ws_frame_id=ws_frame_id,
+                reason=exc.reason,
+                detail=str(exc),
+            )
+            await _close_ws_with_error(
+                ws,
+                ws_frame_id=ws_frame_id,
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="请求来源受限",
+                close_code=1008,
+            )
+            return None
+
+        try:
+            is_blocked = await is_ip_blocked(db, client_ip)
+        except InvalidClientIPError:
+            logger.warning(
+                "ws_auth_rejected_invalid_client_ip_after_normalization",
                 ws_frame_id=ws_frame_id,
                 client_ip=client_ip,
             )
@@ -260,30 +276,11 @@ async def _handle_auth(  # noqa: PLR0911
             )
             return None
 
-        match = await enforce_attack_scan(
-            db,
-            context=SecurityRequestContext(
-                detection_source=DetectionSource.API_AUTH,
-                request_method="WS_AUTH",
-                request_path="/ws/messages",
-                client_ip=client_ip,
-                request_id=_new_request_id(),
-                user_id=None,
-                user_qiao_id=None,
-            ),
-            fields={
-                "ws_ticket": ws_ticket,
-                "device_id": device_id,
-                "user_agent": ws.headers.get("user-agent", ""),
-            },
-            extra_evidence={"layer": "ws_messages"},
-        )
-        if match is not None:
+        if is_blocked:
             logger.warning(
-                "ws_auth_rejected_attack_detected",
+                "ws_auth_rejected_ip_blocked",
                 ws_frame_id=ws_frame_id,
                 client_ip=client_ip,
-                rule_code=match.rule_code,
             )
             await _close_ws_with_error(
                 ws,
@@ -329,6 +326,53 @@ async def _handle_auth(  # noqa: PLR0911
 
         user_id = int(user.id)
         user_qiao_id = str(user.qiao_id)
+
+        match = await enforce_attack_scan(
+            db,
+            context=SecurityRequestContext(
+                detection_source=DetectionSource.WS_AUTH,
+                request_method="WS_AUTH",
+                request_path="/ws/messages",
+                client_ip=client_ip,
+                request_id=_new_request_id(),
+                user_id=user_id,
+                user_qiao_id=user_qiao_id,
+                user_stats_shadow_only=True,
+            ),
+            fields=[
+                AttackScanField(
+                    field_name="ws_ticket",
+                    raw_value=ws_ticket,
+                    field_type="opaque_token",
+                ),
+                AttackScanField(
+                    field_name="device_id",
+                    raw_value=device_id,
+                    field_type="identifier",
+                ),
+                AttackScanField(
+                    field_name="user_agent",
+                    raw_value=ws.headers.get("user-agent", ""),
+                    field_type="free_text",
+                ),
+            ],
+            extra_evidence={"layer": "ws_messages"},
+        )
+        if match is not None:
+            logger.warning(
+                "ws_auth_rejected_attack_detected",
+                ws_frame_id=ws_frame_id,
+                client_ip=client_ip,
+                rule_code=match.rule_code,
+            )
+            await _close_ws_with_error(
+                ws,
+                ws_frame_id=ws_frame_id,
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="请求来源受限",
+                close_code=1008,
+            )
+            return None
 
         lease_ttl_seconds = WS_PRESENCE_LEASE_TTL_SECONDS
 

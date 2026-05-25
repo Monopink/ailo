@@ -16,7 +16,12 @@ from app.core.database import get_sessionmaker
 from app.enums import DetectionSource
 from app.exceptions.error_codes import build_error_code
 from app.models.user import User, UserToken
-from app.services.security import SecurityRequestContext, enforce_attack_scan, is_ip_blocked
+from app.services.security import (
+    InvalidClientIPError,
+    SecurityRequestContext,
+    enforce_attack_scan,
+    is_ip_blocked,
+)
 from app.utils.client_ip import ClientIPResolutionError, get_client_ip
 from app.utils.logging import get_logger
 
@@ -105,7 +110,28 @@ class APIRateLimitMiddleware(BaseHTTPMiddleware):
         request_id = self._get_or_create_request_id(request)
         session_factory = get_sessionmaker()
         async with session_factory() as db:
-            if await is_ip_blocked(db, ip):
+            try:
+                is_blocked = await is_ip_blocked(db, ip)
+            except InvalidClientIPError:
+                logger.warning(
+                    "api_rate_limit_client_ip_invalid_after_normalization",
+                    path=request.url.path,
+                )
+                message = "请求来源无效"
+                error_code = build_error_code(
+                    path=request.url.path, status_code=400, detail=message
+                )
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error_code": error_code,
+                        "message": message,
+                        "request_id": request_id,
+                    },
+                    headers={REQUEST_ID_HEADER: request_id},
+                )
+
+            if is_blocked:
                 return self._build_denied_response(
                     path=request.url.path,
                     request_id=request_id,

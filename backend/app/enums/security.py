@@ -58,13 +58,7 @@ class DetectionSource(IntEnum):
     API_PUBLIC_INVITATION = 4
     NGINX = 5
     MIDDLEWARE = 6
-
-
-class IPBlockScope(IntEnum):
-    """IP block scope (security_ip_blocks.block_scope)."""
-
-    SINGLE_IP = 1
-    CIDR = 2
+    WS_AUTH = 7
 
 
 class IPBlockStatus(IntEnum):

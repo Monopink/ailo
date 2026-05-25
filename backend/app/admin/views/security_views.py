@@ -3,10 +3,17 @@
 This module contains Starlette-Admin views for managing user security logs and statistics.
 """
 
-from typing import Any
+from typing import Any, ClassVar
 
 from starlette.requests import Request
-from starlette_admin import DateTimeField, IntegerField, JSONField, StringField, TextAreaField
+from starlette_admin import (
+    BooleanField,
+    DateTimeField,
+    IntegerField,
+    JSONField,
+    StringField,
+    TextAreaField,
+)
 from starlette_admin.contrib.sqla import ModelView
 from starlette_admin.exceptions import FormValidationError
 
@@ -15,6 +22,7 @@ from app.admin.views.base import IntegerEnumField
 # Import enums
 from app.enums import (
     AutoAction,
+    IPBlockStatus,
     ManualReviewStatus,
     RiskLevel,
     SeverityLevel,
@@ -266,10 +274,11 @@ class SecurityIPRiskStatsView(ModelView):
         return False
 
     fields_default_sort = [("total_attack_count", True), ("last_attack_at", True)]
-    searchable_fields = ["id", "ip_address", "last_rule_code", "last_source"]
+    searchable_fields = ["id", "ip_address", "last_rule_code", "detection_source"]
     sortable_fields = [
         "id",
         "ip_address",
+        "detection_source",
         "high_risk_count_5m",
         "medium_risk_count_10m",
         "total_attack_count",
@@ -281,6 +290,11 @@ class SecurityIPRiskStatsView(ModelView):
     fields = [
         StringField("id", label="ID", help_text="Internal IP risk stats ID"),
         StringField("ip_address", label="IP Address", help_text="Client source IP"),
+        IntegerField(
+            "detection_source",
+            label="Detection Source",
+            help_text="Detection source enum value",
+        ),
         IntegerField(
             "high_risk_count_5m",
             label="High Risk Count (5m)",
@@ -298,7 +312,6 @@ class SecurityIPRiskStatsView(ModelView):
         ),
         DateTimeField("last_attack_at", label="Last Attack At", help_text="Time of last hit"),
         StringField("last_rule_code", label="Last Rule Code", help_text="Last matched rule code"),
-        StringField("last_source", label="Last Source", help_text="Last detection source"),
         StringField(
             "last_request_path",
             label="Last Request Path",
@@ -315,6 +328,7 @@ class SecurityIPBlockView(ModelView):
 
     label = "IP Blocks"
     name = "IP Blocks"
+    list_template = "custom_views/security_ip_blocks_list.html"
 
     def can_create(self, request: Request) -> bool:
         return False
@@ -326,10 +340,11 @@ class SecurityIPBlockView(ModelView):
         return False
 
     fields_default_sort = [("blocked_at", True), ("expires_at", True)]
-    searchable_fields = ["id", "ip_address", "rule_code", "reason_code", "source"]
+    row_actions: ClassVar[list[str]] = ["view"]
+    searchable_fields = ["id", "target_network", "rule_code", "reason_code", "source"]
     sortable_fields = [
         "id",
-        "ip_address",
+        "target_network",
         "severity_level",
         "status",
         "blocked_at",
@@ -340,14 +355,21 @@ class SecurityIPBlockView(ModelView):
 
     fields = [
         StringField("id", label="ID", help_text="Internal IP block ID"),
-        StringField("ip_address", label="IP Address", help_text="Blocked IP or CIDR base"),
-        IntegerField("block_scope", label="Block Scope", help_text="Block scope enum value"),
-        IntegerField(
-            "cidr_prefix",
-            label="CIDR Prefix",
-            help_text="CIDR prefix length when block scope is CIDR",
+        BooleanField(
+            "is_effective",
+            label="Effective",
+            help_text="True when status is active and block is not expired",
         ),
-        IntegerField("severity_level", label="Severity Level", help_text="Severity level"),
+        StringField(
+            "target_display", label="Target", help_text="Blocked target in IP or CIDR format"
+        ),
+        StringField("target_network", label="Target Network", help_text="Canonical CIDR network"),
+        IntegerEnumField(
+            "severity_level",
+            enum=SeverityLevel,
+            label="Severity Level",
+            help_text="Severity level",
+        ),
         StringField("reason_code", label="Reason Code", help_text="Penalty reason code"),
         StringField("rule_code", label="Rule Code", help_text="Matched rule code"),
         StringField("rule_version", label="Rule Version", help_text="Matched rule version"),
@@ -367,11 +389,11 @@ class SecurityIPBlockView(ModelView):
             label="Evidence Payload",
             help_text="Structured evidence payload",
         ),
-        IntegerField("hit_count", label="Hit Count", help_text="Merged hit count"),
+        StringField("hit_count_display", label="Hit Count", help_text="Merged hit count"),
         DateTimeField("first_hit_at", label="First Hit At", help_text="First hit time"),
         DateTimeField("blocked_at", label="Blocked At", help_text="Block start time"),
         DateTimeField("expires_at", label="Expires At", help_text="Block expiry time"),
-        IntegerField("status", label="Status", help_text="Block status enum value"),
+        IntegerEnumField("status", enum=IPBlockStatus, label="Status", help_text="Block status"),
         DateTimeField("released_at", label="Released At", help_text="Release timestamp"),
         StringField("release_reason", label="Release Reason", help_text="Release reason"),
         DateTimeField("created_at", label="Created At", help_text="Record creation time"),

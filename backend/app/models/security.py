@@ -3,15 +3,26 @@
 This module contains SQLAlchemy models for user security logs and statistics.
 """
 
-from datetime import datetime
+import ipaddress
+from datetime import UTC, datetime
 
 from sqlalchemy import BigInteger, CheckConstraint, Index, Integer, SmallInteger, String, Text, text
-from sqlalchemy.dialects.postgresql import INET, JSONB, TIMESTAMP
+from sqlalchemy.dialects.postgresql import CIDR, INET, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.enums import AutoAction, IPBlockScope, IPBlockStatus, ManualReviewStatus, RiskLevel
+from app.enums import (
+    AutoAction,
+    IPBlockStatus,
+    ManualReviewStatus,
+    RiskLevel,
+    SeverityLevel,
+)
 from app.models.base import SnowflakeModel
 from app.type_defs import JSONDict
+
+IPV4_VERSION = 4
+IPV4_HOST_PREFIX = 32
+IPV6_HOST_PREFIX = 128
 
 
 class UserViolationLog(SnowflakeModel):
@@ -90,7 +101,7 @@ class UserViolationLog(SnowflakeModel):
         nullable=True,
         comment=(
             "Detection source: 1=ai, 2=api_runtime, 3=api_auth, "
-            "4=api_public_invitation, 5=nginx, 6=middleware"
+            "4=api_public_invitation, 5=nginx, 6=middleware, 7=ws_auth"
         ),
     )
 
@@ -216,6 +227,9 @@ class SecurityIPRiskStats(SnowflakeModel):
     __tablename__ = "security_ip_risk_stats"
 
     ip_address: Mapped[str] = mapped_column(INET, nullable=False, comment="Client source IP")
+    detection_source: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Detection source enum value"
+    )
 
     high_risk_count_5m: Mapped[int] = mapped_column(
         Integer,
@@ -249,10 +263,6 @@ class SecurityIPRiskStats(SnowflakeModel):
         String(64), nullable=True, comment="Last matched rule code"
     )
 
-    last_source: Mapped[str | None] = mapped_column(
-        String(32), nullable=True, comment="Last detection source label"
-    )
-
     last_request_path: Mapped[str | None] = mapped_column(
         String(255), nullable=True, comment="Last request path"
     )
@@ -267,7 +277,12 @@ class SecurityIPRiskStats(SnowflakeModel):
             "medium_risk_count_10m >= 0", name="ck_security_ip_risk_stats_medium_10m_nonneg"
         ),
         CheckConstraint("total_attack_count >= 0", name="ck_security_ip_risk_stats_total_nonneg"),
-        Index("uq_security_ip_risk_stats_ip", "ip_address", unique=True),
+        Index(
+            "uq_security_ip_risk_stats_ip_source",
+            "ip_address",
+            "detection_source",
+            unique=True,
+        ),
         Index("idx_security_ip_risk_stats_last_attack", "last_attack_at"),
     )
 
@@ -277,18 +292,10 @@ class SecurityIPBlock(SnowflakeModel):
 
     __tablename__ = "security_ip_blocks"
 
-    ip_address: Mapped[str] = mapped_column(INET, nullable=False, comment="Blocked IP or CIDR base")
-
-    block_scope: Mapped[int] = mapped_column(
-        SmallInteger,
+    target_network: Mapped[str] = mapped_column(
+        CIDR,
         nullable=False,
-        default=IPBlockScope.SINGLE_IP,
-        server_default=text("1"),
-        comment="Block scope: 1=single_ip, 2=cidr",
-    )
-
-    cidr_prefix: Mapped[int | None] = mapped_column(
-        SmallInteger, nullable=True, comment="CIDR prefix length when block_scope=2"
+        comment="Blocked network target in CIDR notation; single IPs are stored as /32 or /128",
     )
 
     severity_level: Mapped[int] = mapped_column(
@@ -359,23 +366,82 @@ class SecurityIPBlock(SnowflakeModel):
         String(128), nullable=True, comment="Release reason"
     )
 
+    @property
+    def target_type(self) -> str:
+        """Return readable target type based on target network prefix."""
+        try:
+            network = ipaddress.ip_network(str(self.target_network), strict=False)
+            max_prefix = IPV4_HOST_PREFIX if network.version == IPV4_VERSION else IPV6_HOST_PREFIX
+            return "single_ip" if network.prefixlen == max_prefix else "cidr"
+        except Exception:
+            return "unknown"
+
+    @property
+    def target_display(self) -> str:
+        """Return canonical display text for target network."""
+        try:
+            network = ipaddress.ip_network(str(self.target_network), strict=False)
+            max_prefix = IPV4_HOST_PREFIX if network.version == IPV4_VERSION else IPV6_HOST_PREFIX
+            if network.prefixlen == max_prefix:
+                return network.network_address.compressed
+            return f"{network.network_address.compressed}/{network.prefixlen}"
+        except Exception:
+            return str(self.target_network)
+
+    @property
+    def severity_level_name(self) -> str:
+        """Return readable severity label."""
+        try:
+            return SeverityLevel(int(self.severity_level)).name.lower()
+        except Exception:
+            return "unknown"
+
+    @property
+    def hit_count_display(self) -> str:
+        """Return readable hit count text."""
+        try:
+            count = int(self.hit_count)
+        except Exception:
+            count = 0
+        suffix = "hit" if count == 1 else "hits"
+        return f"{count} {suffix}"
+
+    @property
+    def status_name(self) -> str:
+        """Return readable status label."""
+        try:
+            return IPBlockStatus(int(self.status)).name.lower()
+        except Exception:
+            return "unknown"
+
+    @property
+    def is_effective(self) -> bool:
+        """Return whether block rule is currently effective."""
+        if int(self.status) != int(IPBlockStatus.ACTIVE):
+            return False
+        return self.expires_at > datetime.now(UTC)
+
+    @property
+    def can_release(self) -> bool:
+        """Return whether this block can be manually released."""
+        return self.is_effective
+
     __table_args__ = (
         CheckConstraint(
             "expires_at > blocked_at",
             name="ck_security_ip_blocks_expiry_after_blocked",
         ),
         CheckConstraint("status IN (1, 2, 3)", name="ck_security_ip_blocks_status"),
-        CheckConstraint("block_scope IN (1, 2)", name="ck_security_ip_blocks_scope"),
         CheckConstraint("severity_level IN (1, 2, 3, 4)", name="ck_security_ip_blocks_severity"),
-        CheckConstraint(
-            "(block_scope = 1 AND cidr_prefix IS NULL) OR "
-            "(block_scope = 2 AND cidr_prefix IS NOT NULL AND cidr_prefix BETWEEN 0 AND 128)",
-            name="ck_security_ip_blocks_scope_prefix",
-        ),
         CheckConstraint("hit_count >= 1", name="ck_security_ip_blocks_hit_count_pos"),
         Index(
-            "idx_security_ip_blocks_ip_status_expire",
-            "ip_address",
+            "idx_security_ip_blocks_target_network_gist",
+            "target_network",
+            postgresql_using="gist",
+            postgresql_ops={"target_network": "inet_ops"},
+        ),
+        Index(
+            "idx_security_ip_blocks_status_expire",
             "status",
             "expires_at",
         ),

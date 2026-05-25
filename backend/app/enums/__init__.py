@@ -95,7 +95,6 @@ from .redeem import (
 from .security import (
     AutoAction,
     DetectionSource,
-    IPBlockScope,
     IPBlockStatus,
     ManualReviewStatus,
     RiskLevel,
@@ -225,7 +224,6 @@ __all__ = [
     "ManualReviewStatus",
     "RiskLevel",
     "DetectionSource",
-    "IPBlockScope",
     "IPBlockStatus",
     # System Configuration
     "ConfigValueType",

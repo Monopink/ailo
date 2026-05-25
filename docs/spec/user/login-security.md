@@ -115,10 +115,24 @@
   - 立即撤销该账号全部有效 `user_tokens`
   - 同步更新 `user_risk_stats`
 - IP 处罚轨（与用户处罚独立）：
-  - 所有命中先累计到 `security_ip_risk_stats`
+  - 所有命中先累计到 `security_ip_risk_stats`，统计维度为 `(ip_address, detection_source)`
   - 仅当窗口计数达到阈值后，写入 `security_ip_blocks` 执行 TTL 封禁
 
 ### 默认阈值与 TTL
 
 - 高危窗口：5 分钟，阈值 `>= 8`
 - 高危封禁 TTL：86400 秒（24 小时）
+- 中危窗口：10 分钟，阈值 `>= 20`
+- 中危封禁 TTL：3600 秒（1 小时）
+
+### Source 维度配置覆盖
+
+- 支持按检测来源覆盖阈值与 TTL，键名规则：`<base_key>_<source_name_lower>`
+- 例如 `WS_AUTH` 可配置：
+  - `security_ip_high_risk_threshold_count_ws_auth`
+  - `security_ip_medium_risk_threshold_count_ws_auth`
+  - `security_ip_high_risk_threshold_window_seconds_ws_auth`
+  - `security_ip_medium_risk_threshold_window_seconds_ws_auth`
+  - `security_ip_block_high_ttl_seconds_ws_auth`
+  - `security_ip_block_medium_ttl_seconds_ws_auth`
+- 若来源专用键不存在，则回退到对应 `base_key` 全局值。

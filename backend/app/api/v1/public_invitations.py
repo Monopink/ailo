@@ -15,7 +15,12 @@ from app.schemas.invitation import (
     InvitationPublicIntakeResponse,
 )
 from app.services.invitation.intake_orchestrator import orchestrate_invitation_intake
-from app.services.security import SecurityRequestContext, enforce_attack_scan, is_ip_blocked
+from app.services.security import (
+    InvalidClientIPError,
+    SecurityRequestContext,
+    enforce_attack_scan,
+    is_ip_blocked,
+)
 from app.services.security.rate_limiter import check_rate_limit
 from app.utils.client_ip import ClientIPResolutionError, get_client_ip
 from app.utils.logging import get_logger
@@ -65,7 +70,24 @@ async def _guard_public_attack(
     payload: InvitationIntakeRequest,
     db: AsyncSession,
 ) -> None:
-    if await is_ip_blocked(db, client_ip):
+    try:
+        is_blocked = await is_ip_blocked(db, client_ip)
+    except InvalidClientIPError as exc:
+        logger.warning(
+            "public_invite_intake_client_ip_invalid_after_normalization",
+            request_id=request_id,
+            client_ip=client_ip,
+        )
+        raise HTTPException(
+            status_code=403,
+            detail=build_protective_denial_detail(
+                reason="CLIENT_IP_INVALID",
+                camouflage_message="请求来源受限",
+                metadata={"request_id": request_id},
+            ),
+        ) from exc
+
+    if is_blocked:
         raise HTTPException(
             status_code=403,
             detail=build_protective_denial_detail(

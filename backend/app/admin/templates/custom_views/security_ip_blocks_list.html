@@ -1,0 +1,71 @@
+{% extends "list.html" %}
+
+{% block script %}
+    {{ super() }}
+    {% set admin_user = request.session.get("admin_user", {}) %}
+    {% set role_raw = admin_user.get("role") %}
+    {% set can_operate = role_raw in [1, 2, "1", "2"] %}
+    <script>
+        window.ailoSecurityIpBlockListConfig = {
+            canOperate: {{ can_operate | tojson | safe }},
+            api: {
+                upsert: "/admin-api/security/ip-blocks",
+                releaseBase: "/admin-api/security/ip-blocks"
+            },
+            i18n: {
+                addBlock: {{ admin_text("Add Block") | tojson | safe }},
+                operationFailed: {{ admin_text("Operation failed") | tojson | safe }},
+                blockApplied: {{ admin_text("Block applied.") | tojson | safe }},
+                blockReleased: {{ admin_text("Block released.") | tojson | safe }},
+                targetLabel: {{ admin_text("Target") | tojson | safe }},
+                targetHint: {{ admin_text("Auto-detected as single IP or CIDR by target format.") | tojson | safe }},
+                reasonRequired: {{ admin_text("Reason is required.") | tojson | safe }},
+                targetRequired: {{ admin_text("Target is required.") | tojson | safe }},
+                targetInvalidIp: {{ admin_text("Target IP format is invalid.") | tojson | safe }},
+                targetInvalidCidr: {{ admin_text("Target CIDR format is invalid.") | tojson | safe }},
+                ttlRequired: {{ admin_text("TTL must be greater than 0 for temporary block.") | tojson | safe }},
+                severityInvalid: {{ admin_text("Severity is invalid.") | tojson | safe }},
+                releaseReasonRequired: {{ admin_text("Release reason is required.") | tojson | safe }},
+                severityLow: {{ admin_text("LOW") | tojson | safe }},
+                severityMedium: {{ admin_text("MEDIUM") | tojson | safe }},
+                severityHigh: {{ admin_text("HIGH") | tojson | safe }},
+                severityCritical: {{ admin_text("CRITICAL") | tojson | safe }},
+                severityLabel: {{ admin_text("Severity") | tojson | safe }},
+                blockModeLabel: {{ admin_text("Block Mode") | tojson | safe }},
+                temporaryMode: {{ admin_text("Temporary") | tojson | safe }},
+                permanentMode: {{ admin_text("Permanent") | tojson | safe }},
+                ttlLabel: {{ admin_text("TTL Seconds") | tojson | safe }},
+                reasonHint: {{ admin_text("Choose a preset or type your own reason.") | tojson | safe }},
+                reasonLabel: {{ admin_text("Reason") | tojson | safe }},
+                reasonPresetPlaceholder: {{ admin_text("Select a reason") | tojson | safe }},
+                reasonCustomOption: {{ admin_text("Custom") | tojson | safe }},
+                reasonCustomLabel: {{ admin_text("Custom Reason") | tojson | safe }},
+                reasonCustomPlaceholder: {{ admin_text("Type custom reason") | tojson | safe }},
+                blockedReasonLabel: {{ admin_text("Blocked Reason") | tojson | safe }},
+                releaseReasonLabel: {{ admin_text("Release Reason") | tojson | safe }},
+                releaseReasonPresetPlaceholder: {{ admin_text("Select a release reason") | tojson | safe }},
+                releaseReasonCustomOption: {{ admin_text("Custom") | tojson | safe }},
+                releaseReasonCustomLabel: {{ admin_text("Custom Release Reason") | tojson | safe }},
+                releaseReasonCustomPlaceholder: {{ admin_text("Type custom release reason") | tojson | safe }},
+                releaseAction: {{ admin_text("Release") | tojson | safe }},
+                cancel: {{ admin_text("Cancel") | tojson | safe }},
+                confirm: {{ admin_text("Confirm") | tojson | safe }}
+            },
+            blockReasonPresets: [
+                {{ admin_text("Abuse traffic / 滥用流量") | tojson | safe }},
+                {{ admin_text("Credential stuffing / 凭证填充攻击") | tojson | safe }},
+                {{ admin_text("Scraping behavior / 爬取行为") | tojson | safe }},
+                {{ admin_text("Spam automation / 垃圾信息自动化") | tojson | safe }},
+                {{ admin_text("Security incident response / 安全事件处置") | tojson | safe }}
+            ],
+            releaseReasonPresets: [
+                {{ admin_text("False positive confirmed / 误封确认") | tojson | safe }},
+                {{ admin_text("Risk mitigated / 风险已解除") | tojson | safe }},
+                {{ admin_text("Manual review approved / 人工复核通过") | tojson | safe }},
+                {{ admin_text("Temporary restriction expired manually / 临时限制人工提前解除") | tojson | safe }}
+            ]
+        };
+    </script>
+    <script type="module"
+            src="{{ url_for(__name__ ~ ':statics', path='js/security-ip-block-list/page.js').include_query_params(v=9) }}"></script>
+{% endblock %}

@@ -59,7 +59,12 @@ from app.services.review_scope_build_cycle import (
     classify_mp_weixin_review_scope_by_build_cycle,
     load_mp_weixin_review_cycle_config,
 )
-from app.services.security import SecurityRequestContext, enforce_attack_scan, is_ip_blocked
+from app.services.security import (
+    InvalidClientIPError,
+    SecurityRequestContext,
+    enforce_attack_scan,
+    is_ip_blocked,
+)
 from app.services.security.auth_tracker import check_lockout, record_auth_failure, reset_failures
 from app.services.security.rate_limiter import check_password_login_rate_limit, check_rate_limit
 from app.services.security.sms.factory import create_sms_provider
@@ -203,7 +208,16 @@ async def _guard_auth_attack(
 ) -> None:
     client_ip = _get_client_ip(request)
     request_id = _get_request_id(request)
-    if await is_ip_blocked(db, client_ip):
+    try:
+        is_blocked = await is_ip_blocked(db, client_ip)
+    except InvalidClientIPError as exc:
+        logger.warning("auth_client_ip_invalid_after_normalization")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="请求来源无效",
+        ) from exc
+
+    if is_blocked:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=_protective_denial_detail(

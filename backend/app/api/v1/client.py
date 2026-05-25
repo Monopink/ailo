@@ -26,7 +26,12 @@ from app.services.review_scope_build_cycle import (
     classify_mp_weixin_review_scope_by_build_cycle,
     load_mp_weixin_review_cycle_config,
 )
-from app.services.security import SecurityRequestContext, enforce_attack_scan, is_ip_blocked
+from app.services.security import (
+    InvalidClientIPError,
+    SecurityRequestContext,
+    enforce_attack_scan,
+    is_ip_blocked,
+)
 from app.services.security.rate_limiter import check_rate_limits_atomic
 from app.utils.client_ip import ClientIPResolutionError, get_client_ip
 from app.utils.logging import get_logger
@@ -315,16 +320,29 @@ async def _guard_runtime_attack(
 ) -> str:
     client_ip = _safe_client_ip(request)
     request_id = _new_request_id(request)
-    if client_ip != "" and await is_ip_blocked(db, client_ip):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=build_protective_denial_detail(
-                reason="IP_BLOCKED",
-                camouflage_message="请求来源受限",
-                risk_rule_id="security_ip_block",
-                metadata={"request_id": request_id},
-            ),
-        )
+    if client_ip != "":
+        try:
+            is_blocked = await is_ip_blocked(db, client_ip)
+        except InvalidClientIPError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=build_protective_denial_detail(
+                    reason="CLIENT_IP_INVALID",
+                    camouflage_message="请求来源受限",
+                    metadata={"request_id": request_id},
+                ),
+            ) from exc
+
+        if is_blocked:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=build_protective_denial_detail(
+                    reason="IP_BLOCKED",
+                    camouflage_message="请求来源受限",
+                    risk_rule_id="security_ip_block",
+                    metadata={"request_id": request_id},
+                ),
+            )
 
     match = await enforce_attack_scan(
         db,

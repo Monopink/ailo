@@ -3,7 +3,7 @@
 from functools import lru_cache
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network, ip_address, ip_network
 
-from starlette.requests import Request
+from starlette.requests import HTTPConnection
 
 from app.core.config import get_settings
 
@@ -25,14 +25,14 @@ def _trusted_proxy_networks(cidr_values: tuple[str, ...]) -> tuple[IPNetwork, ..
     return tuple(ip_network(value, strict=False) for value in cidr_values)
 
 
-def get_client_ip(request: Request) -> str:
+def get_client_ip(connection: HTTPConnection) -> str:
     """Return normalized client IP from trusted proxy header."""
-    cached_ip = getattr(request.state, _REQUEST_STATE_CLIENT_IP_KEY, None)
+    cached_ip = getattr(connection.state, _REQUEST_STATE_CLIENT_IP_KEY, None)
     if isinstance(cached_ip, str) and cached_ip:
         return cached_ip
 
     settings = get_settings()
-    peer_host = request.client.host if request.client else ""
+    peer_host = connection.client.host if connection.client else ""
     if not peer_host:
         raise ClientIPResolutionError("missing_request_peer", "Request peer IP is missing")
 
@@ -43,7 +43,7 @@ def get_client_ip(request: Request) -> str:
 
     if settings.CLIENT_IP_MODE == "peer":
         normalized_peer_ip = peer_ip.compressed
-        setattr(request.state, _REQUEST_STATE_CLIENT_IP_KEY, normalized_peer_ip)
+        setattr(connection.state, _REQUEST_STATE_CLIENT_IP_KEY, normalized_peer_ip)
         return normalized_peer_ip
 
     trusted_networks: tuple[IPNetwork, ...] = _trusted_proxy_networks(
@@ -55,7 +55,7 @@ def get_client_ip(request: Request) -> str:
             "Request source is not in TRUSTED_PROXY_CIDRS",
         )
 
-    raw_client_ip = request.headers.get(settings.CLIENT_IP_HEADER, "").strip()
+    raw_client_ip = connection.headers.get(settings.CLIENT_IP_HEADER, "").strip()
     if not raw_client_ip:
         raise ClientIPResolutionError("missing_client_ip_header", "Client IP header is missing")
     if "," in raw_client_ip:
@@ -71,5 +71,5 @@ def get_client_ip(request: Request) -> str:
             "Client IP header is not a valid IP address",
         ) from exc
 
-    setattr(request.state, _REQUEST_STATE_CLIENT_IP_KEY, normalized_client_ip)
+    setattr(connection.state, _REQUEST_STATE_CLIENT_IP_KEY, normalized_client_ip)
     return normalized_client_ip

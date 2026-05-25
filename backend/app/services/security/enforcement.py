@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import and_, func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.enums import (
     AutoAction,
     DetectionSource,
-    IPBlockScope,
     IPBlockStatus,
     RiskLevel,
     SeverityLevel,
@@ -27,7 +28,16 @@ from app.models.security import (
 )
 from app.models.user import User, UserToken
 from app.services.message.websocket.manager import ws_manager
-from app.services.security.attack_detection import AttackMatch, detect_attack_in_fields
+from app.services.security.attack_detection import (
+    AttackMatch,
+    AttackScanField,
+    detect_attack_in_fields,
+)
+from app.services.security.ip_block_repository import (
+    find_active_block_by_target_network,
+    has_active_block_for_ip,
+)
+from app.services.security.ip_network_target import normalize_block_target, normalize_client_ip
 from app.services.system_config import get_config
 from app.type_defs import JSONDict
 from app.utils.logging import get_logger
@@ -43,20 +53,33 @@ _HIGH_RISK_TTL_FALLBACK = 86400
 _MEDIUM_RISK_TTL_FALLBACK = 3600
 
 
+class InvalidClientIPError(ValueError):
+    """Raised when an upstream caller provides an invalid client IP."""
+
+
 async def _config_int(db: AsyncSession, key: str, default: int) -> int:
     raw_value = await get_config(db, key, required=False)
+    parsed_value = _parse_config_int(raw_value)
+    return default if parsed_value is None else parsed_value
+
+
+def _parse_config_int(raw_value: object) -> int | None:
+    parsed_value: int | None = None
     if raw_value is None or isinstance(raw_value, bool):
-        return default
+        return None
     if isinstance(raw_value, int):
-        return raw_value
-    if isinstance(raw_value, float) and raw_value.is_integer():
-        return int(raw_value)
-    if isinstance(raw_value, str):
-        try:
-            return int(raw_value.strip())
-        except ValueError:
-            return default
-    return default
+        parsed_value = raw_value
+    elif isinstance(raw_value, float):
+        if raw_value.is_integer():
+            parsed_value = int(raw_value)
+    elif isinstance(raw_value, str):
+        stripped = raw_value.strip()
+        if stripped != "":
+            try:
+                parsed_value = int(stripped)
+            except ValueError:
+                parsed_value = None
+    return parsed_value
 
 
 async def _config_bool(db: AsyncSession, key: str, default: bool) -> bool:
@@ -84,6 +107,24 @@ async def _config_str(db: AsyncSession, key: str, default: str) -> str:
     return str(raw_value).strip() or default
 
 
+def _source_scoped_key(base_key: str, source: DetectionSource) -> str:
+    return f"{base_key}_{source.name.lower()}"
+
+
+async def _config_int_for_source(
+    db: AsyncSession,
+    *,
+    base_key: str,
+    source: DetectionSource,
+    default: int,
+) -> int:
+    source_raw_value = await get_config(db, _source_scoped_key(base_key, source), required=False)
+    source_value = _parse_config_int(source_raw_value)
+    if source_value is not None:
+        return source_value
+    return await _config_int(db, base_key, default)
+
+
 @dataclass(slots=True)
 class SecurityRequestContext:
     """Request-level context used by the security enforcement pipeline."""
@@ -95,6 +136,7 @@ class SecurityRequestContext:
     request_id: str
     user_id: int | None
     user_qiao_id: str | None
+    user_stats_shadow_only: bool = False
 
 
 def _violation_key(violation_type: ViolationType) -> str:
@@ -119,31 +161,33 @@ async def _acquire_ip_advisory_lock(db: AsyncSession, *, client_ip: str) -> None
 
 
 async def is_ip_blocked(db: AsyncSession, client_ip: str) -> bool:
-    """Return whether the client IP currently has an active TTL block."""
-    normalized_ip = client_ip.strip()
-    if normalized_ip == "":
-        return False
+    """Return whether the client IP currently has an active TTL block.
+
+    Security policy:
+    - Invalid IP input raises ``InvalidClientIPError`` for upstream rejection.
+    - Query execution failures are fail-closed (treated as blocked).
+    """
+    normalized_ip = normalize_client_ip(client_ip)
+    if normalized_ip is None:
+        raise InvalidClientIPError("client_ip_invalid")
 
     now = datetime.now(UTC)
-    result = await db.execute(
-        select(SecurityIPBlock.id)
-        .where(
-            and_(
-                SecurityIPBlock.ip_address == normalized_ip,
-                SecurityIPBlock.status == int(IPBlockStatus.ACTIVE),
-                SecurityIPBlock.expires_at > now,
-            )
+    try:
+        return await has_active_block_for_ip(db, normalized_ip=normalized_ip, now=now)
+    except SQLAlchemyError:
+        logger.error(
+            "is_ip_blocked_query_failed_fail_closed",
+            client_ip=normalized_ip,
+            exc_info=True,
         )
-        .limit(1)
-    )
-    return result.scalar_one_or_none() is not None
+        return True
 
 
 async def enforce_attack_scan(
     db: AsyncSession,
     *,
     context: SecurityRequestContext,
-    fields: dict[str, str],
+    fields: Mapping[str, str] | Sequence[AttackScanField],
     extra_evidence: JSONDict | None = None,
 ) -> AttackMatch | None:
     """Detect attack signatures and execute punishment workflow when matched."""
@@ -188,10 +232,12 @@ async def _apply_attack_enforcement(
         violation_type=attack_match.violation_type,
         severity_level=attack_match.severity_level,
         now=now,
+        shadow_only=context.user_stats_shadow_only,
     )
 
     if (
-        context.user_id is not None
+        not context.user_stats_shadow_only
+        and context.user_id is not None
         and attack_match.severity_level >= SeverityLevel.HIGH
         and await _config_bool(db, "security_user_auto_suspend_enabled", True)
     ):
@@ -253,6 +299,7 @@ async def _upsert_user_risk_stats(
     violation_type: ViolationType,
     severity_level: SeverityLevel,
     now: datetime,
+    shadow_only: bool = False,
 ) -> UserRiskStats | None:
     if user_id is None or user_qiao_id is None:
         return None
@@ -274,8 +321,10 @@ async def _upsert_user_risk_stats(
             violation_by_type=violation_by_type,
             last_violation_at=now,
             consecutive_violations=1,
-            high_risk_hits=1 if severity_level >= SeverityLevel.HIGH else 0,
-            last_high_risk_at=now if severity_level >= SeverityLevel.HIGH else None,
+            high_risk_hits=(1 if severity_level >= SeverityLevel.HIGH and not shadow_only else 0),
+            last_high_risk_at=(
+                now if severity_level >= SeverityLevel.HIGH and not shadow_only else None
+            ),
         )
         db.add(stats)
         return stats
@@ -293,7 +342,7 @@ async def _upsert_user_risk_stats(
     stats.last_violation_at = now
     stats.consecutive_violations = int(stats.consecutive_violations) + 1
 
-    if severity_level >= SeverityLevel.HIGH:
+    if severity_level >= SeverityLevel.HIGH and not shadow_only:
         stats.high_risk_hits = int(stats.high_risk_hits) + 1
         stats.last_high_risk_at = now
         stats.current_risk_level = int(RiskLevel.HIGH)
@@ -366,7 +415,12 @@ async def _update_ip_risk_and_block(
 
     stats_result = await db.execute(
         select(SecurityIPRiskStats)
-        .where(SecurityIPRiskStats.ip_address == client_ip)
+        .where(
+            and_(
+                SecurityIPRiskStats.ip_address == client_ip,
+                SecurityIPRiskStats.detection_source == int(context.detection_source),
+            )
+        )
         .with_for_update()
     )
     stats = stats_result.scalar_one_or_none()
@@ -374,6 +428,7 @@ async def _update_ip_risk_and_block(
     if stats is None:
         stats = SecurityIPRiskStats(
             ip_address=client_ip,
+            detection_source=int(context.detection_source),
             high_risk_count_5m=0,
             medium_risk_count_10m=0,
             total_attack_count=0,
@@ -381,19 +436,22 @@ async def _update_ip_risk_and_block(
         db.add(stats)
 
     stats.total_attack_count = int(stats.total_attack_count) + 1
-    high_window_seconds = await _config_int(
+    high_window_seconds = await _config_int_for_source(
         db,
-        "security_ip_high_risk_threshold_window_seconds",
-        _HIGH_RISK_WINDOW_SECONDS_FALLBACK,
+        base_key="security_ip_high_risk_threshold_window_seconds",
+        source=context.detection_source,
+        default=_HIGH_RISK_WINDOW_SECONDS_FALLBACK,
     )
-    medium_window_seconds = await _config_int(
+    medium_window_seconds = await _config_int_for_source(
         db,
-        "security_ip_medium_risk_threshold_window_seconds",
-        _MEDIUM_RISK_WINDOW_SECONDS_FALLBACK,
+        base_key="security_ip_medium_risk_threshold_window_seconds",
+        source=context.detection_source,
+        default=_MEDIUM_RISK_WINDOW_SECONDS_FALLBACK,
     )
     stats.high_risk_count_5m = await _count_ip_hits(
         db,
         client_ip=client_ip,
+        detection_source=context.detection_source,
         severity_floor=SeverityLevel.HIGH,
         window_seconds=high_window_seconds,
         now=now,
@@ -401,6 +459,7 @@ async def _update_ip_risk_and_block(
     stats.medium_risk_count_10m = await _count_ip_hits(
         db,
         client_ip=client_ip,
+        detection_source=context.detection_source,
         severity_floor=SeverityLevel.MEDIUM,
         window_seconds=medium_window_seconds,
         now=now,
@@ -408,12 +467,16 @@ async def _update_ip_risk_and_block(
 
     stats.last_attack_at = now
     stats.last_rule_code = attack_match.rule_code
-    stats.last_source = context.detection_source.name.lower()
     stats.last_request_path = context.request_path[:255]
     stats.last_user_id = context.user_id
     db.add(stats)
 
-    if await _should_block_ip(db, stats=stats, severity_level=attack_match.severity_level):
+    if await _should_block_ip(
+        db,
+        stats=stats,
+        severity_level=attack_match.severity_level,
+        detection_source=context.detection_source,
+    ):
         await _upsert_ip_block(
             db,
             stats=stats,
@@ -430,20 +493,23 @@ async def _should_block_ip(
     *,
     stats: SecurityIPRiskStats,
     severity_level: SeverityLevel,
+    detection_source: DetectionSource,
 ) -> bool:
     if severity_level >= SeverityLevel.HIGH:
-        high_threshold = await _config_int(
+        high_threshold = await _config_int_for_source(
             db,
-            "security_ip_high_risk_threshold_count",
-            _HIGH_RISK_THRESHOLD_FALLBACK,
+            base_key="security_ip_high_risk_threshold_count",
+            source=detection_source,
+            default=_HIGH_RISK_THRESHOLD_FALLBACK,
         )
         return int(stats.high_risk_count_5m) >= high_threshold
 
     if severity_level >= SeverityLevel.MEDIUM:
-        medium_threshold = await _config_int(
+        medium_threshold = await _config_int_for_source(
             db,
-            "security_ip_medium_risk_threshold_count",
-            _MEDIUM_RISK_THRESHOLD_FALLBACK,
+            base_key="security_ip_medium_risk_threshold_count",
+            source=detection_source,
+            default=_MEDIUM_RISK_THRESHOLD_FALLBACK,
         )
         return int(stats.medium_risk_count_10m) >= medium_threshold
 
@@ -454,6 +520,7 @@ async def _count_ip_hits(
     db: AsyncSession,
     *,
     client_ip: str,
+    detection_source: DetectionSource,
     severity_floor: SeverityLevel,
     window_seconds: int,
     now: datetime,
@@ -467,6 +534,7 @@ async def _count_ip_hits(
                 UserViolationLog.client_ip == client_ip,
                 UserViolationLog.created_at >= window_start,
                 UserViolationLog.severity_level >= int(severity_floor),
+                UserViolationLog.detection_source == int(detection_source),
             )
         )
     )
@@ -484,15 +552,17 @@ async def _upsert_ip_block(
     rule_version: str,
     evidence_payload: JSONDict,
 ) -> None:
-    high_ttl_seconds = await _config_int(
+    high_ttl_seconds = await _config_int_for_source(
         db,
-        "security_ip_block_high_ttl_seconds",
-        _HIGH_RISK_TTL_FALLBACK,
+        base_key="security_ip_block_high_ttl_seconds",
+        source=context.detection_source,
+        default=_HIGH_RISK_TTL_FALLBACK,
     )
-    medium_ttl_seconds = await _config_int(
+    medium_ttl_seconds = await _config_int_for_source(
         db,
-        "security_ip_block_medium_ttl_seconds",
-        _MEDIUM_RISK_TTL_FALLBACK,
+        base_key="security_ip_block_medium_ttl_seconds",
+        source=context.detection_source,
+        default=_MEDIUM_RISK_TTL_FALLBACK,
     )
 
     ttl_seconds = (
@@ -501,20 +571,14 @@ async def _upsert_ip_block(
         else medium_ttl_seconds
     )
     expires_at = now + timedelta(seconds=max(ttl_seconds, 1))
+    target_network = normalize_block_target(stats.ip_address).target_network
 
-    active_result = await db.execute(
-        select(SecurityIPBlock)
-        .where(
-            and_(
-                SecurityIPBlock.ip_address == stats.ip_address,
-                SecurityIPBlock.status == int(IPBlockStatus.ACTIVE),
-                SecurityIPBlock.expires_at > now,
-            )
-        )
-        .limit(1)
-        .with_for_update()
+    active_block = await find_active_block_by_target_network(
+        db,
+        target_network=target_network,
+        now=now,
+        for_update=True,
     )
-    active_block = active_result.scalar_one_or_none()
 
     if active_block is not None:
         active_block.hit_count = int(active_block.hit_count) + 1
@@ -530,9 +594,7 @@ async def _upsert_ip_block(
         return
 
     block = SecurityIPBlock(
-        ip_address=stats.ip_address,
-        block_scope=int(IPBlockScope.SINGLE_IP),
-        cidr_prefix=None,
+        target_network=target_network,
         severity_level=int(attack_match.severity_level),
         reason_code="ip_attack_threshold_exceeded",
         rule_code=attack_match.rule_code,

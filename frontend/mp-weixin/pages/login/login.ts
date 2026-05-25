@@ -2,6 +2,8 @@ import { getLogger } from '../../utils/logger';
 import { normalizeError } from '../../utils/errors';
 import { isNonEmptyString } from '../../utils/guards';
 import { ASSET_CONFIG, LOGIN_CONFIG } from '../../utils/config';
+import { BUILD_INFO, buildBuildInfoViewModel } from '../../utils/build-info';
+import { IS_PROD } from '../../utils/env';
 import { createPageLayoutData, type PageLayoutData } from '../../templates/page-layout';
 import { normalizeCampaignCodeParam, normalizeInviteCodeParam } from '../../utils/invite-code';
 import {
@@ -21,6 +23,7 @@ const logger = getLogger('Login');
 const USER_AGREEMENT_PAGE_KEY = 'user_agreement';
 const PRIVACY_POLICY_PAGE_KEY = 'privacy_policy';
 const SETUP_PAGE_URL = '/pages/setup/setup';
+const BUILD_INFO_VIEW_MODEL = buildBuildInfoViewModel(BUILD_INFO, { isProd: IS_PROD });
 let loginClipboardIntakeInFlight: Promise<string> | null = null;
 let loginBootstrapInFlight: Promise<LoginBootstrapResult | null> | null = null;
 
@@ -38,6 +41,8 @@ interface LoginPageData {
   privacyDialogVisible: boolean;
   privacyDialogCancelBtn: string | Record<string, unknown>;
   privacyDialogConfirmBtn: string | Record<string, unknown>;
+  showBuildInfo: boolean;
+  buildInfoText: string;
 }
 
 interface LoginPageCustom {
@@ -112,6 +117,8 @@ Page<LoginPageData, LoginPageCustom>({
       theme: 'primary',
       openType: 'getPhoneNumber',
     },
+    showBuildInfo: BUILD_INFO_VIEW_MODEL.show,
+    buildInfoText: BUILD_INFO_VIEW_MODEL.text,
   },
 
   loginPageService: null as unknown as ReturnType<typeof createLoginPageService>,

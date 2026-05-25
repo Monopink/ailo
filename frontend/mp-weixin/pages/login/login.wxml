@@ -63,6 +63,10 @@
       </view>
     </view>
 
+    <view wx:if="{{showBuildInfo && buildInfoText}}" class="login-build-info">
+      {{buildInfoText}}
+    </view>
+
     <t-dialog
       visible="{{privacyDialogVisible}}"
       cancelBtn="{{privacyDialogCancelBtn}}"

@@ -7,13 +7,14 @@ import { createProfilePageService } from '../../services/pages/profile-service';
 import { showAuthExpiredModalAndRelogin } from '../../utils/auth-expired-modal';
 import { initTabBar } from '../../utils/tab-bar';
 import { IS_PROD } from '../../utils/env';
-import { BUILD_INFO, formatBuildInfoText } from '../../utils/build-info';
+import { BUILD_INFO, buildBuildInfoViewModel } from '../../utils/build-info';
 import type { InviteBindingState } from '../../utils/invite-binding-service';
 import authService from '../../utils/auth-service';
 import { canUseInviteCapability } from '../../utils/access-capability';
 
 const logger = getLogger('Profile');
 const AUTO_RETRY_DELAYS_MS = [1200, 2600, 5200] as const;
+const BUILD_INFO_VIEW_MODEL = buildBuildInfoViewModel(BUILD_INFO, { isProd: IS_PROD });
 type AuthGuardPage = WechatMiniprogram.Page.Instance<
   Record<string, unknown>,
   Record<string, unknown>
@@ -71,8 +72,8 @@ Page<ProfilePageData, ProfilePageCustom>({
     inviteBindingState: 'unknown',
     showInviteBindEntry: true,
     canUseInvite: true,
-    showBuildInfo: !IS_PROD,
-    buildInfoText: formatBuildInfoText(BUILD_INFO),
+    showBuildInfo: BUILD_INFO_VIEW_MODEL.show,
+    buildInfoText: BUILD_INFO_VIEW_MODEL.text,
   },
 
   profilePageService: null as unknown as ReturnType<typeof createProfilePageService>,

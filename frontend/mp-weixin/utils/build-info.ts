@@ -7,6 +7,11 @@ export interface BuildInfo {
   appVersion: string;
 }
 
+export interface BuildInfoViewModel {
+  show: boolean;
+  text: string;
+}
+
 const normalizeBuildInfo = (input: unknown): BuildInfo => {
   if (input === null || typeof input !== 'object') {
     return { id: '', builtAt: '', appVersion: '' };
@@ -22,6 +27,9 @@ export const BUILD_INFO: BuildInfo = normalizeBuildInfo(RAW_BUILD_INFO);
 
 export const formatBuildInfoText = (buildInfo: BuildInfo): string => {
   const segments: string[] = [];
+  if (isNonEmptyString(buildInfo.appVersion)) {
+    segments.push(`v${buildInfo.appVersion}`);
+  }
   if (isNonEmptyString(buildInfo.builtAt)) {
     const date = new Date(buildInfo.builtAt);
     if (!Number.isNaN(date.getTime())) {
@@ -39,4 +47,15 @@ export const formatBuildInfoText = (buildInfo: BuildInfo): string => {
     segments.push(buildInfo.id);
   }
   return segments.join(' · ');
+};
+
+export const buildBuildInfoViewModel = (
+  buildInfo: BuildInfo,
+  options: { isProd: boolean }
+): BuildInfoViewModel => {
+  const text = formatBuildInfoText(buildInfo);
+  return {
+    show: !options.isProd && text !== '',
+    text,
+  };
 };

@@ -209,3 +209,16 @@
   line-height: var(--line-height-base);
   text-align: center;
 }
+
+.login-build-info {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: calc(var(--safe-area-inset-top) + var(--space-xs));
+  z-index: 1;
+  pointer-events: none;
+  text-align: center;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-base);
+  color: rgb(255 255 255 / 44%);
+}

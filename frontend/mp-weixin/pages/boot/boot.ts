@@ -3,11 +3,12 @@ import { getLogger } from '../../utils/logger';
 import authService from '../../utils/auth-service';
 import {
   applyOfflinePreviewFallbackState,
-  isWithinOfflinePreviewWindow,
   probeClientHealth,
   probeRuntimeSegment,
   reportPreflightProbeResult,
   reportRuntimeObservation,
+  resolveOfflinePreviewEntryDecision,
+  type ClientHealthProbeResult,
   type RuntimeProbeResult,
 } from '../../utils/runtime-segment';
 
@@ -33,7 +34,10 @@ interface BootPageCustom {
   _clearLoadingFeedback(): void;
   _routeOnce(callback: () => void): void;
   _routeUnauthenticated(options: RouteOptions, probe: RuntimeProbeResult): boolean;
-  _routeUnauthenticatedWhenHealthUnavailable(options: RouteOptions): boolean;
+  _routeUnauthenticatedWhenHealthUnavailable(
+    options: RouteOptions,
+    healthProbe: ClientHealthProbeResult
+  ): boolean;
   _startAuthenticatedRuntimeProbe(): void;
   _handleAuthenticatedRoute(app: AppInstance, options: RouteOptions): void;
   _warmupMessageService(app: AppInstance): Promise<void>;
@@ -91,7 +95,8 @@ const resolveAuthenticatedAccountSegment = (): 0 | 1 => {
 const reportBootRouteDecision = async (
   probe: RuntimeProbeResult | null,
   routeTarget: 'square_demo' | 'preview' | 'login' | 'index' | 'setup',
-  source: string
+  source: string,
+  extraPayload: Record<string, unknown> = {}
 ): Promise<void> => {
   await reportRuntimeObservation({
     eventName: 'boot_route_decision',
@@ -102,6 +107,7 @@ const reportBootRouteDecision = async (
       route_target: routeTarget,
       is_online: probe?.isOnline ?? false,
       probe_source: probe?.probeSource ?? 'health_unavailable',
+      ...extraPayload,
     },
   });
 };
@@ -136,9 +142,10 @@ Page<BootPageData, BootPageCustom>({
 
       let probe: RuntimeProbeResult | null = null;
       let healthReachable = true;
+      let healthProbe: ClientHealthProbeResult | null = null;
       if (!isAuthenticated) {
-        const healthProbe = await probeClientHealth();
-        healthReachable = healthProbe.isReachable;
+        healthProbe = await probeClientHealth();
+        healthReachable = healthProbe.reachability === 'reachable';
         if (healthReachable) {
           probe = await probeRuntimeSegment({ forceServerProbe: true });
         }
@@ -162,20 +169,21 @@ Page<BootPageData, BootPageCustom>({
       }
 
       if (!isAuthenticated) {
-        if (!healthReachable) {
-          const routed = this._routeUnauthenticatedWhenHealthUnavailable(options);
+        if (!healthReachable && healthProbe !== null) {
+          const routed = this._routeUnauthenticatedWhenHealthUnavailable(options, healthProbe);
           if (routed) {
             return;
           }
         }
         if (probe === null) {
-          const routed = this._routeUnauthenticatedWhenHealthUnavailable(options);
-          if (routed) {
-            return;
-          }
+          void reportBootRouteDecision(null, 'login', 'segment_probe_unavailable');
+          const loginUrl = buildRouteUrl('/pages/login/login', options);
+          this._routeOnce(() => {
+            void wx.redirectTo({ url: loginUrl });
+          });
+          return;
         }
-        const unauthenticatedProbe = probe as RuntimeProbeResult;
-        const routed = this._routeUnauthenticated(options, unauthenticatedProbe);
+        const routed = this._routeUnauthenticated(options, probe);
         if (routed) {
           return;
         }
@@ -270,18 +278,35 @@ Page<BootPageData, BootPageCustom>({
     })();
   },
 
-  _routeUnauthenticatedWhenHealthUnavailable(options: RouteOptions) {
-    const inOfflinePreviewWindow = isWithinOfflinePreviewWindow();
-    if (inOfflinePreviewWindow) {
+  _routeUnauthenticatedWhenHealthUnavailable(
+    options: RouteOptions,
+    healthProbe: ClientHealthProbeResult
+  ) {
+    const decision = resolveOfflinePreviewEntryDecision(healthProbe);
+    const decisionPayload: Record<string, unknown> = {
+      health_reachability: healthProbe.reachability,
+      health_status_code: healthProbe.statusCode,
+      health_reason: healthProbe.reason,
+      preview_decision_source: decision.source,
+      preview_decision_reason: decision.reason,
+    };
+    if (decision.shouldEnterPreview) {
       applyOfflinePreviewFallbackState();
-      void reportBootRouteDecision(null, 'preview', 'health_unavailable');
+      void reportBootRouteDecision(
+        null,
+        'preview',
+        'health_unavailable_first_launch',
+        decisionPayload
+      );
       this._routeOnce(() => {
-        void wx.redirectTo({ url: '/pkg/preview-index/preview-index?source=health_unavailable' });
+        void wx.redirectTo({
+          url: '/pkg/preview-index/preview-index?source=health_unavailable_first_launch',
+        });
       });
       return true;
     }
 
-    void reportBootRouteDecision(null, 'login', 'health_unavailable');
+    void reportBootRouteDecision(null, 'login', 'health_unavailable', decisionPayload);
     const loginUrl = buildRouteUrl('/pages/login/login', options);
     this._routeOnce(() => {
       void wx.redirectTo({ url: loginUrl });

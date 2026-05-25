@@ -344,6 +344,8 @@ export const STORAGE_KEYS = {
 
   // Runtime segment state for startup and preview guard checks
   RUNTIME_SEGMENT_STATE: 'runtime_segment_state',
+  // First-launch preview decision lock
+  BOOT_PREVIEW_DECISION: 'boot_preview_decision',
   // Offline queue for runtime_session_tick replay
   RUNTIME_SESSION_TICK_QUEUE: 'runtime_session_tick_queue',
 
@@ -462,12 +464,21 @@ export const LOGIN_CONFIG: LoginConfig = {
   loginBackgroundLoadTimeoutMs: 1000,
 };
 
+export interface RuntimeConfig {
+  offlinePreviewWindowHours: number;
+}
+
+export const RUNTIME_CONFIG: RuntimeConfig = {
+  offlinePreviewWindowHours: 36,
+};
+
 const config = {
   APP_CONFIG,
   API_CONFIG,
   ASSET_CONFIG,
   LOGIN_CONFIG,
   MESSAGE_CONFIG,
+  RUNTIME_CONFIG,
   STORAGE_KEYS,
   UI_CONFIG,
   VALIDATION_RULES,

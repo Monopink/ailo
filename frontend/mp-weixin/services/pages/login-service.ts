@@ -1,4 +1,5 @@
 import { requestValidated } from '../../utils/api';
+import type { ApiError } from '../../utils/api';
 import authService from '../../utils/auth-service';
 import { BUILD_INFO } from '../../utils/build-info';
 import { fetchAllContactsFromApi } from '../../utils/contact-sync';
@@ -17,6 +18,7 @@ import { BasePageService } from './base-page-service';
 
 const logger = getLogger('LoginPageService');
 const PUBLIC_INVITATION_INTAKE_ENDPOINT = '/public/invitations/intake';
+const RISK_CONTROL_FALLBACK_MESSAGE = '服务繁忙，请稍后再试';
 
 export type LoginStatus = 'idle' | 'need_phone';
 
@@ -47,6 +49,24 @@ const normalizeAuthUser = (payload: AuthUserPayload): StoredAuthUser => ({
   qiao_id: payload.qiao_id,
   account_segment: payload.account_segment,
 });
+
+const resolveFriendlyLoginErrorMessage = (error: unknown, fallback: string): string => {
+  const apiError = error as ApiError;
+  const statusCode =
+    typeof apiError.statusCode === 'number'
+      ? apiError.statusCode
+      : typeof apiError.status === 'number'
+        ? apiError.status
+        : null;
+  if (statusCode === 403) {
+    return RISK_CONTROL_FALLBACK_MESSAGE;
+  }
+  const err = normalizeError(error);
+  if (!isNonEmptyString(err.message)) {
+    return fallback;
+  }
+  return err.message;
+};
 
 export class LoginPageService extends BasePageService {
   private voidReportLoginObservation(
@@ -140,7 +160,7 @@ export class LoginPageService extends BasePageService {
         loginCode: '',
         loginStatus: 'idle',
         authSuccess: null,
-        errorMessage: isNonEmptyString(err.message) ? err.message : '登录失败，请重试',
+        errorMessage: resolveFriendlyLoginErrorMessage(error, '登录失败，请重试'),
       };
     }
   }
@@ -193,7 +213,7 @@ export class LoginPageService extends BasePageService {
         has_phone_code: 'phoneCode' in phoneAuthPayload,
         has_encrypted_data: 'encryptedData' in phoneAuthPayload,
       });
-      throw error;
+      throw new Error(resolveFriendlyLoginErrorMessage(error, '登录失败，请重试'));
     }
   }
 
@@ -345,7 +365,7 @@ export class LoginPageService extends BasePageService {
       return {
         loginStatus: 'idle',
         authSuccess: null,
-        errorMessage: isNonEmptyString(err.message) ? err.message : '登录失败，请重试',
+        errorMessage: resolveFriendlyLoginErrorMessage(error, '登录失败，请重试'),
       };
     }
   }

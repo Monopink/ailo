@@ -1,8 +1,10 @@
 import authService from './auth-service';
 import { post, requestValidated } from './api';
+import type { ApiError } from './api';
 import { BUILD_INFO } from './build-info';
 import { ACCOUNT_SEGMENT } from './constants/user';
-import { STORAGE_KEYS } from './config';
+import { RUNTIME_CONFIG, STORAGE_KEYS } from './config';
+import { classifyError } from './error-classifier';
 import { normalizeError } from './errors';
 import { getLogger } from './logger';
 import {
@@ -14,7 +16,6 @@ import { getDeviceId } from './storage';
 
 const logger = getLogger('RuntimeSegment');
 
-const OFFLINE_PREVIEW_WINDOW_MS = 36 * 60 * 60 * 1000;
 const HEALTH_PROBE_TIMEOUT_MS = 900;
 const PROBE_TIMEOUT_MS = 1200;
 const OBSERVATION_TIMEOUT_MS = 1000;
@@ -52,8 +53,30 @@ export interface RuntimeProbeResult extends RuntimeSegmentState {
 }
 
 export interface ClientHealthProbeResult {
-  isReachable: boolean;
+  reachability: 'reachable' | 'unreachable';
   serverTimeMs: number | null;
+  statusCode: number | null;
+  reason: string;
+}
+
+export interface BootPreviewDecision {
+  firstLaunchEvaluatedAtMs: number;
+  firstHealthReachability: 'reachable' | 'unreachable';
+  firstHealthStatusCode: number | null;
+  firstHealthReason: string;
+  firstLaunchPreviewEntered: boolean;
+}
+
+export interface OfflinePreviewEntryDecision {
+  shouldEnterPreview: boolean;
+  source: 'first_launch' | 'cached';
+  reason:
+    | 'cached'
+    | 'health_reachable'
+    | 'unreachable_within_window'
+    | 'unreachable_outside_window'
+    | 'build_time_invalid';
+  decision: BootPreviewDecision;
 }
 
 interface RuntimeProbeOptions {
@@ -97,6 +120,66 @@ const normalizeUserAgentText = (value: unknown): string => {
   return value.trim();
 };
 
+const resolveOfflinePreviewWindowMs = (): number => {
+  const hours = Number(RUNTIME_CONFIG.offlinePreviewWindowHours);
+  if (!Number.isFinite(hours) || hours <= 0) {
+    return 36 * 60 * 60 * 1000;
+  }
+  return Math.floor(hours * 60 * 60 * 1000);
+};
+
+const normalizeBootPreviewDecision = (value: unknown): BootPreviewDecision | null => {
+  if (typeof value !== 'object' || value === null) {
+    return null;
+  }
+  const record = value as Partial<BootPreviewDecision>;
+  const evaluatedAtMs =
+    typeof record.firstLaunchEvaluatedAtMs === 'number' &&
+    Number.isFinite(record.firstLaunchEvaluatedAtMs)
+      ? Math.floor(record.firstLaunchEvaluatedAtMs)
+      : null;
+  const reachability = record.firstHealthReachability;
+  const statusCode =
+    typeof record.firstHealthStatusCode === 'number' &&
+    Number.isFinite(record.firstHealthStatusCode)
+      ? Math.floor(record.firstHealthStatusCode)
+      : null;
+  const reason =
+    typeof record.firstHealthReason === 'string' ? record.firstHealthReason.trim() : '';
+  if (
+    evaluatedAtMs === null ||
+    (reachability !== 'reachable' && reachability !== 'unreachable') ||
+    reason === '' ||
+    typeof record.firstLaunchPreviewEntered !== 'boolean'
+  ) {
+    return null;
+  }
+  return {
+    firstLaunchEvaluatedAtMs: evaluatedAtMs,
+    firstHealthReachability: reachability,
+    firstHealthStatusCode: statusCode,
+    firstHealthReason: reason,
+    firstLaunchPreviewEntered: record.firstLaunchPreviewEntered,
+  };
+};
+
+export const getBootPreviewDecision = (): BootPreviewDecision | null => {
+  try {
+    const raw = wx.getStorageSync<unknown>(STORAGE_KEYS.BOOT_PREVIEW_DECISION);
+    return normalizeBootPreviewDecision(raw);
+  } catch {
+    return null;
+  }
+};
+
+const storeBootPreviewDecision = (decision: BootPreviewDecision): void => {
+  try {
+    wx.setStorageSync(STORAGE_KEYS.BOOT_PREVIEW_DECISION, decision);
+  } catch (error: unknown) {
+    logger.debug('store_boot_preview_decision_failed', { error });
+  }
+};
+
 const resolveBuildTimeMs = (): number | null => {
   const builtAt = BUILD_INFO.builtAt.trim();
   if (builtAt === '') {
@@ -114,7 +197,7 @@ const resolveOfflinePreviewExpiresAtMs = (): number | null => {
   if (builtAtMs === null) {
     return null;
   }
-  return builtAtMs + OFFLINE_PREVIEW_WINDOW_MS;
+  return builtAtMs + resolveOfflinePreviewWindowMs();
 };
 
 export const isWithinOfflinePreviewWindow = (): boolean => {
@@ -495,15 +578,39 @@ export const probeClientHealth = async (): Promise<ClientHealthProbeResult> => {
       timeoutMs: HEALTH_PROBE_TIMEOUT_MS,
     });
     return {
-      isReachable: true,
+      reachability: 'reachable',
       serverTimeMs: response.server_time_ms,
+      statusCode: 200,
+      reason: 'ok',
     };
   } catch (error: unknown) {
+    const apiError = error as ApiError;
+    const statusCode =
+      typeof apiError.statusCode === 'number'
+        ? apiError.statusCode
+        : typeof apiError.status === 'number'
+          ? apiError.status
+          : null;
+    if (statusCode !== null) {
+      return {
+        reachability: 'reachable',
+        serverTimeMs: null,
+        statusCode,
+        reason: 'http_error',
+      };
+    }
+    const semantics = classifyError(error).reason;
+    const reachability =
+      semantics === 'network-offline' || semantics === 'network-timeout'
+        ? 'unreachable'
+        : 'reachable';
     const err = normalizeError(error);
     logger.debug('client_health_probe_failed', { error: err.message });
     return {
-      isReachable: false,
+      reachability,
       serverTimeMs: null,
+      statusCode: null,
+      reason: semantics,
     };
   }
 };
@@ -609,6 +716,61 @@ const normalizeSegmentTypeForObservation = (probe?: RuntimeProbeResult): Segment
     return 1;
   }
   return 0;
+};
+
+export const resolveOfflinePreviewEntryDecision = (
+  healthProbe: ClientHealthProbeResult
+): OfflinePreviewEntryDecision => {
+  const cachedDecision = getBootPreviewDecision();
+  if (cachedDecision !== null) {
+    return {
+      shouldEnterPreview: false,
+      source: 'cached',
+      reason: 'cached',
+      decision: cachedDecision,
+    };
+  }
+
+  const now = Date.now();
+  if (healthProbe.reachability === 'reachable') {
+    const decision: BootPreviewDecision = {
+      firstLaunchEvaluatedAtMs: now,
+      firstHealthReachability: 'reachable',
+      firstHealthStatusCode: healthProbe.statusCode,
+      firstHealthReason: healthProbe.reason,
+      firstLaunchPreviewEntered: false,
+    };
+    storeBootPreviewDecision(decision);
+    return {
+      shouldEnterPreview: false,
+      source: 'first_launch',
+      reason: 'health_reachable',
+      decision,
+    };
+  }
+
+  const expiresAtMs = resolveOfflinePreviewExpiresAtMs();
+  const canEnterPreview = expiresAtMs !== null && now <= expiresAtMs;
+  const reason: OfflinePreviewEntryDecision['reason'] =
+    expiresAtMs === null
+      ? 'build_time_invalid'
+      : canEnterPreview
+        ? 'unreachable_within_window'
+        : 'unreachable_outside_window';
+  const decision: BootPreviewDecision = {
+    firstLaunchEvaluatedAtMs: now,
+    firstHealthReachability: 'unreachable',
+    firstHealthStatusCode: healthProbe.statusCode,
+    firstHealthReason: healthProbe.reason,
+    firstLaunchPreviewEntered: canEnterPreview,
+  };
+  storeBootPreviewDecision(decision);
+  return {
+    shouldEnterPreview: canEnterPreview,
+    source: 'first_launch',
+    reason,
+    decision,
+  };
 };
 
 export const shouldAllowPreviewAccess = (): boolean => {

@@ -8,7 +8,6 @@ from collections.abc import MutableMapping
 from datetime import UTC, datetime, timedelta
 from typing import ClassVar, cast
 
-from fastapi import HTTPException
 from sqlalchemy import delete, select
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
@@ -26,10 +25,9 @@ from starlette_admin import (
     StringField,
     TextAreaField,
 )
-from starlette_admin._types import RequestAction
-from starlette_admin.actions import link_row_action, row_action
+from starlette_admin.actions import link_row_action
 from starlette_admin.contrib.sqla import ModelView
-from starlette_admin.exceptions import ActionFailed, FormValidationError
+from starlette_admin.exceptions import FormValidationError
 from starlette_admin.fields import BaseField
 
 from app.admin.views.base import IntegerEnumField, convert_empty_strings_to_none
@@ -51,7 +49,6 @@ from app.models.contact import Contact, ContactRequest, ContactRequestRetryAttem
 from app.models.message import MediaFile
 from app.models.profile import Profile, UserProfileLog
 from app.models.user import User
-from app.services.contact.incomplete_admin_service import admin_reopen_ignored_contact_request
 from app.services.entitlement.service import ensure_system_initial_ai_contact_limit
 from app.services.profile.avatar import get_avatar_url
 from app.services.profile.integrity import ensure_user_profile
@@ -1005,6 +1002,9 @@ class ContactRequestView(ModelView):
 
     label = "Contact Requests"
     name = "Contact Requests"
+    list_template = "custom_views/contact_request_list.html"
+    ignored_status_value: ClassVar[int] = int(ContactRequestStatus.IGNORED)
+    row_actions: ClassVar[list[str]] = ["view"]
 
     exclude_fields_from_create: ClassVar[list[str]] = [
         "id",
@@ -1125,94 +1125,6 @@ class ContactRequestView(ModelView):
         DateTimeField("updated_at", label="Updated At", help_text="Last update time"),
     ]
 
-    row_actions: ClassVar[list[str]] = ["view", "reopen_pending"]
-
-    @row_action(
-        name="reopen_pending",
-        text="恢复待处理",
-        icon_class="fa fa-rotate-left",
-        confirmation="仅 IGNORED 状态可恢复为 PENDING，确认继续？",
-        submit_btn_class="btn-primary",
-        submit_btn_text="确认恢复",
-        exclude_from_list=True,
-    )
-    async def reopen_pending_row_action(self, request: Request, pk: int | str) -> str:
-        """Reopen ignored contact request to pending from row action."""
-        try:
-            request_id = int(pk)
-        except (TypeError, ValueError) as exc:
-            raise ActionFailed("Invalid request id") from exc
-        if request_id <= 0:
-            raise ActionFailed("Invalid request id")
-
-        contact_request = await self.find_by_pk(request, request_id)
-        if contact_request is None:
-            raise ActionFailed("Request not found")
-        if int(contact_request.status) != int(ContactRequestStatus.IGNORED):
-            raise ActionFailed("Only IGNORED request can be reopened")
-
-        session = request.session if hasattr(request, "session") else {}
-        admin_user = session.get("admin_user") if isinstance(session, dict) else None
-        if not isinstance(admin_user, dict):
-            raise ActionFailed("Authentication required")
-        raw_admin_id = admin_user.get("id")
-        raw_username = admin_user.get("username")
-        raw_role = admin_user.get("role")
-        if isinstance(raw_admin_id, bool):
-            raise ActionFailed("Authentication required")
-        if isinstance(raw_admin_id, int):
-            admin_user_id = raw_admin_id
-        elif isinstance(raw_admin_id, str) and raw_admin_id.strip().isdigit():
-            admin_user_id = int(raw_admin_id.strip())
-        else:
-            raise ActionFailed("Authentication required")
-        if admin_user_id <= 0:
-            raise ActionFailed("Authentication required")
-        if not isinstance(raw_username, str) or raw_username.strip() == "":
-            raise ActionFailed("Authentication required")
-        username = raw_username.strip()
-        if isinstance(raw_role, bool):
-            raise ActionFailed("Authentication required")
-        if isinstance(raw_role, int):
-            role_value = raw_role
-        elif isinstance(raw_role, str) and raw_role.strip().isdigit():
-            role_value = int(raw_role.strip())
-        else:
-            raise ActionFailed("Authentication required")
-
-        try:
-            await admin_reopen_ignored_contact_request(
-                request.state.session,
-                request_id=request_id,
-                operator_admin_user_id=admin_user_id,
-                operator_username=username,
-                operator_role=role_value,
-            )
-        except HTTPException as exc:
-            detail = exc.detail if isinstance(exc.detail, str) else "Operation failed"
-            raise ActionFailed(detail) from exc
-        return "ok"
-
-    async def get_all_row_actions(self, request: Request) -> list[dict[str, object]]:
-        """Hide reopen action unless current detail record is IGNORED."""
-        row_actions = await super().get_all_row_actions(request)
-        if request.state.action != RequestAction.DETAIL:
-            return row_actions
-
-        raw_pk = request.path_params.get("pk")
-        if raw_pk is None:
-            return [action for action in row_actions if action.get("name") != "reopen_pending"]
-
-        try:
-            contact_request = await self.find_by_pk(request, raw_pk)
-        except Exception:
-            contact_request = None
-        if contact_request is None or int(contact_request.status) != int(
-            ContactRequestStatus.IGNORED
-        ):
-            return [action for action in row_actions if action.get("name") != "reopen_pending"]
-        return row_actions
-
     async def validate(self, request: Request, data: FormData) -> None:
         """Custom validation for contact requests."""
         from_user = data.get("_from_user")
@@ -1316,6 +1228,10 @@ class ContactRequestView(ModelView):
 
     def can_delete(self, _request: Request) -> bool:
         """Contact requests should not be deleted for audit purposes."""
+        return False
+
+    def can_edit(self, _request: Request) -> bool:
+        """Contact requests should not be edited from admin UI."""
         return False
 
 

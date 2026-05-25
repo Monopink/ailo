@@ -1,0 +1,28 @@
+{% extends "list.html" %}
+
+{% block script %}
+    {{ super() }}
+    {% set admin_user = request.session.get("admin_user", {}) %}
+    {% set role_raw = admin_user.get("role") %}
+    {% set can_operate = role_raw in [1, 2, "1", "2"] %}
+    {% set ignored_status = view.ignored_status_value if view is defined and view.ignored_status_value is defined else 3 %}
+    <script>
+        window.ailoContactRequestListConfig = {
+            canOperate: {{ can_operate | tojson | safe }},
+            ignoredStatus: {{ ignored_status | tojson | safe }},
+            api: {
+                reopenBase: "/admin-api/contact-requests"
+            },
+            i18n: {
+                reopenAction: {{ admin_text("恢复待处理") | tojson | safe }},
+                reopenConfirm: {{ admin_text("是否将此请求修改为 Pending 状态，并重新在未完成消息面板可用？") | tojson | safe }},
+                reopenSuccess: {{ admin_text("请求已恢复为待处理") | tojson | safe }},
+                operationFailed: {{ admin_text("Operation failed") | tojson | safe }},
+                cancel: {{ admin_text("Cancel") | tojson | safe }},
+                confirm: {{ admin_text("Confirm") | tojson | safe }}
+            }
+        };
+    </script>
+    <script type="module"
+            src="{{ url_for(__name__ ~ ':statics', path='js/contact-request-list/page.js').include_query_params(v=2) }}"></script>
+{% endblock %}

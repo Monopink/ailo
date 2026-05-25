@@ -176,7 +176,7 @@ function renderActionCell(row) {
     )}" ${supplementDisabled} title="补模板"><i class="fa fa-external-link"></i></button>
     <button class="btn btn-sm incomplete-action-btn action-retry" data-request-id="${requestId}" ${retryDisabled} title="重试"><i class="fa fa-rotate-right"></i></button>
     <button class="btn btn-sm incomplete-action-btn action-template-retry" data-request-id="${requestId}" ${retryDisabled} title="指定模板重试"><i class="fa fa-random"></i></button>
-    <button class="btn btn-sm incomplete-action-btn action-ignore" data-request-id="${requestId}" ${ignoreDisabled} title="忽略"><i class="fa fa-times"></i></button>
+    <button class="btn btn-sm incomplete-action-btn action-ignore" data-request-id="${requestId}" ${ignoreDisabled} title="忽略"><i class="fa fa-times-circle"></i></button>
   </div>`;
 }
 

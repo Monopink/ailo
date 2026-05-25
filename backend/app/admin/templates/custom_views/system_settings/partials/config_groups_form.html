@@ -67,36 +67,10 @@
           </div>
 
           {% if config.config_shape == 2 %}
-          <div class="config-current">
-            <span class="d-none" data-current-{{ config_key }}>{{ config.config_value | tojson }}</span>
-            <div
-              class="array-current-list"
-              id="array_current_{{ config_key }}"
-              data-array-current-list
-            ></div>
-            <small class="text-muted d-block mt-1">
-              {{ admin_text("Default item:") }}
-              <span class="text-secondary config-default-value">
-                {% if config.default_value is sameas true or config.default_value == 'true' %}
-                true
-                {% elif config.default_value is sameas false or config.default_value == 'false' %}
-                false
-                {% elif config.default_value is mapping or (config.default_value is iterable and config.default_value is not string) %}
-                {{ config.default_value | tojson }}
-                {% elif config.default_value is not none and config.default_value != '' %}
-                {{ config.default_value }}
-                {% else %}
-                <em>{{ admin_text("(not set)") }}</em>
-                {% endif %}
-              </span>
-            </small>
-          </div>
-
-          <div class="config-modify">
+          <div class="array-config-panel">
             <div
               data-array-editor="true"
               data-hidden-input-id="config_modify_{{ config_key }}"
-              data-array-current-list-id="array_current_{{ config_key }}"
               data-array-value-type="{{ config.value_type }}"
               data-array-allowed-values-id="array_allowed_values_{{ config_key }}"
               data-array-default-item-id="array_default_item_{{ config_key }}"
@@ -115,6 +89,22 @@
                 </button>
               </div>
             </div>
+            <small class="text-muted d-block mt-1">
+              {{ admin_text("Default item:") }}
+              <span class="text-secondary config-default-value">
+                {% if config.default_value is sameas true or config.default_value == 'true' %}
+                true
+                {% elif config.default_value is sameas false or config.default_value == 'false' %}
+                false
+                {% elif config.default_value is mapping or (config.default_value is iterable and config.default_value is not string) %}
+                {{ config.default_value | tojson }}
+                {% elif config.default_value is not none and config.default_value != '' %}
+                {{ config.default_value }}
+                {% else %}
+                <em>{{ admin_text("(not set)") }}</em>
+                {% endif %}
+              </span>
+            </small>
             <script type="application/json" id="array_allowed_values_{{ config_key }}">{{ config.allowed_values | tojson | safe }}</script>
             <script type="application/json" id="array_default_item_{{ config_key }}">{{ config.default_value | tojson | safe }}</script>
             <script type="application/json" id="array_current_value_{{ config_key }}">{{ config.config_value | tojson | safe }}</script>

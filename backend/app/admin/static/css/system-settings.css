@@ -33,27 +33,9 @@
   min-width: 0;
 }
 
-.array-current-list {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.array-current-row {
-  min-height: 38px;
-  display: flex;
-  align-items: center;
-}
-
-.array-current-row .config-current-value {
-  margin-bottom: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  width: 100%;
-  min-height: 38px;
-  display: inline-flex;
-  align-items: center;
-  line-height: 1.2;
+.array-config-panel {
+  grid-column: 2 / 4;
+  min-width: 0;
 }
 
 .array-editor-rows {
@@ -61,9 +43,44 @@
   gap: 0.5rem;
 }
 
-.array-editor-row .input-group {
+.array-editor-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.2fr) minmax(320px, 2fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.array-row-current {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+}
+
+.array-row-current .config-current-value {
+  margin-bottom: 0;
   width: 100%;
-  height: 38px;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+}
+
+.array-row-editor .input-group {
+  width: 100%;
+  min-height: 38px;
+}
+
+.array-editor-row + .array-editor-row {
+  border-top: 1px solid var(--bs-border-color);
+  padding-top: 0.5rem;
+}
+
+.array-row-editor .form-control,
+.array-row-editor .form-select {
+  min-height: 38px;
+}
+
+.array-row-editor .btn {
+  min-height: 38px;
 }
 
 .array-editor-actions {
@@ -110,6 +127,15 @@
 @media (max-width: 991.98px) {
   .config-row {
     grid-template-columns: 1fr;
+  }
+
+  .array-config-panel {
+    grid-column: auto;
+  }
+
+  .array-editor-row {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
   }
 }
 

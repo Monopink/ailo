@@ -235,14 +235,6 @@ function setScalarDeleteState(inputId, isDeleted) {
   setScalarDeleteButtonState(inputId, isDeleted);
 }
 
-function getArrayCurrentList(editor) {
-  const currentListId = editor.dataset.arrayCurrentListId;
-  if (!currentListId) {
-    return null;
-  }
-  return document.getElementById(currentListId);
-}
-
 function resolveArrayDefaultItem(editor) {
   const parsedValue = parseJsonScriptById(editor.dataset.arrayDefaultItemId || '');
   if (parsedValue === null || parsedValue === undefined) {
@@ -340,43 +332,36 @@ function buildArrayEditorInput(editor, i18n, item, { isExisting = false } = {}) 
   `;
 }
 
-function buildArrayCurrentRow(editor, item, { isNew = false, isDeleted = false } = {}) {
-  if (isNew) {
+function buildArrayCurrentValueLabel(editor, rowModel) {
+  const isExisting = rowModel.isExisting === true;
+  const isDeleted = rowModel.isDeleted === true;
+  const originalValue = rowModel.originalValue || '';
+  if (!isExisting) {
     return `
-      <div class="array-current-row">
-        <strong class="config-current-value text-muted fst-italic mb-0">(new item)</strong>
-      </div>
+      <strong class="config-current-value text-muted fst-italic mb-0">(new item)</strong>
     `;
   }
   if (isDeleted) {
-    const normalizedDeleted = normalizeArrayEditorItem(item);
+    const normalizedDeleted = normalizeArrayEditorItem(originalValue);
     if (normalizedDeleted === '') {
       return `
-        <div class="array-current-row">
-          <strong class="config-current-value text-muted fst-italic mb-0">(not set)</strong>
-        </div>
+        <strong class="config-current-value text-muted fst-italic mb-0">(not set)</strong>
       `;
     }
     return `
-      <div class="array-current-row">
-        <strong class="config-current-value text-danger mb-0">${escapeHtmlAttribute(normalizedDeleted)}</strong>
-      </div>
+      <strong class="config-current-value text-danger mb-0">${escapeHtmlAttribute(normalizedDeleted)}</strong>
     `;
   }
-  const normalized = normalizeArrayEditorItem(item);
+  const normalized = normalizeArrayEditorItem(originalValue);
   if (normalized === '') {
     return `
-      <div class="array-current-row">
-        <strong class="config-current-value text-muted fst-italic mb-0">(not set)</strong>
-      </div>
+      <strong class="config-current-value text-muted fst-italic mb-0">(not set)</strong>
     `;
   }
   const defaultItem = resolveArrayDefaultItem(editor);
   const valueClass = normalized === defaultItem ? 'text-success' : 'text-primary';
   return `
-    <div class="array-current-row">
-      <strong class="config-current-value ${valueClass} mb-0">${escapeHtmlAttribute(normalized)}</strong>
-    </div>
+    <strong class="config-current-value ${valueClass} mb-0">${escapeHtmlAttribute(normalized)}</strong>
   `;
 }
 
@@ -393,19 +378,24 @@ function buildArrayEditorRow(editor, i18n, rowModel) {
       data-array-row-deleted="${isDeleted ? '1' : '0'}"
       data-array-original-value="${escapeHtmlAttribute(originalValue)}"
     >
-      <div class="input-group">
-        ${buildArrayEditorInput(editor, i18n, inputValue, { isExisting })}
-        <button type="button" class="btn btn-outline-secondary" data-array-use-current-row title="Use current value">
-          <i class="fa fa-copy"></i>
-        </button>
-        <button type="button" class="btn btn-outline-secondary" data-array-fill-default-row title="Fill with default">
-          <i class="fa fa-undo"></i>
-        </button>
-        <button type="button" class="btn ${
-          isDeleted ? 'btn-danger' : 'btn-outline-danger'
-        }" data-array-remove-row title="Toggle delete state" aria-pressed="${isDeleted ? 'true' : 'false'}">
-          <i class="fa fa-trash"></i>
-        </button>
+      <div class="array-row-current" data-array-current-cell>
+        ${buildArrayCurrentValueLabel(editor, rowModel)}
+      </div>
+      <div class="array-row-editor">
+        <div class="input-group">
+          ${buildArrayEditorInput(editor, i18n, inputValue, { isExisting })}
+          <button type="button" class="btn btn-outline-secondary" data-array-use-current-row title="Use current value">
+            <i class="fa fa-copy"></i>
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-array-fill-default-row title="Fill with default">
+            <i class="fa fa-undo"></i>
+          </button>
+          <button type="button" class="btn ${
+            isDeleted ? 'btn-danger' : 'btn-outline-danger'
+          }" data-array-remove-row title="Toggle delete state" aria-pressed="${isDeleted ? 'true' : 'false'}">
+            <i class="fa fa-trash"></i>
+          </button>
+        </div>
       </div>
     </div>
   `;
@@ -417,24 +407,6 @@ function renderArrayEditorRows(editor, i18n, rowModels) {
     return;
   }
   rowsContainer.innerHTML = rowModels.map((row) => buildArrayEditorRow(editor, i18n, row)).join('');
-}
-
-function renderArrayCurrentRows(editor, rowModels) {
-  const currentList = getArrayCurrentList(editor);
-  if (!currentList) {
-    return;
-  }
-  currentList.innerHTML = rowModels
-    .map((row) => {
-      if (row.isExisting) {
-        if (row.isDeleted) {
-          return buildArrayCurrentRow(editor, row.originalValue, { isDeleted: true });
-        }
-        return buildArrayCurrentRow(editor, row.originalValue);
-      }
-      return buildArrayCurrentRow(editor, '', { isNew: true });
-    })
-    .join('');
 }
 
 function areArrayItemsEqual(left, right) {
@@ -461,37 +433,15 @@ function getArrayRowMeta(row) {
   };
 }
 
-function getArrayRowIndex(editor, row) {
-  const rowsContainer = editor.querySelector('[data-array-editor-rows]');
-  if (!rowsContainer) {
-    return -1;
-  }
-  const rowNodes = Array.from(rowsContainer.querySelectorAll('[data-array-editor-row]'));
-  return rowNodes.indexOf(row);
-}
-
 function setArrayRowDeleteState(editor, row, isDeleted) {
   row.dataset.arrayRowDeleted = isDeleted ? '1' : '0';
   const deleteButton = row.querySelector('[data-array-remove-row]');
   setArrayDeleteButtonState(deleteButton, isDeleted);
-
-  const currentList = getArrayCurrentList(editor);
-  const rowIndex = getArrayRowIndex(editor, row);
-  if (!currentList || rowIndex < 0) {
+  const currentCell = row.querySelector('[data-array-current-cell]');
+  if (!currentCell) {
     return;
   }
-  const currentRows = Array.from(currentList.children);
-  const pairedCurrentRow = currentRows[rowIndex];
-  if (!pairedCurrentRow) {
-    return;
-  }
-
-  const meta = getArrayRowMeta(row);
-  pairedCurrentRow.outerHTML = meta.isExisting
-    ? isDeleted
-      ? buildArrayCurrentRow(editor, meta.originalValue, { isDeleted: true })
-      : buildArrayCurrentRow(editor, meta.originalValue)
-    : buildArrayCurrentRow(editor, '', { isNew: true });
+  currentCell.innerHTML = buildArrayCurrentValueLabel(editor, getArrayRowMeta(row));
 }
 
 function collectArrayFinalValues(editor) {
@@ -548,7 +498,6 @@ function setupArrayEditor(editor, i18n) {
           },
         ];
 
-  renderArrayCurrentRows(editor, initialRows);
   renderArrayEditorRows(editor, i18n, initialRows);
   syncArrayEditor(editor);
 
@@ -595,8 +544,7 @@ function setupArrayEditor(editor, i18n) {
     if (target.hasAttribute('data-array-add-row')) {
       event.preventDefault();
       const rowsContainer = editor.querySelector('[data-array-editor-rows]');
-      const currentList = getArrayCurrentList(editor);
-      if (!rowsContainer || !currentList) {
+      if (!rowsContainer) {
         return;
       }
       rowsContainer.insertAdjacentHTML(
@@ -608,7 +556,6 @@ function setupArrayEditor(editor, i18n) {
           isDeleted: false,
         })
       );
-      currentList.insertAdjacentHTML('beforeend', buildArrayCurrentRow(editor, '', { isNew: true }));
       markDirtyAndSync();
       const input = rowsContainer.lastElementChild?.querySelector('[data-array-item-input]');
       if (input) {
@@ -621,23 +568,12 @@ function setupArrayEditor(editor, i18n) {
       event.preventDefault();
       const row = target.closest('[data-array-editor-row]');
       const rowsContainer = editor.querySelector('[data-array-editor-rows]');
-      const currentList = getArrayCurrentList(editor);
-      if (!rowsContainer || !currentList || !row) {
+      if (!rowsContainer || !row) {
         return;
       }
       const meta = getArrayRowMeta(row);
-      const rowNodes = Array.from(rowsContainer.querySelectorAll('[data-array-editor-row]'));
-      const rowIndex = rowNodes.indexOf(row);
-      if (rowIndex < 0) {
-        return;
-      }
       if (!meta.isExisting) {
         row.remove();
-        const currentRows = Array.from(currentList.children);
-        const pairedCurrentRow = currentRows[rowIndex];
-        if (pairedCurrentRow) {
-          pairedCurrentRow.remove();
-        }
         const hasRows = rowsContainer.querySelector('[data-array-editor-row]');
         if (!hasRows) {
           rowsContainer.insertAdjacentHTML(
@@ -649,7 +585,6 @@ function setupArrayEditor(editor, i18n) {
               isDeleted: false,
             })
           );
-          currentList.innerHTML = buildArrayCurrentRow(editor, '', { isNew: true });
         }
         markDirtyAndSync();
         return;
@@ -784,7 +719,16 @@ function normalizeChangesForSubmit() {
     }
     const key = input.name.replace('config_modify_', '');
     const currentValueEl = document.querySelector(`[data-current-${key}]`);
-    const currentValue = currentValueEl ? currentValueEl.textContent.trim() : '';
+    let currentValue = currentValueEl ? currentValueEl.textContent.trim() : '';
+    if (!currentValue) {
+      const arrayCurrentScript = document.getElementById(`array_current_value_${key}`);
+      if (arrayCurrentScript) {
+        const parsedCurrentValue = parseConfigPayload((arrayCurrentScript.textContent || '').trim());
+        currentValue = Array.isArray(parsedCurrentValue)
+          ? parsedCurrentValue.map((item) => normalizeArrayEditorItem(item)).join(', ')
+          : normalizeCurrentConfigValue(parsedCurrentValue);
+      }
+    }
     if (value) {
       changes.push({
         key: normalizeFieldLabelFromConfigKey(key),
